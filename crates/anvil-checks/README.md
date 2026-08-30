@@ -129,11 +129,12 @@ is resolved once to a canonical absolute executable; relative or empty `PATH`
 entries cannot change the invoked program after the working directory changes.
 Every invocation runs in an isolated process tree, which is terminated as a unit
 on timeout or output overflow, and pipe capture has its own bounded shutdown.
-Identity, extraction, evaluation, and report materialisation share one
-caller-owned five-minute deadline. ADR-139 also shares the existing
-100,000-record, 64 MiB raw-diff, and 64 MiB decoded-path maxima across the whole
-range so aggregate and per-commit audit views remain bounded. After an initial
-real-state rejection check under
+The caller starts one five-minute deadline before bounded declaration input and
+propagates it through identity, extraction, evaluation, and report
+materialisation. ADR-139 also shares the existing 100,000-record, 64 MiB
+raw-diff, and 64 MiB decoded-path maxima across the whole range so aggregate and
+per-commit audit views remain bounded. After an initial real-state rejection
+check under
 [ADR-138](../../plans/decisions/138-pin-git-administrative-state.md), the
 three-value administration-observation `GIT_*` allowlist becomes an exact
 five-value post-admission allowlist. Its additions name run-owned, never-written

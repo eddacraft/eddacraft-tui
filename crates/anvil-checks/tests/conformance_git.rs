@@ -844,7 +844,10 @@ fn deterministic_extraction_budgets_are_reason_coded_and_keep_the_commit() {
     assert_eq!(overflow.limit, Some(0));
     let commit_budget = overflow.budget.expect("overflow commit diagnostics");
     assert_eq!(commit_budget.configured_limit, 0);
-    assert_eq!(commit_budget.commits, Some(3));
+    assert_eq!(
+        commit_budget.commits, None,
+        "a truncated revision list cannot report its complete cardinality"
+    );
     assert!(commit_budget.raw_bytes.is_some_and(|bytes| bytes > 129));
 
     limits = GitExtractionLimits {
@@ -1129,6 +1132,47 @@ fn administrative_mutation_git_wrapper(
     );
     let path = directory.join("git");
     std::fs::write(&path, script).expect("write administrative mutation Git wrapper");
+    let mut permissions = std::fs::metadata(&path)
+        .expect("wrapper metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(path, permissions).expect("make Git wrapper executable");
+}
+
+#[cfg(unix)]
+fn phase_environment_git_wrapper(directory: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let real_git = real_git_program();
+    let admitted = directory.join("repository-admitted");
+    let script = format!(
+        "#!/bin/sh\n\
+         git_variables=$(/usr/bin/env | /usr/bin/sed -n 's/^\\(GIT_[^=]*\\)=.*/\\1/p' | /usr/bin/sort | /usr/bin/tr '\\n' ' ')\n\
+         expected='GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM GIT_OPTIONAL_LOCKS '\n\
+         if [ -e '{}' ]; then\n\
+           expected='GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM GIT_GRAFT_FILE GIT_OPTIONAL_LOCKS GIT_SHALLOW_FILE '\n\
+         fi\n\
+         if [ \"$git_variables\" != \"$expected\" ]; then\n\
+           printf 'unexpected Git environment before admission=%s: expected [%s], got [%s]\\n' '{}' \"$expected\" \"$git_variables\" >&2\n\
+           exit 97\n\
+         fi\n\
+         case \" $* \" in\n\
+           *' rev-parse --is-shallow-repository '*)\n\
+             '{}' \"$@\"\n\
+             status=$?\n\
+             if [ \"$status\" -eq 0 ]; then /usr/bin/touch '{}'; fi\n\
+             exit \"$status\"\n\
+             ;;\n\
+         esac\n\
+         exec '{}' \"$@\"\n",
+        admitted.display(),
+        admitted.display(),
+        real_git.display(),
+        admitted.display(),
+        real_git.display()
+    );
+    let path = directory.join("git");
+    std::fs::write(&path, script).expect("write phase environment Git wrapper");
     let mut permissions = std::fs::metadata(&path)
         .expect("wrapper metadata")
         .permissions();
@@ -1463,6 +1507,37 @@ fn identity_and_extraction_share_one_run_timeout() {
         status.success(),
         "identity and extraction reset the run budget"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn git_environment_changes_only_after_repository_admission() {
+    let repo = repository();
+    commit_file(repo.path(), "docs/base.md", "base\n", "docs: add base");
+    let wrapper = tempfile::tempdir().expect("wrapper directory");
+    phase_environment_git_wrapper(wrapper.path());
+
+    let status = Command::new(std::env::current_exe().expect("current test executable"))
+        .args(["--exact", "phase_environment_child", "--nocapture"])
+        .env("ANVIL_CONF_PHASE_ENV_REPO", repo.path())
+        .env("PATH", wrapper.path())
+        .status()
+        .expect("run phase environment child");
+    assert!(
+        status.success(),
+        "Git environment did not follow the repository admission phase"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn phase_environment_child() {
+    let Some(repository) = std::env::var_os("ANVIL_CONF_PHASE_ENV_REPO") else {
+        return;
+    };
+    GitExtractor::default()
+        .identity_for_repository(Path::new(&repository), "run-conf-011")
+        .expect("derive identity through the phase-specific Git environments");
 }
 
 #[cfg(unix)]

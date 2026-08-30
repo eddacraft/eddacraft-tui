@@ -273,11 +273,12 @@ and has no GitHub-specific dependency; callers provide the body and immutable
 reference. Repository discovery, identity, and extraction all run through the
 closed Git environment. Under
 [ADR-139](../../plans/decisions/139-bound-conformance-range-evidence.md), one
-five-minute deadline spans identity, extraction, evaluation, and atomic report
-materialisation. The whole range shares 100,000-record, 64 MiB raw-diff, and 64
-MiB decoded-path ceilings; plain, JSON, and SARIF materialisation is capped at
-128 MiB and overflow or timeout emits one complete reason-coded not-evaluated
-report. Blocking on the final stdout write is outside that deadline. Under under
+five-minute deadline spans bounded declaration input, identity, extraction,
+evaluation, and atomic report materialisation. The whole range shares
+100,000-record, 64 MiB raw-diff, and 64 MiB decoded-path ceilings; plain, JSON,
+and SARIF materialisation is capped at 128 MiB and overflow or timeout emits one
+complete reason-coded not-evaluated report. Blocking on the final stdout write
+is outside that deadline. Under
 [ADR-138](../../plans/decisions/138-pin-git-administrative-state.md), the
 command observes and rejects pre-existing replacement, graft, or shallow state
 with an exact three-value `GIT_*` allowlist. Later Git commands use the exact

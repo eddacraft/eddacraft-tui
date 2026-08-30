@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::{self, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use anvil_checks::conformance::evaluate::evaluate_pr_declaration_bounded;
@@ -146,17 +146,7 @@ struct ConformanceCheckReport {
 
 impl ConformanceCheckReport {
     fn not_evaluated_with_git_failure(reasons: Vec<String>, git_failure: GitNonEvaluation) -> Self {
-        let selected_commit_count = matches!(
-            git_failure.stage,
-            "range-aggregation" | "evaluation" | "report-materialisation"
-        )
-        .then(|| {
-            git_failure
-                .budget
-                .as_deref()
-                .and_then(|budget| budget.commits)
-        })
-        .flatten();
+        let selected_commit_count = exact_selected_commit_count(&git_failure);
         Self {
             selected_commit_count,
             schema_version: REPORT_SCHEMA,
@@ -241,6 +231,17 @@ impl ConformanceCheckReport {
     }
 }
 
+fn exact_selected_commit_count(failure: &GitNonEvaluation) -> Option<usize> {
+    let has_exact_count = matches!(
+        failure.stage,
+        "range-aggregation" | "evaluation" | "report-materialisation"
+    ) || (failure.stage == "revision-list"
+        && failure.reason == "budget.commits");
+    has_exact_count
+        .then(|| failure.budget.as_deref().and_then(|budget| budget.commits))
+        .flatten()
+}
+
 impl From<GitCommitNonEvaluation> for GitCommitNonEvaluationReport {
     fn from(value: GitCommitNonEvaluation) -> Self {
         Self {
@@ -293,7 +294,11 @@ pub fn run(args: &ConformanceArgs, global: &GlobalArgs) -> Result<()> {
 
 fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let run_started = Instant::now();
-    let declaration = match read_pr_body(&args.pr_body_file)? {
+    let pr_body = read_pr_body(&args.pr_body_file, run_started, RUN_TIMEOUT)?;
+    if let Some(report) = immediate_pr_body_timeout_report(&pr_body, run_started, RUN_TIMEOUT) {
+        return render_report(&report, args.render_mode(global), run_started, RUN_TIMEOUT);
+    }
+    let declaration = match pr_body {
         PrBodyInput::Body(body) => extract_pr_body_claims(&args.source_ref, &body)
             .into_contract_parts()
             .map_err(|non_evaluation| non_evaluation.reasons().to_vec()),
@@ -372,7 +377,78 @@ fn run_check(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     render_report(&report, args.render_mode(global), run_started, RUN_TIMEOUT)
 }
 
-fn read_pr_body(path: &PathBuf) -> Result<PrBodyInput> {
+fn immediate_pr_body_timeout_report(
+    input: &PrBodyInput,
+    run_started: Instant,
+    run_timeout: Duration,
+) -> Option<ConformanceCheckReport> {
+    matches!(input, PrBodyInput::NotEvaluated("budget.run-timeout")).then(|| {
+        let failure = report_budget_failure(
+            "budget.run-timeout",
+            "pr-body-input",
+            duration_millis(run_started.elapsed()),
+            duration_millis(run_timeout),
+            None,
+        );
+        ConformanceCheckReport::not_evaluated_with_git_failure(
+            vec![failure.reason.to_owned()],
+            failure,
+        )
+    })
+}
+
+fn read_pr_body(path: &Path, run_started: Instant, run_timeout: Duration) -> Result<PrBodyInput> {
+    let path = path.to_path_buf();
+    read_pr_body_task_with_deadline(
+        move || read_pr_body_without_deadline(&path),
+        run_started,
+        run_timeout,
+    )
+}
+
+fn read_pr_body_task_with_deadline<F>(
+    read: F,
+    run_started: Instant,
+    run_timeout: Duration,
+) -> Result<PrBodyInput>
+where
+    F: FnOnce() -> Result<PrBodyInput> + Send + 'static,
+{
+    let Some(remaining) = run_timeout.checked_sub(run_started.elapsed()) else {
+        return Ok(PrBodyInput::NotEvaluated("budget.run-timeout"));
+    };
+    if remaining.is_zero() {
+        return Ok(PrBodyInput::NotEvaluated("budget.run-timeout"));
+    }
+
+    // Opening a FIFO and reading a file or stdin can all block. Keep that work
+    // off the command thread so the shared run deadline can still materialise
+    // one bounded report. A timed-out reader is detached and dies with this
+    // short-lived CLI process; it is never joined by the reporting path.
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    std::thread::Builder::new()
+        .name("anvil-conformance-pr-body".to_owned())
+        .spawn(move || {
+            let _ = sender.send(read());
+        })
+        .context("start bounded PR-body reader")?;
+
+    let read_result = receiver.recv_timeout(remaining);
+    if run_started.elapsed() >= run_timeout {
+        return Ok(PrBodyInput::NotEvaluated("budget.run-timeout"));
+    }
+    match read_result {
+        Ok(input) => input,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            Ok(PrBodyInput::NotEvaluated("budget.run-timeout"))
+        }
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            anyhow::bail!("bounded PR-body reader stopped without a result")
+        }
+    }
+}
+
+fn read_pr_body_without_deadline(path: &Path) -> Result<PrBodyInput> {
     let mut bytes = Vec::with_capacity(PR_BODY_MAX_BYTES.saturating_add(1));
     let limit =
         u64::try_from(PR_BODY_MAX_BYTES.saturating_add(1)).expect("PR body limit fits in u64");
@@ -879,7 +955,66 @@ mod tests {
         GitBudgetDiagnostics, GitCommitNonEvaluation, GitNonEvaluation,
     };
 
-    use super::{ConformanceCheckReport, RenderMode, build_sarif, materialise_report_with_limit};
+    use super::{
+        ConformanceCheckReport, PrBodyInput, RenderMode, build_sarif,
+        immediate_pr_body_timeout_report, materialise_report_with_limit,
+        read_pr_body_task_with_deadline,
+    };
+
+    #[test]
+    fn timed_out_pr_body_input_selects_the_immediate_report_boundary() {
+        let report = immediate_pr_body_timeout_report(
+            &PrBodyInput::NotEvaluated("budget.run-timeout"),
+            Instant::now(),
+            Duration::from_mins(5),
+        )
+        .expect("timeout must bypass repository and Git work");
+
+        assert_eq!(report.reasons, ["budget.run-timeout"]);
+        let failure = report
+            .git_evaluation_non_evaluation
+            .expect("structured timeout diagnostics");
+        assert_eq!(failure.reason, "budget.run-timeout");
+        assert_eq!(failure.stage, "pr-body-input");
+        assert!(
+            immediate_pr_body_timeout_report(
+                &PrBodyInput::NotEvaluated("claim.pr-body.encoding.invalid-utf8"),
+                Instant::now(),
+                Duration::from_mins(5),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn blocked_pr_body_reader_returns_a_timeout_at_the_shared_deadline() {
+        let (reader_started_sender, reader_started_receiver) = std::sync::mpsc::sync_channel(1);
+        let (release_sender, release_receiver) = std::sync::mpsc::sync_channel(1);
+        let run_started = Instant::now();
+        let timeout = Duration::from_millis(50);
+
+        let input = read_pr_body_task_with_deadline(
+            move || {
+                reader_started_sender.send(()).expect("record reader start");
+                release_receiver.recv().expect("release blocked reader");
+                Ok(PrBodyInput::Body("too late".to_owned()))
+            },
+            run_started,
+            timeout,
+        )
+        .expect("deadline is a semantic non-evaluation");
+
+        reader_started_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("reader task started");
+        assert!(run_started.elapsed() >= timeout);
+        assert!(run_started.elapsed() < Duration::from_secs(1));
+        assert!(matches!(
+            input,
+            PrBodyInput::NotEvaluated("budget.run-timeout")
+        ));
+        release_sender.send(()).expect("release reader task");
+    }
 
     #[test]
     fn json_report_retains_safe_budget_diagnostics_without_raw_detail() {
@@ -954,7 +1089,7 @@ mod tests {
         );
 
         let json = serde_json::to_value(&report).expect("serialise safe report");
-        assert!(json["notEvaluatedCommitCount"].is_null());
+        assert_eq!(json["notEvaluatedCommitCount"], 10_001);
         assert_eq!(json["gitEvaluationNonEvaluation"]["observed"], 10_001);
         assert_eq!(json["gitEvaluationNonEvaluation"]["limit"], 10_000);
         assert_eq!(
@@ -984,6 +1119,39 @@ mod tests {
         assert!(message.contains("budget.commits=10001"));
         assert!(message.contains("budget.raw-bytes=410000"));
         assert!(!message.contains("must not be reported"));
+    }
+
+    #[test]
+    fn truncated_revision_list_keeps_selected_cardinality_unknown() {
+        let failure = GitNonEvaluation {
+            commit_revision: None,
+            reason: "budget.commits",
+            stage: "revision-list",
+            observed: 10_001,
+            limit: Some(10_000),
+            detail: "must not be reported".into(),
+            raw_digest: Some("sha256:truncated-selection".into()),
+            budget: Some(Box::new(GitBudgetDiagnostics {
+                configured_limit: 10_000,
+                elapsed_millis: Some(17),
+                commits: None,
+                records: None,
+                rename_sources: None,
+                rename_targets: None,
+                raw_bytes: Some(1_419_129),
+                decoded_bytes: None,
+                raw_output_digest: Some("sha256:truncated-selection".into()),
+            })),
+        };
+        let report = ConformanceCheckReport::not_evaluated_with_git_failure(
+            vec!["budget.commits".to_owned()],
+            failure,
+        );
+
+        let json = serde_json::to_value(report).expect("serialise safe report");
+        assert!(json["notEvaluatedCommitCount"].is_null());
+        assert!(json["gitEvaluationNonEvaluation"]["budget"]["commits"].is_null());
+        assert!(!json.to_string().contains("must not be reported"));
     }
 
     #[test]

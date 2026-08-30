@@ -669,7 +669,7 @@ impl GitExtractor {
         empty_config: &EmptyGlobalConfig,
         started: Instant,
     ) -> Result<(), GitNonEvaluation> {
-        let replacements = self.run_git(
+        let replacements = self.run_git_observing_repository_administration(
             repository,
             empty_config,
             &["for-each-ref", "--format=%(refname)", "refs/replace/"],
@@ -686,7 +686,7 @@ impl GitExtractor {
             ));
         }
 
-        let common_dir = self.run_git(
+        let common_dir = self.run_git_observing_repository_administration(
             repository,
             empty_config,
             &["rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -728,7 +728,7 @@ impl GitExtractor {
         empty_config: &EmptyGlobalConfig,
         started: Instant,
     ) -> Result<PathBuf, GitNonEvaluation> {
-        let bare = self.run_git(
+        let bare = self.run_git_observing_repository_administration(
             repository,
             empty_config,
             &["rev-parse", "--is-bare-repository"],
@@ -744,7 +744,7 @@ impl GitExtractor {
                 "bare repositories have no canonical worktree".to_owned(),
             ));
         }
-        let worktree = self.run_git(
+        let worktree = self.run_git_observing_repository_administration(
             repository,
             empty_config,
             &["rev-parse", "--path-format=absolute", "--show-toplevel"],
@@ -1477,9 +1477,8 @@ impl GitExtractor {
                 diagnostics.records = Some(records);
                 diagnostics.decoded_bytes = Some(decoded_bytes);
             }
-            if reason == "budget.commits" {
-                diagnostics.commits = Some(observed);
-            }
+            // A revision-list capture overflow proves only a complete prefix.
+            // Fully consumed enumeration records its exact cardinality after parsing.
             diagnostics.raw_bytes = Some(stdout.total);
             diagnostics
                 .raw_output_digest

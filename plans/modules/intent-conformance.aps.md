@@ -382,8 +382,9 @@ Change status to **Ready** when:
   administration from changing the admitted graph. This is not an
   operating-system immutability guarantee or a hostile same-user security
   boundary. ADR-139 caps the whole range at 100,000 raw records, 64 MiB raw Git
-  diff bytes, and 64 MiB decoded Git path bytes; the five-minute deadline spans
-  evaluation and atomic report materialisation, whose output cap is 128 MiB.
+  diff bytes, and 64 MiB decoded Git path bytes; the five-minute deadline starts
+  before bounded declaration input and spans identity, extraction, evaluation,
+  and atomic report materialisation, whose output cap is 128 MiB.
   Overflow or timeout emits one complete reason-coded not-evaluated report.
 - **Files:** `crates/anvil-checks/src/conformance/`,
   `crates/anvil-checks/tests/`, `crates/anvil-cli/src/commands/conformance.rs`,
