@@ -332,13 +332,20 @@ fn evaluate_claim(
             )
         }
         ClaimKind::PathPrefix => {
+            let explicit_authority = contract.declared_scopes.iter().any(|scope| {
+                scope.source_index == claim.source_index
+                    && matches!(
+                        &scope.authority,
+                        ScopeAuthority::ExplicitPath { prefix } if prefix == &claim.value
+                    )
+            });
             let mut prefixes = Vec::new();
             for scope in &contract.declared_scopes {
                 if scope.source_index != claim.source_index {
                     continue;
                 }
                 match &scope.authority {
-                    ScopeAuthority::ExplicitPath { prefix } if prefix == &claim.value => {
+                    ScopeAuthority::ExplicitPath { prefix } if explicit_authority => {
                         prefixes.push(prefix.as_str());
                     }
                     ScopeAuthority::BaseMapping {

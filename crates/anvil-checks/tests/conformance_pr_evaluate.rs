@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use anvil_checks::conformance::{
     GitBudgetDiagnostics, GitCoverageMember, GitEvaluationIdentity, GitFootprintCommitEvidence,
     GitFootprintCommitExtraction, GitFootprintExtraction, GitNonEvaluation, PrBodyContractParts,
@@ -56,6 +58,37 @@ fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
         ]
     );
     assert_eq!(report.verdict.git_records.len(), 2);
+    assert!(report.findings.is_empty());
+}
+
+#[test]
+fn explicit_path_scopes_from_one_declaration_are_evaluated_as_a_union() {
+    let declaration = extract_pr_body_claims(
+        "github:pull-request:42:body:sha256:fixture",
+        "```anvil-claims\nscope: path:docs\nscope: path:tests\n```\n",
+    )
+    .into_contract_parts()
+    .expect("valid multi-scope PR declaration");
+    let identity = identity();
+    let base = "a".repeat(40);
+    let head = "c".repeat(40);
+    let extraction = GitFootprintExtraction {
+        base_revision: base.clone(),
+        head_revision: head.clone(),
+        commits: vec![
+            evaluated_commit("b", "docs/guide.md", &identity, &base, &head),
+            evaluated_commit("c", "tests/guide_test.rs", &identity, &base, &head),
+        ],
+    };
+
+    let report = evaluate_pr_declaration(&declaration, &extraction, &identity);
+
+    assert_eq!(report.verdict.outcome, ConformanceOutcome::Conformant);
+    assert_eq!(report.claim_results.len(), 2);
+    assert!(report.claim_results.iter().all(|result| {
+        result.outcome == ConformanceOutcome::Conformant && result.uncovered_files.is_empty()
+    }));
+    assert!(report.verdict.uncovered_files.is_empty());
     assert!(report.findings.is_empty());
 }
 
@@ -310,6 +343,7 @@ fn identity() -> GitEvaluationIdentity {
         run_id: "run-pr-01".into(),
         repository_id: "repo-01".into(),
         canonical_worktree_id: "worktree-01".into(),
+        run_started: Instant::now(),
     }
 }
 
