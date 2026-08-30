@@ -189,9 +189,12 @@ if awk '
 ' "${deny_config}"; then
   fail "attribution/deny.toml declares a [licenses].deny array." \
     $'\n  That key was REMOVED in cargo-deny v2. Its presence makes cargo-deny' \
-    $'\n  reject the whole config, so the licence gate stops running and every' \
-    $'\n  licence passes unchecked. Delete it: under version = 2 anything absent' \
-    $'\n  from `allow` is already denied. See ADR-136.'
+    $'\n  exit during config validation, so no licence is ever evaluated. In' \
+    $'\n  CI that surfaces as a red cargo-deny job rather than a silent pass —' \
+    $'\n  but the gate has stopped checking either way, and a caller that' \
+    $'\n  tolerates its exit code would see approval it never earned.' \
+    $'\n  Delete it: under version = 2 anything absent from `allow` is already' \
+    $'\n  denied. See ADR-136.'
 fi
 echo "ok: no [licenses].deny array (the gate-disabling trap is absent)"
 
