@@ -2303,7 +2303,10 @@ impl EmptyGlobalConfig {
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         let directory =
             std::env::temp_dir().join(format!("anvil-conf-git-state-{}-{id}", std::process::id()));
+        #[cfg(unix)]
         let mut builder = DirBuilder::new();
+        #[cfg(not(unix))]
+        let builder = DirBuilder::new();
         #[cfg(unix)]
         {
             use std::os::unix::fs::DirBuilderExt;
