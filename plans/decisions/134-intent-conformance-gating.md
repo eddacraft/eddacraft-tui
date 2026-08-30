@@ -79,24 +79,37 @@ under CONF-005 and do not enter the first slice.
 
 ### 3. Deterministic Git extraction
 
+> **Amended 2026-08-30:** [ADR-138](138-pin-git-administrative-state.md)
+> replaces this section's single three-value Git-environment allowlist with a
+> three-value administration-observation allowlist and a five-value
+> post-admission allowlist. No other ADR-134 decision changes.
+
 An evaluation selects either one commit `C` or a range `B..H`. Inputs are
 resolved with
 `git rev-parse --verify --end-of-options "<input>^{commit}"` and the full
 object IDs are recorded. Option-shaped inputs are therefore revisions to reject
 or resolve, never Git command options.
 
-Every resolution, traversal, diff, and object read runs as
-`git --no-replace-objects` from the canonical worktree under a closed,
-documented environment. The evaluator sets `LC_ALL=C`, `TZ=UTC`,
+Every Git child runs as `git --no-replace-objects` from the canonical worktree
+under a closed, documented environment. The evaluator sets `LC_ALL=C`,
+`TZ=UTC`, and resolves the Git executable before constructing that
+environment. No ambient `GIT_*` variable is inherited: repository, worktree,
+common-directory, object-store, alternate-object, namespace, index,
+replacement, external-diff, and injected `GIT_CONFIG_COUNT`/
+`GIT_CONFIG_KEY_*`/`GIT_CONFIG_VALUE_*` variables are absent.
+
+The administration-observation phase admits exactly
 `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=<empty-config>`, and
-`GIT_OPTIONAL_LOCKS=0`; the global-config value names an evaluator-owned empty
-file rather than a platform-specific null device. The Git executable is
-resolved before constructing the child environment. No ambient `GIT_*`
-variable is inherited: repository, worktree, common-directory, object-store,
-alternate-object, namespace, index, replacement, shallow-file, external-diff,
-and injected `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_*`/
-`GIT_CONFIG_VALUE_*` variables are absent. The three `GIT_*` values above are
-the complete allowlist.
+`GIT_OPTIONAL_LOCKS=0`. After real replacement, graft, and shallow state has
+been rejected, every resolution, traversal, diff, and object read admits those
+three values plus `GIT_SHALLOW_FILE=<run-sentinel>` and
+`GIT_GRAFT_FILE=<run-sentinel>`. The global-config value names an
+evaluator-owned empty file rather than a platform-specific null device. The two
+additional values name run-owned paths that the evaluator never creates or
+writes; they pin later Git reads away from concurrent repository-administration
+changes. They are not claimed to be operating-system immutable or a defence
+against a hostile same-user process. ADR-138 owns the exact phase boundary,
+allowlists, lifecycle, and threat boundary.
 
 Commands pass the canonical worktree explicitly and pin every consulted local
 configuration key on the command line. In particular, raw diffs use
@@ -137,15 +150,24 @@ git --no-replace-objects diff-tree --no-commit-id --raw -z -r \
 
 Extraction has a versioned budget contract. The first implementation pins:
 
+> **Amended 2026-08-30:**
+> [ADR-139](139-bound-conformance-range-evidence.md) adds a shared range
+> evidence envelope, extends the whole-run deadline through report
+> materialisation, and requires atomic bounded reports.
+
 | Budget | Limit |
 | --- | ---: |
 | Commits in one evaluation | 10,000 |
 | Raw records for one commit | 100,000 |
 | Raw diff bytes for one commit | 64 MiB |
 | Decoded UTF-8 message plus path bytes for one commit | 64 MiB |
+| Raw records across one evaluation | 100,000 |
+| Raw Git diff bytes across one evaluation | 64 MiB |
+| Decoded Git path bytes across one evaluation | 64 MiB |
 | Possible rename sources or targets for one commit | 1,000 each |
 | One Git subprocess | 30 seconds elapsed |
-| Whole evaluation | 300 seconds elapsed |
+| Whole evaluation through report materialisation | 300 seconds elapsed |
+| Materialised plain, JSON, or SARIF report | 128 MiB |
 
 Before rename detection, a bounded `--no-renames` raw preflight counts possible
 delete/type-change sources and add/type-change targets. If either count exceeds
@@ -170,6 +192,12 @@ captured raw output. A record is never dropped, truncated into a different
 record, or reclassified to stay within budget: output from an over-budget or
 timed-out stage is diagnostic only, and that commit contributes no conformance
 verdict. Reports still count the affected commit and its not-evaluated reason.
+ADR-139 additionally requires one top-level, reason-coded failure when the
+shared range evidence envelope, whole-run deadline, or atomic report cap is
+crossed. A fully resolved range retains its exact selected-commit cardinality;
+a truncated revision-list overflow keeps that cardinality unknown. Blocking on
+stdout after a complete bounded report is materialised is outside the
+evaluative deadline.
 
 The admitted status set is `A`, `D`, `M`, `R<score>`, and `T`.
 Mode-only changes, type changes, and gitlink/submodule object changes are
@@ -390,7 +418,9 @@ enforcement meaning.
   [ADR-003](003-new-edges-only.md) (baseline posture),
   [ADR-052](052-automated-drift-snapshots.md) (drift vocabulary),
   [ADR-072](072-git-native-governance-substrate.md) (git substrate), and
-  [ADR-074](074-review-capsule-v0-format.md) (evidence attachment)
+  [ADR-074](074-review-capsule-v0-format.md) (evidence attachment),
+  [ADR-138](138-pin-git-administrative-state.md) (post-admission Git state),
+  and [ADR-139](139-bound-conformance-range-evidence.md) (range/report budgets)
 - APS module: [CONF](../modules/intent-conformance.aps.md), especially CONF-001
 - Programme:
   [Graph Trust Surfaces](../specs/2026-07-28-graph-trust-surfaces.md)

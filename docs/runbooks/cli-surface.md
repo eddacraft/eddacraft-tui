@@ -271,10 +271,20 @@ evidence cannot become conformant.
 This is an on-demand Git check. It starts no resident graph, daemon, or service,
 and has no GitHub-specific dependency; callers provide the body and immutable
 reference. Repository discovery, identity, and extraction all run through the
-closed Git environment. Identity and extraction share one five-minute deadline;
-after rejecting pre-existing replacement, graft, or shallow state, later Git
-commands use private run-owned shallow/graft sentinels so a concurrent
-administrative mutation cannot change ancestry.
+closed Git environment. Under
+[ADR-139](../../plans/decisions/139-bound-conformance-range-evidence.md), one
+five-minute deadline spans identity, extraction, evaluation, and atomic report
+materialisation. The whole range shares 100,000-record, 64 MiB raw-diff, and 64
+MiB decoded-path ceilings; plain, JSON, and SARIF materialisation is capped at
+128 MiB and overflow or timeout emits one complete reason-coded not-evaluated
+report. Blocking on the final stdout write is outside that deadline. Under under
+[ADR-138](../../plans/decisions/138-pin-git-administrative-state.md), the
+command observes and rejects pre-existing replacement, graft, or shallow state
+with an exact three-value `GIT_*` allowlist. Later Git commands use the exact
+five-value post-admission allowlist, adding run-owned, never-written
+shallow/graft sentinel paths so ordinary concurrent repository administration
+cannot change ancestry. The paths are not operating-system immutable and do not
+defend against a hostile same-user process.
 
 SARIF emits warning results for each non-conformance or non-evaluation reason
 and an empty result set for a conformant declaration. Every run, including that

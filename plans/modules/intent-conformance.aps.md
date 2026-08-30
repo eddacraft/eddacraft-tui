@@ -14,6 +14,14 @@ and CONF-002..004 implementation and executor proof Merged via
 [#4190](https://github.com/eddacraft/anvil-001/pull/4190).
 [ADR-134](../decisions/134-intent-conformance-gating.md) is accepted and pins
 the deterministic Git, evidence-binding, and fail-honest outcome contract.
+[ADR-138](../decisions/138-pin-git-administrative-state.md) is accepted and
+narrowly amends ADR-134's Git environment: real repository administration is
+observed under a three-value allowlist, then later Git reads use a five-value
+allowlist with run-owned, never-written shallow/graft sentinel paths.
+[ADR-139](../decisions/139-bound-conformance-range-evidence.md) is accepted and
+adds one shared range-evidence envelope, extends the whole-run deadline through
+report materialisation, and requires atomic bounded plain, JSON, and SARIF
+output.
 [ADR-135](../decisions/135-bounded-change-evidence-and-conformance-projections.md)
 is accepted after scoped Council repair re-review `council-599eaa64`; the
 [CEG design](../specs/2026-08-30-change-evidence-graph.md), graph-semantic
@@ -366,16 +374,30 @@ Change status to **Ready** when:
   explicit path scopes can evaluate from complete Git evidence;
   `no-behaviour-change` and `refactor-only` stay reason-coded
   `not-evaluated`. Missing, malformed, partial, over-budget, or mismatched
-  evidence never becomes conformant.
+  evidence never becomes conformant. The evaluator rejects pre-existing
+  replacement, graft, and shallow state under ADR-138's three-value
+  administration-observation allowlist. Every post-admission Git read adds only
+  run-owned, never-written shallow/graft sentinel paths, forming the exact
+  five-value `GIT_*` allowlist and preventing ordinary concurrent repository
+  administration from changing the admitted graph. This is not an
+  operating-system immutability guarantee or a hostile same-user security
+  boundary. ADR-139 caps the whole range at 100,000 raw records, 64 MiB raw Git
+  diff bytes, and 64 MiB decoded Git path bytes; the five-minute deadline spans
+  evaluation and atomic report materialisation, whose output cap is 128 MiB.
+  Overflow or timeout emits one complete reason-coded not-evaluated report.
 - **Files:** `crates/anvil-checks/src/conformance/`,
   `crates/anvil-checks/tests/`, `crates/anvil-cli/src/commands/conformance.rs`,
   `crates/anvil-cli/src/{commands/mod.rs,main.rs}`,
   `crates/anvil-cli/tests/`, component documentation, the authoritative CLI
-  references, the product feature catalogue, and this module
+  references, the product feature catalogue,
+  [ADR-134](../decisions/134-intent-conformance-gating.md),
+  [ADR-138](../decisions/138-pin-git-administrative-state.md),
+  [ADR-139](../decisions/139-bound-conformance-range-evidence.md), the decision
+  log, and this module
 - **Validation:** `cargo test -p eddacraft-anvil-checks --no-fail-fast`;
   `cargo test -p eddacraft-anvil --no-fail-fast`; `cargo clippy -p
   eddacraft-anvil-checks -p eddacraft-anvil --all-targets -- -D warnings`;
   `pnpm docs:check`; `pnpm format:check`; `pnpm aps:active-lint`;
-  `pnpm aps:index:check`
+  `pnpm aps:index:check`; `pnpm adr:check`; `pnpm test:adr-integrity`
 - **Dependencies:** CONF-004, CONF-005
 - **Confidence:** high

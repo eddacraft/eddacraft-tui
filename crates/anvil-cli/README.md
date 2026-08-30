@@ -67,6 +67,11 @@ while an unreadable input remains an operational failure. JSON preserves
 structured top-level and per-commit Git diagnostics. SARIF carries the same
 report identity, outcome, evidence grades, resolved revisions, and honest commit
 cardinality in the run property bag even when a conformant run has no results.
+Under [ADR-139](../../plans/decisions/139-bound-conformance-range-evidence.md),
+the whole range shares a 100,000-record and 64 MiB evidence envelope. The
+five-minute deadline covers evaluation and atomic report materialisation; a 128
+MiB output overflow or timeout discards partial output and emits one small
+reason-coded not-evaluated document.
 
 The command runs the bounded Git evaluator on demand and does not start a
 resident graph or service. See the

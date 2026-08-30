@@ -120,18 +120,28 @@ orchestration from leaking into the reusable check engine.
   makes the aggregate not evaluated; partial evidence cannot become conformant.
   A successful verdict retains each commit's binding, parent, raw records, and
   coverage indices; range records and coverage are deterministic derived views.
+  [ADR-139](../../plans/decisions/139-bound-conformance-range-evidence.md)
+  limits the whole range to 100,000 raw records, 64 MiB raw Git diff bytes, and
+  64 MiB decoded path bytes before these aggregate and per-commit views are
+  built. Aggregate overflow drops publishable evidence and is reason-coded
+  not-evaluated with exact selected-commit cardinality.
 - Intent-conformance extraction disables replacement objects, rejects
   replacement/graft and shallow state, clears ambient Git configuration, and
   applies per-command and one caller-owned whole-run resource budget across
-  identity and extraction. After checking the real repository state, all later
-  Git commands use private run-owned shallow/graft sentinels so concurrent
-  administrative mutation cannot alter ancestry. Every selected commit remains
-  represented as evaluated or reason-coded not-evaluated. Repository and
-  canonical-worktree identities are derived from the canonical Git common
-  directory and top-level respectively, re-verified at extraction, and emitted
-  only as opaque digests. Bare repositories are rejected, while any directory
-  inside one worktree resolves to the same worktree identity and every later Git
-  command executes from that verified top-level.
+  identity, extraction, evaluation, and report materialisation. Under
+  [ADR-138](../../plans/decisions/138-pin-git-administrative-state.md), the
+  administration-observation phase exposes real repository state through an
+  exact three-value `GIT_*` allowlist. All post-admission Git commands use an
+  exact five-value allowlist whose two additions are run-owned, never-written
+  shallow/graft sentinel paths, so ordinary concurrent repository administration
+  cannot alter ancestry. These paths are not an operating-system immutability or
+  hostile same-user security boundary. Every selected commit remains represented
+  as evaluated or reason-coded not-evaluated. Repository and canonical-worktree
+  identities are derived from the canonical Git common directory and top-level
+  respectively, re-verified at extraction, and emitted only as opaque digests.
+  Bare repositories are rejected, while any directory inside one worktree
+  resolves to the same worktree identity and every later Git command executes
+  from that verified top-level.
 - Git executable discovery accepts only a canonical absolute program reached
   through an absolute `PATH` entry. Each command is isolated in a process group
   (or Windows process tree), abnormal exits terminate descendants, and reader
