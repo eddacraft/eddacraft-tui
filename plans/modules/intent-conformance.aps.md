@@ -4,8 +4,10 @@
 | ---- | ------ | ----------- | -------- |
 | CONF | @aneki | In Progress | 1/9      |
 
-**Last reviewed:** 2026-08-30 — CONF-011 external PR declaration check is
-In Progress as the first production consumer of CONF-004/005. CONF-005 Verified
+**Last reviewed:** 2026-08-31 — CONF-011 external PR declaration check Merged
+via [#4245](https://github.com/eddacraft/anvil-001/pull/4245) as the first
+production consumer of CONF-004/005 after implementation Council
+`council-c6695499` converged and exact-head hosted CI passed. CONF-005 Verified
 Change Declarations Merged via
 [#4222](https://github.com/eddacraft/anvil-001/pull/4222) after implementation
 Council `council-11195af4` converged with a binding PASS.
@@ -360,7 +362,8 @@ Change status to **Ready** when:
 
 ### CONF-011: External PR declaration check
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-31 via PR
+  [#4245](https://github.com/eddacraft/anvil-001/pull/4245)
 - **Intent:** Give external, non-APS authors a production CLI surface that
   checks one Verified Change Declaration against the exact Git range proposed
   for review.
@@ -395,6 +398,14 @@ Change status to **Ready** when:
   [ADR-138](../decisions/138-pin-git-administrative-state.md),
   [ADR-139](../decisions/139-bound-conformance-range-evidence.md), the decision
   log, and this module
+- **Evidence:** Implementation Council `council-c6695499` converged after all
+  nine findings were fixed, with independent verification returning a binding
+  PASS. Exact-head hosted CI passed the Rust, Node, Windows Clippy, docs,
+  security, APS, format, lint, and type-check gates with no unresolved review
+  conversations.
+- **Integration:** Rebase-merged to `main` via
+  [#4245](https://github.com/eddacraft/anvil-001/pull/4245); rebased commit
+  `dc06c358da05acea29f13d6e077d5b489191367c` is an ancestor of `origin/main`.
 - **Validation:** `cargo test -p eddacraft-anvil-checks --no-fail-fast`;
   `cargo test -p eddacraft-anvil --no-fail-fast`; `cargo clippy -p
   eddacraft-anvil-checks -p eddacraft-anvil --all-targets -- -D warnings`;
