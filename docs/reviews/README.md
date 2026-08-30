@@ -1,8 +1,8 @@
 # Active Reviews
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                                           |
-| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-30 for work-item claim-issue documentation-governance freshness against ADR-123 and `docs/guides/documentation-governance.md` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                                |
+| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-31 for documentation-governance freshness after an archive link repoint (the governance rules themselves are unchanged); previously reviewed 2026-08-30 for work-item claim-issue documentation-governance freshness against ADR-123 and `docs/guides/documentation-governance.md` |
 
 | Upstream                                  | Downstream            |
 | ----------------------------------------- | --------------------- |
