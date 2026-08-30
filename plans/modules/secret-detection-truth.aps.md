@@ -5,9 +5,21 @@
 
 | ID  | Owner | Status   | Progress |
 | --- | ----- | -------- | -------- |
-| SDT | —     | In Progress | 7/8   |
+| SDT | —     | Done | 7/8   |
 
-**Last reviewed:** 2026-08-30 (SDT-003 and SDT-004 Merged; module 7/8, with
+**Module closed 2026-08-31 at 7/8, not 8/8 — that is deliberate.** SDT-005 is
+`Superseded`, and the counter's done-set is `Done|Complete|Merged|
+Released/Shipped`, so a superseded item stays in the denominator by design (the
+same shape MLP2 carries with three of them). Seven items were delivered, the
+eighth was closed on evidence rather than built, and the count says exactly
+that: `7/8` with the module `Done` is the honest pair, where `8/8` would claim
+delivery that never happened. `aps:active-lint` and `index-counts --check` both
+accept it.
+
+**Last reviewed:** 2026-08-31 (SDT-005 Superseded on operator decision — its
+premise was retired by SDT-004 and SDT-002's provider-invalid corpus cannot
+measure it; reasoning in full on the item. Module closed. Previously reviewed
+2026-08-30: SDT-003 and SDT-004 Merged; module 7/8, with
 only SDT-005 still Proposed. SDT-003's flip was **owed** — ADR-136 landed via
 [#4228](https://github.com/eddacraft/anvil-001/pull/4228) on 2026-08-30 and its
 status was never moved off In Progress, so this reconciliation clears two items,
@@ -667,27 +679,57 @@ entropy-adjacent; `generic-api-key` and its family are tier 2 by construction.
 
 ### SDT-005: Opt-in live verification (severity by verifiability)
 
-- **Status:** Ready — operator-promoted 2026-08-30. Dependencies SDT-003 and
-  SDT-004 are both Merged, so the licence boundary is a decision (ADR-136,
-  Accepted) and the catalogue is no longer the binding constraint.
-- **Note added on promotion (2026-08-30):** SDT-004 changed what this item is
-  *for*. The false-positive rate did not move — it is still **1/13 = 7.7%**, and
-  the single residual is a Google Drive id caught by entropy, not by a provider
-  rule. So live verification is no longer the "strongest FP lever available"
-  against the current corpus; the vendored tier added detection without adding
-  noise, and there is little provider-rule noise left for verification to
-  suppress. Two things that *did* emerge are better targets:
-  **(a)** 5 of the 27 vendored rules (3 New Relic, 2 Mailgun) are
-  keyword-gated — a well-formed `NRAK-` key with no `newrelic` token within
-  ~50 characters falls through to the entropy backstop, measured 2026-08-30.
-  Verification would rescue exactly that shape, because a bare high-entropy
-  string is where "looks like" is weakest.
-  **(b)** CIB-373's entropy false positives (48 of 50 findings on one file
-  class) are unverifiable by construction — they are generated record ids, not
-  credentials for any provider — so this item cannot help them and should not
-  be sold as if it could. Scope the flag's claim accordingly.
-- **Intent:** Convert "looks like a secret" into "is a secret" for checkable
-  providers, as the strongest FP lever available — without making a
+- **Status:** Superseded 2026-08-31 — **closed: its premise was retired by
+  SDT-004, and the module's own instrument cannot measure it.** Operator
+  decision, taken one day after promoting it to Ready, on the evidence below.
+  The item is preserved rather than deleted because the reasoning is the useful
+  part: this is what it looks like when a plan outlives the measurement that
+  justified it.
+- **Why it was closed (2026-08-31).** Four findings, in order of weight:
+  1. **Its stated purpose is already gone.** The Intent calls live verification
+     "the strongest FP lever available". Measured across SDT-004, the
+     false-positive rate **did not move** — still **1/13 = 7.7%** — and the
+     single residual is `bn-google-drive-id-residual`, a Google Drive URL `id=`
+     value caught by entropy. There is no provider to ask and no endpoint to
+     call, so verification cannot touch it.
+  2. **The remaining false-positive mass is unverifiable by construction.**
+     CIB-373 is 48 false positives of 50 findings, all generated clawpatch
+     record ids. They are not credentials for any provider, so no verifier can
+     help. This was already recorded on promotion as a non-target.
+  3. **SDT-002's corpus structurally cannot measure this item** — the decisive
+     one. The corpus states its own property: "Every value under `cases/` is a
+     synthetic, **provider-invalid** canary or a known-benign vector." Every one
+     of the 34 detections would verify dead-or-unverifiable, so the change would
+     ship with **zero measurable effect on the corpus**. In a module whose
+     purpose is making the check tell the truth about itself, and whose
+     discipline throughout has been *the corpus decides*, that is
+     disqualifying: every other SDT item landed with a before/after number, and
+     this one cannot.
+  4. **It is the only item in the module that adds net risk rather than
+     removing it.** It would introduce the first network dependency into
+     `anvil-checks`, whose own `ARCHITECTURE.md` states it does not own
+     transport; transmit discovered credentials to third parties; write a token
+     check into the victim organisation's audit log; and make outbound calls
+     from CI. Against the module Purpose — coverage honesty, and closing the gap
+     beta measured — coverage honesty is delivered by SDT-001/-006/-007/-008,
+     and the measured gap was catalogue thinness, closed by SDT-004.
+- **What survives, and where it should go instead.** One narrow case is real: an
+  entropy-only hit on a bare credential — exactly the keyword-gated `NRAK-`
+  shape measured 2026-08-30, where a well-formed key with no `newrelic` token
+  within ~50 characters falls through to the entropy backstop — could be
+  confirmed live and **escalated**. That is a *severity* signal, not
+  false-positive reduction, and at a gate that blocks on the finding either way
+  it buys little. If it is ever wanted, it is a **fresh, smaller item scoped to
+  severity**, with a measurement instrument that can actually evaluate it (which
+  the provider-invalid corpus is not) — not this item, whose rationale no longer
+  holds. Refile rather than reopen.
+- **Nothing depended on it.** The ADR-136 references to SDT-005 (§4 clean-room
+  sourcing, and the DECISION-LOG entry) are constraints *on* this item, not
+  consumers of its output, so closing it leaves no dangling obligation. ADR-136
+  needs no amendment: §4's clean-room constraint simply never gets exercised.
+- **Intent:** *(as filed 2026-08-15; retained for the record — no longer the
+  plan, see Status)* Convert "looks like a secret" into "is a secret" for
+  checkable providers, as the strongest FP lever available — without making a
   local-first governance tool phone home by default.
 - **Expected Outcome:** Behind a flag, off by default, loudly disclosed: a
   candidate credential for a supported provider (initial set of ~5–10:
