@@ -493,7 +493,123 @@ fn build_sarif(report: &ConformanceCheckReport) -> sarif::SarifLog {
             );
         }
     }
-    sarif::SarifLog::new(sarif::Run::new(rules.into_values().collect(), results))
+    let run = sarif::Run::new(rules.into_values().collect(), results)
+        .properties(sarif_run_properties(report));
+    sarif::SarifLog::new(run)
+}
+
+fn sarif_run_properties(report: &ConformanceCheckReport) -> BTreeMap<String, sarif::PropertyValue> {
+    let mut properties = BTreeMap::new();
+    properties.insert("schemaVersion".to_owned(), REPORT_SCHEMA.into());
+    properties.insert("advisory".to_owned(), report.advisory.into());
+    properties.insert("outcome".to_owned(), outcome_label(report.outcome).into());
+    properties.insert(
+        "declarationEvidenceGrade".to_owned(),
+        evidence_grade_label(report.declaration_evidence_grade).into(),
+    );
+    properties.insert(
+        "evidenceStrength".to_owned(),
+        evidence_strength_label(report.evidence_strength).into(),
+    );
+    properties.insert(
+        "resolvedBase".to_owned(),
+        optional_string_property(report.resolved_base.as_deref()),
+    );
+    properties.insert(
+        "resolvedHead".to_owned(),
+        optional_string_property(report.resolved_head.as_deref()),
+    );
+    properties.insert(
+        "notEvaluatedCommitCount".to_owned(),
+        optional_usize_property(report.not_evaluated_commit_count),
+    );
+    properties.insert(
+        "gitEvaluationNonEvaluation".to_owned(),
+        report
+            .git_evaluation_non_evaluation
+            .as_ref()
+            .map_or(sarif::PropertyValue::Null, git_non_evaluation_property),
+    );
+    properties
+}
+
+fn git_non_evaluation_property(failure: &GitCommitNonEvaluationReport) -> sarif::PropertyValue {
+    let mut properties = BTreeMap::new();
+    properties.insert(
+        "commitRevision".to_owned(),
+        optional_string_property(failure.commit_revision.as_deref()),
+    );
+    properties.insert("reason".to_owned(), failure.reason.into());
+    properties.insert("stage".to_owned(), failure.stage.into());
+    properties.insert("observed".to_owned(), usize_property(failure.observed));
+    properties.insert("limit".to_owned(), optional_usize_property(failure.limit));
+    properties.insert(
+        "rawDigest".to_owned(),
+        optional_string_property(failure.raw_digest.as_deref()),
+    );
+    properties.insert(
+        "budget".to_owned(),
+        failure
+            .budget
+            .as_ref()
+            .map_or(sarif::PropertyValue::Null, git_budget_property),
+    );
+    sarif::PropertyValue::Object(properties)
+}
+
+fn git_budget_property(budget: &GitBudgetDiagnosticsReport) -> sarif::PropertyValue {
+    let mut properties = BTreeMap::new();
+    properties.insert(
+        "configuredLimit".to_owned(),
+        usize_property(budget.configured_limit),
+    );
+    properties.insert(
+        "elapsedMillis".to_owned(),
+        optional_usize_property(budget.elapsed_millis),
+    );
+    properties.insert(
+        "commits".to_owned(),
+        optional_usize_property(budget.commits),
+    );
+    properties.insert(
+        "records".to_owned(),
+        optional_usize_property(budget.records),
+    );
+    properties.insert(
+        "renameSources".to_owned(),
+        optional_usize_property(budget.rename_sources),
+    );
+    properties.insert(
+        "renameTargets".to_owned(),
+        optional_usize_property(budget.rename_targets),
+    );
+    properties.insert(
+        "rawBytes".to_owned(),
+        optional_usize_property(budget.raw_bytes),
+    );
+    properties.insert(
+        "decodedBytes".to_owned(),
+        optional_usize_property(budget.decoded_bytes),
+    );
+    properties.insert(
+        "rawOutputDigest".to_owned(),
+        optional_string_property(budget.raw_output_digest.as_deref()),
+    );
+    sarif::PropertyValue::Object(properties)
+}
+
+fn optional_string_property(value: Option<&str>) -> sarif::PropertyValue {
+    value.map_or(sarif::PropertyValue::Null, Into::into)
+}
+
+fn optional_usize_property(value: Option<usize>) -> sarif::PropertyValue {
+    value.map_or(sarif::PropertyValue::Null, usize_property)
+}
+
+fn usize_property(value: usize) -> sarif::PropertyValue {
+    sarif::PropertyValue::Integer(
+        u64::try_from(value).expect("usize conformance counters fit SARIF unsigned integers"),
+    )
 }
 
 fn git_non_evaluation_summary_reason(failure: &GitCommitNonEvaluationReport) -> String {
@@ -543,6 +659,14 @@ fn outcome_label(outcome: ConformanceOutcome) -> &'static str {
         ConformanceOutcome::Conformant => "conformant",
         ConformanceOutcome::NonConformant => "non-conformant",
         ConformanceOutcome::NotEvaluated => "not-evaluated",
+    }
+}
+
+fn evidence_grade_label(grade: EvidenceGrade) -> &'static str {
+    match grade {
+        EvidenceGrade::Strong => "strong",
+        EvidenceGrade::Moderate => "moderate",
+        EvidenceGrade::Weak => "weak",
     }
 }
 

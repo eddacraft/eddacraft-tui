@@ -540,6 +540,27 @@ fn selection_failure_is_distinct_in_plain_and_sarif() {
             .as_str()
             .is_some()
     );
+    let properties = &document["runs"][0]["properties"];
+    assert_eq!(properties["schemaVersion"], "anvil.conformance-check.v1");
+    assert_eq!(properties["advisory"], true);
+    assert_eq!(properties["outcome"], "not-evaluated");
+    assert_eq!(properties["declarationEvidenceGrade"], "weak");
+    assert_eq!(properties["evidenceStrength"], "absent");
+    assert!(properties["resolvedBase"].is_null());
+    assert!(properties["resolvedHead"].is_null());
+    assert!(properties["notEvaluatedCommitCount"].is_null());
+    assert_eq!(
+        properties["gitEvaluationNonEvaluation"]["reason"],
+        "revision.invalid"
+    );
+    assert_eq!(
+        properties["gitEvaluationNonEvaluation"]["stage"],
+        "revision"
+    );
+    assert_eq!(properties["gitEvaluationNonEvaluation"]["observed"], 0);
+    assert!(properties["gitEvaluationNonEvaluation"]["limit"].is_null());
+    assert!(properties["gitEvaluationNonEvaluation"]["rawDigest"].is_null());
+    assert!(properties["gitEvaluationNonEvaluation"]["budget"].is_null());
 }
 
 #[test]
@@ -973,4 +994,23 @@ fn conformant_sarif_has_no_results() {
             .expect("results")
             .is_empty()
     );
+    let properties = &document["runs"][0]["properties"];
+    assert_eq!(properties["schemaVersion"], "anvil.conformance-check.v1");
+    assert_eq!(properties["advisory"], true);
+    assert_eq!(properties["outcome"], "conformant");
+    assert_eq!(properties["declarationEvidenceGrade"], "weak");
+    assert_eq!(properties["evidenceStrength"], "complete");
+    assert_eq!(properties["resolvedBase"], fixture.base);
+    assert_eq!(properties["resolvedHead"], fixture.head);
+    assert_eq!(properties["notEvaluatedCommitCount"], 0);
+    assert!(properties["gitEvaluationNonEvaluation"].is_null());
+
+    let schema: serde_json::Value =
+        serde_json::from_str(anvil_sarif::SARIF_SCHEMA_JSON).expect("SARIF schema");
+    let validator = jsonschema::validator_for(&schema).expect("compile SARIF schema");
+    let errors: Vec<String> = validator
+        .iter_errors(&document)
+        .map(|error| error.to_string())
+        .collect();
+    assert!(errors.is_empty(), "SARIF schema errors: {errors:?}");
 }

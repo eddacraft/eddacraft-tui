@@ -4,8 +4,8 @@ use anvil_checks::conformance::{
     evaluate_pr_declaration, extract_pr_body_claims,
 };
 use anvil_kernel_types::{
-    ConformanceOutcome, EvaluationBinding, EvidenceDisposition, EvidenceGrade, EvidenceStrength,
-    GitChangeStatus, GitObjectType,
+    ConformanceOutcome, ConformanceVerdict, EvaluationBinding, EvidenceDisposition, EvidenceGrade,
+    EvidenceStrength, GitChangeStatus, GitObjectType,
 };
 
 #[test]
@@ -19,7 +19,7 @@ fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
     let identity = identity();
     let base = "a".repeat(40);
     let head = "c".repeat(40);
-    let extraction = GitFootprintExtraction {
+    let mut extraction = GitFootprintExtraction {
         base_revision: base.clone(),
         head_revision: head.clone(),
         commits: vec![
@@ -27,6 +27,10 @@ fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
             evaluated_commit("b", "docs/z-last.md", &identity, &base, &head),
         ],
     };
+    let GitFootprintCommitExtraction::Evaluated(second_commit) = &mut extraction.commits[1] else {
+        unreachable!("fixture commit is evaluated");
+    };
+    second_commit.coverage.push(change("docs/middle.md"));
 
     let report = evaluate_pr_declaration(&declaration, &extraction, &identity);
 
@@ -52,14 +56,19 @@ fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
             .collect::<Vec<_>>(),
         vec![
             ("docs/a-first.md", EvidenceDisposition::GitSufficient),
+            ("docs/middle.md", EvidenceDisposition::GitSufficient),
             ("docs/z-last.md", EvidenceDisposition::GitSufficient),
         ]
     );
-    assert_eq!(report.verdict.git_records.len(), 2);
-    assert_eq!(report.verdict.git_commits.len(), 2);
+    assert_eq!(report.verdict.git_records.len(), 3);
+    assert_per_commit_evidence(&report.verdict, &base);
+    assert!(report.findings.is_empty());
+}
+
+fn assert_per_commit_evidence(verdict: &ConformanceVerdict, base: &str) {
+    assert_eq!(verdict.git_commits.len(), 2);
     assert_eq!(
-        report
-            .verdict
+        verdict
             .git_commits
             .iter()
             .map(|commit| (
@@ -72,23 +81,40 @@ fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
         vec![
             (
                 "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-                base.as_str(),
-                1,
+                base,
+                2,
                 [0].as_slice(),
             ),
             (
                 "cccccccccccccccccccccccccccccccccccccccc",
-                base.as_str(),
+                base,
                 1,
                 [0].as_slice(),
             ),
         ]
     );
-    report
-        .verdict
+    assert_eq!(
+        verdict.git_commits[0]
+            .git_records
+            .iter()
+            .map(|record| record.new_path.as_deref())
+            .collect::<Vec<_>>(),
+        vec![Some("docs/middle.md"), Some("docs/z-last.md")]
+    );
+    assert_eq!(
+        verdict.git_commits[0]
+            .coverage
+            .iter()
+            .map(|member| (member.path.as_str(), member.record_indices.as_slice()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("docs/middle.md", [0].as_slice()),
+            ("docs/z-last.md", [1].as_slice()),
+        ]
+    );
+    verdict
         .validate_output_shape()
         .expect("range and per-commit evidence stay internally bound");
-    assert!(report.findings.is_empty());
 }
 
 #[test]

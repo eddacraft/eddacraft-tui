@@ -53,8 +53,8 @@ impl SarifLog {
 pub struct Run {
     tool: Tool,
     results: Vec<SarifResult>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    properties: Option<RunProperties>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    properties: BTreeMap<String, PropertyValue>,
 }
 
 impl Run {
@@ -66,24 +66,71 @@ impl Run {
                 driver: Driver::anvil(rules),
             },
             results,
-            properties: None,
+            properties: BTreeMap::new(),
         }
+    }
+
+    /// Attach one deterministic entry to this run's SARIF property bag.
+    #[must_use]
+    pub fn property(mut self, key: impl Into<String>, value: impl Into<PropertyValue>) -> Self {
+        self.properties.insert(key.into(), value.into());
+        self
+    }
+
+    /// Attach a deterministic set of entries to this run's SARIF property bag.
+    #[must_use]
+    pub fn properties(mut self, properties: BTreeMap<String, PropertyValue>) -> Self {
+        self.properties.extend(properties);
+        self
     }
 
     /// Attach the audit security-scope disclosure to this run's property bag.
     #[must_use]
-    pub fn security_scope(mut self, security_scope: impl Into<String>) -> Self {
-        self.properties = Some(RunProperties {
-            security_scope: security_scope.into(),
-        });
-        self
+    pub fn security_scope(self, security_scope: impl Into<String>) -> Self {
+        self.property("securityScope", security_scope.into())
     }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct RunProperties {
-    security_scope: String,
+/// JSON-compatible value retained in a deterministic SARIF property bag.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum PropertyValue {
+    /// An explicitly unknown or unavailable value.
+    Null,
+    /// A boolean value.
+    Bool(bool),
+    /// A non-negative integer value.
+    Integer(u64),
+    /// A UTF-8 string value.
+    String(String),
+    /// An ordered collection.
+    Array(Vec<Self>),
+    /// A deterministically keyed nested object.
+    Object(BTreeMap<String, Self>),
+}
+
+impl From<bool> for PropertyValue {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
+impl From<u64> for PropertyValue {
+    fn from(value: u64) -> Self {
+        Self::Integer(value)
+    }
+}
+
+impl From<String> for PropertyValue {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<&str> for PropertyValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_owned())
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -431,6 +478,43 @@ mod tests {
                 .suppression(Suppression::new(SuppressionKind::External).justification("baseline")),
         ];
         SarifLog::new(Run::new(rules, results))
+    }
+
+    #[test]
+    fn generic_run_properties_are_deterministic_and_preserve_security_scope() {
+        let mut nested = BTreeMap::new();
+        nested.insert("count".to_owned(), PropertyValue::Integer(2));
+        nested.insert("known".to_owned(), PropertyValue::Bool(true));
+        let mut properties = BTreeMap::new();
+        properties.insert("metadata".to_owned(), PropertyValue::Object(nested));
+        properties.insert("unknown".to_owned(), PropertyValue::Null);
+
+        let build = || {
+            SarifLog::new(
+                Run::new(Vec::new(), Vec::new())
+                    .properties(properties.clone())
+                    .property("schemaVersion", "example.v1")
+                    .security_scope("tracked-files"),
+            )
+        };
+        let first = serde_json::to_value(build()).expect("serialise property bag");
+        let second = serde_json::to_value(build()).expect("serialise property bag again");
+        assert_eq!(first, second);
+        let run_properties = &first["runs"][0]["properties"];
+        assert_eq!(run_properties["schemaVersion"], "example.v1");
+        assert_eq!(run_properties["securityScope"], "tracked-files");
+        assert_eq!(run_properties["metadata"]["count"], 2);
+        assert_eq!(run_properties["metadata"]["known"], true);
+        assert!(run_properties["unknown"].is_null());
+
+        let schema: serde_json::Value =
+            serde_json::from_str(SARIF_SCHEMA).expect("bundled schema is valid JSON");
+        let validator = jsonschema::validator_for(&schema).expect("compile SARIF schema");
+        let errors: Vec<String> = validator
+            .iter_errors(&first)
+            .map(|error| error.to_string())
+            .collect();
+        assert!(errors.is_empty(), "SARIF schema errors: {errors:?}");
     }
 
     #[test]

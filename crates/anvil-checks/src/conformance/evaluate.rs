@@ -629,8 +629,14 @@ fn coverage_members(
 }
 
 fn canonical_coverage_paths(raw_coverage: &[GitCoverageMember]) -> BTreeMap<String, Vec<u32>> {
+    canonical_coverage_paths_from_members(raw_coverage.iter())
+}
+
+fn canonical_coverage_paths_from_members<'a>(
+    raw_coverage: impl IntoIterator<Item = &'a GitCoverageMember>,
+) -> BTreeMap<String, Vec<u32>> {
     let mut paths = BTreeMap::<String, Vec<u32>>::new();
-    for (index, member) in raw_coverage.iter().enumerate() {
+    for (index, member) in raw_coverage.into_iter().enumerate() {
         let index = u32::try_from(index).expect("CONF-003 bounds records below u32::MAX");
         for path in endpoints(member) {
             let indices = paths.entry(path.to_owned()).or_default();
@@ -643,8 +649,14 @@ fn canonical_coverage_paths(raw_coverage: &[GitCoverageMember]) -> BTreeMap<Stri
 }
 
 fn canonical_git_records(raw_coverage: &[GitCoverageMember]) -> Vec<RawGitChangeRecord> {
+    canonical_git_records_from_members(raw_coverage.iter())
+}
+
+fn canonical_git_records_from_members<'a>(
+    raw_coverage: impl IntoIterator<Item = &'a GitCoverageMember>,
+) -> Vec<RawGitChangeRecord> {
     raw_coverage
-        .iter()
+        .into_iter()
         .map(|member| RawGitChangeRecord {
             status: member.status,
             raw_status: member.raw_status.clone(),
@@ -678,9 +690,9 @@ fn canonical_pr_git_commits(
             let GitFootprintCommitExtraction::Evaluated(commit) = result else {
                 return None;
             };
-            let mut raw_coverage = commit.coverage.clone();
-            raw_coverage.sort_by(coverage_order);
-            let coverage = canonical_coverage_paths(&raw_coverage)
+            let mut ordered_coverage: Vec<_> = commit.coverage.iter().collect();
+            ordered_coverage.sort_by(|left, right| coverage_order(left, right));
+            let coverage = canonical_coverage_paths_from_members(ordered_coverage.iter().copied())
                 .into_iter()
                 .map(|(path, record_indices)| {
                     let range_member = range_coverage
@@ -701,7 +713,7 @@ fn canonical_pr_git_commits(
             Some(GitCommitEvidence {
                 binding: commit.binding.clone(),
                 parent_revision: commit.parent_revision.clone(),
-                git_records: canonical_git_records(&raw_coverage),
+                git_records: canonical_git_records_from_members(ordered_coverage.iter().copied()),
                 coverage,
             })
         })
