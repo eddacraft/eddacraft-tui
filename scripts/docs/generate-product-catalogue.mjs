@@ -153,7 +153,9 @@ function render() {
     );
   }
 
-  const unlistedAndOff = deliveries.filter((surface) => surface.listed === false);
+  const unlistedCliUntilDefaultOn = deliveries.filter(
+    (surface) => surface.listed === false && surface.locator.kind === 'cli'
+  );
   lines.push(
     '',
     '## Unlisted until default-on',
@@ -165,7 +167,7 @@ function render() {
     '| Key | Locator |',
     '| --- | ------- |'
   );
-  for (const surface of unlistedAndOff) {
+  for (const surface of unlistedCliUntilDefaultOn) {
     lines.push(`| \`${escapeCell(surface.key)}\` | ${escapeCell(locatorLabel(surface.locator))} |`);
   }
 

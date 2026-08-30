@@ -94,7 +94,6 @@ function validProductCatalogue(overrides: Record<string, unknown> = {}) {
           mustAlwaysBeOpen: false,
         },
         status: 'active',
-        listed: true as boolean,
       },
     ],
     excludedDeliverySurfaces: [],
