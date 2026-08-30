@@ -179,6 +179,77 @@ fn stopped_registration_impact(
     Some(worktrees.len())
 }
 
+#[cfg(unix)]
+fn stop_result_json(
+    outcome: &anvil_intercept::StopOutcome,
+    registered: Option<usize>,
+    reports: &[anvil_intercept::StopReport],
+) -> serde_json::Value {
+    use anvil_intercept::StopOutcome;
+
+    let (label, pid) = match outcome {
+        StopOutcome::Signalled { pid } => ("signalled", Some(*pid)),
+        StopOutcome::NotRunning => ("not-running", None),
+        StopOutcome::StaleCleared { pid } => ("stale-cleared", Some(*pid)),
+    };
+    let partial_failure = reports.iter().any(|report| report.outcome.is_err());
+    let candidates = reports
+        .iter()
+        .map(|report| {
+            let (candidate_outcome, candidate_pid, error) = match &report.outcome {
+                Ok(StopOutcome::Signalled { pid }) => ("signalled", Some(*pid), None),
+                Ok(StopOutcome::NotRunning) => ("not-running", None, None),
+                Ok(StopOutcome::StaleCleared { pid }) => {
+                    ("stale-cleared", Some(*pid), None)
+                }
+                Err(error) => ("unresolved", None, Some(error.as_str())),
+            };
+            serde_json::json!({
+                "pid_file": report.pid_file.display().to_string(),
+                "outcome": candidate_outcome,
+                "pid": candidate_pid,
+                "error": error,
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "outcome": label,
+        "pid": pid,
+        "registered_losing_protection":
+            if matches!(outcome, StopOutcome::Signalled { .. }) {
+                registered
+            } else {
+                None
+            },
+        "result": if partial_failure { "partial-failure" } else { "complete" },
+        "partial_failure": partial_failure,
+        "candidates": candidates,
+    })
+}
+
+#[cfg(unix)]
+fn ensure_stop_reports_complete(reports: &[anvil_intercept::StopReport]) -> Result<()> {
+    let unresolved = reports
+        .iter()
+        .filter_map(|report| {
+            report
+                .outcome
+                .as_ref()
+                .err()
+                .map(|error| format!("{}: {error}", report.pid_file.display()))
+        })
+        .collect::<Vec<_>>();
+    if unresolved.is_empty() {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "intercept daemon stop incomplete; {} candidate(s) unresolved: {}",
+            unresolved.len(),
+            unresolved.join("; "),
+        )
+    }
+}
+
 #[cfg(any(unix, windows))]
 fn run_stop(json_mode: bool) -> Result<()> {
     use anvil_intercept::StopOutcome;
@@ -208,22 +279,40 @@ fn run_stop(json_mode: bool) -> Result<()> {
     if json_mode {
         // Issue #3947: one document per outcome; the lose-protection
         // warning rides as a count field.
-        let (label, pid) = match &outcome {
-            StopOutcome::Signalled { pid } => ("signalled", Some(*pid)),
-            StopOutcome::NotRunning => ("not-running", None),
-            StopOutcome::StaleCleared { pid } => ("stale-cleared", Some(*pid)),
-        };
-        crate::output::json::print(&serde_json::json!({
-            "outcome": label,
-            "pid": pid,
-            "registered_losing_protection":
-                if matches!(outcome, StopOutcome::Signalled { .. }) {
-                    registered
-                } else {
-                    None
-                },
-        }))?;
-        return Ok(());
+        #[cfg(unix)]
+        {
+            crate::output::json::print(&stop_result_json(&outcome, registered, &reports))?;
+            return if ensure_stop_reports_complete(&reports).is_ok() {
+                Ok(())
+            } else {
+                Err(crate::output::AlreadyReported.into())
+            };
+        }
+        #[cfg(windows)]
+        {
+            let (label, pid) = match &outcome {
+                StopOutcome::Signalled { pid } => ("signalled", Some(*pid)),
+                StopOutcome::NotRunning => ("not-running", None),
+                StopOutcome::StaleCleared { pid } => ("stale-cleared", Some(*pid)),
+            };
+            crate::output::json::print(&serde_json::json!({
+                "outcome": label,
+                "pid": pid,
+                "registered_losing_protection":
+                    if matches!(outcome, StopOutcome::Signalled { .. }) {
+                        registered
+                    } else {
+                        None
+                    },
+            }))?;
+            return Ok(());
+        }
+    }
+    #[cfg(unix)]
+    if reports.iter().any(|report| report.outcome.is_err()) {
+        println!(
+            "anvil intercept stop is incomplete; one or more daemon candidates remain unresolved"
+        );
     }
     match outcome {
         StopOutcome::Signalled { pid } => {
@@ -266,6 +355,7 @@ fn run_stop(json_mode: bool) -> Result<()> {
                 println!("  skipped {}: {err}", report.pid_file.display());
             }
         }
+        ensure_stop_reports_complete(&reports)?;
     }
     Ok(())
 }
@@ -1961,6 +2051,60 @@ mod tests {
         }];
 
         assert_eq!(stopped_registration_impact(&snapshots, &reports), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn partial_stop_fails_when_canonical_is_not_running_and_sibling_is_unresolved() {
+        use anvil_intercept::{StopOutcome, StopReport};
+        let reports = vec![
+            StopReport {
+                pid_file: PathBuf::from("/runtime/anvil/intercept.pid"),
+                outcome: Ok(StopOutcome::NotRunning),
+            },
+            StopReport {
+                pid_file: PathBuf::from("/state/anvil/intercept.pid"),
+                outcome: Err("PID file owner is not trusted".to_string()),
+            },
+        ];
+        let outcome = anvil_intercept::summarise_stop_reports(&reports);
+        let document = stop_result_json(&outcome, None, &reports);
+        assert_eq!(document["outcome"], "not-running");
+        assert_eq!(document["result"], "partial-failure");
+        assert_eq!(document["partial_failure"], true);
+        assert_eq!(document["candidates"].as_array().map(Vec::len), Some(2));
+        assert_eq!(document["candidates"][1]["outcome"], "unresolved");
+        assert!(ensure_stop_reports_complete(&reports).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn partial_stop_fails_when_canonical_is_signalled_and_sibling_is_unresolved() {
+        use anvil_intercept::{StopOutcome, StopReport};
+        let reports = vec![
+            StopReport {
+                pid_file: PathBuf::from("/runtime/anvil/intercept.pid"),
+                outcome: Ok(StopOutcome::Signalled { pid: 111 }),
+            },
+            StopReport {
+                pid_file: PathBuf::from("/state/anvil/intercept.pid"),
+                outcome: Err("PID file is malformed".to_string()),
+            },
+        ];
+        let outcome = anvil_intercept::summarise_stop_reports(&reports);
+        let document = stop_result_json(&outcome, Some(3), &reports);
+        assert_eq!(document["outcome"], "signalled");
+        assert_eq!(document["pid"], 111);
+        assert_eq!(document["registered_losing_protection"], 3);
+        assert_eq!(document["result"], "partial-failure");
+        assert_eq!(document["candidates"][0]["outcome"], "signalled");
+        assert_eq!(document["candidates"][1]["outcome"], "unresolved");
+        assert!(
+            document["candidates"][1]["error"]
+                .as_str()
+                .is_some_and(|error| error.contains("malformed")),
+        );
+        assert!(ensure_stop_reports_complete(&reports).is_err());
     }
 
     /// **Contract pin (demo runbook §1.5):** with traffic the line
