@@ -242,6 +242,8 @@ enum Commands {
     /// `--format json`) so findings can be opened in an editor or handed
     /// to an agent without using terminal scrollback.
     Check(commands::check::CheckArgs),
+    /// Check a PR declaration against an exact Git range.
+    Conformance(commands::conformance::ConformanceArgs),
     /// Report a false positive against a check or a printed finding id.
     ///
     /// Records `anvil report-fp <check-id> <file:line>` to the local
@@ -411,6 +413,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Audit(_) => "audit",
         Commands::AuditChain(_) => "audit-chain",
         Commands::Check(_) => "check",
+        Commands::Conformance(_) => "conformance",
         Commands::ReportFp(_) => "report-fp",
         Commands::Doctor(_) => "doctor",
         Commands::Config(_) => "config",
@@ -513,6 +516,7 @@ fn requires_auth(cmd: &Commands) -> bool {
 fn command_requests_structured_output(cmd: &Commands) -> bool {
     match cmd {
         Commands::Check(args) => args.wants_structured_output(),
+        Commands::Conformance(args) => args.wants_structured_output(),
         Commands::Audit(args) => args.wants_structured_output(),
         Commands::Gate(args) => args.wants_structured_output(),
         _ => false,
@@ -1442,6 +1446,7 @@ fn main() -> ExitCode {
         Some(Commands::Audit(args)) => commands::audit::run(args, &cli.global),
         Some(Commands::AuditChain(args)) => commands::audit_chain::run(args, &cli.global),
         Some(Commands::Check(args)) => commands::check::run(args, &cli.global),
+        Some(Commands::Conformance(args)) => commands::conformance::run(args, &cli.global),
         Some(Commands::ReportFp(args)) => commands::report_fp::run(args, &cli.global),
         Some(Commands::Doctor(args)) => commands::doctor::run(args, &cli.global),
         Some(Commands::Config(args)) => commands::config::run(args, &cli.global),
@@ -1779,6 +1784,18 @@ mod tests {
             "audit" => vec!["audit"],
             "audit-chain" => vec!["audit-chain"],
             "check" => vec!["check", "--all"],
+            "conformance" => vec![
+                "conformance",
+                "check",
+                "--base",
+                "HEAD~1",
+                "--head",
+                "HEAD",
+                "--pr-body-file",
+                "-",
+                "--source-ref",
+                "fixture:body:v1",
+            ],
             "report-fp" => vec!["report-fp", "ANV-CORE-001", "src/x.rs:1"],
             "doctor" => vec!["doctor"],
             "config" => vec!["config", "show"],
@@ -1868,6 +1885,43 @@ mod tests {
     #[test]
     fn requires_auth_check() {
         assert!(requires_auth(&parse_command(&["check", "--all"])));
+    }
+
+    #[test]
+    fn requires_auth_conformance() {
+        assert!(requires_auth(&parse_command(&[
+            "conformance",
+            "check",
+            "--base",
+            "HEAD~1",
+            "--head",
+            "HEAD",
+            "--pr-body-file",
+            "-",
+            "--source-ref",
+            "fixture:body:v1",
+        ])));
+    }
+
+    #[test]
+    fn conformance_local_structured_formats_reach_the_auth_envelope() {
+        for format in ["json", "sarif"] {
+            let command = parse_command(&[
+                "conformance",
+                "check",
+                "--base",
+                "HEAD~1",
+                "--head",
+                "HEAD",
+                "--pr-body-file",
+                "-",
+                "--source-ref",
+                "fixture:body:v1",
+                "--format",
+                format,
+            ]);
+            assert!(command_requests_structured_output(&command));
+        }
     }
 
     #[test]

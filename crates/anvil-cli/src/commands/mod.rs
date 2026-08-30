@@ -10,6 +10,7 @@ pub mod check;
 pub mod check_catalog;
 pub mod check_guards;
 pub mod config;
+pub mod conformance;
 pub(crate) mod daemon_recycle;
 pub mod dashboard;
 pub mod defaults;

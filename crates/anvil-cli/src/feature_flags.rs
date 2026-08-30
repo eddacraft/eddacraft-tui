@@ -52,6 +52,7 @@ pub const CLI_GATED_COMMANDS: &[&str] = &[
     "audit",
     "auth-whoami",
     "check",
+    "conformance",
     "drift",
     "ensure",
     "export",

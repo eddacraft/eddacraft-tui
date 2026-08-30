@@ -60,6 +60,7 @@ const JSON_SURFACES: &[(&str, &str)] = &[
     ("config convert", "doc"),
     ("config set", "doc"),
     ("config show", "doc"),
+    ("conformance check", "format-selector"),
     ("dashboard", "doc"),
     ("doctor", "doc"),
     ("drift compare", "doc"),
