@@ -510,7 +510,17 @@ mod tests {
     fn web_help_says_exclusive_of_name() {
         let cmd = clap::Command::new("dashboard");
         let mut cmd = DashboardArgs::augment_args(cmd);
-        let help = cmd.render_long_help().to_string();
+        let visible = cmd.render_long_help().to_string();
+        assert!(
+            !visible.contains("--web"),
+            "visible dashboard help must not advertise --web until default-on:\n{visible}"
+        );
+        let web = cmd
+            .get_arguments()
+            .find(|arg| arg.get_long() == Some("web"))
+            .expect("--web remains invokable");
+        assert!(web.is_hide_set(), "--web must be hidden from --help");
+        let help = web.get_help().expect("--web keeps a help string").to_string();
         assert!(
             help.contains("Cannot be combined with a dashboard name"),
             "expected --web help to name the NAME exclusivity, got:\n{help}"

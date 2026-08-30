@@ -1,11 +1,17 @@
 import type {
+  DeepReadonly,
   DeliverySurface,
   FeatureFlagDefinition,
   ProductCatalogueManifest,
   ProductFeature,
 } from '@eddacraft/anvil-contracts';
 
-function booleanDefaultEnabled(flag: FeatureFlagDefinition): boolean {
+type ReadonlyFlag = DeepReadonly<FeatureFlagDefinition>;
+type ReadonlyCatalogue = DeepReadonly<ProductCatalogueManifest>;
+type ReadonlySurface = DeepReadonly<DeliverySurface>;
+type ReadonlyFeature = DeepReadonly<ProductFeature>;
+
+function booleanDefaultEnabled(flag: ReadonlyFlag): boolean {
   const variant = flag.variants.find((entry) => entry.key === flag.defaultVariant);
   if (variant === undefined) {
     return false;
@@ -17,9 +23,9 @@ function booleanDefaultEnabled(flag: FeatureFlagDefinition): boolean {
 }
 
 function featureBooleanFlags(
-  feature: ProductFeature,
-  flagsByKey: ReadonlyMap<string, FeatureFlagDefinition>
-): FeatureFlagDefinition[] {
+  feature: ReadonlyFeature,
+  flagsByKey: ReadonlyMap<string, ReadonlyFlag>
+): ReadonlyFlag[] {
   if (feature.flagLinkage.disposition === 'unflagged') {
     return [];
   }
@@ -38,9 +44,9 @@ function featureBooleanFlags(
  * that other host, not a clap refusal.
  */
 export function cliInvocationDefaultOn(
-  surface: DeliverySurface,
-  catalogue: ProductCatalogueManifest,
-  flagsByKey: ReadonlyMap<string, FeatureFlagDefinition>
+  surface: ReadonlySurface,
+  catalogue: ReadonlyCatalogue,
+  flagsByKey: ReadonlyMap<string, ReadonlyFlag>
 ): boolean {
   if (surface.locator.kind !== 'cli') {
     return true;
@@ -62,8 +68,8 @@ export function cliInvocationDefaultOn(
 }
 
 export function listedImpliesOnViolations(
-  catalogue: ProductCatalogueManifest,
-  flags: readonly FeatureFlagDefinition[]
+  catalogue: ReadonlyCatalogue,
+  flags: readonly ReadonlyFlag[]
 ): string[] {
   const flagsByKey = new Map(flags.map((flag) => [flag.key, flag]));
   return catalogue.deliverySurfaces
