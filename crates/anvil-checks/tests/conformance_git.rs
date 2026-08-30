@@ -929,7 +929,7 @@ fn whole_range_record_budget_is_top_level_and_keeps_exact_selected_cardinality()
         "base\n",
         "docs(path:docs): add base",
     );
-    commit_file(
+    let first = commit_file(
         repo.path(),
         "docs/one.md",
         "one\n",
@@ -962,7 +962,15 @@ fn whole_range_record_budget_is_top_level_and_keeps_exact_selected_cardinality()
     assert_eq!(failure.stage, "range-aggregation");
     assert_eq!(failure.observed, 2);
     assert_eq!(failure.limit, Some(1));
-    assert_eq!(failure.commit_revision.as_deref(), Some(head.as_str()));
+    let crossing_commit = if first.as_bytes() > head.as_bytes() {
+        &first
+    } else {
+        &head
+    };
+    assert_eq!(
+        failure.commit_revision.as_deref(),
+        Some(crossing_commit.as_str())
+    );
     let budget = failure.budget.expect("whole-range budget diagnostics");
     assert_eq!(budget.commits, Some(2));
     assert_eq!(budget.records, Some(2));
