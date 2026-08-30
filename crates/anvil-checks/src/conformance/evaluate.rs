@@ -14,8 +14,8 @@ use anvil_kernel_types::{
     CONFORMANCE_SCHEMA_VERSION, Category, ClaimKind, ConformanceClaim, ConformanceContract,
     ConformanceOutcome, ConformanceVerdict, CoverageMember, DeclaredScope, Diagnostic,
     DiagnosticSource, EvaluationBinding, EvidenceDisposition, EvidenceGrade, EvidenceStrength,
-    GitChangeStatus, GraphEvidenceBinding, IntentSource, IntentSourceKind, IntentTier, Location,
-    Mode, ScopeAuthority, Severity,
+    GitChangeStatus, GitCommitEvidence, GraphEvidenceBinding, IntentSource, IntentSourceKind,
+    IntentTier, Location, Mode, ScopeAuthority, Severity,
 };
 
 use super::git::{
@@ -111,7 +111,10 @@ pub fn evaluate_pr_declaration(
         }
     }
 
-    evaluate_bound_contract(&contract, &coverage, &BTreeSet::new(), &[])
+    let mut evaluation = evaluate_bound_contract(&contract, &coverage, &BTreeSet::new(), &[]);
+    evaluation.verdict.git_commits =
+        canonical_pr_git_commits(extraction, &evaluation.verdict.coverage);
+    evaluation
 }
 
 /// Retain every per-commit extraction failure without unsafe diagnostic detail.
@@ -289,6 +292,7 @@ fn evaluate_bound_contract(
         evidence_strength,
         reasons: reasons.clone(),
         git_records: canonical_git_records(&raw_coverage),
+        git_commits: Vec::new(),
         coverage,
         uncovered_files: uncovered_files.clone(),
     };
@@ -663,6 +667,54 @@ fn canonical_git_records(raw_coverage: &[GitCoverageMember]) -> Vec<RawGitChange
         .collect()
 }
 
+fn canonical_pr_git_commits(
+    extraction: &GitFootprintExtraction,
+    range_coverage: &[CoverageMember],
+) -> Vec<GitCommitEvidence> {
+    let mut commits: Vec<_> = extraction
+        .commits
+        .iter()
+        .filter_map(|result| {
+            let GitFootprintCommitExtraction::Evaluated(commit) = result else {
+                return None;
+            };
+            let mut raw_coverage = commit.coverage.clone();
+            raw_coverage.sort_by(coverage_order);
+            let coverage = canonical_coverage_paths(&raw_coverage)
+                .into_iter()
+                .map(|(path, record_indices)| {
+                    let range_member = range_coverage
+                        .binary_search_by(|member| member.path.as_bytes().cmp(path.as_bytes()))
+                        .ok()
+                        .and_then(|index| range_coverage.get(index));
+                    CoverageMember {
+                        path,
+                        record_indices,
+                        policy_change: range_member.is_some_and(|member| member.policy_change),
+                        disposition: range_member
+                            .map_or(EvidenceDisposition::Unsupported, |member| {
+                                member.disposition
+                            }),
+                    }
+                })
+                .collect();
+            Some(GitCommitEvidence {
+                binding: commit.binding.clone(),
+                parent_revision: commit.parent_revision.clone(),
+                git_records: canonical_git_records(&raw_coverage),
+                coverage,
+            })
+        })
+        .collect();
+    commits.sort_by(|left, right| {
+        left.binding
+            .commit_revision
+            .as_bytes()
+            .cmp(right.binding.commit_revision.as_bytes())
+    });
+    commits
+}
+
 fn evaluated_object_for_path<'a>(
     path: &str,
     record_indices: &[u32],
@@ -771,6 +823,7 @@ fn invalid_evaluation_reasons(
         evidence_strength: EvidenceStrength::Absent,
         reasons,
         git_records: Vec::new(),
+        git_commits: Vec::new(),
         coverage: Vec::new(),
         uncovered_files: Vec::new(),
     };

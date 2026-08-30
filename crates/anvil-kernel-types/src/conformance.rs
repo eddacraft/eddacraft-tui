@@ -219,6 +219,15 @@ pub struct CoverageMember {
     pub disposition: EvidenceDisposition,
 }
 
+/// Canonical evidence retained for one evaluated Git commit in a range.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GitCommitEvidence {
+    pub binding: EvaluationBinding,
+    pub parent_revision: String,
+    pub git_records: Vec<RawGitChangeRecord>,
+    pub coverage: Vec<CoverageMember>,
+}
+
 /// Canonical evaluator output. Outcome and evidence strength remain separate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConformanceVerdict {
@@ -231,6 +240,8 @@ pub struct ConformanceVerdict {
     pub evidence_strength: EvidenceStrength,
     pub reasons: Vec<String>,
     pub git_records: Vec<RawGitChangeRecord>,
+    #[serde(default)]
+    pub git_commits: Vec<GitCommitEvidence>,
     pub coverage: Vec<CoverageMember>,
     pub uncovered_files: Vec<String>,
 }
@@ -238,13 +249,14 @@ pub struct ConformanceVerdict {
 impl ConformanceVerdict {
     /// Validate deterministic output shape before publishing a verdict.
     pub fn validate_output_shape(&self) -> Result<(), ContractValidationError> {
-        self.validate_git_records()?;
-        self.validate_coverage_members()?;
+        Self::validate_git_records(&self.git_records)?;
+        Self::validate_coverage_members(&self.git_records, &self.coverage)?;
+        self.validate_git_commits()?;
         Ok(())
     }
 
-    fn validate_git_records(&self) -> Result<(), ContractValidationError> {
-        for record in &self.git_records {
+    fn validate_git_records(records: &[RawGitChangeRecord]) -> Result<(), ContractValidationError> {
+        for record in records {
             if record.raw_status.is_empty() {
                 return Err(ContractValidationError {
                     code: "git-record.raw-status-missing",
@@ -305,9 +317,12 @@ impl ConformanceVerdict {
         Ok(())
     }
 
-    fn validate_coverage_members(&self) -> Result<(), ContractValidationError> {
+    fn validate_coverage_members(
+        records: &[RawGitChangeRecord],
+        coverage: &[CoverageMember],
+    ) -> Result<(), ContractValidationError> {
         let mut expected = BTreeMap::<String, Vec<u32>>::new();
-        for (index, record) in self.git_records.iter().enumerate() {
+        for (index, record) in records.iter().enumerate() {
             let index = u32::try_from(index).map_err(|_| ContractValidationError {
                 code: "coverage.record-index-out-of-bounds",
             })?;
@@ -328,8 +343,7 @@ impl ConformanceVerdict {
             }
         }
 
-        if self
-            .coverage
+        if coverage
             .windows(2)
             .any(|pair| pair[0].path.as_bytes() >= pair[1].path.as_bytes())
         {
@@ -338,7 +352,7 @@ impl ConformanceVerdict {
             });
         }
 
-        for member in &self.coverage {
+        for member in coverage {
             if !valid_git_path(&member.path) {
                 return Err(ContractValidationError {
                     code: "coverage.path-invalid",
@@ -373,6 +387,64 @@ impl ConformanceVerdict {
             return Err(ContractValidationError {
                 code: "coverage.record-endpoint-missing",
             });
+        }
+
+        Ok(())
+    }
+
+    fn validate_git_commits(&self) -> Result<(), ContractValidationError> {
+        if self.git_commits.windows(2).any(|pair| {
+            pair[0].binding.commit_revision.as_bytes() >= pair[1].binding.commit_revision.as_bytes()
+        }) {
+            return Err(ContractValidationError {
+                code: "git-commit-evidence.not-canonical",
+            });
+        }
+
+        for commit in &self.git_commits {
+            if commit.parent_revision.is_empty() {
+                return Err(ContractValidationError {
+                    code: "git-commit-evidence.parent-revision-missing",
+                });
+            }
+            if commit.binding.commit_revision.is_empty() {
+                return Err(ContractValidationError {
+                    code: "git-commit-evidence.commit-revision-missing",
+                });
+            }
+            for (actual, expected, code) in [
+                (
+                    &commit.binding.run_id,
+                    &self.binding.run_id,
+                    "git-commit-evidence.run-id-mismatch",
+                ),
+                (
+                    &commit.binding.repository_id,
+                    &self.binding.repository_id,
+                    "git-commit-evidence.repository-mismatch",
+                ),
+                (
+                    &commit.binding.canonical_worktree_id,
+                    &self.binding.canonical_worktree_id,
+                    "git-commit-evidence.worktree-mismatch",
+                ),
+                (
+                    &commit.binding.base_revision,
+                    &self.binding.base_revision,
+                    "git-commit-evidence.base-revision-mismatch",
+                ),
+                (
+                    &commit.binding.head_revision,
+                    &self.binding.head_revision,
+                    "git-commit-evidence.head-revision-mismatch",
+                ),
+            ] {
+                if actual != expected {
+                    return Err(ContractValidationError { code });
+                }
+            }
+            Self::validate_git_records(&commit.git_records)?;
+            Self::validate_coverage_members(&commit.git_records, &commit.coverage)?;
         }
 
         Ok(())

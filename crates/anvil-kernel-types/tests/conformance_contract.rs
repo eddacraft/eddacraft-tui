@@ -3,8 +3,8 @@ use anvil_kernel_types::{
     AcceptanceAssertion, CONFORMANCE_SCHEMA_VERSION, ClaimKind, ConformanceClaim,
     ConformanceContract, ConformanceOutcome, ConformanceVerdict, CoverageMember, DeclaredScope,
     EvaluationBinding, EvidenceDisposition, EvidenceGrade, EvidenceStrength, GitChangeStatus,
-    GitObjectType, GraphEvidenceBinding, IntentSource, IntentSourceKind, IntentTier,
-    ScopeAuthority, conformance_json_schema,
+    GitCommitEvidence, GitObjectType, GraphEvidenceBinding, IntentSource, IntentSourceKind,
+    IntentTier, ScopeAuthority, conformance_json_schema,
 };
 
 #[test]
@@ -108,6 +108,7 @@ fn verdict_wire_shape_keeps_outcome_separate_from_evidence_strength() {
             old_object: "a".repeat(40),
             new_object: "b".repeat(40),
         }],
+        git_commits: vec![],
         coverage: vec![CoverageMember {
             path: "src/lib.rs".into(),
             record_indices: vec![0],
@@ -124,6 +125,65 @@ fn verdict_wire_shape_keeps_outcome_separate_from_evidence_strength() {
     assert_eq!(value["sources"][0]["kind"], "conventional-commit");
     assert_eq!(value["evidence_strength"], "partial");
     assert_eq!(value["coverage"][0]["disposition"], "missing");
+}
+
+#[test]
+fn verdict_retains_and_validates_per_commit_git_evidence() {
+    let contract = sample_contract();
+    let binding = contract.binding.clone();
+    let record = raw_modified_record("src/lib.rs", 'a', 'b');
+    let coverage = CoverageMember {
+        path: "src/lib.rs".into(),
+        record_indices: vec![0],
+        policy_change: false,
+        disposition: EvidenceDisposition::GitSufficient,
+    };
+    let verdict = ConformanceVerdict {
+        claim_table_version: 1,
+        binding: binding.clone(),
+        sources: contract.sources,
+        evaluated_claims: vec![],
+        declared_scopes: vec![],
+        outcome: ConformanceOutcome::Conformant,
+        evidence_strength: EvidenceStrength::Complete,
+        reasons: vec![],
+        git_records: vec![record.clone()],
+        git_commits: vec![GitCommitEvidence {
+            binding,
+            parent_revision: "a".repeat(40),
+            git_records: vec![record],
+            coverage: vec![coverage.clone()],
+        }],
+        coverage: vec![coverage],
+        uncovered_files: vec![],
+    };
+
+    verdict
+        .validate_output_shape()
+        .expect("per-commit evidence has canonical bindings and coverage");
+    let value = serde_json::to_value(&verdict).expect("serialise verdict");
+    assert_eq!(
+        value["git_commits"][0]["binding"]["commit_revision"],
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    );
+    assert_eq!(
+        value["git_commits"][0]["parent_revision"],
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+    assert_eq!(
+        value["git_commits"][0]["coverage"][0]["record_indices"],
+        serde_json::json!([0])
+    );
+
+    let mut substituted = verdict;
+    substituted.git_commits[0].binding.run_id = "other-run".into();
+    assert_eq!(
+        substituted
+            .validate_output_shape()
+            .expect_err("per-commit evidence cannot cross evaluation runs")
+            .code(),
+        "git-commit-evidence.run-id-mismatch"
+    );
 }
 
 #[test]
@@ -151,6 +211,7 @@ fn verdict_wire_shape_separates_raw_git_records_from_per_path_coverage() {
             old_object: "a".repeat(40),
             new_object: "b".repeat(40),
         }],
+        git_commits: vec![],
         coverage: vec![
             CoverageMember {
                 path: "src/new.rs".into(),
@@ -216,6 +277,7 @@ fn verdict_output_validation_requires_backed_canonical_coverage_references() {
             raw_modified_record("src/lib.rs", 'a', 'b'),
             raw_modified_record("src/lib.rs", 'b', 'c'),
         ],
+        git_commits: vec![],
         coverage: vec![CoverageMember {
             path: "src/lib.rs".into(),
             record_indices: vec![0, 1],
@@ -299,6 +361,7 @@ fn verdict_output_accepts_legal_git_path_metacharacters() {
         evidence_strength: EvidenceStrength::Complete,
         reasons: vec![],
         git_records: vec![raw_modified_record(path, 'a', 'b')],
+        git_commits: vec![],
         coverage: vec![CoverageMember {
             path: path.into(),
             record_indices: vec![0],

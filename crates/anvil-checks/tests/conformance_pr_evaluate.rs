@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use anvil_checks::conformance::{
     GitBudgetDiagnostics, GitCoverageMember, GitEvaluationIdentity, GitFootprintCommitEvidence,
     GitFootprintCommitExtraction, GitFootprintExtraction, GitNonEvaluation, PrBodyContractParts,
@@ -25,8 +23,8 @@ fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
         base_revision: base.clone(),
         head_revision: head.clone(),
         commits: vec![
-            evaluated_commit("b", "docs/z-last.md", &identity, &base, &head),
             evaluated_commit("c", "docs/a-first.md", &identity, &base, &head),
+            evaluated_commit("b", "docs/z-last.md", &identity, &base, &head),
         ],
     };
 
@@ -58,6 +56,38 @@ fn complete_range_is_evaluated_as_one_pr_declaration_footprint() {
         ]
     );
     assert_eq!(report.verdict.git_records.len(), 2);
+    assert_eq!(report.verdict.git_commits.len(), 2);
+    assert_eq!(
+        report
+            .verdict
+            .git_commits
+            .iter()
+            .map(|commit| (
+                commit.binding.commit_revision.as_str(),
+                commit.parent_revision.as_str(),
+                commit.git_records.len(),
+                commit.coverage[0].record_indices.as_slice(),
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                base.as_str(),
+                1,
+                [0].as_slice(),
+            ),
+            (
+                "cccccccccccccccccccccccccccccccccccccccc",
+                base.as_str(),
+                1,
+                [0].as_slice(),
+            ),
+        ]
+    );
+    report
+        .verdict
+        .validate_output_shape()
+        .expect("range and per-commit evidence stay internally bound");
     assert!(report.findings.is_empty());
 }
 
@@ -339,12 +369,8 @@ fn assert_not_evaluated(
 }
 
 fn identity() -> GitEvaluationIdentity {
-    GitEvaluationIdentity {
-        run_id: "run-pr-01".into(),
-        repository_id: "repo-01".into(),
-        canonical_worktree_id: "worktree-01".into(),
-        run_started: Instant::now(),
-    }
+    GitEvaluationIdentity::from_unverified_parts("run-pr-01", "repo-01", "worktree-01")
+        .expect("fixture identity")
 }
 
 fn footprint_failure(revision_seed: &str, reason: &'static str) -> GitFootprintCommitExtraction {

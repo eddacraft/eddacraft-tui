@@ -21,8 +21,9 @@ pub use conformance::{
     AcceptanceAssertion, CONFORMANCE_SCHEMA_VERSION, ClaimKind, ConformanceClaim,
     ConformanceContract, ConformanceOutcome, ConformanceVerdict, ContractValidationError,
     CoverageMember, DeclaredScope, EvaluationBinding, EvidenceDisposition, EvidenceGrade,
-    EvidenceStrength, GitChangeStatus, GitObjectType, GraphEvidenceBinding, IntentSource,
-    IntentSourceKind, IntentTier, RawGitChangeRecord, ScopeAuthority, conformance_json_schema,
+    EvidenceStrength, GitChangeStatus, GitCommitEvidence, GitObjectType, GraphEvidenceBinding,
+    IntentSource, IntentSourceKind, IntentTier, RawGitChangeRecord, ScopeAuthority,
+    conformance_json_schema,
 };
 pub use diagnostics::{
     Category, ControlDecision, DIAGNOSTIC_SCHEMA_VERSION, Diagnostic, DiagnosticSource, Location,
