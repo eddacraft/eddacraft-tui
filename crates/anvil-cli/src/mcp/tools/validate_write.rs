@@ -1908,8 +1908,8 @@ mod tests {
     };
     use crate::mcp::enforcement::EnforcementMode;
     use crate::mcp::validation::{
-        DaemonValidationClient, DaemonValidationOutcome, LocalDaemonValidationClient,
-        PreWriteValidationRequest, ValidationBackendFailure,
+        DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
+        ValidationBackendFailure,
     };
     #[cfg(unix)]
     use anvil_intercept::Shutdown;
@@ -2071,7 +2071,15 @@ mod tests {
                 "proposedContent": "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
             }),
             workspace.path(),
-            &LocalDaemonValidationClient,
+            // A fixture daemon, not `LocalDaemonValidationClient`: the local
+            // client resolves whichever socket is live on the host, so a
+            // developer running `anvil` would have their daemon's protection
+            // claim override `FixedEnforcement` and collapse this assertion to
+            // `block`. CI has no daemon and so never saw it. The posture under
+            // test is local secret detection, not daemon reachability.
+            &FixtureDaemon {
+                outcome: DaemonValidationOutcome::Unavailable,
+            },
             &FixedEnforcement(EnforcementMode::Fence),
         );
 
