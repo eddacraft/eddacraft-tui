@@ -67,6 +67,8 @@ pub struct GitEvaluationIdentity {
     pub run_id: String,
     pub repository_id: String,
     pub canonical_worktree_id: String,
+    /// Monotonic start retained by the caller across all stages of this evaluation run.
+    pub run_started: Instant,
 }
 
 /// One unclassified raw Git coverage record.
@@ -395,7 +397,7 @@ impl GitExtractor {
         selection: GitSelection,
         identity: &GitEvaluationIdentity,
     ) -> Result<PreparedExtraction, GitNonEvaluation> {
-        let started = Instant::now();
+        let started = identity.run_started;
         let repository = repository.canonicalize().map_err(|error| {
             not_evaluated("repository.invalid", "repository", error.to_string())
         })?;
@@ -644,6 +646,7 @@ impl GitExtractor {
             run_id,
             repository_id: opaque_path_identity(b"repository", &common_dir),
             canonical_worktree_id: opaque_path_identity(b"worktree", repository),
+            run_started: started,
         })
     }
 

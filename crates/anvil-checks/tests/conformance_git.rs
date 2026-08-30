@@ -105,6 +105,7 @@ fn unbound_identity() -> GitEvaluationIdentity {
         run_id: "run-conf-003".to_owned(),
         repository_id: "repo-fixture".to_owned(),
         canonical_worktree_id: "worktree-fixture".to_owned(),
+        run_started: std::time::Instant::now(),
     }
 }
 
@@ -981,6 +982,27 @@ fn delayed_git_wrapper(directory: &Path, delayed_stage: &str) {
 }
 
 #[cfg(unix)]
+fn shared_run_timeout_git_wrapper(directory: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let real_git = real_git_program();
+    let marker = directory.join("identity-delayed");
+    let script = format!(
+        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --path-format=absolute --show-toplevel '*)\n    if [ ! -e '{}' ]; then : > '{}'; /bin/sleep 0.4; fi\n    ;;\n  *' rev-parse --verify --end-of-options '*) /bin/sleep 0.4 ;;\nesac\nexec '{}' \"$@\"\n",
+        marker.display(),
+        marker.display(),
+        real_git.display()
+    );
+    let path = directory.join("git");
+    std::fs::write(&path, script).expect("write shared timeout Git wrapper");
+    let mut permissions = std::fs::metadata(&path)
+        .expect("wrapper metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(path, permissions).expect("make Git wrapper executable");
+}
+
+#[cfg(unix)]
 fn scripted_diff_git_wrapper(directory: &Path, mode: &str) {
     use std::os::unix::fs::PermissionsExt;
 
@@ -1081,6 +1103,7 @@ fn canonical_worktree_boundary_child() {
         run_id: "run-conf-003".to_owned(),
         repository_id: std::env::var("ANVIL_CONF_REPOSITORY_ID").expect("repository identity"),
         canonical_worktree_id: std::env::var("ANVIL_CONF_WORKTREE_ID").expect("worktree identity"),
+        run_started: Instant::now(),
     };
     let outcome = GitExtractor::default().extract(
         Path::new(&repository),
@@ -1286,6 +1309,52 @@ fn stage_specific_timeout_child() {
     );
     assert!(diagnostics.raw_bytes.is_some());
     assert!(diagnostics.raw_output_digest.is_some());
+}
+
+#[cfg(unix)]
+#[test]
+fn identity_and_extraction_share_one_run_timeout() {
+    let repo = repository();
+    commit_file(repo.path(), "docs/base.md", "base\n", "docs: add base");
+    let wrapper = tempfile::tempdir().expect("wrapper directory");
+    shared_run_timeout_git_wrapper(wrapper.path());
+
+    let status = Command::new(std::env::current_exe().expect("current test executable"))
+        .args(["--exact", "shared_run_timeout_child", "--nocapture"])
+        .env("ANVIL_CONF_SHARED_TIMEOUT_REPO", repo.path())
+        .env("PATH", wrapper.path())
+        .status()
+        .expect("run shared timeout child");
+    assert!(
+        status.success(),
+        "identity and extraction reset the run budget"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn shared_run_timeout_child() {
+    let Some(repository) = std::env::var_os("ANVIL_CONF_SHARED_TIMEOUT_REPO") else {
+        return;
+    };
+    let extractor = GitExtractor::with_limits(GitExtractionLimits {
+        git_timeout: Duration::from_secs(2),
+        run_timeout: Duration::from_millis(600),
+        ..GitExtractionLimits::default()
+    });
+    let identity = extractor
+        .identity_for_repository(Path::new(&repository), "run-conf-011")
+        .expect("identity stage remains within the shared budget");
+    let outcome = extractor.extract_footprint(
+        Path::new(&repository),
+        GitSelection::Commit("HEAD".to_owned()),
+        &identity,
+    );
+    let GitFootprintExtractionOutcome::NotEvaluated(failure) = outcome else {
+        panic!("combined identity and extraction must exhaust one run budget: {outcome:?}");
+    };
+    assert_eq!(failure.reason, "budget.run-timeout");
+    assert_eq!(failure.stage, "revision");
 }
 
 #[test]
