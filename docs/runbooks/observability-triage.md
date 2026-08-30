@@ -1,8 +1,8 @@
 # Observability Triage Runbook
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                           |
-| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | OBS   | Live   | Command review 2026-05-25 against the health/waitlist probes below, `docs/observability/namespace-registry.md`, and `plans/modules/observability-foundation.aps.md` |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                  |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | OBS   | Live   | Command review 2026-08-31 against the health/waitlist probes below, `docs/observability/namespace-registry.md`, and `plans/modules/observability-foundation.aps.md`. OBS-002 now coordinates with APGOV-008 for connect retry; this runbook's first-15-minutes probe sequence is unchanged |
 
 | Upstream                                                                                                                                    | Downstream                                           |
 | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
