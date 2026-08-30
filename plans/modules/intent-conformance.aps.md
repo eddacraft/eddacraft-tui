@@ -9,16 +9,14 @@
 [ADR-134](../decisions/134-intent-conformance-gating.md) is accepted and pins
 the deterministic Git, evidence-binding, and fail-honest outcome contract. The
 CONF-002..004 implementation and executor proof Merged via
-[#4190](https://github.com/eddacraft/anvil-001/pull/4190). CONF-005 implementation
-is verified under the operator-approved Verified Change Declaration grammar;
-implementation Council `council-11195af4` converged with a binding PASS and
-the item remains **In Progress** until integration.
+[#4190](https://github.com/eddacraft/anvil-001/pull/4190). CONF-005 Verified
+Change Declarations Merged via
+[#4222](https://github.com/eddacraft/anvil-001/pull/4222) after implementation
+Council `council-11195af4` converged with a binding PASS.
 [ADR-135](../decisions/135-bounded-change-evidence-and-conformance-projections.md)
 is accepted after scoped Council repair re-review `council-599eaa64`; the
 [CEG design](../specs/2026-08-30-change-evidence-graph.md), graph-semantic
 implementation and CONF-006..010 remain Proposed and default-off.
-Stored progress is intentionally unreconciled on this feature branch per
-ADR-053.
 
 > **Origin (2026-06-11):** Product direction set during the graphify gap
 > analysis: plan gates return as a conformance lint — "did the agent build
@@ -246,7 +244,8 @@ Change status to **Ready** when:
 
 ### CONF-005: Tier-0 claim extraction — PR bodies
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-30 via PR
+  [#4222](https://github.com/eddacraft/anvil-001/pull/4222)
 - **Intent:** Extract a single, explicit Verified Change Declaration from a PR
   description as weak-graded Tier-0 intent.
 - **Expected Outcome:** Exactly one fenced `anvil-claims` block admits the
@@ -273,6 +272,9 @@ Change status to **Ready** when:
   ambiguous/malformed source handling, nested-example isolation, every resource
   limit, and refusal to admit not-evaluated evidence. The full affected crate
   suite and strict all-target Clippy pass.
+- **Integration:** Rebase-merged to `main` via
+  [#4222](https://github.com/eddacraft/anvil-001/pull/4222) after exact-head
+  hosted CI passed and all review conversations were resolved.
 - **Validation:** `cargo test -p eddacraft-anvil-checks --no-fail-fast`
 - **Dependencies:** CONF-002
 - **Confidence:** high
