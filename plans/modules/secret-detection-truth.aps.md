@@ -299,7 +299,19 @@ known gap lives.
 
 ### SDT-003: ADR — ruleset acquisition posture (rules as data)
 
-- **Status:** Proposed
+- **Status:** Ready — operator-promoted 2026-08-30. Unblocks SDT-004, which
+  cannot start until the licence boundary is a decision rather than an
+  accident.
+- **Note added on promotion (2026-08-30):** SDT-002's measured baseline is now
+  the evidence this ADR argues from, and it is sharper than the module's
+  original estimate. The catalogue gap is not "21 rules versus ~170" in the
+  abstract: of 20 out-of-catalogue providers tested, 8 are detected and
+  **zero of those by a provider-specific rule** — 5 fall to the entropy
+  backstop and 3 to keyword rules. Hex-alphabet providers (Datadog, Mailgun,
+  Shopify, DigitalOcean, Postman) can never be entropy-rescued, since hex caps
+  at 4.0 bits against a 4.5 threshold, so those misses are unconditional. The
+  ADR should cite that rather than the gitleaks rule count, because it is the
+  number SDT-004's detection gain will actually be measured against.
 - **Intent:** Fix the acquisition decision in the decision log before any
   vendoring: detection rules are vendored data, the engine is Anvil's, and
   the licence boundary is explicit.
