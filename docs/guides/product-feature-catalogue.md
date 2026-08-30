@@ -14,7 +14,7 @@ This page is a generated view of the canonical product catalogue. Edit
 `flags/surfaces.json` and `flags/manifest.json`, then run
 `pnpm docs:catalogue:generate`. Do not maintain a second feature list.
 
-Schema version 2. 79 product features, 189 delivery surfaces, 12 exclusions, 18
+Schema version 2. 80 product features, 190 delivery surfaces, 12 exclusions, 18
 operational flags.
 
 ## Product feature groups
@@ -50,6 +50,7 @@ operational flags.
 | `capsule`                | anvil capsule                        | Local tools           | GITGOV    | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `check`                  | anvil check                          | Governance engine     | RCLI2     | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `config`                 | anvil config                         | Foundational plumbing | WATCHUX   | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `conformance`            | anvil conformance                    | Governance engine     | CONF      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `dashboard.api-contract` | Dashboard API contract               | Terminal dashboards   | DASH      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `dashboard.aps`          | anvil plan dashboard                 | Terminal dashboards   | CIB       | active | tui-dashboard.aps-dashboard (entitlement)                                                                            | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `dashboard.architecture` | anvil dashboard architecture         | Terminal dashboards   | TDASH     | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
@@ -163,6 +164,7 @@ operational flags.
 | `cli.capsule`                      | `capsule`                | cli capsule                           | yes    | active |
 | `cli.check`                        | `check`                  | cli check                             | yes    | active |
 | `cli.config`                       | `config`                 | cli config                            | yes    | active |
+| `cli.conformance`                  | `conformance`            | cli conformance                       | yes    | active |
 | `cli.dashboard-architecture`       | `dashboard.architecture` | cli dashboard architecture            | yes    | active |
 | `cli.dashboard-drift`              | `dashboard.drift`        | cli dashboard drift                   | yes    | active |
 | `cli.dashboard-saved`              | `dashboard.saved`        | cli dashboard                         | yes    | active |
@@ -341,23 +343,23 @@ as the controlling flag becoming default-on (ADR-137).
 
 ## Operational flags
 
-| Key                           | Class       | Controls                                                                                                                                                             | Status |
-| ----------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| `api.scope.beta`              | entitlement | —                                                                                                                                                                    | active |
-| `api.scope.internal`          | entitlement | —                                                                                                                                                                    | active |
-| `api.scope.preview`           | entitlement | —                                                                                                                                                                    | active |
-| `cli.licence-gate`            | entitlement | architecture, audit, auth, check, drift, ensure, export, gate, gate-config, init, mcp.config, mcp.install, mcp.pin, new, policy, skill, start, status, watch, wizard | active |
-| `daemon.persist-graph`        | rollout     | intercept                                                                                                                                                            | active |
-| `dashboard.web`               | rollout     | dashboard.web                                                                                                                                                        | active |
-| `docs.access`                 | entitlement | anvil-docs, docs-shell                                                                                                                                               | active |
-| `gctx.egress`                 | rollout     | gctx.snippets                                                                                                                                                        | active |
-| `gv2.reverse-impact-depth`    | entitlement | impact                                                                                                                                                               | active |
-| `impact.view`                 | rollout     | impact                                                                                                                                                               | active |
-| `kindling.embedded-runtime`   | rollout     | kindling                                                                                                                                                             | active |
-| `track.pack`                  | rollout     | —                                                                                                                                                                    | active |
-| `track.surface`               | rollout     | —                                                                                                                                                                    | active |
-| `track.surface.dock`          | rollout     | —                                                                                                                                                                    | active |
-| `track.surface.gha`           | rollout     | —                                                                                                                                                                    | active |
-| `track.surface.sh`            | rollout     | —                                                                                                                                                                    | active |
-| `track.surface.sql`           | rollout     | —                                                                                                                                                                    | active |
-| `tui-dashboard.aps-dashboard` | entitlement | dashboard.aps                                                                                                                                                        | active |
+| Key                           | Class       | Controls                                                                                                                                                                          | Status |
+| ----------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `api.scope.beta`              | entitlement | —                                                                                                                                                                                 | active |
+| `api.scope.internal`          | entitlement | —                                                                                                                                                                                 | active |
+| `api.scope.preview`           | entitlement | —                                                                                                                                                                                 | active |
+| `cli.licence-gate`            | entitlement | architecture, audit, auth, check, conformance, drift, ensure, export, gate, gate-config, init, mcp.config, mcp.install, mcp.pin, new, policy, skill, start, status, watch, wizard | active |
+| `daemon.persist-graph`        | rollout     | intercept                                                                                                                                                                         | active |
+| `dashboard.web`               | rollout     | dashboard.web                                                                                                                                                                     | active |
+| `docs.access`                 | entitlement | anvil-docs, docs-shell                                                                                                                                                            | active |
+| `gctx.egress`                 | rollout     | gctx.snippets                                                                                                                                                                     | active |
+| `gv2.reverse-impact-depth`    | entitlement | impact                                                                                                                                                                            | active |
+| `impact.view`                 | rollout     | impact                                                                                                                                                                            | active |
+| `kindling.embedded-runtime`   | rollout     | kindling                                                                                                                                                                          | active |
+| `track.pack`                  | rollout     | —                                                                                                                                                                                 | active |
+| `track.surface`               | rollout     | —                                                                                                                                                                                 | active |
+| `track.surface.dock`          | rollout     | —                                                                                                                                                                                 | active |
+| `track.surface.gha`           | rollout     | —                                                                                                                                                                                 | active |
+| `track.surface.sh`            | rollout     | —                                                                                                                                                                                 | active |
+| `track.surface.sql`           | rollout     | —                                                                                                                                                                                 | active |
+| `tui-dashboard.aps-dashboard` | entitlement | dashboard.aps                                                                                                                                                                     | active |
