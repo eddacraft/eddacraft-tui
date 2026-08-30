@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const BLOCK_OPEN: &str = "```anvil-claims";
 const BLOCK_CLOSE: &str = "```";
-const PRODUCER_SCHEMA: &str = "github.pull-request-body.anvil-claims.v1";
+const PRODUCER_SCHEMA: &str = "pull-request-body.anvil-claims.v1";
 const BODY_OVER_LIMIT_DIGEST: &str = "sha256:unavailable-body-over-limit";
 const REFERENCE_OVER_LIMIT: &str = "unavailable:reference-over-limit";
 

@@ -41,7 +41,7 @@ More prose that is not part of the declaration.
     assert_eq!(extraction.source().evidence_grade, EvidenceGrade::Weak);
     assert_eq!(
         extraction.source().producer_schema,
-        "github.pull-request-body.anvil-claims.v1"
+        "pull-request-body.anvil-claims.v1"
     );
     assert_eq!(extraction.source().producer_record_id, None);
 
@@ -87,6 +87,22 @@ More prose that is not part of the declaration.
         .into_contract_parts()
         .expect("complete extraction releases contract parts");
     assert_eq!(admitted.claims.len(), 6);
+}
+
+#[test]
+fn producer_schema_is_forge_neutral_for_non_github_references() {
+    let reference =
+        "forgejo:https://code.example.invalid/eddacraft/anvil#42@body-sha256:0123456789abcdef";
+    let body = "```anvil-claims\nclaim: documentation-only\n```\n";
+
+    let extraction = extract_pr_body_claims(reference, body);
+
+    assert_eq!(extraction.outcome(), PrBodyExtractionOutcome::Extracted);
+    assert_eq!(extraction.source().reference, reference);
+    assert_eq!(
+        extraction.source().producer_schema,
+        "pull-request-body.anvil-claims.v1"
+    );
 }
 
 #[test]
