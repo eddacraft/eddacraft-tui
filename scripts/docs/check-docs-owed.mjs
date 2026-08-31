@@ -115,6 +115,12 @@ const { values } = parseArgs({
     // `<ref>..HEAD` are considered, so the report answers "what does THIS change
     // owe?" rather than "what does the repository owe?".
     since: { type: 'string' },
+    // CIB-383: the tip of the change under test. On a `pull_request` event
+    // `actions/checkout` checks out `refs/pull/N/merge`, so bare `HEAD` is a
+    // merge of the PR into current main and carries main's newer commits —
+    // diffing to it attributes other people's changes to this PR. CI passes
+    // the real PR head here; everywhere else the default is correct.
+    head: { type: 'string' },
     // Off by default: this is a report. The flag exists so the gate experiment
     // does not need a code change.
     'fail-on-owed': { type: 'boolean', default: false },
@@ -226,12 +232,14 @@ let changedPaths = null;
 if (values.since) {
   try {
     changedPaths = new Set(
-      git(['diff', '--name-only', `${values.since}...HEAD`])
+      git(['diff', '--name-only', `${values.since}...${values.head ?? 'HEAD'}`])
         .split('\n')
         .filter(Boolean)
     );
   } catch (err) {
-    process.stderr.write(`[${SURFACE}] cannot run: bad --since ref "${values.since}"\n`);
+    process.stderr.write(
+      `[${SURFACE}] cannot run: bad --since ref "${values.since}" or --head ref "${values.head ?? 'HEAD'}"\n`
+    );
     process.stderr.write(`[${SURFACE}] ${err.message}\n`);
     process.exit(2);
   }
@@ -522,7 +530,7 @@ const summary = {
   skippedArchived: skipped,
   withoutGovernanceMetadata: unparsed,
   corpus: files.length,
-  mode: changedPaths ? `diff (${values.since}...HEAD)` : 'corpus',
+  mode: changedPaths ? `diff (${values.since}...${values.head ?? 'HEAD'})` : 'corpus',
 };
 
 if (values.json) {

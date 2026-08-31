@@ -245,6 +245,15 @@ jobs:
         env:
           DOCS_OWED_PR_BASE: ${{ github.event.pull_request.base.sha }}
           DOCS_OWED_PUSH_BASE: ${{ github.event.before }}
+          # CIB-383: on a `pull_request` event `actions/checkout` checks out
+          # `refs/pull/N/merge`, so bare `HEAD` is this PR merged into current
+          # main and carries main's newer commits. Diffing to it attributed
+          # other people's changes to the PR — #4247 was failed over
+          # `crates/anvil-cli/ARCHITECTURE.md`, a file it never touched, after
+          # main gained 94 commits behind its back. Name the real PR head so
+          # the range is the change under test. Empty on `push`, where bare
+          # HEAD is already correct.
+          DOCS_OWED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           base="${DOCS_OWED_PR_BASE:-${DOCS_OWED_PUSH_BASE:-}}"
           # `github.event.before` is all-zeros for a branch's first push, and can
@@ -257,8 +266,14 @@ jobs:
             echo "Base '${base:-<unset>}' unusable; falling back to HEAD~1"
             base="$(git rev-parse HEAD~1)"
           fi
+          head_args=""
+          if [ -n "${DOCS_OWED_PR_HEAD:-}" ] &&
+             git cat-file -e "${DOCS_OWED_PR_HEAD}^{commit}" 2>/dev/null; then
+            head_args="--head ${DOCS_OWED_PR_HEAD}"
+            echo "Diffing to the PR head ${DOCS_OWED_PR_HEAD} (not the merge ref)"
+          fi
           echo "Comparing declared upstreams against ${base}"
-          node scripts/docs/check-docs-owed.mjs --since "${base}" --fail-on-owed
+          node scripts/docs/check-docs-owed.mjs --since "${base}" ${head_args} --fail-on-owed
 
       - name: Report APS index count drift
         if:
