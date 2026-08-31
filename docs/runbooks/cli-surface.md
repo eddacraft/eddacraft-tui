@@ -963,12 +963,12 @@ the local intercept daemon that enables pre-write MCP validation.
 
 **Subcommands:**
 
-| Subcommand | Description                                                                                                                                                                                                                                                                                                                                                          |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `start`    | Start the intercept daemon in the foreground. `--foreground` is required.                                                                                                                                                                                                                                                                                            |
-| `status`   | Print the daemon's status snapshot (socket path used, sessions, fences, latency).                                                                                                                                                                                                                                                                                    |
-| `unblock`  | Clear fence state from the daemon.                                                                                                                                                                                                                                                                                                                                   |
-| `stop`     | Stop every per-user daemon recorded in the XDG/state-home PID candidates (`ANVIL_HOME` stays exclusive); idempotent when none is live. Reports the deduplicated registered-worktree impact across stopped daemons, or reports it as unknown when any stopped daemon could not be queried. An unresolved candidate is an explicit partial failure and exits non-zero. |
+| Subcommand | Description                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start`    | Start the intercept daemon in the foreground. `--foreground` is required.                                                                                                                                                                                                                                                                                                              |
+| `status`   | Print the daemon's status snapshot (socket path used, sessions, fences, latency).                                                                                                                                                                                                                                                                                                      |
+| `unblock`  | Clear fence state from the daemon.                                                                                                                                                                                                                                                                                                                                                     |
+| `stop`     | Stop every per-user daemon recorded in the XDG/state-home PID candidates (`ANVIL_HOME` stays exclusive); idempotent when none is live. Reports the deduplicated registered-worktree impact across stopped daemons, or reports it as unknown when any stopped daemon could not be queried. Unresolved sibling PID files are reported as skipped candidates and do not fail the command. |
 
 **When to use (`start`):** To start the intercept daemon in this terminal.
 `--foreground` is required; use `anvil start` or `anvil watch` when you want the
@@ -1001,7 +1001,8 @@ In JSON mode, `stop` retains the aggregate `outcome`, `pid`, and
 `registered_losing_protection` fields. It also emits `result` (`complete` or
 `partial-failure`), `partial_failure`, and a `candidates` array containing each
 PID path's outcome, PID, and error. Any unresolved candidate sets
-`partial_failure: true` and exits 1, even when another daemon was stopped.
+`partial_failure: true` for observability; the command still exits 0 after the
+canonical candidate was acted on.
 
 **Common errors:**
 

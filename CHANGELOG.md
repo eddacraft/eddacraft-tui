@@ -128,12 +128,13 @@ engineering maintenance are recorded in the
   lifecycle.** Stale socket inodes no longer hide a live sibling daemon, and a
   long-running `anvil watch` re-resolves the candidate paths after fallback or
   daemon relocation. Doctor holds the start and PID locks before removing a
-  proven-stale socket. Version recycling waits every daemon it signalled and
-  refuses a partial stop. `anvil intercept stop` reports the deduplicated
-  worktrees losing protection across all stopped daemons, or says the impact is
-  unknown when it cannot query one safely; an unresolved sibling now produces an
-  explicit partial failure and a non-zero exit, with every candidate present in
-  JSON while the legacy aggregate fields remain available.
+  proven-stale socket. Version recycling waits every daemon it signalled, then
+  starts the current binary at the canonical socket; leftover sibling PID-file
+  metadata does not abort that restart. `anvil intercept stop` reports the
+  deduplicated worktrees losing protection across all stopped daemons, or says
+  the impact is unknown when it cannot query one safely. JSON still lists every
+  candidate, including unresolved sibling PID files, without failing the
+  command.
 
 - **`anvil policy eval-regression` detects rules that go silent on frozen
   fixtures.** A finding that appears or disappears now reports that the fixture

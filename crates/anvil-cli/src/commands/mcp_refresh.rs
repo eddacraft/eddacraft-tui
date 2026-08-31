@@ -439,7 +439,7 @@ fn force_recycle(hooks: &dyn DaemonRecycleHooks) -> DaemonRecycleOutcome {
 
 fn force_recycle_running(hooks: &dyn DaemonRecycleHooks, before: String) -> DaemonRecycleOutcome {
     let stop = match hooks.stop_daemon() {
-        Ok(stop) if stop.signalled_pids.is_empty() && stop.candidate_errors.is_empty() => {
+        Ok(stop) if stop.signalled_pids.is_empty() => {
             return if hooks.running_daemon().is_none() {
                 DaemonRecycleOutcome::NotRunning
             } else {
@@ -465,7 +465,13 @@ fn force_recycle_running(hooks: &dyn DaemonRecycleHooks, before: String) -> Daem
             stop_failures.push(recovery);
         }
     }
-    stop_failures.extend(stop.candidate_errors);
+    if !stop.candidate_errors.is_empty() {
+        tracing::debug!(
+            skipped = stop.candidate_errors.len(),
+            errors = ?stop.candidate_errors,
+            "force recycle observed sibling PID-file record errors; not aborting restart"
+        );
+    }
     if !stop_failures.is_empty() {
         return DaemonRecycleOutcome::Failed {
             before: Some(before),

@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                   |
-| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-31 for live-probed dual-path Unix rendezvous, watch reconnect, and locked daemon lifecycle repair; transport, admission, egress, save-time, peer-admission topology, and diagrams otherwise unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                            |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-31 for live-probed dual-path Unix rendezvous, watch reconnect, locked daemon lifecycle repair, and MF-1 sibling PID-file record errors that must not abort stop or recycle; transport, admission, egress, save-time, peer-admission topology, and diagrams otherwise unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -169,9 +169,10 @@ owns their cross-component client and capability relationship.
 - Doctor socket cleanup holds the per-install start lock across stop and then
   the PID lock through canonical startup and final all-candidate classification.
   A live or rebound socket is never removed. Version recycle waits every
-  signalled candidate PID and refuses restart if any candidate stop result is
-  unsafe. `anvil intercept stop` likewise preserves every candidate outcome and
-  returns a partial failure when any candidate remains unresolved.
+  signalled candidate PID and then starts at the canonical socket; a malformed
+  or unproven sibling PID file does not abort that restart.
+  `anvil intercept stop` reports every candidate, including skipped sibling PID
+  files, and still exits zero after the canonical candidate was acted on.
 - Windows IPC uses an owner-only pipe DACL and the server compares the connected
   peer SID with the pipe-owner SID before dispatch.
 - The production `scan_buffer` session-ownership and environment-tag spoof

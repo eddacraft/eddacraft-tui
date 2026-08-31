@@ -225,29 +225,6 @@ fn stop_result_json(
     })
 }
 
-#[cfg(unix)]
-fn ensure_stop_reports_complete(reports: &[anvil_intercept::StopReport]) -> Result<()> {
-    let unresolved = reports
-        .iter()
-        .filter_map(|report| {
-            report
-                .outcome
-                .as_ref()
-                .err()
-                .map(|error| format!("{}: {error}", report.pid_file.display()))
-        })
-        .collect::<Vec<_>>();
-    if unresolved.is_empty() {
-        Ok(())
-    } else {
-        anyhow::bail!(
-            "intercept daemon stop incomplete; {} candidate(s) unresolved: {}",
-            unresolved.len(),
-            unresolved.join("; "),
-        )
-    }
-}
-
 #[cfg(any(unix, windows))]
 fn run_stop(json_mode: bool) -> Result<()> {
     use anvil_intercept::StopOutcome;
@@ -280,11 +257,7 @@ fn run_stop(json_mode: bool) -> Result<()> {
         #[cfg(unix)]
         {
             crate::output::json::print(&stop_result_json(&outcome, registered, &reports))?;
-            return if ensure_stop_reports_complete(&reports).is_ok() {
-                Ok(())
-            } else {
-                Err(crate::output::AlreadyReported.into())
-            };
+            return Ok(());
         }
         #[cfg(windows)]
         {
@@ -305,12 +278,6 @@ fn run_stop(json_mode: bool) -> Result<()> {
             }))?;
             return Ok(());
         }
-    }
-    #[cfg(unix)]
-    if reports.iter().any(|report| report.outcome.is_err()) {
-        println!(
-            "anvil intercept stop is incomplete; one or more daemon candidates remain unresolved"
-        );
     }
     match outcome {
         StopOutcome::Signalled { pid } => {
@@ -353,7 +320,6 @@ fn run_stop(json_mode: bool) -> Result<()> {
                 println!("  skipped {}: {err}", report.pid_file.display());
             }
         }
-        ensure_stop_reports_complete(&reports)?;
     }
     Ok(())
 }
@@ -2053,7 +2019,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn partial_stop_fails_when_canonical_is_not_running_and_sibling_is_unresolved() {
+    fn partial_stop_reports_when_canonical_is_not_running_and_sibling_is_unresolved() {
         use anvil_intercept::{StopOutcome, StopReport};
         let reports = vec![
             StopReport {
@@ -2072,12 +2038,11 @@ mod tests {
         assert_eq!(document["partial_failure"], true);
         assert_eq!(document["candidates"].as_array().map(Vec::len), Some(2));
         assert_eq!(document["candidates"][1]["outcome"], "unresolved");
-        assert!(ensure_stop_reports_complete(&reports).is_err());
     }
 
     #[cfg(unix)]
     #[test]
-    fn partial_stop_fails_when_canonical_is_signalled_and_sibling_is_unresolved() {
+    fn partial_stop_reports_when_canonical_is_signalled_and_sibling_is_unresolved() {
         use anvil_intercept::{StopOutcome, StopReport};
         let reports = vec![
             StopReport {
@@ -2102,7 +2067,6 @@ mod tests {
                 .as_str()
                 .is_some_and(|error| error.contains("malformed")),
         );
-        assert!(ensure_stop_reports_complete(&reports).is_err());
     }
 
     /// **Contract pin (demo runbook §1.5):** with traffic the line

@@ -100,7 +100,7 @@ pub(crate) fn recycle_daemon_if_version_skew(
 
     let before = running.version;
     let stop = match hooks.stop_daemon() {
-        Ok(stop) if stop.signalled_pids.is_empty() && stop.candidate_errors.is_empty() => {
+        Ok(stop) if stop.signalled_pids.is_empty() => {
             // Race: the daemon can exit between the version probe and stop.
             // Re-probe; if it is gone, fall through to ordinary ensure.
             return if hooks.running_daemon().is_none() {
@@ -129,7 +129,15 @@ pub(crate) fn recycle_daemon_if_version_skew(
             stop_failures.push(recovery);
         }
     }
-    stop_failures.extend(stop.candidate_errors);
+    // Sibling PID-file record errors (malformed/unproven/ungated) are not a live
+    // daemon. Spec item 9 / MF-1: they must not abort restart after a signal.
+    if !stop.candidate_errors.is_empty() {
+        tracing::debug!(
+            skipped = stop.candidate_errors.len(),
+            errors = ?stop.candidate_errors,
+            "recycle observed sibling PID-file record errors; not aborting restart"
+        );
+    }
     if !stop_failures.is_empty() {
         return DaemonRecycleOutcome::Failed {
             before: Some(before),
@@ -417,16 +425,20 @@ mod tests {
     }
 
     #[test]
-    fn recycle_waits_for_signalled_daemons_then_rejects_a_candidate_stop_error() {
+    fn recycle_waits_for_signalled_daemons_then_starts_despite_sibling_record_error() {
         let mut hooks = RecordingHooks::skewed();
         hooks.stop_pids = vec![4242];
         hooks.stop_candidate_errors = vec!["sibling PID was unproven".into()];
         let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
-        assert!(matches!(outcome, DaemonRecycleOutcome::Failed { .. }));
+        assert!(matches!(outcome, DaemonRecycleOutcome::Recycled { .. }));
         assert_eq!(
             hooks.calls(),
-            vec![RecycleCall::Stop, RecycleCall::Wait(4242)],
-            "every delivered signal must be reaped, but a partial stop must never restart",
+            vec![
+                RecycleCall::Stop,
+                RecycleCall::Wait(4242),
+                RecycleCall::Start,
+            ],
+            "sibling PID-file record errors must not abort restart after a signalled daemon exits",
         );
     }
 

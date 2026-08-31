@@ -112,37 +112,28 @@ fn stop_clears_a_stale_pid_file() {
 }
 
 #[test]
-fn stop_with_unresolved_sibling_is_a_partial_failure() {
+fn stop_with_unresolved_sibling_reports_skip_and_exits_zero() {
     let root = tempfile::tempdir().expect("tempdir");
     let out = stop_with_unresolved_sibling(root.path(), false);
 
     assert!(
-        !out.status.success(),
-        "partial stop must exit non-zero; stdout: {}; stderr: {}",
+        out.status.success(),
+        "sibling PID-file record errors must not fail stop; stdout: {}; stderr: {}",
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr),
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        stdout.contains("stop is incomplete"),
-        "stdout was: {stdout}"
-    );
     assert!(stdout.contains("skipped"), "stdout was: {stdout}");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains("candidate(s) unresolved"),
-        "stderr was: {stderr}"
-    );
 }
 
 #[test]
-fn stop_json_reports_every_candidate_and_is_non_zero_on_partial_failure() {
+fn stop_json_reports_every_candidate_and_exits_zero_on_unresolved_sibling() {
     let root = tempfile::tempdir().expect("tempdir");
     let out = stop_with_unresolved_sibling(root.path(), true);
 
     assert!(
-        !out.status.success(),
-        "partial JSON stop must exit non-zero; stdout: {}; stderr: {}",
+        out.status.success(),
+        "JSON stop must exit 0 after reporting an unresolved sibling; stdout: {}; stderr: {}",
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr),
     );
