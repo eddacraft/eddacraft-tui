@@ -181,7 +181,7 @@ pub fn protection_loop_steps() -> Vec<TutorialStep> {
         ),
         step_with_command(
             "Verify protection state in this repo",
-            "Now run the safe verifier. `anvil start --verify` is read-only — it probes config (.anvilrc), the MCP client entries of any MCP-capable editor it detects (for example Cursor or Claude Code), the activation baseline, and the repo language profile, then prints one literal `ProtectionState` line. Watch-fallback liveness probing is not yet wired; the verifier reports `watch: not requested` until a future PR introspects a running watcher. If the state isn't `protecting` yet, the output names the next concrete step. Re-running is idempotent and never modifies your editor config; mutating activation is `anvil start` (no `--verify`).",
+            "Now run the safe verifier. `anvil start --verify` is read-only — it probes config (.anvilrc), the MCP client entries of any MCP-capable editor it detects, the activation baseline, and the repo language profile, then prints one literal `ProtectionState` line. Watch-fallback liveness probing is not yet wired; the verifier reports `watch: not requested` until a future PR introspects a running watcher. If the state isn't `protecting` yet, the output names the next concrete step. Re-running is idempotent and never modifies your editor config; mutating activation is `anvil start` (no `--verify`).",
             "Run: anvil start --verify",
             "anvil start --verify",
             CommandEffect::ReadOnly,
@@ -238,9 +238,9 @@ pub fn autoplay_protection_loop_steps() -> Vec<TutorialStep> {
 /// agent's edits before they land, drives a fast save-time loop, and exposes
 /// graph context to the agent.
 ///
-/// Terminology is deliberately generic: anvil supports specific editors today
-/// (Cursor, Claude Code) but the copy frames them as examples of MCP-capable
-/// editors, never as the only options.
+/// Terminology is deliberately generic: name MCP-capable editors and agents,
+/// never a closed list of product names. Point at `anvil mcp install --help`
+/// for the live client set.
 ///
 /// Honesty: like the `ProtectionLoop` path, this walk never claims the user's
 /// repo is "protected" — the read-only `anvil start --verify` step is the only
@@ -249,12 +249,12 @@ pub fn developer_acceleration_steps() -> Vec<TutorialStep> {
     vec![
         step(
             "anvil in your AI dev loop",
-            "When an AI coding agent writes code, anvil sits in the loop three ways: it gives the agent graph context so it writes code that fits your project, it validates the agent's edits before they land, and it runs a fast save-time check so you catch issues in seconds instead of at CI. This walk wires those three up. It works with any MCP-capable editor or agent — Cursor and Claude Code today, others via `anvil mcp-config`.",
+            "When an AI coding agent writes code, anvil sits in the loop three ways: it gives the agent graph context so it writes code that fits your project, it validates the agent's edits before they land, and it runs a fast save-time check so you catch issues in seconds instead of at CI. This walk wires those three up. It works with any MCP-capable editor or agent. `anvil start` wires the clients you select; `anvil mcp install --help` lists the rest.",
             "Press enter to wire your agent.",
         ),
         step(
             "Wire your agent over MCP",
-            "anvil talks to your editor/agent over MCP (the Model Context Protocol). `anvil start` writes the MCP entry for the MCP-capable editors it detects; for any other MCP client, `anvil mcp-config --target <editor>` prints (or writes, with --write) the config to drop in. Once wired, the agent can call anvil's tools — and anvil can validate what the agent is about to write. This step just explains the wiring; the next one inspects it read-only.",
+            "anvil talks to your editor/agent over MCP (the Model Context Protocol). `anvil start` writes the MCP entry for the MCP-capable editors you select; `anvil mcp install --help` lists every supported client, and `anvil mcp install --client <id>` wires one without a full interactive run. Once wired, the agent can call anvil's tools — and anvil can validate what the agent is about to write. This step just explains the wiring; the next one inspects it read-only.",
             "Press enter to check activation.",
         ),
         step_with_command(
@@ -540,14 +540,34 @@ mod tests {
         );
     }
 
-    #[test]
-    fn developer_acceleration_copy_is_honest_and_generic() {
-        let body = developer_acceleration_steps()
+    fn user_facing_copy(steps: &[TutorialStep]) -> String {
+        steps
             .iter()
             .map(|s| format!("{}\n{}\n{}", s.title, s.description, s.instruction))
             .collect::<Vec<_>>()
             .join("\n")
-            .to_lowercase();
+            .to_lowercase()
+    }
+
+    fn all_user_facing_tutorial_copy() -> String {
+        [
+            protection_loop_steps(),
+            autoplay_protection_loop_steps(),
+            developer_acceleration_steps(),
+            policy_steps(),
+            architecture_steps(),
+            drift_steps(),
+            ci_steps(),
+        ]
+        .into_iter()
+        .map(|steps| user_facing_copy(&steps))
+        .collect::<Vec<_>>()
+        .join("\n")
+    }
+
+    #[test]
+    fn developer_acceleration_copy_is_honest_and_generic() {
+        let body = user_facing_copy(&developer_acceleration_steps());
         // Honesty: never claims the user's repo is already protected.
         for forbidden in [
             "you are now protected",
@@ -558,12 +578,36 @@ mod tests {
         }
         // The verifier is the only place a real state comes from.
         assert!(body.contains("anvil start --verify"));
-        // Generic terminology: editor names appear only as examples, and the
-        // generic "mcp-capable" framing must be present.
+        // Generic terminology: no closed product-name list; point at install help.
         assert!(
             body.contains("mcp-capable"),
             "copy should frame editors generically as MCP-capable"
         );
+        assert!(
+            body.contains("anvil mcp install --help"),
+            "copy should point at `anvil mcp install --help` for the live client set"
+        );
+        assert!(
+            !body.contains("anvil mcp-config"),
+            "copy should not send users to the compatibility mcp-config command"
+        );
+        for forbidden in ["claude", "cursor"] {
+            assert!(
+                !body.contains(forbidden),
+                "developer-acceleration copy must not name {forbidden}"
+            );
+        }
+    }
+
+    #[test]
+    fn tutorial_copy_does_not_name_specific_editors() {
+        let body = all_user_facing_tutorial_copy();
+        for forbidden in ["claude", "cursor"] {
+            assert!(
+                !body.contains(forbidden),
+                "tutorial copy must not name {forbidden}; use generic MCP-capable wording"
+            );
+        }
     }
 
     #[test]
