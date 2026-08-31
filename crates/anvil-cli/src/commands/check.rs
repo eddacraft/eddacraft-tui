@@ -1079,7 +1079,11 @@ fn git_toplevel() -> Result<std::path::PathBuf> {
 }
 
 fn git_toplevel_in(dir: &Path) -> Result<std::path::PathBuf> {
-    let dir = crate::display_path::canonicalise(dir).unwrap_or_else(|_| dir.to_path_buf());
+    let dir = crate::display_path::canonicalise(dir).unwrap_or_else(|_| {
+        std::path::PathBuf::from(
+            crate::display_path::strip_verbatim_prefix(&dir.to_string_lossy()).as_ref(),
+        )
+    });
     let output = Command::new("git")
         .args(["-C"])
         .arg(&dir)

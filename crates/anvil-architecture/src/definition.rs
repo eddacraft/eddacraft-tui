@@ -846,12 +846,25 @@ mod tests {
                 .any(|d| d.code == "negation-pattern-not-supported" && d.is_error()),
             "{diagnostics:?}"
         );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|d| d.code != "overlapping-layer-patterns"),
+            "a `!` pattern must not also be reported as overlap: {diagnostics:?}"
+        );
         let errors = validate_definition(&def).unwrap_err();
         assert!(errors.iter().any(|e| matches!(
             e,
             DefinitionValidationError::NegationPatternNotSupported { layer, pattern }
                 if layer == "cli" && pattern == "!src/cli.ts"
         )));
+        assert!(
+            errors.iter().all(|e| !matches!(
+                e,
+                DefinitionValidationError::OverlappingLayerPatterns { .. }
+            )),
+            "a `!` pattern must not also be reported as overlap: {errors:?}"
+        );
     }
 
     #[test]

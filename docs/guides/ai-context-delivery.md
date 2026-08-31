@@ -1,8 +1,8 @@
 # AI Context Delivery
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                 |
-| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | GCTX  | Live   | Last reviewed 2026-08-29 against `crates/anvil-graph-cache/ARCHITECTURE.md` and the live MCP tool surface |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | GCTX  | Live   | Last reviewed 2026-08-31 against the CIB-385 graph-cache ARCHITECTURE honesty re-date; MCP tool surface and diagrams unchanged. Prior review 2026-08-29 against `crates/anvil-graph-cache/ARCHITECTURE.md` and the live MCP tool surface |
 
 | Upstream                                                                                                                                          | Downstream                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |

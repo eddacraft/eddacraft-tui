@@ -19,6 +19,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde_json::{Value, json};
 
 use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
+use crate::mcp::tools::shared::should_rewarm_not_ready;
 
 use anvil_gctx_types::MAX_PAGE_LIMIT;
 use anvil_intercept_proto::protocol::{
@@ -277,11 +278,11 @@ fn read_stats(query: &[(String, String)]) -> Result<Value, ReadError> {
             }
         };
     // ADR-085 C1 on-demand re-warm: a NotReady graph is the one outcome a retry
-    // can recover from (council CR-1, mirroring the GCTX tools).
-    if matches!(
-        response.outcome,
-        anvil_gctx_types::GraphStatsOutcome::NotReady { .. }
-    ) {
+    // can recover from (council CR-1, mirroring the GCTX tools). A platform
+    // with no symbol parser cannot populate — do not loop request_full_scan.
+    if let anvil_gctx_types::GraphStatsOutcome::NotReady { recovery_hint } = &response.outcome
+        && should_rewarm_not_ready(recovery_hint)
+    {
         rewarm(&root);
     }
     Ok(serde_json::to_value(response).expect("gctx response serialises"))
@@ -320,10 +321,9 @@ fn read_symbols(query: &[(String, String)]) -> Result<Value, ReadError> {
             ));
         }
     };
-    if matches!(
-        response.outcome,
-        anvil_gctx_types::SearchSymbolsOutcome::NotReady { .. }
-    ) {
+    if let anvil_gctx_types::SearchSymbolsOutcome::NotReady { recovery_hint } = &response.outcome
+        && should_rewarm_not_ready(recovery_hint)
+    {
         rewarm(&root);
     }
     Ok(serde_json::to_value(response).expect("gctx response serialises"))
@@ -359,10 +359,9 @@ fn read_edges(query: &[(String, String)]) -> Result<Value, ReadError> {
                 ));
             }
         };
-    if matches!(
-        response.outcome,
-        anvil_gctx_types::GraphEdgesOutcome::NotReady { .. }
-    ) {
+    if let anvil_gctx_types::GraphEdgesOutcome::NotReady { recovery_hint } = &response.outcome
+        && should_rewarm_not_ready(recovery_hint)
+    {
         rewarm(&root);
     }
     Ok(serde_json::to_value(response).expect("gctx response serialises"))

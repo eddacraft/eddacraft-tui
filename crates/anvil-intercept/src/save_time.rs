@@ -1547,14 +1547,23 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             // so the scan's `complete_scan` fails safe to `Stale` + re-queue
             // instead of certifying a graph that may not reflect this save.
             machine.note_apply_delta();
-            run_validate_paths(
+            let mut response = run_validate_paths(
                 &request,
                 &state.cache,
                 machine,
                 read_guarded,
                 fed_symbols,
                 &env,
-            )
+            );
+            // CIB-385: with no parser, every path is uncertifiable and
+            // `record_verdict` would stamp `CrossFileResolutionNeeded` (the
+            // warmable "save a file" class). Overlay the platform-cap reason
+            // so watch and `workspace_assurance` stay honest.
+            if state.parser.is_none() {
+                machine.mark_stale(StaleReason::NoParserOnThisPlatform);
+                response.workspace_assurance = machine.snapshot();
+            }
+            response
         });
         tracing::debug!(
             target: "anvil_intercept::save_time",
@@ -4104,6 +4113,12 @@ mod tests {
             paths: vec![modified("src/a.ts")],
         };
         let resp = conn.validate_paths(&request).expect("admitted");
+        assert_eq!(
+            resp.workspace_assurance.reason,
+            Some(StaleReason::NoParserOnThisPlatform),
+            "a no-parser save must not stamp the warmable cross-file class"
+        );
+        assert_eq!(resp.workspace_assurance.state, AssuranceState::Stale);
 
         assert_eq!(resp.evaluated.len(), 1);
         assert_eq!(resp.evaluated[0].path, "src/a.ts");
@@ -6001,7 +6016,12 @@ mod tests {
     #[test]
     fn implicit_background_scan_is_suppressed_by_scoped_opt_out() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let state = state();
+        // This test is about the scoped opt-out, not the no-parser platform
+        // cap. Inject a parser so Interactive can still enqueue.
+        let state = state().with_parser(Arc::new(FixedParser {
+            file: "src/a.ts".to_string(),
+            names: vec!["a".to_string()],
+        }));
         let key =
             WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
 

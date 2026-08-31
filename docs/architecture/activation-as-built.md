@@ -1,8 +1,8 @@
 # Activation Orchestrator — Compatibility Record
 
-| Type     | Authority | Owner      | Status     | Freshness                                                                                                                                                                   |
-| -------- | --------- | ---------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | CLI/LAUNCH | Deprecated | Unaffected review 2026-08-30: CONF-011 adds a command adapter outside activation; component truth remains in `crates/anvil-cli/ARCHITECTURE.md` under DOCRB-005 and ADR-123 |
+| Type     | Authority | Owner      | Status     | Freshness                                                                                                                                                                                                                                                                                                       |
+| -------- | --------- | ---------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | CLI/LAUNCH | Deprecated | Unaffected review 2026-08-31: CIB-385 through CIB-389 re-date `crates/anvil-cli/ARCHITECTURE.md`; activation orchestration unchanged. Also unaffected 2026-08-30: CONF-011 adds a command adapter outside activation; component truth remains in `crates/anvil-cli/ARCHITECTURE.md` under DOCRB-005 and ADR-123 |
 
 | Upstream                      | Downstream                                                                                                                                                                                                             |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
