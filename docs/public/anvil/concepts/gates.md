@@ -6,7 +6,7 @@ owner: DOCSYNC
 upstream:
   - crates/anvil-cli/src/commands/gate.rs
   - crates/anvil-cli/src/commands/check.rs
-verified_against: 0.9.0-beta
+verified_against: 0.9.7-beta
 ---
 
 # Checks, findings, and gates
@@ -17,9 +17,14 @@ A **check** evaluates one concern. A **finding** is the result of a check. A
 The full model — check versus scan, the planless `anvil check` subset, profiles,
 and when anvil runs — is [How anvil evaluates a project](evaluation-model.md).
 
+`anvil check` runs that planless pair with regex **and** AST. A green save-time
+watch is not that pass. `anvil gate` is the merge judgement; default
+`anvil watch` is `check`, not `gate`.
+
 ## Checks
 
-Use `anvil check` for a quick, file-focused run:
+Use `anvil check` for a quick, file-focused run (regex **and** AST
+anti-patterns, plus secrets):
 
 ```text
 anvil check src/example.ts --format plain
@@ -42,7 +47,8 @@ the surrounding code and fix the cause.
 
 ## Gates
 
-Use `anvil gate` when the workflow needs several checks and a single verdict:
+Use `anvil gate` when the workflow needs a **merge judgement** — several checks
+and a single verdict. Do not treat default `anvil watch` as this:
 
 ```text
 anvil gate --profile dev --format plain
