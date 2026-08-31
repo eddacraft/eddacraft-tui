@@ -17,9 +17,10 @@ A **check** evaluates one concern. A **finding** is the result of a check. A
 The full model — check versus scan, the planless `anvil check` subset, profiles,
 and when anvil runs — is [How anvil evaluates a project](evaluation-model.md).
 
-`anvil check` runs that planless pair with regex **and** AST. A green save-time
-watch is not that pass. `anvil gate` is the merge judgement; default
-`anvil watch` is `check`, not `gate`.
+`anvil check` runs the planless pair: secrets stay pattern-based;
+`antipattern-scan` merges regex **and** AST. A green save-time watch is not that
+pass. `anvil gate` is the merge judgement; default `anvil watch` is `check`, not
+`gate`.
 
 ## Checks
 

@@ -51,8 +51,9 @@ before it reaches disk.
 The save-time catalogue is regex anti-patterns and secrets. **No AST.** Default
 `anvil watch` action is `check`, not `gate`. After an allow, watch may print one
 stderr line if a background AST follow-up finds something; that line does not
-block the write. Run `anvil check --changed` when you want regex plus AST on
-demand, and `anvil gate` when you need a merge judgement.
+block the write. Run `anvil check --changed` when you want regex and AST
+anti-patterns, plus secrets, on demand, and `anvil gate` when you need a merge
+judgement.
 
 The four layers are in
 [How anvil evaluates a project](../concepts/evaluation-model.md).
