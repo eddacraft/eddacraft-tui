@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Accepted | 2026-08-30 — documentation-governance freshness bump for work-item claim issues; IA/nav diagrams unchanged |
+| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Accepted | 2026-08-31 — documentation-governance freshness bump for the `classify-changes.sh` project-config path class; IA/nav diagrams unchanged |
 
 | Upstream | Downstream |
 | -------- | ---------- |

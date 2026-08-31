@@ -1,8 +1,8 @@
 # Architecture Documentation
 
-| Type   | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                          |
-| ------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-31 for documentation-governance freshness after an archive link repoint (the governance rules themselves are unchanged); previously reviewed 2026-08-30 for work-item claim-issue documentation-governance freshness; architecture index otherwise unchanged |
+| Type   | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                      |
+| ------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCRB | Live   | Last reviewed 2026-08-31 for the `classify-changes.sh` project-config path class and for documentation-governance freshness after an archive link repoint (the governance rules themselves are unchanged); previously reviewed 2026-08-30 for work-item claim-issue documentation-governance freshness; architecture index otherwise unchanged |
 
 | Upstream                                                                  | Downstream                      |
 | ------------------------------------------------------------------------- | ------------------------------- |
