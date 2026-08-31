@@ -1270,10 +1270,17 @@ fn resolve_workspace_root() -> Option<String> {
 /// repo) over the process cwd. Used by single-file `anvil check` so embeddings
 /// that inherit `$HOME` as cwd do not bind to that tree.
 fn resolve_workspace_root_in(hint: Option<&Path>) -> Option<String> {
-    if let Some(hint) = hint
-        && let Ok(root) = git_toplevel_in(hint)
-    {
-        return Some(root.to_string_lossy().to_string());
+    if let Some(hint) = hint {
+        if let Ok(root) = git_toplevel_in(hint) {
+            return Some(root.to_string_lossy().to_string());
+        }
+        // The hinted path is not in a git repo. Bind the process cwd itself,
+        // not cwd's git toplevel (CIB-386): a hook whose cwd is a foreign
+        // repo must not pay that tree for a non-repo file.
+        return std::env::current_dir()
+            .and_then(|dir| crate::display_path::canonicalise(&dir))
+            .ok()
+            .map(|p| p.to_string_lossy().to_string());
     }
     git_toplevel()
         .ok()
@@ -2070,6 +2077,32 @@ mod tests {
         let (files, source) = gather_files(&args, &exts).unwrap();
         assert_eq!(source, FileSource::Explicit);
         assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn explicit_non_git_file_binds_cwd_not_cwd_git_toplevel() {
+        let repo = tempfile::tempdir().unwrap();
+        let init = Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(repo.path())
+            .status()
+            .expect("git init");
+        assert!(init.success());
+        let nested = repo.path().join("src");
+        std::fs::create_dir(&nested).unwrap();
+        let other = tempfile::tempdir().unwrap();
+        let file = other.path().join("x.ts");
+        std::fs::write(&file, "export const x = 1;\n").unwrap();
+        crate::test_support::cwd::with_cwd_in(&nested, || {
+            let bound = resolve_workspace_root_in(Some(file.parent().unwrap())).unwrap();
+            let expected = crate::display_path::canonicalise(&nested).unwrap();
+            let bound = std::path::PathBuf::from(&bound);
+            assert_eq!(
+                bound.canonicalize().unwrap(),
+                expected.canonicalize().unwrap(),
+                "a non-repo file must bind cwd, not cwd's git toplevel"
+            );
+        });
     }
 
     #[test]
