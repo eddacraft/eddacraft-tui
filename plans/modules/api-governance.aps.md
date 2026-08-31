@@ -156,7 +156,7 @@ deprecation policy, or consistent error shapes.
 
 ### APGOV-008: Bounded Neon HTTP connect retry
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-31 via PR #4286
 - **Identified From:** Production 5xx spike 2026-08-30 on
   `POST /api/v1/account/activity` (`NeonDbError` / `fetch failed` /
   `ETIMEDOUT` ~750ms).
