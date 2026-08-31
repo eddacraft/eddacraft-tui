@@ -255,6 +255,10 @@ pub fn discover_skill_paths(
 /// Evaluate every bundled managed skill at discovered paths that exist, plus
 /// paths for strongly detected skill-capable clients (so Absent is only
 /// reported when a client in that scope would care).
+///
+/// Occupied skill roots (any bundled skill already on disk) also evaluate the
+/// rest of the bundle, so a companion that was never installed is Absent
+/// rather than silently omitted.
 #[must_use]
 pub fn evaluate_known_skills(
     home: Option<&Path>,
@@ -262,8 +266,20 @@ pub fn evaluate_known_skills(
 ) -> Vec<SkillInstallReport> {
     let env = RealDetectionEnv;
     let mut reports = Vec::new();
+    let bundled = bundled_skills();
 
-    for skill in bundled_skills() {
+    let mut occupied_roots: BTreeSet<PathBuf> = BTreeSet::new();
+    for skill in bundled {
+        for (path, _) in discover_skill_paths(home, project, skill.name) {
+            if path.exists() {
+                if let Some(root) = path.parent() {
+                    occupied_roots.insert(root.to_path_buf());
+                }
+            }
+        }
+    }
+
+    for skill in bundled {
         let expected = expected_manifest_for(skill);
         let mut interested: BTreeSet<PathBuf> = BTreeSet::new();
 
@@ -286,7 +302,10 @@ pub fn evaluate_known_skills(
 
         for (path, clients) in discover_skill_paths(home, project, skill.name) {
             let exists = path.exists();
-            if !exists && !interested.contains(&path) {
+            let sibling_present = path
+                .parent()
+                .is_some_and(|root| occupied_roots.contains(root));
+            if !exists && !interested.contains(&path) && !sibling_present {
                 continue;
             }
             let outcome = evaluate_install(&path, &expected);
@@ -661,6 +680,16 @@ mod tests {
                 report.path == destination && report.outcome == SkillInstallOutcome::Fresh
             }),
             "existing install must be reported even without client detection: {reports:?}"
+        );
+        let companion = project
+            .path()
+            .join(".agents/skills")
+            .join(USING_ANVIL_SKILL_NAME);
+        assert!(
+            reports.iter().any(|report| {
+                report.path == companion && report.outcome == SkillInstallOutcome::Absent
+            }),
+            "companion at an occupied skill root must be Absent: {reports:?}"
         );
     }
 }

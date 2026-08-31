@@ -2130,7 +2130,7 @@ fn check_managed_skills() -> DiagnosticCheck {
 
 /// Testable entry point for managed-skill doctor evaluation.
 /// Per-outcome tallies across a skill's evaluated install sites.
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct SkillOutcomeCounts {
     fresh: usize,
     stale: usize,
@@ -2138,6 +2138,9 @@ struct SkillOutcomeCounts {
     unmanaged: usize,
     absent: usize,
     broken: usize,
+    /// Skill roots that have at least one present bundled skill and at least
+    /// one Absent companion. Unselected all-Absent client roots are not this.
+    incomplete: usize,
 }
 
 fn tally_skill_outcomes(
@@ -2192,7 +2195,33 @@ fn tally_skill_outcomes(
         detail_lines.push(line);
     }
 
+    counts.incomplete = incomplete_bundle_root_count(reports);
     (counts, detail_lines)
+}
+
+/// Count occupied skill roots whose bundled set is missing a companion.
+fn incomplete_bundle_root_count(
+    reports: &[crate::commands::skill_state::SkillInstallReport],
+) -> usize {
+    use crate::commands::skill_state::SkillInstallOutcome;
+    use std::collections::BTreeMap;
+
+    let mut by_root: BTreeMap<PathBuf, (usize, usize)> = BTreeMap::new();
+    for report in reports {
+        let Some(root) = report.path.parent() else {
+            continue;
+        };
+        let entry = by_root.entry(root.to_path_buf()).or_insert((0, 0));
+        if matches!(report.outcome, SkillInstallOutcome::Absent) {
+            entry.1 += 1;
+        } else {
+            entry.0 += 1;
+        }
+    }
+    by_root
+        .values()
+        .filter(|(present, absent)| *present > 0 && *absent > 0)
+        .count()
 }
 
 fn classify_managed_skill_status(
@@ -2205,6 +2234,7 @@ fn classify_managed_skill_status(
         dirty,
         unmanaged,
         broken,
+        incomplete,
         ..
     } = *counts;
 
@@ -2212,8 +2242,9 @@ fn classify_managed_skill_status(
     // At least one Fresh install satisfies "installed somewhere" even when
     // other client roots remain Absent — users pick clients at install time.
     let missing_required_fresh = clients_detected && !has_fresh;
-    let pure_stale = stale > 0 && dirty == 0 && unmanaged == 0 && broken == 0;
-    let has_integrity_or_drift = broken > 0 || dirty > 0 || unmanaged > 0 || stale > 0;
+    let pure_stale = stale > 0 && dirty == 0 && unmanaged == 0 && broken == 0 && incomplete == 0;
+    let has_integrity_or_drift =
+        broken > 0 || dirty > 0 || unmanaged > 0 || stale > 0 || incomplete > 0;
 
     if !has_integrity_or_drift && !missing_required_fresh && has_fresh {
         return (
@@ -2226,6 +2257,21 @@ fn classify_managed_skill_status(
             false,
         );
     }
+    if incomplete > 0 && dirty == 0 && unmanaged == 0 && broken == 0 && stale == 0 {
+        return (
+            CheckStatus::Warn,
+            format!(
+                "managed anvil skills are incomplete at {incomplete} site{}",
+                if incomplete == 1 { "" } else { "s" }
+            ),
+            Remediation {
+                summary: "Install the managed skills with `anvil skill install`.".to_string(),
+                command: Some("anvil skill install".to_string()),
+                doc_url: None,
+            },
+            false,
+        );
+    }
     if pure_stale {
         return (
             CheckStatus::Warn,
@@ -2235,7 +2281,7 @@ fn classify_managed_skill_status(
             ),
             Remediation {
                 summary:
-                    "Reinstall the managed skill so it matches the bundle shipped with this anvil."
+                    "Reinstall the managed skills so they match the bundle shipped with this anvil."
                         .to_string(),
                 command: Some("anvil skill install".to_string()),
                 doc_url: None,
@@ -2269,7 +2315,7 @@ fn classify_managed_skill_status(
             CheckStatus::Warn,
             "managed anvil skills are not installed for detected agent clients".to_string(),
             Remediation {
-                summary: "Install the managed skill with `anvil skill install`.".to_string(),
+                summary: "Install the managed skills with `anvil skill install`.".to_string(),
                 command: Some("anvil skill install".to_string()),
                 doc_url: None,
             },
@@ -2293,6 +2339,7 @@ fn classify_mixed_skill_issues(
         unmanaged,
         absent,
         broken,
+        incomplete,
     } = counts;
 
     let mut parts = Vec::new();
@@ -2305,7 +2352,10 @@ fn classify_mixed_skill_issues(
     if unmanaged > 0 {
         parts.push(format!("{unmanaged} unmanaged"));
     }
-    if absent > 0 && missing_required_fresh {
+    if incomplete > 0 {
+        parts.push(format!("{incomplete} incomplete bundle"));
+    }
+    if absent > 0 && (missing_required_fresh || incomplete > 0) {
         parts.push(format!("{absent} absent"));
     }
     if stale > 0 {
@@ -2332,7 +2382,7 @@ fn classify_mixed_skill_issues(
         )
     } else {
         (
-            "Install or refresh the managed skill with `anvil skill install`.".to_string(),
+            "Install or refresh the managed skills with `anvil skill install`.".to_string(),
             Some("anvil skill install".to_string()),
         )
     };
@@ -5672,27 +5722,18 @@ mod tests {
 
     #[test]
     fn managed_skills_warn_stale_when_marker_version_drifts() {
-        use crate::commands::skill_state::{
-            DEFAULT_SKILL_NAME, MANIFEST_NAME, SKILL_MD, TOOL_REFERENCE,
-            expected_developer_functions_manifest,
-        };
+        use crate::commands::skill_state::{MANIFEST_NAME, bundled_skills, expected_manifest_for};
 
         let project = tempfile::tempdir().unwrap();
-        let destination = project
-            .path()
-            .join(".agents/skills")
-            .join(DEFAULT_SKILL_NAME);
-        std::fs::create_dir_all(destination.join("references")).unwrap();
-        std::fs::write(destination.join("SKILL.md"), SKILL_MD).unwrap();
-        std::fs::write(
-            destination.join("references/tool-reference.md"),
-            TOOL_REFERENCE,
-        )
-        .unwrap();
-        let mut stale = expected_developer_functions_manifest();
-        stale.anvil_version = "0.0.0-stale".to_string();
-        let body = format!("{}\n", serde_json::to_string_pretty(&stale).unwrap());
-        std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+        let skill_root = project.path().join(".agents/skills");
+        write_expected_skill_install(&skill_root);
+        for skill in bundled_skills() {
+            let destination = skill_root.join(skill.name);
+            let mut stale = expected_manifest_for(skill);
+            stale.anvil_version = "0.0.0-stale".to_string();
+            let body = format!("{}\n", serde_json::to_string_pretty(&stale).unwrap());
+            std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+        }
 
         let check = check_managed_skills_at(None, Some(project.path()));
         assert_eq!(
@@ -5715,6 +5756,74 @@ mod tests {
             check.remediation.command.as_deref(),
             Some("anvil skill install")
         );
+        assert!(
+            check.remediation.summary.contains("skills"),
+            "stale remediation should pluralise the bundled set: {}",
+            check.remediation.summary
+        );
+    }
+
+    #[test]
+    fn managed_skills_warn_when_companion_skill_is_absent_at_same_root() {
+        use crate::commands::skill_state::{
+            DEFAULT_SKILL_NAME, MANIFEST_NAME, SKILL_MD, TOOL_REFERENCE,
+            expected_developer_functions_manifest,
+        };
+
+        let project = tempfile::tempdir().unwrap();
+        let destination = project
+            .path()
+            .join(".agents/skills")
+            .join(DEFAULT_SKILL_NAME);
+        std::fs::create_dir_all(destination.join("references")).unwrap();
+        std::fs::write(destination.join("SKILL.md"), SKILL_MD).unwrap();
+        std::fs::write(
+            destination.join("references/tool-reference.md"),
+            TOOL_REFERENCE,
+        )
+        .unwrap();
+        let expected = expected_developer_functions_manifest();
+        let body = format!("{}\n", serde_json::to_string_pretty(&expected).unwrap());
+        std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+
+        let check = check_managed_skills_at(None, Some(project.path()));
+        assert_eq!(
+            check.status,
+            CheckStatus::Warn,
+            "message={:?} details={:?}",
+            check.message,
+            check.details
+        );
+        assert!(
+            check.message.contains("incomplete"),
+            "warn message should mention incomplete bundle: {}",
+            check.message
+        );
+        assert_eq!(
+            check.remediation.command.as_deref(),
+            Some("anvil skill install")
+        );
+        assert!(
+            check.remediation.summary.contains("skills"),
+            "remediation should pluralise the bundled set: {}",
+            check.remediation.summary
+        );
+    }
+
+    #[test]
+    fn classify_managed_skills_pass_when_absent_rows_are_unselected_clients() {
+        let counts = SkillOutcomeCounts {
+            fresh: 2,
+            absent: 2,
+            ..SkillOutcomeCounts::default()
+        };
+        let (status, message, _, auto_fixable) = classify_managed_skill_status(&counts, true);
+        assert_eq!(status, CheckStatus::Pass, "message={message}");
+        assert!(
+            message.contains("fresh"),
+            "pass message should mention freshness: {message}"
+        );
+        assert!(!auto_fixable);
     }
 
     /// CIB-287. Doctor's managed-skill detail lines used `Path::display`, so an
