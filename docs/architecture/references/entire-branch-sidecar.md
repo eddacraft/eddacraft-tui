@@ -227,9 +227,9 @@ following is our analysis.
 
 Capture-adjacent surfaces that could borrow this pattern:
 
-- **kindling-capture** (PostToolUse hook) — currently writes to an external
-  store. A git-native option would mean session data ships with `git push` for
-  free; pay the cost in ref management and shadow-branch GC.
+- **kindling capture** (the `kindling hook post-tool-use` Claude Code hook) —
+  writes to an external store. A git-native option would mean session data ships
+  with `git push` for free; pay the cost in ref management and shadow-branch GC.
 - **council** outputs — multi-agent review findings could live on a
   `refs/anvil/council/v1` ref, sharded by review ID, with a trailer linking back
   to the reviewed commit.

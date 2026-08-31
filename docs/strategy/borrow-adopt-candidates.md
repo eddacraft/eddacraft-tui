@@ -169,10 +169,10 @@ so the `status` below reflects the borrow, not the upstream project.
   - **integration effort:** M
   - **expected impact:** High
   - **status:** candidate
-  - **aps link (optional):** kindling-capture, council outputs, APS history
+  - **aps link (optional):** kindling capture, council outputs, APS history
   - **overlap with existing Anvil services:**
-    - kindling-capture (PostToolUse hook) currently writes to an external store
-      — git-native sidecar would replace that path
+    - kindling capture (the `kindling hook post-tool-use` hook) writes to an
+      external store — a git-native sidecar would replace that path
     - Council review findings and APS work-item history both want a place to
       live without polluting main tree / `plans/`
   - **architecture notes / anti-frankenstein guardrails:**
