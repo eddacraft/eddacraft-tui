@@ -28,15 +28,21 @@ test('findFreshnessCell returns null for an ungoverned document', () => {
 });
 
 test('findFreshnessCell returns null when the value row is short', () => {
-  const truncated = metadataTable.replace('| Guide | Authoritative | DOCRB | Live   |', '| Guide |');
+  const truncated = metadataTable.replace(
+    '| Guide | Authoritative | DOCRB | Live   |',
+    '| Guide |'
+  );
   assert.equal(findFreshnessCell(truncated), null);
 });
 
 test('rewriteFreshness leads with the new review and demotes the old one', () => {
-  const rewritten = rewriteFreshness('Last reviewed 2026-08-30 against `scripts/x.sh`; nothing moved', {
-    date: '2026-08-31',
-    note: 'Re-dated for the probe.',
-  });
+  const rewritten = rewriteFreshness(
+    'Last reviewed 2026-08-30 against `scripts/x.sh`; nothing moved',
+    {
+      date: '2026-08-31',
+      note: 'Re-dated for the probe.',
+    }
+  );
   assert.equal(
     rewritten,
     'Last reviewed 2026-08-31 Re-dated for the probe. Prior review 2026-08-30 against `scripts/x.sh`; nothing moved'
