@@ -9,15 +9,24 @@ use super::traits::Theme;
 /// - Off-White (fg), Ghost Grey (muted)
 /// - anvil Ember (accent), edda Growth (success)
 /// - Brick Red (error), Dull Amber (warning)
+///
+/// **Contrast:** every colour used as *text* must clear the WCAG AA 4.5:1
+/// floor against The Void, and `contrast_of_every_text_colour_clears_wcag_aa`
+/// pins that. anvil Ember was `#CC5500` and Brick Red `#C94A4A`, which
+/// measured 4.50:1 and 4.22:1 — sitting exactly on the floor and under it
+/// respectively, across ~7,100 rendered cells in 55 of the repo's TUI
+/// snapshots. Both were lightened along their own hue to land near 5.0:1.
+/// Lightening the accent raises `highlighted()` too (The Void *on* Ember), so
+/// one change fixes both directions.
 pub struct EddaCraftTheme;
 
 const VOID: Color = Color::Rgb(13, 13, 15);
 const STRUCTURE: Color = Color::Rgb(42, 42, 46);
 const OFF_WHITE: Color = Color::Rgb(235, 235, 235);
 const GHOST_GREY: Color = Color::Rgb(133, 133, 138);
-const ANVIL_EMBER: Color = Color::Rgb(204, 85, 0);
+const ANVIL_EMBER: Color = Color::Rgb(217, 90, 0);
 const EDDA_GROWTH: Color = Color::Rgb(46, 139, 87);
-const BRICK_RED: Color = Color::Rgb(201, 74, 74);
+const BRICK_RED: Color = Color::Rgb(207, 94, 94);
 const DULL_AMBER: Color = Color::Rgb(208, 140, 56);
 
 impl Theme for EddaCraftTheme {
@@ -57,6 +66,81 @@ impl Theme for EddaCraftTheme {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn srgb_channel(channel: u8) -> f64 {
+        let c = f64::from(channel) / 255.0;
+        if c <= 0.03928 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    fn relative_luminance(color: Color) -> f64 {
+        let Color::Rgb(r, g, b) = color else {
+            panic!("palette colours must be Rgb, got {color:?}");
+        };
+        0.2126 * srgb_channel(r) + 0.7152 * srgb_channel(g) + 0.0722 * srgb_channel(b)
+    }
+
+    /// WCAG 2.1 relative-contrast ratio between two opaque colours.
+    fn contrast_ratio(fg: Color, bg: Color) -> f64 {
+        let a = relative_luminance(fg);
+        let b = relative_luminance(bg);
+        let (hi, lo) = if a > b { (a, b) } else { (b, a) };
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    /// Every palette colour that is rendered as **text** must clear the WCAG
+    /// AA 4.5:1 floor against The Void.
+    ///
+    /// This is the guard for the measured regression: anvil Ember was
+    /// `#CC5500` (4.50:1 — on the floor, not above it) and Brick Red
+    /// `#C94A4A` (4.22:1 — under it), together covering ~7,100 rendered cells
+    /// across 55 of the repo's TUI snapshots.
+    ///
+    /// `border()` is deliberately excluded: it paints box-drawing rules, never
+    /// text, and low-contrast chrome is the intent there.
+    #[test]
+    fn contrast_of_every_text_colour_clears_wcag_aa() {
+        let theme = EddaCraftTheme;
+        let bg = theme.bg();
+        let text_roles = [
+            ("fg", theme.fg()),
+            ("accent", theme.accent()),
+            ("success", theme.success()),
+            ("error", theme.error()),
+            ("warning", theme.warning()),
+            ("muted", theme.muted()),
+        ];
+
+        let failures: Vec<String> = text_roles
+            .iter()
+            .filter_map(|(name, colour)| {
+                let ratio = contrast_ratio(*colour, bg);
+                (ratio < 4.5).then(|| format!("{name} {colour:?} is {ratio:.2}:1"))
+            })
+            .collect();
+
+        assert!(
+            failures.is_empty(),
+            "text colours below the WCAG AA 4.5:1 floor on The Void: {failures:?}",
+        );
+    }
+
+    /// `highlighted()` paints The Void *on* the accent, so the accent has to
+    /// clear the floor from the other direction too. Lightening the accent
+    /// raises both, which is why one palette change fixes both.
+    #[test]
+    fn highlighted_style_clears_wcag_aa_in_both_directions() {
+        let theme = EddaCraftTheme;
+        let style = theme.highlighted();
+        let ratio = contrast_ratio(style.fg.unwrap(), style.bg.unwrap());
+        assert!(
+            ratio >= 4.5,
+            "highlighted() is {ratio:.2}:1; WCAG AA needs 4.5:1",
+        );
+    }
 
     #[test]
     fn theme_colours_are_distinct() {
