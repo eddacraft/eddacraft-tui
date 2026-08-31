@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 297/376  |
+| CIB | —     | In Progress | 297/382  |
 
 ## Purpose
 
@@ -11283,7 +11283,7 @@ hang before opening a supervisor ticket.
 | B28-malformed retraction | Confirmed: empty-`ANVIL_HOME` harness artifact. Pack-10 map updated | **Retracted.** No CIB |
 | B31 will-fix accepted | Already **CIB-359**. Pack-11 notes the byte-window over-predicts | **CIB-359** |
 | B32 / B33 / EXIT-0-ON-NOT-READY | Dave accepts pack-10 dispositions | Closed. No new CIB |
-| B34 gate hang on worker panic | Observed on 0.9.6 large tree; **not re-fired on 0.9.7**. Matches the shipped `git check-attr` deadlock (`linguist-generated` hang, 0.9.7 changelog / CIB-199). Dave inferred supervisor/IPC without reading source | **Won't file** until re-fired on 0.9.7 |
+| B34 gate hang on worker panic | Re-fired on 0.9.7 (pack-12, 2026-08-24): gate RETURNS (bare 36 s exit 2; `--progress --no-tui` 8 s exit 2). Closed as the 0.9.7 linguist hang repair. Mechanism note (git.exe never sampled) does not reopen it | **Closed.** No CIB |
 | B35 Git Bash `workspace allow` | `std::path::absolute` stores drive-relative `D:path` as `{cwd}\basename`; daemon drops it; `workspace list` still shows admitted | **CIB-360** Merged via #4129 |
 | B36 `mcp refresh` sharing violation | `create_dir_all_nofollow` / `DIR_ACCESS_FULL` on existing `%LOCALAPPDATA%\anvil` with lock handles held. Doctor still Passes over `generation poke failed` | **CIB-361** Merged via #4129/#4149 |
 | B37 no clean Windows self-update | CIB-324 made the decline honest; recipe still says close the editor, not `anvil intercept stop`. Installer cannot overwrite `anvil.exe` while the daemon holds it | **CIB-362** Merged via #4129/#4148 |
@@ -12291,3 +12291,193 @@ hang before opening a supervisor ticket.
   because they share a cause.
 - **Confidence:** high — the mechanism is confirmed against a real run and
   reproduced locally with the head as the only variable
+
+## Pack-12 intake (Dave B34 re-fire + B39–B42 + graph opportunity, 2026-08-31)
+
+Source: operator inbox `Projects/tmp/anvil-beta/Dave/inbox`. Four zips plus a
+byte-identical Google Drive re-download of the same four (operator double-up,
+not Dave's). Nested parcels:
+
+- `20260823-01-anvil-windows-operational` — already pack-11 (B34–B37). No new
+  claims.
+- `20260824-01-anvil-B34-097-refire-result` — B34 re-fire on 0.9.7; Dave folded
+  it into the 08-30 consolidated pack and never sent the 08-24 parcel.
+- `20260830-01-anvil-097-consolidated-b34-b39` — B34 closed on their side;
+  NEW **B39**, **Q-ADOPT-1**, **Q-GATEHIST-1**; CARRIED B35–B37.
+- `20260830-02-anvil-graph-opportunity` — NEW **B40–B42**, **UX-GRAPH-1**,
+  OPP-1..5.
+
+Official `v0.9.7-beta` `x86_64-pc-windows-msvc` archive, sha256-verified.
+Second-seat verified. Exit codes unpiped. No anvil source read on their side;
+dispositions below are against current `main`. **CIB-384** and **CIB-385** are
+already claimed by open PR [#4291](https://github.com/eddacraft/anvil-001/pull/4291)
+(activation heartbeat; Windows GCTX honesty), so this intake starts at
+**CIB-386**.
+
+**Cutline:** close B34. File the cwd-check cost, the `find_callers` schema
+mismatch, and the architecture `!` negation honesty. Do not re-file B40/B41
+(already **CIB-385**). Do not file B42's 0.9.7 fail-open (already closed on
+`main`). Do not file opportunity reads as CIB. Answer the two questions in the
+reply.
+
+### Pack-12 disposition map (stable Dave IDs)
+
+| Dave ID | Disposition | Tracking |
+| --- | --- | --- |
+| B34 gate hang | Re-fired on 0.9.7: gate RETURNS. Closed as the 0.9.7 linguist hang repair. Pack-11 map updated | **Closed.** No CIB |
+| B31 / B35 / B36 / B37 | Carried. Already filed. On Unreleased, not in published 0.9.7 | **CIB-359**, **CIB-360**, **CIB-361**, **CIB-362** |
+| B39 check cwd workspace | `check` binds workspace to `git rev-parse --show-toplevel` of cwd (else cwd), not the target path. A hook whose cwd is `$HOME` pays that tree's cost for a one-file check | **CIB-386** Ready P2 |
+| Q-ADOPT-1 grandfathered debt | Question, not a finding. Exceptions stay L4 (B29). Baseline scanner integration is still future work. Intended path today is carry the red / documented bypass until that lands | **Won't file.** Answer in the reply |
+| Q-GATEHIST-1 zero-check records | 192/255 history lines are `pass` / score 100 / `checks_run` 0 / duration 0. Same honesty class as **CIB-365** (skipped presented as measured) | **CIB-389** Proposed P3 |
+| B40 Windows graph never warms | Daemon log: "no parser injected … this daemon cannot warm a graph (Windows daemon, DSV-010b)". Surface says `cross-file-resolution-needed` / "save a file". Doctor green | **CIB-385** (PR #4291). Do not re-file |
+| B41 doctor green over a dark graph | Same silence. CIB-385 already requires doctor/status to name the platform cap | **CIB-385** |
+| B40 secondary `!` negations | Overlap preflight does not honour gitignore-style `!src/cli.ts`. Driver failed preflight; only `architecture validate` said so. Docs do not advertise `!` | **CIB-388** Ready P3 |
+| B42 `query_boundary` no-baseline | 0.9.7: `allowed:true` / `reason:no-baseline` / "Run anvil init". Current `main`: `allowed:false` / `reason:no-architecture`, and `resolve_architecture` loads standalone `.anvil/architecture.yaml`. The two baseline roots Dave named (`anvil/baseline.json` vs `.anvil/baseline.json`) are the capsule/CLI baseline snapshot, not this tool | **Won't file.** Retest next published beta |
+| UX-GRAPH-1 `find_callers` ordinal | `tools/list` required is `file,kind,name`; runtime `SymbolIdentity.ordinal` has no serde default, so a schema-valid call is rejected | **CIB-387** Ready P2 |
+| OPP-1..5 graph opportunity | Observations about reach, not findings. Semantic long-tail, CI test-selection, `trust_of`, session-ownership tool, provenance reader | **Won't file.** Reply as product notes |
+
+### CIB-386: `anvil check <file>` must not bind its workspace to the caller's cwd git toplevel
+
+- **Status:** Ready
+- **Priority:** P2 — a user-scope hook whose cwd is `$HOME` turns a one-file
+  check into a minutes-long scan and presents as a hung gate, not a cwd
+  problem
+- **Intent:** `anvil check probe.py` gathers only that file
+  (`FileSource::Explicit`), but `resolve_workspace_root` still calls
+  `git rev-parse --show-toplevel` in the process cwd and falls back to
+  cwd. `.anvilrc` discovery, enabled-check resolution, path
+  relativisation, and last-run files all bind to that tree — not to the
+  target file's directory. Dave's minimal pair on 0.9.7 Windows: the same
+  one-line `probe.py`, same exit 0 and verdict, **~0.2 s** from a small
+  directory vs **154 s** from a user home directory. A discovering lane
+  also measured a `.anvilrc` in that cwd roughly doubling the cost (not
+  independently re-fired). Their own workaround (pin the hook's cwd) brought
+  it to ~2 s.
+- **Expected Outcome:** a single-file `anvil check` resolves its workspace
+  from the target path (or an explicit workspace-root argument, matching
+  MCP `anvil_validate_write`), so a hook whose cwd is `$HOME` does not pay
+  that tree's cost. Until that lands, `--help` / embedding docs name the
+  cwd sensitivity so hook authors know to pin the working directory.
+- **Non-scope / do not:** do not change `check --all` / `--changed` (those
+  *are* workspace walks). Do not make a missing git repo an error. Do not
+  treat Dave's 10 s fail-closed refusal as an anvil verdict — that was
+  their hook.
+- **Files:** `crates/anvil-cli/src/commands/check.rs` (`resolve_workspace_root`,
+  `gather_files`, `run`)
+- **Validation:** from a large cwd, `anvil check --json` of a one-line file
+  whose parent is a small tree completes on the small-tree budget, not the
+  cwd-tree budget; `--all` from the same cwd is unchanged.
+- **Identified From:** Dave pack-12 B39, 2026-08-25/30, 0.9.7 Windows,
+  user-scope pre-write hook inheriting home as cwd.
+- **Coordinates with:** MCP `workspaceRoot` on `anvil_check` /
+  `anvil_validate_write`; CIB-323-era "check is single-file" credit
+- **Confidence:** high on the cwd git-toplevel binding (read from source);
+  high on the 0.2 s vs 154 s pair (Dave observed, unpiped). Medium on how
+  much of the 154 s is `.anvilrc` vs git vs generated-file lookup — the
+  fix is the binding, not a micro-optimisation of one of those legs.
+
+### CIB-387: `anvil_find_callers` schema must match the runtime ordinal contract
+
+- **Status:** Ready
+- **Priority:** P2 — a client that builds calls from `tools/list` cannot
+  make a valid request
+- **Intent:** `anvil_find_callers`'s advertised `target.required` is
+  `["file", "kind", "name"]`. The description of `ordinal` says "0 for the
+  first/only". Runtime forwards `target` into `SymbolIdentity`, whose
+  `ordinal: u32` has no serde default, so a schema-valid call without
+  `ordinal` is rejected (`missing field ordinal`). Each missing field
+  currently errors on a separate call. Dave needed three tries to reach a
+  valid request. `query_boundary` taking `sourceFile`/`targetFile` where
+  sibling tools take `file` is a smaller naming inconsistency, not this
+  ticket.
+- **Expected Outcome:** `ordinal` defaults to 0 when omitted, matching its
+  own description, and `tools/list` agrees with the runtime (either
+  required-and-documented, or optional-with-default). A first-contact call
+  with `{file, kind, name}` succeeds. Prefer one error that lists all
+  missing fields over one field per round-trip.
+- **Non-scope / do not:** do not change hop/limit clamps, identity-only
+  egress, or the heuristic/partial caller contract. Do not rename
+  `query_boundary`'s `sourceFile`/`targetFile` in this item.
+- **Files:** `crates/anvil-cli/src/mcp/tools/find_callers.rs` (`descriptor`,
+  `parse_query`); `crates/anvil-kernel-types/src/graph.rs` (`SymbolIdentity`)
+- **Validation:** a `tools/call` with `target: {file, kind, name}` and no
+  `ordinal` is accepted as ordinal 0; the published schema matches;
+  existing tests that send ordinal 0 stay green.
+- **Identified From:** Dave pack-12 UX-GRAPH-1, 2026-08-30/31, 0.9.7
+  Windows stdio MCP client.
+- **Coordinates with:** GCTX-014 / GCALL-007
+- **Confidence:** high — schema `required` vs struct field with no default
+  is a grep.
+
+### CIB-388: architecture overlap preflight must reject or honour `!` negation patterns
+
+- **Status:** Ready
+- **Priority:** P3 — a documented glob dialect this is not; an undocumented
+  `!` is currently a silent overlap fail that only `architecture validate`
+  reports, so the save-time driver never attaches
+- **Intent:** Dave's custom `architecture.yaml` excluded sibling layers with
+  `!src/cli.ts`-style negations. The overlap preflight
+  (`layer_patterns_overlap` / glob `Pattern::new`) does not treat `!` as a
+  gitignore negation, so `core: src/**/*.ts` plus `cli: !src/cli.ts` is
+  reported as overlapping layers. `anvil architecture validate` exits 1;
+  `anvil watch` prints the preflight and the save-time driver stays
+  `failed`. Nothing else (doctor, graph assurance) names it. Guides show
+  positive globs only. After they rewrote the layer with explicit
+  directory patterns, validate exited 0 and the driver attached — the
+  graph still did not warm, because of **CIB-385**, not this preflight.
+- **Expected Outcome:** a `!` prefix is either honoured as a gitignore-style
+  negation or rejected with a message that `!` is not a valid layer
+  pattern. Overlap-fail on an unknown dialect is not an acceptable third
+  state. Carry the preflight text into doctor / save-time driver status so
+  the operator does not have to run `architecture validate` to see it.
+- **Non-scope / do not:** do not invent a full gitignore engine in this
+  item. Do not reopen **CIB-327** (unparseable YAML / unpublished `rules:`
+  schema). Do not treat this as the Windows parser gap.
+- **Files:** `crates/anvil-architecture/src/definition.rs`
+  (`layer_patterns_overlap`, overlap diagnostics);
+  `crates/anvil-cli/src/commands/doctor.rs` (surface the preflight)
+- **Validation:** a fixture layer using `!path` either validates as a
+  negation or fails with a `!`-named error, never a generic overlap with
+  `src/**`; doctor names a failed preflight.
+- **Identified From:** Dave pack-12 B40 secondary leg, 2026-08-30, 0.9.7
+  Windows; their config, cured by rewriting patterns.
+- **Coordinates with:** CIB-327, CIB-385, ARCHCFG
+- **Confidence:** high on the glob-not-gitignore behaviour (read from
+  source + Dave's before/after); medium on honour-vs-reject (docs never
+  promised `!`, so reject is the smaller cut).
+
+### CIB-389: a zero-check gate-history record must not present as a 100-score pass
+
+- **Status:** Proposed
+- **Priority:** P3 — the live `anvil gate` verdict Dave captured was
+  correct (`checks_run` 2, duration 0.3, score 100, exit 0). The record
+  is the problem, not the gate
+- **Intent:** on one of Dave's repos, 192 of 255 lines in
+  `.anvil/gate-history.ndjson` (2026-08-04 to 2026-08-30) read
+  `status: pass`, `score: 100.0`, `checks_run: "0"`,
+  `duration_seconds: "0.0"`. By score and status alone those lines are
+  indistinguishable from a real pass; only `checks_run` separates them,
+  and on this repo most of the record is zero-check. Dave has not traced
+  the writer (daily-ensure or a hook path is their guess). Same honesty
+  class as **CIB-365**: a skipped / unmeasured run presented as a
+  measured 100.
+- **Expected Outcome:** a consumer of gate-history can tell "no checks
+  ran" from "checks ran and passed" without reading a side field as a
+  secret handshake. Score/status for a zero-check invocation is `n/a` /
+  `skipped` (or equivalent), not `pass` / 100. If the zero-check shape is
+  an intended heartbeat, document that `checks_run` 0 means no verdict.
+- **Non-scope / do not:** do not make a zero-check invocation a gate
+  failure. Do not reopen **CIB-365**'s import-boundaries JSON (adjacent
+  honesty, different surface). Do not require identifying Dave's writer
+  before the record shape is honest.
+- **Files:** `crates/anvil-cli/src/commands/gate.rs` (`gate_history_point`,
+  `GateHistoryPoint`); `crates/anvil-cli/src/services/gate_history.rs`
+- **Validation:** appending a snapshot with `checks_run` 0 does not
+  serialise as `status: pass` / `score: 100`; a real two-check pass is
+  unchanged.
+- **Identified From:** Dave pack-12 Q-GATEHIST-1, 2026-08-30, 0.9.7
+  Windows. Question, not a finding; filed because the record shape is
+  already a consumer trap.
+- **Coordinates with:** CIB-365, DASHCORE retained history
+- **Confidence:** high on the record shape (Dave counted unpiped);
+  medium on the writer, which this item does not need to name first.
