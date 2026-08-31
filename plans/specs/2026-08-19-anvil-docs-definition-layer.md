@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Accepted | 2026-08-31 — documentation-governance freshness bump for the `classify-changes.sh` project-config path class; IA/nav diagrams unchanged |
+| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Accepted | 2026-08-31 — GTAO-007 honesty pass on evaluation-model, what-anvil-can-do, and quality-model; IA/nav diagrams unchanged. Prior: documentation-governance freshness bump for the `classify-changes.sh` project-config path class |
 
 | Upstream | Downstream |
 | -------- | ---------- |
