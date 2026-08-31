@@ -555,25 +555,47 @@ fn classify_claim(claim: &ProtectionClaim) -> ClaimVerdict {
     }
 }
 
-/// True when the freshest daemon-side signal for `worktree` is within
+/// True when the daemon-side liveness signal for `worktree` is within
 /// [`HEARTBEAT_FRESHNESS_WINDOW`] of `now`.
 ///
-/// Signals considered, in order:
-///   1. `max(SessionRecord.last_heartbeat_unix)` across sessions whose
-///      `worktree` matches the registered status' worktree. Always
-///      required — if no session beat within the window, the daemon
-///      cannot honestly attest enforcement.
-///   2. `DaemonStatusV1::generated_at_unix` — when non-zero
-///      (MLP2-051h-or-later daemon). A second consistency anchor
-///      against a daemon that stops refreshing its own snapshot clock
-///      but keeps sessions registered. Sentinel `0` means "no
-///      anchor; fall back to per-session freshness only" — pinned by
-///      MLP2-051h's `generated_at_unix_zero_is_the_no_anchor_sentinel`.
+/// **Which clock is the liveness signal depends on the session kind**
+/// (CIB-384). The registry keeps two kinds of record for a worktree and
+/// only one of them beats:
 ///
-/// Both checks compare against `now`. Future heartbeats (clock
-/// skewed forward on the daemon side) are accepted — the alternative
-/// would mark a healthy daemon stale because the workstation clock
-/// lags. Stale heartbeats fail closed.
+///   * A **live (leased) session** heartbeats on a timer while its agent
+///     runs (`anvil-run`'s 10 s cadence against the registry's 30 s TTL),
+///     so `last_heartbeat_unix` *is* its liveness signal and a stale one
+///     must fail closed.
+///   * A **durable (activation-spine) membership** never heartbeats at
+///     all. ACTMO-014 / ADR-094 made it *membership, not liveness*:
+///     `SessionRegistry::evict_stale` skips it outright, and its
+///     `last_heartbeat_unix` stays pinned at whenever it was registered.
+///     Only `anvil start` and `anvil workspace register` ever move it.
+///
+/// Freshness-gating that frozen field is what CIB-384 fixed: it made the
+/// promotion window "the 45 seconds after `anvil start`" and parked every
+/// registered worktree at `ready_restart_required` for the life of the
+/// daemon, while the daemon that owned it was alive and serving. For a
+/// durable member the honest liveness signal is the daemon's own snapshot
+/// clock, [`DaemonStatusV1::generated_at_unix`].
+///
+/// Gates, in order:
+///   1. **The snapshot anchor is authoritative for every path.** When
+///      non-zero it must be within the window — a daemon that has stopped
+///      refreshing its own clock cannot attest anything, whatever its
+///      session records still say. Sentinel `0` means "no anchor"
+///      (pre-MLP2-051h daemon), pinned by
+///      `zero_snapshot_anchor_is_no_anchor_sentinel`.
+///   2. **Any fresh live session** attests.
+///   3. **Durable membership** attests when — and only when — the daemon
+///      stamped a (fresh, per gate 1) anchor. With no anchor a durable
+///      member carries no usable signal at all, so it fails closed rather
+///      than inventing one.
+///
+/// Every check compares against `now`. Future timestamps (clock skewed
+/// forward on the daemon side) are accepted within
+/// [`MAX_FUTURE_CLOCK_SKEW`] — the alternative would mark a healthy daemon
+/// stale because the workstation clock lags. Stale signals fail closed.
 fn heartbeat_within_freshness_window(
     snapshot: &DaemonStatusV1,
     worktree: &Path,
@@ -586,28 +608,50 @@ fn heartbeat_within_freshness_window(
         .map(|w| &w.session_id)
         .collect();
 
-    let max_heartbeat = snapshot
-        .sessions
-        .iter()
-        .filter(|s| session_ids.contains(&&s.id))
-        .map(|s| s.last_heartbeat_unix)
-        .max();
-
-    let Some(heartbeat) = max_heartbeat else {
-        return false;
+    let sessions = || {
+        snapshot
+            .sessions
+            .iter()
+            .filter(|s| session_ids.contains(&&s.id))
     };
 
-    if !within_window(heartbeat, now) {
+    // No session record for this worktree at all — nothing to attest.
+    if sessions().next().is_none() {
         return false;
     }
 
-    // Snapshot-level anchor (MLP2-051h). Sentinel 0 → no anchor;
-    // session-level freshness is the only signal available, which we
-    // already verified above.
-    if snapshot.generated_at_unix == 0 {
+    // Gate 1: the snapshot anchor, when the daemon stamps one.
+    if snapshot.generated_at_unix != 0 && !within_window(snapshot.generated_at_unix, now) {
+        return false;
+    }
+
+    // Gate 2: a live lease that is genuinely beating.
+    if sessions()
+        .filter(|s| !session_is_durable_membership(s))
+        .any(|s| within_window(s.last_heartbeat_unix, now))
+    {
         return true;
     }
-    within_window(snapshot.generated_at_unix, now)
+
+    // Gate 3: durable membership, whose own clock is frozen by design.
+    sessions().any(session_is_durable_membership) && snapshot.generated_at_unix != 0
+}
+
+/// True when `session` is a durable (activation-spine) membership record
+/// rather than a live agent lease — i.e. a record whose
+/// `last_heartbeat_unix` is frozen at registration and must never be read
+/// as a liveness signal (CIB-384).
+///
+/// Keyed off the same [`AgentTag::is_durable_membership`] predicate the
+/// daemon registry uses to decide TTL exemption, so the two cannot drift
+/// apart on what "durable" means.
+///
+/// [`AgentTag::is_durable_membership`]: anvil_intercept_proto::session::AgentTag::is_durable_membership
+fn session_is_durable_membership(session: &anvil_intercept_proto::SessionRecord) -> bool {
+    session
+        .agent_tag
+        .as_ref()
+        .is_some_and(anvil_intercept_proto::session::AgentTag::is_durable_membership)
 }
 
 fn within_window(unix_seconds: u64, now: SystemTime) -> bool {
@@ -1318,6 +1362,155 @@ mod tests {
             McpTier::RestartHandshakeVerified,
             "1-hour-future heartbeat must fail freshness, not promote",
         );
+    }
+
+    /// CIB-384: durable (activation-spine) membership is TTL-exempt by
+    /// design — ACTMO-014 made it *membership, not liveness*, so nothing
+    /// ever beats for it and `last_heartbeat_unix` stays pinned at
+    /// registration time. Freshness-gating that frozen field parked every
+    /// registered worktree at `ready_restart_required` 45 s after the last
+    /// `anvil start`, for the life of the daemon. The daemon's own snapshot
+    /// clock is the liveness signal for a durable member.
+    #[test]
+    fn durable_membership_attests_on_a_fresh_daemon_despite_a_frozen_heartbeat() {
+        let worktree = PathBuf::from("/tmp/wt-cib384-durable-frozen");
+        let now = now_with_recent_heartbeats();
+        // Registered at daemon boot, hours before `now`: the real shape
+        // measured on a live host (age 37,459 s).
+        let frozen = 1_716_300_000;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess_activation_cib384",
+                &worktree,
+                frozen,
+                "anvil-start",
+                anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            )],
+            vec![make_worktree_status(
+                "sess_activation_cib384",
+                &worktree,
+                false,
+            )],
+            IpcStateV1::Serving,
+            1_716_336_050, // daemon snapshot clock is fresh
+        );
+
+        let mut map = handshake_verified_pair();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_ne!(
+            attestation,
+            DaemonAttestation::StaleHeartbeat,
+            "a durable member on a live daemon must not read as a stale heartbeat",
+        );
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::LiveValidation,
+            "durable membership on a fresh daemon must promote the sole handshake-verified client",
+        );
+    }
+
+    /// CIB-384 fails closed: with no snapshot anchor (`generated_at_unix`
+    /// sentinel `0`, a pre-MLP2-051h daemon) a durable member carries **no**
+    /// usable liveness signal at all — its own heartbeat is frozen by design.
+    /// Stay stale rather than invent an attestation.
+    #[test]
+    fn durable_membership_without_a_snapshot_anchor_still_fails_closed() {
+        let worktree = PathBuf::from("/tmp/wt-cib384-durable-no-anchor");
+        let now = now_with_recent_heartbeats();
+        let frozen = 1_716_300_000;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess_activation_cib384b",
+                &worktree,
+                frozen,
+                "anvil-start",
+                anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            )],
+            vec![make_worktree_status(
+                "sess_activation_cib384b",
+                &worktree,
+                false,
+            )],
+            IpcStateV1::Serving,
+            0, // no anchor
+        );
+
+        let mut map = handshake_verified_pair();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::StaleHeartbeat);
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::RestartHandshakeVerified,
+        );
+    }
+
+    /// CIB-384 must not widen the gate for *live* sessions: a stale live
+    /// lease is a genuine liveness signal and still fails closed even when
+    /// the daemon's snapshot clock is fresh. This is the half
+    /// `stale_heartbeat_does_not_promote_even_if_claim_attests` guards;
+    /// pinned here explicitly against the durable carve-out beside it.
+    #[test]
+    fn stale_live_session_still_fails_closed_on_a_fresh_daemon() {
+        let worktree = PathBuf::from("/tmp/wt-cib384-live-stale");
+        let now = now_with_recent_heartbeats();
+        let stale = 1_716_300_000;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess-live",
+                &worktree,
+                stale,
+                "some-driver",
+                "some-agent",
+            )],
+            vec![make_worktree_status("sess-live", &worktree, false)],
+            IpcStateV1::Serving,
+            1_716_336_050, // daemon itself is fresh
+        );
+
+        let mut map = handshake_verified_pair();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(
+            attestation,
+            DaemonAttestation::StaleHeartbeat,
+            "a stale live lease must still fail closed",
+        );
+    }
+
+    /// CIB-384: the snapshot anchor stays authoritative. A durable member
+    /// on a daemon that has stopped refreshing its own clock is stale —
+    /// the carve-out swaps which clock is read, it does not remove a gate.
+    #[test]
+    fn durable_membership_on_a_stale_snapshot_anchor_is_still_stale() {
+        let worktree = PathBuf::from("/tmp/wt-cib384-durable-stale-anchor");
+        let now = now_with_recent_heartbeats();
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess_activation_cib384c",
+                &worktree,
+                1_716_300_000,
+                "anvil-start",
+                anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            )],
+            vec![make_worktree_status(
+                "sess_activation_cib384c",
+                &worktree,
+                false,
+            )],
+            IpcStateV1::Serving,
+            1_716_335_900, // > 45 s before `now`
+        );
+
+        let mut map = handshake_verified_pair();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::StaleHeartbeat);
     }
 
     /// Boundary case: exactly at the `MAX_FUTURE_CLOCK_SKEW` (90 s)
