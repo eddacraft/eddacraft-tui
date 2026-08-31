@@ -587,6 +587,10 @@ fn classify_claim(claim: &ProtectionClaim) -> ClaimVerdict {
 ///      (pre-MLP2-051h daemon), pinned by
 ///      `zero_snapshot_anchor_is_no_anchor_sentinel`.
 ///   2. **Any fresh live session** attests.
+///      A stale live lease cannot attest on its own, but it is not a
+///      veto of gate 3: leftover live records must not re-park a
+///      worktree that durable membership and a fresh daemon already
+///      attest.
 ///   3. **Durable membership** attests when — and only when — the daemon
 ///      stamped a (fresh, per gate 1) anchor. With no anchor a durable
 ///      member carries no usable signal at all, so it fails closed rather
@@ -634,6 +638,8 @@ fn heartbeat_within_freshness_window(
     }
 
     // Gate 3: durable membership, whose own clock is frozen by design.
+    // Independent of leftover live records: those cannot attest (gate 2)
+    // and must not veto this gate.
     sessions().any(session_is_durable_membership) && snapshot.generated_at_unix != 0
 }
 
@@ -1479,6 +1485,59 @@ mod tests {
             attestation,
             DaemonAttestation::StaleHeartbeat,
             "a stale live lease must still fail closed",
+        );
+    }
+
+    /// Mixed worktree: a leftover stale live lease must not veto durable
+    /// membership. Gate 2 cannot attest (the live heartbeat is stale) but
+    /// gate 3 still can — the daemon owns this worktree via activation-spine
+    /// membership and is itself fresh. Treating leftover live records as a
+    /// veto would re-park the registered worktree at `ready_restart_required`
+    /// whenever an editor crashed faster than TTL eviction, which is the
+    /// CIB-384 failure mode again.
+    #[test]
+    fn stale_live_lease_does_not_veto_durable_membership_on_a_fresh_daemon() {
+        let worktree = PathBuf::from("/tmp/wt-cib384-mixed-stale-live");
+        let now = now_with_recent_heartbeats();
+        let frozen = 1_716_300_000;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![
+                make_session_with_agent(
+                    "sess_activation_cib384d",
+                    &worktree,
+                    frozen,
+                    "anvil-start",
+                    anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+                ),
+                make_session_with_agent(
+                    "sess-live-dead",
+                    &worktree,
+                    frozen,
+                    "some-driver",
+                    "some-agent",
+                ),
+            ],
+            vec![
+                make_worktree_status("sess_activation_cib384d", &worktree, false),
+                make_worktree_status("sess-live-dead", &worktree, false),
+            ],
+            IpcStateV1::Serving,
+            1_716_336_050,
+        );
+
+        let mut map = handshake_verified_pair();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_ne!(
+            attestation,
+            DaemonAttestation::StaleHeartbeat,
+            "a leftover stale live lease must not veto durable membership",
+        );
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::LiveValidation,
+            "durable membership on a fresh daemon must still promote",
         );
     }
 
