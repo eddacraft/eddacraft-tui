@@ -431,6 +431,14 @@ fn eval(kind: AstRuleKind, ctx: &PredCtx) -> bool {
             predicates::except_block_is_only_pass(ctx.target)
                 && !predicates::path_is_test_target(ctx.path)
         }
+        AstRuleKind::DynamicEvalExecCompile => {
+            predicates::dynamic_eval_exec_compile(ctx.target, ctx.src)
+                && !predicates::path_is_test_target(ctx.path)
+        }
+        AstRuleKind::UnsafeYamlOrPickleLoads => {
+            predicates::unsafe_yaml_or_pickle_loads(ctx.target, ctx.src)
+                && !predicates::path_is_test_target(ctx.path)
+        }
         AstRuleKind::TodoMacro => {
             // Shares RS-002's `macro_invocation` query; dispatch on the macro
             // name and exclude test scaffolding the same way. Moving RS-005 off

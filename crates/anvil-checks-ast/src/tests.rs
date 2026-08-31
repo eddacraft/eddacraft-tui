@@ -959,3 +959,135 @@ fn missing_override_path_falls_back_to_embedded_and_surfaces_warning() {
         "the embedded registry still runs the scan: {out:?}",
     );
 }
+
+// --- PY-011: PY-008 regex blinds (GTAO-009) ---------------------------------
+
+#[test]
+fn py011_fires_on_concatenated_eval() {
+    assert!(fires("src/app.py", "eval(\"x\" + user)\n", "PY-011"));
+}
+
+#[test]
+fn py011_fires_on_percent_format_exec() {
+    assert!(fires(
+        "src/app.py",
+        "exec(\"DELETE FROM %s\" % table)\n",
+        "PY-011"
+    ));
+}
+
+#[test]
+fn py011_fires_on_str_format_eval() {
+    assert!(fires("src/app.py", "eval(\"{}\".format(x))\n", "PY-011"));
+}
+
+#[test]
+fn py011_fires_on_fstring_eval() {
+    assert!(fires("src/app.py", "eval(f\"{x}\")\n", "PY-011"));
+}
+
+#[test]
+fn py011_fires_when_paren_and_first_arg_span_lines() {
+    assert!(fires("src/app.py", "eval(\n    user)\n", "PY-011"));
+}
+
+#[test]
+fn py011_fires_on_builtins_alias_call() {
+    let src = "from builtins import eval as run\nrun(user)\n";
+    assert!(fires("src/app.py", src, "PY-011"));
+}
+
+#[test]
+fn py011_fires_on_builtins_compile_dynamic() {
+    assert!(fires(
+        "src/app.py",
+        "builtins.compile(src, '<s>', 'exec')\n",
+        "PY-011"
+    ));
+}
+
+#[test]
+fn py011_silent_on_re_compile() {
+    assert!(!fires("src/app.py", "re.compile(pat)\n", "PY-011"));
+}
+
+#[test]
+fn py011_silent_on_torch_compile() {
+    assert!(!fires("src/app.py", "torch.compile(model)\n", "PY-011"));
+}
+
+#[test]
+fn py011_silent_on_self_compile() {
+    assert!(!fires("src/app.py", "self.compile(src)\n", "PY-011"));
+}
+
+#[test]
+fn py011_silent_on_static_eval() {
+    assert!(!fires("src/app.py", "eval(\"1 + 1\")\n", "PY-011"));
+}
+
+#[test]
+fn py011_silent_on_same_line_identifier_eval() {
+    // PY-008 regex already covers this at save-time.
+    assert!(!fires("src/app.py", "eval(user_input)\n", "PY-011"));
+}
+
+#[test]
+fn py011_silent_on_test_path() {
+    assert!(!fires(
+        "tests/test_app.py",
+        "eval(\"x\" + user)\n",
+        "PY-011"
+    ));
+}
+
+// --- PY-012: PY-009 loader blinds (GTAO-010) --------------------------------
+
+#[test]
+fn py012_fires_on_yaml_load_without_safe_loader() {
+    assert!(fires("src/app.py", "yaml.load(src)\n", "PY-012"));
+}
+
+#[test]
+fn py012_fires_on_yaml_full_load() {
+    assert!(fires("src/app.py", "yaml.full_load(src)\n", "PY-012"));
+}
+
+#[test]
+fn py012_silent_on_yaml_load_with_safe_loader() {
+    assert!(!fires(
+        "src/app.py",
+        "yaml.load(src, Loader=SafeLoader)\n",
+        "PY-012"
+    ));
+}
+
+#[test]
+fn py012_silent_on_yaml_csafe_loader_and_attribute() {
+    assert!(!fires(
+        "src/app.py",
+        "yaml.load(src, Loader=CSafeLoader)\n",
+        "PY-012"
+    ));
+    assert!(!fires(
+        "src/app.py",
+        "yaml.load(src, Loader=yaml.SafeLoader)\n",
+        "PY-012"
+    ));
+}
+
+#[test]
+fn py012_silent_on_yaml_safe_load() {
+    assert!(!fires("src/app.py", "yaml.safe_load(src)\n", "PY-012"));
+}
+
+#[test]
+fn py012_fires_on_pickle_loads_import() {
+    let src = "from pickle import loads\nloads(buf)\n";
+    assert!(fires("src/app.py", src, "PY-012"));
+}
+
+#[test]
+fn py012_silent_on_unrelated_loads() {
+    assert!(!fires("src/app.py", "loads(buf)\n", "PY-012"));
+}

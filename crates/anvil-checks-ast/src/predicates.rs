@@ -31,6 +31,10 @@ pub enum AstRuleKind {
     CloneInLoop,
     /// PY-010 — named `except` handler whose block body is only `pass`.
     ExceptBlockPass,
+    /// PY-011 — eval/exec/compile first-argument shapes PY-008 cannot see.
+    DynamicEvalExecCompile,
+    /// PY-012 — `yaml.load` without `SafeLoader`, or `from pickle import loads`.
+    UnsafeYamlOrPickleLoads,
 }
 
 /// Predicate table (ADR-071 §3/§4): rule id → (kind, expected `ast_query`).
@@ -69,6 +73,8 @@ pub fn kind_for(id: &str) -> Option<(AstRuleKind, &'static str)> {
             "(call_expression function: (field_expression field: (field_identifier) @method)) @target",
         )),
         "PY-010" => Some((AstRuleKind::ExceptBlockPass, "(except_clause) @target")),
+        "PY-011" => Some((AstRuleKind::DynamicEvalExecCompile, "(call) @target")),
+        "PY-012" => Some((AstRuleKind::UnsafeYamlOrPickleLoads, "(call) @target")),
         _ => None,
     }
 }
@@ -78,6 +84,7 @@ pub fn kind_for(id: &str) -> Option<(AstRuleKind, &'static str)> {
 pub fn known_rule_ids() -> &'static [&'static str] {
     &[
         "RS-001", "RS-002", "RS-003", "RS-004", "RS-005", "RS-006", "RS-007", "RS-008", "PY-010",
+        "PY-011", "PY-012",
     ]
 }
 
@@ -129,6 +136,287 @@ pub(crate) fn except_block_is_only_pass(node: Node<'_>) -> bool {
         return false;
     };
     pass.start_position().row > node.start_position().row
+}
+
+/// PY-011 — `eval` / `exec` / `compile` first-argument shapes PY-008 cannot see.
+#[must_use]
+pub(crate) fn dynamic_eval_exec_compile(node: Node<'_>, src: &[u8]) -> bool {
+    if node.kind() != "call" {
+        return false;
+    }
+    let Some(kind) = exec_callee_kind(node, src) else {
+        return false;
+    };
+    let Some(first) = first_positional_arg(node) else {
+        return matches!(kind, ExecCallee::Alias);
+    };
+    match kind {
+        ExecCallee::Unqualified => py008_blind_arg_shape(node, first, src),
+        ExecCallee::BuiltinsAttr | ExecCallee::Alias => !is_static_string(first, src),
+    }
+}
+
+/// PY-012 — `yaml.load` / `yaml.full_load` without `SafeLoader`, or `loads`
+/// bound by `from pickle import loads`.
+#[must_use]
+pub(crate) fn unsafe_yaml_or_pickle_loads(node: Node<'_>, src: &[u8]) -> bool {
+    if node.kind() != "call" {
+        return false;
+    }
+    if yaml_load_without_safe_loader(node, src) {
+        return true;
+    }
+    pickle_loads_from_import(node, src)
+}
+
+#[derive(Clone, Copy)]
+enum ExecCallee {
+    Unqualified,
+    BuiltinsAttr,
+    Alias,
+}
+
+fn exec_callee_kind(call: Node<'_>, src: &[u8]) -> Option<ExecCallee> {
+    let func = call.child_by_field_name("function")?;
+    match func.kind() {
+        "identifier" => {
+            let name = node_text(func, src);
+            if matches!(name, "eval" | "exec" | "compile") {
+                return Some(ExecCallee::Unqualified);
+            }
+            if builtins_import_alias(call, src, name) {
+                return Some(ExecCallee::Alias);
+            }
+            None
+        }
+        "attribute" => {
+            let obj = func.child_by_field_name("object")?;
+            let attr = func.child_by_field_name("attribute")?;
+            if obj.kind() != "identifier" || attr.kind() != "identifier" {
+                return None;
+            }
+            let obj_name = node_text(obj, src);
+            let attr_name = node_text(attr, src);
+            if matches!(obj_name, "builtins" | "__builtins__")
+                && matches!(attr_name, "eval" | "exec" | "compile")
+            {
+                return Some(ExecCallee::BuiltinsAttr);
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn py008_blind_arg_shape(call: Node<'_>, first: Node<'_>, src: &[u8]) -> bool {
+    is_concat_or_percent(first, src)
+        || is_str_format_call(first, src)
+        || is_fstring(first, src)
+        || first_arg_spans_lines(call, first)
+}
+
+fn first_positional_arg(call: Node<'_>) -> Option<Node<'_>> {
+    let args = call.child_by_field_name("arguments")?;
+    let mut walk = args.walk();
+    args.named_children(&mut walk)
+        .find(|c| c.kind() != "keyword_argument")
+}
+
+fn first_arg_spans_lines(call: Node<'_>, first: Node<'_>) -> bool {
+    let Some(args) = call.child_by_field_name("arguments") else {
+        return false;
+    };
+    first.start_position().row > args.start_position().row
+}
+
+fn is_concat_or_percent(node: Node<'_>, src: &[u8]) -> bool {
+    if node.kind() != "binary_operator" {
+        return false;
+    }
+    let mut walk = node.walk();
+    node.children(&mut walk)
+        .any(|c| matches!(node_text(c, src), "+" | "%"))
+}
+
+fn is_str_format_call(node: Node<'_>, src: &[u8]) -> bool {
+    if node.kind() != "call" {
+        return false;
+    }
+    let Some(func) = node.child_by_field_name("function") else {
+        return false;
+    };
+    if func.kind() != "attribute" {
+        return false;
+    }
+    let Some(attr) = func.child_by_field_name("attribute") else {
+        return false;
+    };
+    node_text(attr, src) == "format"
+}
+
+fn is_fstring(node: Node<'_>, src: &[u8]) -> bool {
+    if node.kind() != "string" {
+        return false;
+    }
+    let mut walk = node.walk();
+    if node
+        .named_children(&mut walk)
+        .any(|c| c.kind() == "interpolation")
+    {
+        return true;
+    }
+    let mut kids = node.walk();
+    node.children(&mut kids)
+        .any(|c| c.kind() == "string_start" && node_text(c, src).to_ascii_lowercase().contains('f'))
+}
+
+fn is_static_string(node: Node<'_>, src: &[u8]) -> bool {
+    if node.kind() != "string" || is_fstring(node, src) {
+        return false;
+    }
+    let mut walk = node.walk();
+    node.children(&mut walk).any(|c| {
+        c.kind() == "string_start" && !node_text(c, src).to_ascii_lowercase().contains('f')
+    })
+}
+
+fn builtins_import_alias(call: Node<'_>, src: &[u8], bound: &str) -> bool {
+    import_bound_names(call, src, "builtins")
+        .iter()
+        .any(|(imported, name)| {
+            name == bound && matches!(imported.as_str(), "eval" | "exec" | "compile")
+        })
+}
+
+fn pickle_loads_from_import(call: Node<'_>, src: &[u8]) -> bool {
+    let Some(func) = call.child_by_field_name("function") else {
+        return false;
+    };
+    if func.kind() != "identifier" {
+        return false;
+    }
+    let bound = node_text(func, src);
+    import_bound_names(call, src, "pickle")
+        .iter()
+        .any(|(imported, name)| name == bound && imported == "loads")
+}
+
+fn yaml_load_without_safe_loader(call: Node<'_>, src: &[u8]) -> bool {
+    let Some(func) = call.child_by_field_name("function") else {
+        return false;
+    };
+    if func.kind() != "attribute" {
+        return false;
+    }
+    let Some(obj) = func.child_by_field_name("object") else {
+        return false;
+    };
+    let Some(attr) = func.child_by_field_name("attribute") else {
+        return false;
+    };
+    if obj.kind() != "identifier" || node_text(obj, src) != "yaml" {
+        return false;
+    }
+    if !matches!(node_text(attr, src), "load" | "full_load") {
+        return false;
+    }
+    !has_safe_loader_keyword(call, src)
+}
+
+fn has_safe_loader_keyword(call: Node<'_>, src: &[u8]) -> bool {
+    let Some(args) = call.child_by_field_name("arguments") else {
+        return false;
+    };
+    let mut walk = args.walk();
+    args.named_children(&mut walk).any(|c| {
+        if c.kind() != "keyword_argument" {
+            return false;
+        }
+        let Some(name) = c.child_by_field_name("name") else {
+            return false;
+        };
+        if node_text(name, src) != "Loader" {
+            return false;
+        }
+        let Some(value) = c.child_by_field_name("value") else {
+            return false;
+        };
+        loader_is_safe(value, src)
+    })
+}
+
+fn loader_is_safe(value: Node<'_>, src: &[u8]) -> bool {
+    match value.kind() {
+        "identifier" => matches!(node_text(value, src), "SafeLoader" | "CSafeLoader"),
+        "attribute" => value
+            .child_by_field_name("attribute")
+            .is_some_and(|attr| matches!(node_text(attr, src), "SafeLoader" | "CSafeLoader")),
+        _ => false,
+    }
+}
+
+fn import_bound_names(from: Node<'_>, src: &[u8], module: &str) -> Vec<(String, String)> {
+    let root = module_root(from);
+    let mut out = Vec::new();
+    collect_from_imports(root, src, module, &mut out);
+    out
+}
+
+fn collect_from_imports(node: Node<'_>, src: &[u8], module: &str, out: &mut Vec<(String, String)>) {
+    if node.kind() == "import_from_statement" {
+        if from_import_module(node, src).as_deref() == Some(module) {
+            let mut kids = node.walk();
+            for child in node.named_children(&mut kids) {
+                match child.kind() {
+                    "aliased_import" => {
+                        if let (Some(name), Some(alias)) = (
+                            dotted_last_identifier(child.child_by_field_name("name"), src),
+                            child
+                                .child_by_field_name("alias")
+                                .map(|a| node_text(a, src).to_string()),
+                        ) {
+                            out.push((name, alias));
+                        }
+                    }
+                    "dotted_name" => {
+                        if let Some(name) = dotted_last_identifier(Some(child), src) {
+                            out.push((name.clone(), name));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        collect_from_imports(child, src, module, out);
+    }
+}
+
+fn from_import_module(node: Node<'_>, src: &[u8]) -> Option<String> {
+    dotted_last_identifier(node.child_by_field_name("module_name"), src)
+}
+
+fn dotted_last_identifier(node: Option<Node<'_>>, src: &[u8]) -> Option<String> {
+    let node = node?;
+    if node.kind() == "identifier" {
+        return Some(node_text(node, src).to_string());
+    }
+    let mut walk = node.walk();
+    node.named_children(&mut walk)
+        .filter(|c| c.kind() == "identifier")
+        .last()
+        .map(|c| node_text(c, src).to_string())
+}
+
+fn module_root(node: Node<'_>) -> Node<'_> {
+    let mut cur = node;
+    while let Some(p) = cur.parent() {
+        cur = p;
+    }
+    cur
 }
 
 #[must_use]

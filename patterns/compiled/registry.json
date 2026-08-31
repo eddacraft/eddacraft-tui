@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-08-22T03:37:10.635Z",
+  "compiled_at": "2026-08-31T05:08:08.231Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -906,6 +906,72 @@
       "related_families": ["deferred-debt", "guardrail-suppression"]
     },
     {
+      "id": "PY-011",
+      "family": "python-reliability",
+      "title": "eval/exec/compile first argument PY-008 cannot see",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 8,
+      "targets": ["source"],
+      "detection": {
+        "type": "ast",
+        "ast_query": "(call) @target"
+      },
+      "file_extensions": [".py"],
+      "allowlist": [
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/tests/**",
+        "**/conftest.py",
+        "**/explain/**"
+      ],
+      "nudge": "PY-008's regex reads the first token after `(` on one line, so concatenated,\nformatted, f-string, and wrapped first arguments are blind. This gate-time AST\ncompanion flags those shapes on `eval` / `exec` / `compile`, plus in-file\n`from builtins import eval as X` / `compile as X` used as a call, and\n`builtins.compile` / `__builtins__.compile` of a dynamic argument.\n\nIt does **not** fire on `re.compile`, `torch.compile`, or `self.compile`.\nUnqualified `eval(user)` on one line stays PY-008 (save-time regex). Do not\nconvert PY-008 to `detection: ast`.",
+      "related": ["PY-008"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Python Reliability",
+      "category": "error-handling",
+      "explanation": "- A blanket `# type: ignore` (no error code) silences *every* type error on the\n  line forever, including ones introduced by a later edit — the code that was\n  wrong stays hidden. `# type: ignore[assignment]` silences only the named\n  failure and lets new ones surface.\n- A bare `# noqa` disables all lint rules on the line; a typo or a genuine new\n  defect on that line will never be reported again.\n- `# pylint: disable` turns the linter off for a rule (or all rules) with no\n  inline justification of why the warning is wrong here.\n- A bare `except:` (or `except Exception: pass`) catches `KeyboardInterrupt`,\n  `SystemExit`, `MemoryError`, and ordinary bugs alike, then discards them —\n  the program limps on in an unknown state and the real fault is invisible.\n- `from module import *` pulls an unknown set of names into the namespace,\n  shadowing locals unpredictably and defeating static analysis of what is used.\n- A shipped `print()` is unstructured output with no level, timestamp, or sink\n  control; in a service it pollutes stdout and is invisible to the log pipeline.\n- `Any` switches off type checking for the value it annotates and everything\n  derived from it, so the type checker can no longer catch misuse downstream.",
+      "suggestion": "Add the specific code to the suppression so it silences only the real failure\n(`# type: ignore[arg-type]`, `# noqa: E501`, `# pylint: disable=broad-except`);\ncatch the narrowest exception you can handle and re-raise or log the rest\n(`except ValueError:` over bare `except:`); import the names you use explicitly\ninstead of `*`; use the `logging` module instead of `print()`; give the value a\nreal type instead of `Any`. When a pattern is genuinely correct, suppress the\nfinding with a reason: `# @anvil-ignore PY-004 -- top-level daemon guard, logs\nand re-raises`.",
+      "definition_ref": "patterns/python-reliability/definition.anvil",
+      "tensions": [],
+      "related_families": ["deferred-debt", "guardrail-suppression"]
+    },
+    {
+      "id": "PY-012",
+      "family": "python-reliability",
+      "title": "yaml.load without a SafeLoader, or from pickle import loads",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 9,
+      "targets": ["source"],
+      "detection": {
+        "type": "ast",
+        "ast_query": "(call) @target"
+      },
+      "file_extensions": [".py"],
+      "allowlist": [
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/tests/**",
+        "**/conftest.py",
+        "**/explain/**"
+      ],
+      "nudge": "The regex tier cannot tell `yaml.load(src, Loader=SafeLoader)` from a bare\n`yaml.load(src)`. This gate-time companion fires on `yaml.load(` /\n`yaml.full_load(` without a `Loader=` that is `SafeLoader` or `CSafeLoader`,\nand on `loads(` reached via `from pickle import loads`.\n\n`yaml.safe_load(` stays clean. Same-line `yaml.load(src, Loader=SafeLoader)` is\nclean here (PY-009 regex may still fire — documented, suppressible; this rule\ndoes not rewrite PY-009). `os.system` / `shell=True` stay regex PY-009.",
+      "related": ["PY-009"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Python Reliability",
+      "category": "error-handling",
+      "explanation": "- A blanket `# type: ignore` (no error code) silences *every* type error on the\n  line forever, including ones introduced by a later edit — the code that was\n  wrong stays hidden. `# type: ignore[assignment]` silences only the named\n  failure and lets new ones surface.\n- A bare `# noqa` disables all lint rules on the line; a typo or a genuine new\n  defect on that line will never be reported again.\n- `# pylint: disable` turns the linter off for a rule (or all rules) with no\n  inline justification of why the warning is wrong here.\n- A bare `except:` (or `except Exception: pass`) catches `KeyboardInterrupt`,\n  `SystemExit`, `MemoryError`, and ordinary bugs alike, then discards them —\n  the program limps on in an unknown state and the real fault is invisible.\n- `from module import *` pulls an unknown set of names into the namespace,\n  shadowing locals unpredictably and defeating static analysis of what is used.\n- A shipped `print()` is unstructured output with no level, timestamp, or sink\n  control; in a service it pollutes stdout and is invisible to the log pipeline.\n- `Any` switches off type checking for the value it annotates and everything\n  derived from it, so the type checker can no longer catch misuse downstream.",
+      "suggestion": "Add the specific code to the suppression so it silences only the real failure\n(`# type: ignore[arg-type]`, `# noqa: E501`, `# pylint: disable=broad-except`);\ncatch the narrowest exception you can handle and re-raise or log the rest\n(`except ValueError:` over bare `except:`); import the names you use explicitly\ninstead of `*`; use the `logging` module instead of `print()`; give the value a\nreal type instead of `Any`. When a pattern is genuinely correct, suppress the\nfinding with a reason: `# @anvil-ignore PY-004 -- top-level daemon guard, logs\nand re-raises`.",
+      "definition_ref": "patterns/python-reliability/definition.anvil",
+      "tensions": [],
+      "related_families": ["deferred-debt", "guardrail-suppression"]
+    },
+    {
       "id": "RL-001",
       "family": "responsibility-laundering",
       "title": "Unverified pre-existing claim",
@@ -1635,7 +1701,9 @@
         "PY-007",
         "PY-008",
         "PY-009",
-        "PY-010"
+        "PY-010",
+        "PY-011",
+        "PY-012"
       ],
       "related": ["deferred-debt", "guardrail-suppression"],
       "tensions": []

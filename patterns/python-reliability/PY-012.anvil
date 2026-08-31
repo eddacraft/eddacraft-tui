@@ -1,0 +1,32 @@
+---
+id: PY-012
+type: rule
+family: python-reliability
+title: 'yaml.load without a SafeLoader, or from pickle import loads'
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 9
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: ast
+  ast_query: '(call) @target'
+
+related: [PY-009]
+enabled: true
+opt_in: false
+---
+
+The regex tier cannot tell `yaml.load(src, Loader=SafeLoader)` from a bare
+`yaml.load(src)`. This gate-time companion fires on `yaml.load(` /
+`yaml.full_load(` without a `Loader=` that is `SafeLoader` or `CSafeLoader`,
+and on `loads(` reached via `from pickle import loads`.
+
+`yaml.safe_load(` stays clean. Same-line `yaml.load(src, Loader=SafeLoader)` is
+clean here (PY-009 regex may still fire — documented, suppressible; this rule
+does not rewrite PY-009). `os.system` / `shell=True` stay regex PY-009.

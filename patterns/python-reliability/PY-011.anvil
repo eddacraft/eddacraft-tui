@@ -1,0 +1,33 @@
+---
+id: PY-011
+type: rule
+family: python-reliability
+title: 'eval/exec/compile first argument PY-008 cannot see'
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 8
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: ast
+  ast_query: '(call) @target'
+
+related: [PY-008]
+enabled: true
+opt_in: false
+---
+
+PY-008's regex reads the first token after `(` on one line, so concatenated,
+formatted, f-string, and wrapped first arguments are blind. This gate-time AST
+companion flags those shapes on `eval` / `exec` / `compile`, plus in-file
+`from builtins import eval as X` / `compile as X` used as a call, and
+`builtins.compile` / `__builtins__.compile` of a dynamic argument.
+
+It does **not** fire on `re.compile`, `torch.compile`, or `self.compile`.
+Unqualified `eval(user)` on one line stays PY-008 (save-time regex). Do not
+convert PY-008 to `detection: ast`.
