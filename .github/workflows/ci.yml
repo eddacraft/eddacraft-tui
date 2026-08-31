@@ -221,6 +221,11 @@ jobs:
         env:
           DIAGRAM_IMPACT_PR_BASE: ${{ github.event.pull_request.base.sha }}
           DIAGRAM_IMPACT_PUSH_BASE: ${{ github.event.before }}
+          # CIB-383: same merge-ref problem as the docs-owed step below. The
+          # checked-out `refs/pull/N/merge` carries main's newer commits, so
+          # diffing to bare HEAD pulls unrelated diagrams into this PR's
+          # impact set. Empty on `push`, where bare HEAD is already correct.
+          DIAGRAM_IMPACT_PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           base="${DIAGRAM_IMPACT_PR_BASE:-${DIAGRAM_IMPACT_PUSH_BASE:-}}"
           if [ -z "${base}" ] ||
@@ -229,8 +234,14 @@ jobs:
             echo "::error::Cannot determine diagram-impact diff base: '${base:-<unset>}' is not a usable commit."
             exit 2
           fi
+          head_args=""
+          if [ -n "${DIAGRAM_IMPACT_PR_HEAD:-}" ] &&
+             git cat-file -e "${DIAGRAM_IMPACT_PR_HEAD}^{commit}" 2>/dev/null; then
+            head_args="--head ${DIAGRAM_IMPACT_PR_HEAD}"
+            echo "Diffing to the PR head ${DIAGRAM_IMPACT_PR_HEAD} (not the merge ref)"
+          fi
           echo "Checking diagram impact against ${base}"
-          node scripts/docs/check-diagram-impact.mjs --since "${base}"
+          node scripts/docs/check-diagram-impact.mjs --since "${base}" ${head_args}
 
       # ADR-119 / ADR-117: documentation owed by THIS change. `code-changed`
       # (not `source-changed`) so a Rust-only or workflow-only PR that moves a

@@ -358,6 +358,12 @@ export async function runDiagramImpactCli(
     options: {
       root: { type: 'string' },
       since: { type: 'string' },
+      // CIB-383: the tip of the change under test. On a `pull_request` event
+      // `actions/checkout` checks out `refs/pull/N/merge`, so bare `HEAD` is a
+      // merge of the PR into current main and carries main's newer commits —
+      // diffing to it attributes other people's changes to this PR. CI passes
+      // the real PR head; everywhere else the default is correct.
+      head: { type: 'string' },
       'paths-file': { type: 'string' },
       json: { type: 'boolean', default: false },
     },
@@ -374,7 +380,7 @@ export async function runDiagramImpactCli(
   } else if (values.since) {
     const result = await execFileAsync(
       'git',
-      ['diff', '--name-only', '--diff-filter=ACDMR', `${values.since}...HEAD`],
+      ['diff', '--name-only', '--diff-filter=ACDMR', `${values.since}...${values.head ?? 'HEAD'}`],
       { cwd: root }
     );
     changedPaths = lines(result.stdout);

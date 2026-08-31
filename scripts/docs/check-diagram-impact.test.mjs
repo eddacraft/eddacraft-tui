@@ -316,6 +316,139 @@ test('proves the renderer version before publishing the CLI summary', async () =
   }
 });
 
+// CIB-383: on a `pull_request` event `actions/checkout` checks out
+// `refs/pull/N/merge`, so bare `HEAD` is the PR merged into current main and
+// carries main's newer commits. Diffing to it blames the PR for upstreams
+// someone else moved. `--head` names the commit actually under test.
+async function buildMergeRefRepo() {
+  const root = await mkdtemp(join(tmpdir(), 'diagram-impact-head-'));
+  const commit = async (message) => {
+    await execFileAsync('git', ['add', '-A'], { cwd: root });
+    await execFileAsync(
+      'git',
+      [
+        '-c',
+        'user.name=DOCRB test',
+        '-c',
+        'user.email=docrb@example.invalid',
+        'commit',
+        '--quiet',
+        '-m',
+        message,
+      ],
+      { cwd: root }
+    );
+  };
+
+  await mkdir(join(root, 'crates', 'example', 'src'), { recursive: true });
+  await mkdir(join(root, 'docs', 'architecture'), { recursive: true });
+  await writeFile(join(root, 'crates', 'example', 'src', 'lib.rs'), 'export const value = 1;\n');
+  await writeFile(
+    join(root, 'docs', 'architecture', 'owner.md'),
+    `# Head scoping owner
+
+| Type  | Authority     | Owner | Status | Freshness                                                     |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-22 against \`crates/example/src/lib.rs\` |
+
+| Upstream                      | Downstream |
+| ----------------------------- | ---------- |
+| \`crates/example/src/lib.rs\` | none       |
+
+\`\`\`mermaid
+flowchart LR
+  Source --> Owner
+\`\`\`
+`
+  );
+  await execFileAsync('git', ['init', '--quiet', '-b', 'main'], { cwd: root });
+  await commit('base');
+  const base = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
+
+  // The PR branches from base and touches nothing the diagram declares.
+  await execFileAsync('git', ['checkout', '--quiet', '-b', 'pr'], { cwd: root });
+  await writeFile(join(root, 'unrelated.txt'), 'not a declared upstream\n');
+  await commit('pr: unrelated change');
+  const prHead = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
+
+  // Meanwhile main moves the declared upstream.
+  await execFileAsync('git', ['checkout', '--quiet', 'main'], { cwd: root });
+  await writeFile(join(root, 'crates', 'example', 'src', 'lib.rs'), 'export const value = 2;\n');
+  await commit('main: someone else moves the upstream');
+
+  // GitHub's refs/pull/N/merge is the PR head merged INTO the base branch.
+  await execFileAsync('git', ['checkout', '--quiet', '-b', 'merge-ref'], { cwd: root });
+  await execFileAsync(
+    'git',
+    [
+      '-c',
+      'user.name=DOCRB test',
+      '-c',
+      'user.email=docrb@example.invalid',
+      'merge',
+      '--no-ff',
+      '--no-edit',
+      '--quiet',
+      prHead,
+    ],
+    { cwd: root }
+  );
+  return { root, base, prHead };
+}
+
+const mergeRefCliOptions = {
+  executeVersion: async () => ({ stdout: '11.16.0\n', stderr: '' }),
+  executeRenderer: async () => {},
+};
+
+async function captureCli(args) {
+  const originalWrite = process.stdout.write;
+  let output = '';
+  process.stdout.write = (chunk) => {
+    output += String(chunk);
+    return true;
+  };
+  try {
+    const code = await runDiagramImpactCli(args, mergeRefCliOptions);
+    return { code, output };
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+}
+
+test('diffing to the merge ref blames the PR for an upstream main moved', async (t) => {
+  const { root, base } = await buildMergeRefRepo();
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  // HEAD is the merge ref, exactly as CI checks it out.
+  const { code, output } = await captureCli(['--root', root, '--since', base, '--json']);
+  assert.equal(code, 1);
+  assert.deepEqual(JSON.parse(output).findings, [
+    {
+      code: 'diagram-review-owed',
+      path: 'docs/architecture/owner.md',
+      upstream: 'crates/example/src/lib.rs',
+    },
+  ]);
+});
+
+test('--head scopes the diff to the PR head, so main-only movement is not owed', async (t) => {
+  const { root, base, prHead } = await buildMergeRefRepo();
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const { code, output } = await captureCli([
+    '--root',
+    root,
+    '--since',
+    base,
+    '--head',
+    prHead,
+    '--json',
+  ]);
+  assert.equal(code, 0, `PR head range must not report a finding: ${output}`);
+  assert.deepEqual(JSON.parse(output).findings, []);
+});
+
 test('the real --since collector retains a deleted exact declared upstream', async () => {
   const root = await mkdtemp(join(tmpdir(), 'diagram-impact-deletion-'));
   const upstream = join(root, 'crates', 'example', 'src', 'lib.rs');
