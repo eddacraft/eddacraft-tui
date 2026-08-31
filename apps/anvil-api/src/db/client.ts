@@ -23,15 +23,16 @@ function collectErrorText(error: unknown): string {
   let current: unknown = error;
   while (current && typeof current === 'object' && !seen.has(current)) {
     seen.add(current);
-    if (!(current instanceof Error)) {
-      break;
+    if (current instanceof Error) {
+      parts.push(current.name, current.message);
+    } else if ('message' in current && typeof current.message === 'string') {
+      parts.push(current.message);
     }
-    parts.push(current.name, current.message);
     if ('code' in current && current.code != null) {
       parts.push(String(current.code));
     }
     const next =
-      current.cause ??
+      ('cause' in current ? (current as { cause?: unknown }).cause : undefined) ??
       ('sourceError' in current ? (current as { sourceError?: unknown }).sourceError : undefined);
     current = next;
   }

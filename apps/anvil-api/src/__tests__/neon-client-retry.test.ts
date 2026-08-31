@@ -46,6 +46,20 @@ describe('wrapNeonClient (APGOV-008)', () => {
     expect(inner).toHaveBeenCalledTimes(2);
   });
 
+  it('retries when a nested non-Error sourceError carries ETIMEDOUT', async () => {
+    const inner = taggedClient();
+    const err = Object.assign(new Error('Error connecting to database'), {
+      sourceError: { code: 'ETIMEDOUT' },
+    });
+    vi.mocked(inner)
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce([{ ok: 1 }]);
+
+    const sql = wrapNeonClient(inner);
+    await expect(sql`SELECT 1`).resolves.toEqual([{ ok: 1 }]);
+    expect(inner).toHaveBeenCalledTimes(2);
+  });
+
   it('does not retry SQL constraint errors', async () => {
     const inner = taggedClient();
     const err = constraintFailure();
