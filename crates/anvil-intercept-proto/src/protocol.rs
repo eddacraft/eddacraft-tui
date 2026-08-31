@@ -457,6 +457,10 @@ pub enum StaleReason {
     /// A change needs cross-file resolution the warm cache cannot supply
     /// yet (also the cold-key initial state).
     CrossFileResolutionNeeded,
+    /// The daemon has no symbol parser injected (Windows today, DSV-010b /
+    /// ADR-085). Distinct from cold warming: saving a file cannot populate
+    /// the graph.
+    NoParserOnThisPlatform,
     /// A path in the change set was deleted.
     Deleted,
     /// A path in the change set was renamed.
@@ -1097,6 +1101,10 @@ mod tests {
             (
                 StaleReason::CrossFileResolutionNeeded,
                 "cross-file-resolution-needed",
+            ),
+            (
+                StaleReason::NoParserOnThisPlatform,
+                "no-parser-on-this-platform",
             ),
             (StaleReason::Deleted, "deleted"),
             (StaleReason::Renamed, "renamed"),

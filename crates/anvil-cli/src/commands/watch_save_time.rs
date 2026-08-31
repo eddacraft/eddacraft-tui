@@ -536,6 +536,7 @@ pub(crate) fn assurance_label(assurance: &WorkspaceAssurance) -> String {
 pub(crate) fn stale_reason_str(reason: StaleReason) -> &'static str {
     match reason {
         StaleReason::CrossFileResolutionNeeded => "cross-file-resolution-needed",
+        StaleReason::NoParserOnThisPlatform => "no-parser-on-this-platform",
         StaleReason::Deleted => "deleted",
         StaleReason::Renamed => "renamed",
         StaleReason::SymlinkRetarget => "symlink-retarget",

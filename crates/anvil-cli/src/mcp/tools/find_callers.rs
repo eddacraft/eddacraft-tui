@@ -251,6 +251,18 @@ mod tests {
     }
 
     #[test]
+    fn missing_ordinal_defaults_to_zero() {
+        let query = parse_query(&json!({
+            "target": { "file": "src/a.ts", "kind": "Function", "name": "handle" }
+        }))
+        .expect("ordinal is optional and defaults to 0");
+        let target = query.target.expect("target present");
+        assert_eq!(target.ordinal, 0);
+        assert_eq!(target.file, "src/a.ts");
+        assert_eq!(target.name, "handle");
+    }
+
+    #[test]
     fn rejects_target_missing_file() {
         let cwd = std::env::current_dir().expect("cwd");
         let workspace = tempfile::tempdir_in(&cwd).expect("workspace");

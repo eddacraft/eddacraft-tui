@@ -393,7 +393,7 @@ fn print_warmup_cache_status(paths: Option<&Vec<String>>, mode: WatchOutputMode)
     }
     if let Some(paths) = paths {
         println!(
-            "[warm-up cache] {} files validated; reconciling with filesystem",
+            "[warm-up cache] {} files validated (save-time cache, not the graph-context graph); reconciling with filesystem",
             paths.len()
         );
     }

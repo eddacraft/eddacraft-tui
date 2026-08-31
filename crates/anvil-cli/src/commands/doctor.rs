@@ -151,6 +151,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_mcp_heal(),
         check_mcp_orphans(),
         check_produce_locks(),
+        check_graph_platform(),
     ]
 }
 
@@ -1594,6 +1595,41 @@ fn check_mcp_orphans_from(
             command: Some("anvil doctor --fix".to_string()),
             doc_url: None,
         },
+    }
+}
+
+/// Whether this platform can inject a symbol parser into the intercept daemon.
+/// Windows (and any non-unix) cannot warm a graph (CIB-385 / DSV-010b).
+fn check_graph_platform() -> DiagnosticCheck {
+    #[cfg(unix)]
+    {
+        DiagnosticCheck {
+            name: "graph-ready".to_string(),
+            category: "Graph".to_string(),
+            status: CheckStatus::Pass,
+            message: "symbol parser can be injected on this platform".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        DiagnosticCheck {
+            name: "graph-ready".to_string(),
+            category: "Graph".to_string(),
+            status: CheckStatus::Warn,
+            message: "graph-backed context is unavailable on this platform (daemon has no symbol parser)".to_string(),
+            details: Some(
+                "anvil_search_symbols and sibling graph tools will stay not_ready; this is a platform limit, not a wiring problem. Saving a file will not warm the graph.".to_string(),
+            ),
+            auto_fixable: false,
+            remediation: Remediation {
+                summary: "use graph-context tools on a unix host, or treat Windows graph results as unavailable".to_string(),
+                command: None,
+                doc_url: None,
+            },
+        }
     }
 }
 
@@ -5426,6 +5462,23 @@ mod tests {
             checks.iter().any(|c| c.name == "produce-locks"),
             "produce-locks must be registered in run_all_checks",
         );
+    }
+
+    #[test]
+    fn run_all_checks_includes_graph_ready_check() {
+        let checks = run_all_checks();
+        let check = checks
+            .iter()
+            .find(|c| c.name == "graph-ready")
+            .expect("graph-ready must be registered in run_all_checks");
+        assert_eq!(check.category, "Graph");
+        #[cfg(unix)]
+        assert_eq!(check.status, CheckStatus::Pass);
+        #[cfg(not(unix))]
+        {
+            assert_eq!(check.status, CheckStatus::Warn);
+            assert!(check.message.contains("unavailable on this platform"));
+        }
     }
 
     #[cfg(unix)]

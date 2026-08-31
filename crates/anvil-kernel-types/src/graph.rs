@@ -97,6 +97,7 @@ pub struct SymbolIdentity {
     pub name: String,
     /// Occurrence index among same-`(kind, name)` symbols in the file,
     /// in parse order. 0 for the first (or only) occurrence.
+    #[serde(default)]
     pub ordinal: u32,
 }
 

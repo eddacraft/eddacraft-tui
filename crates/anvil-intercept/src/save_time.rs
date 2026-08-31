@@ -2431,6 +2431,20 @@ fn implicit_scan_disabled(raw: Option<&str>) -> bool {
     raw.map(str::trim) == Some("0")
 }
 
+fn unpopulated_graph_recovery_hint(reason: Option<StaleReason>) -> String {
+    match reason {
+        Some(StaleReason::NoParserOnThisPlatform) => {
+            "graph-backed context is not available on this platform; the daemon has no symbol parser"
+                .to_string()
+        }
+        _ => concat!(
+            "the workspace graph is not yet populated; ",
+            "save a file or request a full scan to warm it"
+        )
+        .to_string(),
+    }
+}
+
 /// Compute the GCTX search outcome for an admitted root (GCTX-010 / ADR-084).
 ///
 /// CE-7 degradation, by assurance state: `Unavailable` → `Unavailable`;
@@ -2504,11 +2518,7 @@ fn gctx_search_outcome(
                     }
                 }
                 None => SearchSymbolsOutcome::NotReady {
-                    recovery_hint: concat!(
-                        "the workspace graph is not yet populated; ",
-                        "save a file or request a full scan to warm it"
-                    )
-                    .to_string(),
+                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                 },
             }
         }
@@ -2581,11 +2591,7 @@ fn gctx_find_dependents_outcome(
                     }
                 }
                 None => FindDependentsOutcome::NotReady {
-                    recovery_hint: concat!(
-                        "the workspace graph is not yet populated; ",
-                        "save a file or request a full scan to warm it"
-                    )
-                    .to_string(),
+                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                 },
             }
         }
@@ -2681,11 +2687,7 @@ fn gctx_find_callers_outcome(
                     }
                 }
                 None => FindCallersOutcome::NotReady {
-                    recovery_hint: concat!(
-                        "the workspace graph is not yet populated; ",
-                        "save a file or request a full scan to warm it"
-                    )
-                    .to_string(),
+                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                 },
             }
         }
@@ -2722,11 +2724,7 @@ fn gctx_graph_stats_outcome(
             match collected {
                 Some(projection) => GraphStatsOutcome::Ready(projection),
                 None => GraphStatsOutcome::NotReady {
-                    recovery_hint: concat!(
-                        "the workspace graph is not yet populated; ",
-                        "save a file or request a full scan to warm it"
-                    )
-                    .to_string(),
+                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                 },
             }
         }
@@ -2771,11 +2769,7 @@ fn gctx_graph_edges_outcome(
                     }
                 }
                 None => GraphEdgesOutcome::NotReady {
-                    recovery_hint: concat!(
-                        "the workspace graph is not yet populated; ",
-                        "save a file or request a full scan to warm it"
-                    )
-                    .to_string(),
+                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                 },
             }
         }
@@ -3024,11 +3018,7 @@ fn gctx_impact_outcome(
             match collected {
                 Some(collected) => ImpactOutcome::Ready(GctxProjector::project_impact(collected)),
                 None => ImpactOutcome::NotReady {
-                    recovery_hint: concat!(
-                        "the workspace graph is not yet populated; ",
-                        "save a file or request a full scan to warm it"
-                    )
-                    .to_string(),
+                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                 },
             }
         }
@@ -3087,11 +3077,7 @@ fn gctx_affected_tests_outcome(
                     AffectedTestsOutcome::Ready(GctxProjector::project_affected_tests(collected))
                 }
                 None => AffectedTestsOutcome::NotReady {
-                    recovery_hint: concat!(
-                        "the workspace graph is not yet populated; ",
-                        "save a file or request a full scan to warm it"
-                    )
-                    .to_string(),
+                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                 },
             }
         }
@@ -3229,11 +3215,7 @@ fn gctx_get_snippet_outcome(
             let location = match resolved {
                 None => {
                     return SnippetOutcome::NotReady {
-                        recovery_hint: concat!(
-                            "the workspace graph is not yet populated; ",
-                            "save a file or request a full scan to warm it"
-                        )
-                        .to_string(),
+                        recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                     };
                 }
                 Some(None) => return SnippetOutcome::SymbolNotFound,
@@ -3360,11 +3342,7 @@ fn gctx_symbol_context_outcome(
             });
             let Some((candidates, locations)) = collected else {
                 return SymbolContextOutcome::NotReady {
-                    recovery_hint: concat!(
-                        "the workspace graph is not yet populated; ",
-                        "save a file or request a full scan to warm it"
-                    )
-                    .to_string(),
+                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
                 };
             };
             let mut file_bytes = std::collections::HashMap::new();

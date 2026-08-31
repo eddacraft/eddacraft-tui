@@ -169,6 +169,10 @@ pub enum DefinitionValidationError {
     #[error("layer '{layer}' contains an empty pattern")]
     EmptyLayerPattern { layer: String },
     #[error(
+        "layer '{layer}' pattern '{pattern}' uses a '!' prefix; gitignore-style negations are not valid layer patterns"
+    )]
+    NegationPatternNotSupported { layer: String, pattern: String },
+    #[error(
         "layer '{left_layer}' pattern '{left_pattern}' overlaps with layer '{right_layer}' pattern '{right_pattern}'"
     )]
     OverlappingLayerPatterns {
@@ -291,6 +295,11 @@ pub fn validate_definition(
                 errors.push(DefinitionValidationError::EmptyLayerPattern {
                     layer: name.clone(),
                 });
+            } else if pattern.trim().starts_with('!') {
+                errors.push(DefinitionValidationError::NegationPatternNotSupported {
+                    layer: name.clone(),
+                    pattern: pattern.clone(),
+                });
             }
         }
 
@@ -309,6 +318,10 @@ pub fn validate_definition(
         for (right_name, right_layer) in layer_entries.iter().skip(left_index + 1) {
             for left_pattern in &left_layer.patterns {
                 for right_pattern in &right_layer.patterns {
+                    if left_pattern.trim().starts_with('!') || right_pattern.trim().starts_with('!')
+                    {
+                        continue;
+                    }
                     match layer_patterns_overlap(left_pattern, right_pattern) {
                         Some(true) => {
                             errors.push(DefinitionValidationError::OverlappingLayerPatterns {
@@ -356,6 +369,28 @@ pub fn validate_definition(
     }
 }
 
+fn diagnose_layer_pattern(name: &str, pattern: &str) -> Vec<ArchitectureDefinitionDiagnostic> {
+    if pattern.trim().is_empty() {
+        return vec![ArchitectureDefinitionDiagnostic::error(
+            "empty-layer-pattern",
+            format!("Layer \"{name}\" contains an empty pattern"),
+            format!("layers.{name}.patterns"),
+            "patterns",
+        )];
+    }
+    if pattern.trim().starts_with('!') {
+        return vec![ArchitectureDefinitionDiagnostic::error(
+            "negation-pattern-not-supported",
+            format!(
+                "Layer \"{name}\" pattern \"{pattern}\" uses a '!' prefix; gitignore-style negations are not valid layer patterns"
+            ),
+            format!("layers.{name}.patterns"),
+            pattern,
+        )];
+    }
+    Vec::new()
+}
+
 /// Produce structured diagnostics for an architecture definition.
 pub fn diagnose_definition(
     definition: &ArchitectureDefinition,
@@ -385,14 +420,7 @@ pub fn diagnose_definition(
         }
 
         for pattern in &layer.patterns {
-            if pattern.trim().is_empty() {
-                diagnostics.push(ArchitectureDefinitionDiagnostic::error(
-                    "empty-layer-pattern",
-                    format!("Layer \"{name}\" contains an empty pattern"),
-                    format!("layers.{name}.patterns"),
-                    "patterns",
-                ));
-            }
+            diagnostics.extend(diagnose_layer_pattern(name, pattern));
         }
 
         for dep in &layer.depends_on {
@@ -412,6 +440,10 @@ pub fn diagnose_definition(
         for (right_name, right_layer) in layer_entries.iter().skip(left_index + 1) {
             for left_pattern in &left_layer.patterns {
                 for right_pattern in &right_layer.patterns {
+                    if left_pattern.trim().starts_with('!') || right_pattern.trim().starts_with('!')
+                    {
+                        continue;
+                    }
                     match layer_patterns_overlap(left_pattern, right_pattern) {
                         Some(true) => diagnostics.push(ArchitectureDefinitionDiagnostic::error(
                             "overlapping-layer-patterns",
@@ -776,6 +808,50 @@ mod tests {
                 .any(|d| d.code == "overlapping-layer-patterns" && d.is_error()),
             "{diagnostics:?}"
         );
+    }
+
+    #[test]
+    fn diagnose_definition_rejects_gitignore_style_negation() {
+        let mut layers = BTreeMap::new();
+        layers.insert(
+            "core".into(),
+            LayerDefinition {
+                patterns: vec!["src/**/*.ts".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        layers.insert(
+            "cli".into(),
+            LayerDefinition {
+                patterns: vec!["!src/cli.ts".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+
+        let def = ArchitectureDefinition {
+            schema_version: ARCHITECTURE_DEFINITION_VERSION.into(),
+            template: ArchitectureTemplate::Custom,
+            layers,
+            bounded_contexts: None,
+            rules: vec![],
+            options: None,
+        };
+
+        let diagnostics = diagnose_definition(&def);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == "negation-pattern-not-supported" && d.is_error()),
+            "{diagnostics:?}"
+        );
+        let errors = validate_definition(&def).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            DefinitionValidationError::NegationPatternNotSupported { layer, pattern }
+                if layer == "cli" && pattern == "!src/cli.ts"
+        )));
     }
 
     #[test]

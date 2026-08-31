@@ -467,7 +467,7 @@ fn run_scan_loop(
     // empty `Clean` graph.
     let Some(parser) = ctx.parser.clone() else {
         with_locked_machine_trace(machine, root, |m| {
-            m.mark_stale(StaleReason::CrossFileResolutionNeeded);
+            m.mark_stale(StaleReason::NoParserOnThisPlatform);
         });
         tracing::warn!(
             target: "anvil_intercept::full_scan",
@@ -1023,10 +1023,22 @@ mod tests {
         write(root, "a.ts", "export a");
 
         let ctx = ctx_with(None, DosCaps::default());
-        let state = scan_to_completion(&ctx, root);
-        assert_eq!(state, AssuranceState::Stale, "no parser → stale, not clean");
+        let key = key_for(root);
+        let machine = machine();
+        let job = prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background)
+            .expect("a cold worktree must enqueue a scan");
+        job.run();
+        assert_eq!(
+            lock(&machine).state(),
+            AssuranceState::Stale,
+            "no parser → stale, not clean"
+        );
+        assert_eq!(
+            lock(&machine).reason(),
+            Some(StaleReason::NoParserOnThisPlatform)
+        );
         assert!(
-            !ctx.cache.contains(&key_for(root)),
+            !ctx.cache.contains(&key),
             "a no-parser scan must never populate the cache (no phantom graph)"
         );
     }

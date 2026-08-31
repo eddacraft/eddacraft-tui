@@ -234,9 +234,21 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     let (files, source) = gather_files(args, &extensions)?;
 
     // Workspace root is needed for `.anvilrc` discovery, path relativisation,
-    // and last-run files. Falls back to the current directory when git is
-    // unavailable so non-git callers still get sane paths.
-    let workspace_root = resolve_workspace_root();
+    // and last-run files. Explicit files bind to the target path's git
+    // toplevel (CIB-386), not the process cwd — a hook whose cwd is $HOME
+    // must not pay that tree's cost for a file in another repo.
+    let workspace_root = match source {
+        FileSource::Explicit => files.first().and_then(|path| {
+            let path = Path::new(path);
+            let hint = if path.is_file() {
+                path.parent().unwrap_or(path)
+            } else {
+                path
+            };
+            resolve_workspace_root_in(Some(hint))
+        }),
+        FileSource::All | FileSource::Changed => resolve_workspace_root_in(None),
+    };
 
     if files.is_empty() {
         let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
@@ -1064,7 +1076,13 @@ fn validate_git_ref(ref_name: &str) -> Result<()> {
 /// relative to the repo root, not the current directory — so we must
 /// join against the repo root for correct resolution from subdirectories.
 fn git_toplevel() -> Result<std::path::PathBuf> {
+    git_toplevel_in(&std::env::current_dir()?)
+}
+
+fn git_toplevel_in(dir: &Path) -> Result<std::path::PathBuf> {
     let output = Command::new("git")
+        .args(["-C"])
+        .arg(dir)
         .args(["rev-parse", "--show-toplevel"])
         .output()
         .map_err(|e| anyhow::anyhow!("Failed to run git: {e}"))?;
@@ -1241,6 +1259,18 @@ fn relativise(path: &str, workspace_root: Option<&str>) -> String {
 /// Workspace root for `.anvilrc` discovery, path relativisation, and last-run
 /// files. Falls back to the current directory when git is unavailable.
 fn resolve_workspace_root() -> Option<String> {
+    resolve_workspace_root_in(None)
+}
+
+/// When `hint` is set, prefer that directory's git toplevel (the target file's
+/// repo) over the process cwd. Used by single-file `anvil check` so embeddings
+/// that inherit `$HOME` as cwd do not bind to that tree.
+fn resolve_workspace_root_in(hint: Option<&Path>) -> Option<String> {
+    if let Some(hint) = hint
+        && let Ok(root) = git_toplevel_in(hint)
+    {
+        return Some(root.to_string_lossy().to_string());
+    }
     git_toplevel()
         .ok()
         .map(|p| p.to_string_lossy().to_string())
@@ -2036,6 +2066,23 @@ mod tests {
         let (files, source) = gather_files(&args, &exts).unwrap();
         assert_eq!(source, FileSource::Explicit);
         assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn git_toplevel_in_uses_the_hint_directory_not_process_cwd() {
+        let tmp = tempfile::tempdir().unwrap();
+        let hinted = tmp.path().join("hinted");
+        std::fs::create_dir(&hinted).unwrap();
+        let init = Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(&hinted)
+            .status()
+            .expect("git init");
+        assert!(init.success());
+        let root = git_toplevel_in(&hinted).expect("hinted repo");
+        let canonical_hinted = hinted.canonicalize().unwrap();
+        let canonical_root = root.canonicalize().unwrap();
+        assert_eq!(canonical_root, canonical_hinted);
     }
 
     #[test]

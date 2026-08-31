@@ -266,11 +266,20 @@ fn gate_history_point(
     snapshot: &GateSnapshot,
     recorded_at: chrono::DateTime<chrono::Utc>,
 ) -> GateHistoryPoint {
+    let zero_checks = snapshot.checks_run == "0";
     GateHistoryPoint {
         recorded_at: recorded_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        score: snapshot.score,
-        status: snapshot.status.clone(),
-        status_label: snapshot.status_label.clone(),
+        score: if zero_checks { 0.0 } else { snapshot.score },
+        status: if zero_checks {
+            "skipped".to_owned()
+        } else {
+            snapshot.status.clone()
+        },
+        status_label: if zero_checks {
+            "SKIPPED — no checks ran".to_owned()
+        } else {
+            snapshot.status_label.clone()
+        },
         warning_count: snapshot.warning_list.len(),
         duration_seconds: Some(snapshot.duration_seconds.clone()),
         checks_run: Some(snapshot.checks_run.clone()),
@@ -7971,6 +7980,34 @@ mod tests {
         assert_eq!(point.recorded_at, "2026-07-27T12:34:56Z");
         assert_eq!(point.warning_count, 1);
         assert_eq!(point.checks_run.as_deref(), Some("4"));
+    }
+
+    #[test]
+    fn gate_history_point_zero_checks_is_skipped_not_a_hundred_pass() {
+        let snapshot: GateSnapshot = serde_json::from_value(serde_json::json!({
+            "status": "pass",
+            "statusLabel": "PASSED — score 100/100",
+            "score": 100.0,
+            "checksRun": "0",
+            "warnings": "0",
+            "durationSeconds": "0.0",
+            "checkRows": [],
+            "warningList": []
+        }))
+        .unwrap();
+        let recorded_at = chrono::DateTime::parse_from_rfc3339("2026-08-30T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        let point = gate_history_point(&snapshot, recorded_at);
+        assert_eq!(point.status, "skipped");
+        assert!(
+            (point.score - 0.0).abs() < f64::EPSILON,
+            "zero-check score must not be 100, got {}",
+            point.score
+        );
+        assert_eq!(point.status_label, "SKIPPED — no checks ran");
+        assert_eq!(point.checks_run.as_deref(), Some("0"));
     }
 
     #[test]

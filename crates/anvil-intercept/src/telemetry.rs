@@ -936,6 +936,7 @@ fn assurance_message(to: AssuranceState, reason: Option<StaleReason>) -> String 
 fn stale_reason_token(reason: StaleReason) -> &'static str {
     match reason {
         StaleReason::CrossFileResolutionNeeded => "cross-file-resolution-needed",
+        StaleReason::NoParserOnThisPlatform => "no-parser-on-this-platform",
         StaleReason::Deleted => "deleted",
         StaleReason::Renamed => "renamed",
         StaleReason::SymlinkRetarget => "symlink-retarget",
