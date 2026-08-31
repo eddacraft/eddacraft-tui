@@ -12291,6 +12291,119 @@ hang before opening a supervisor ticket.
   because they share a cause.
 - **Confidence:** high — the mechanism is confirmed against a real run and
   reproduced locally with the head as the only variable
+### CIB-384: activation parks every worktree at `ready_restart_required` because durable membership never heartbeats
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P1 — the single most-reported adoption blocker. It is the state
+  a first-time user lands in and cannot leave, and the remediation the surface
+  prints makes it worse
+- **Intent:** two layers disagree about what the activation-spine session's
+  `last_heartbeat_unix` means, and the disagreement parks the protection state
+  permanently.
+
+  ACTMO-013's planning council found (and [ADR-094](../decisions/094-worktree-registration-ux.md)
+  ratified) that durable membership must **not** be built on the registry's
+  heartbeat lease — "the draft built *durable membership* on the registry's 30s
+  in-memory heartbeat lease, so a one-shot CLI registration would evict ~30s
+  after the process exits". The resolution made durable registration a
+  persisted, **TTL-exempt** set, and `SessionRegistry::evict_stale`
+  (`crates/anvil-intercept/src/registry.rs:1842`) skips it outright:
+  `if entry.durable { return None }`. A durable session is *membership, not
+  liveness*, so nothing ever beats for it and `last_heartbeat_unix` stays pinned
+  at whenever it was registered.
+
+  The activation promotion gate predates that decision and was never updated.
+  `heartbeat_within_freshness_window`
+  (`crates/anvil-cli/src/activation/daemon_evidence.rs:577`) still requires
+  `max(session.last_heartbeat_unix)` for the worktree to be within
+  `HEARTBEAT_FRESHNESS_WINDOW` — 45 s (`:123`) — and returns
+  `DaemonAttestation::StaleHeartbeat` otherwise. The only two commands that ever
+  bump that field are `anvil start` and `anvil workspace register`, both via
+  `refresh_existing_activation_session`
+  (`crates/anvil-cli/src/registration.rs:298`).
+
+  So the promotion window is **the 45 seconds after one of those two commands**,
+  and nothing else. Every later `anvil status`, `anvil start --verify`, TUI
+  render, or agent probe reads `StaleHeartbeat` → no promotion →
+  `ready_restart_required`, for the life of the daemon.
+
+  Measured on this dev host 2026-08-31 against a healthy daemon (`0.9.7-beta`,
+  uptime 37,322 s, `ipc_state: serving`, `worktree_state: pre-write-daemon`, one
+  participating surface):
+
+  | step | `activation.state` |
+  | --- | --- |
+  | baseline | `ready_restart_required` |
+  | after `anvil workspace register` (heartbeat refresh only, no config change) | `watching` |
+  | ~45 s later, nothing else changed | `ready_restart_required` |
+
+  Heartbeat age climbing with no refresher, sampled every 40 s:
+  `37 → 56 → 96 → 136 → 176`. A second registered worktree on the same daemon
+  (`~/Projects/src/pane`) sat at an age of 37,459 s — pinned to daemon boot,
+  never refreshed, permanently "stale" while the daemon that owns it is alive
+  and answering.
+- **The remediation copy makes it worse.** The `StaleHeartbeat` arms
+  (`crates/anvil-cli/src/activation/render.rs:547`, `:634`, `:909`) tell the
+  user to kill the daemon and restart it with
+  `anvil intercept start --foreground`. That re-registers, buys another 45
+  seconds, and reverts — so the operator reads it as "the fix did not take" and
+  restarts again. Meanwhile the headline still says *"restart your editor or
+  agent so the MCP server attaches"*, so the two lines on one screen prescribe
+  two different, both-wrong actions.
+- **Second, independent lock (same surface, file separately if it does not fall
+  out of the fix):** even with fresh heartbeats a multi-editor host can only
+  reach `Watching`, never `Protecting`. Promotion needs a participating surface
+  whose identifier names an MCP client; the only surface is
+  `anvil-start/activation-spine#0`, which names none, and the unattributed
+  fallback requires **exactly one** handshake-verified client
+  (`daemon_evidence.rs:395`, `hsv_ids.len() == 1`). This host has nine at
+  `restart_handshake_verified` and 29 live MCP shim processes (claude / codex /
+  grok) that register no session at all — the daemon reports zero non-durable
+  sessions. A first-timer with one editor squeaks through the fallback; anyone
+  with two editors cannot.
+- **Expected Outcome:** a registered worktree on a live, enforcing daemon
+  reports its true state on every read, not only within 45 s of `anvil start`.
+  Durable membership is freshness-checked against a clock that actually ticks —
+  `DaemonStatusV1::generated_at_unix` is already threaded through
+  `heartbeat_within_freshness_window` as the snapshot anchor and was fresh
+  (1788147506) on this host while the session heartbeat was 10.4 hours old.
+  `ready_restart_required` becomes a state a user can leave, and the copy for
+  any residual stale case names a step that terminates.
+- **Non-scope / do not:** do not fix this by making durable sessions heartbeat
+  on a timer — that reintroduces exactly the lease ACTMO-013's council removed,
+  and a daemon-side beat for a process that exited is not evidence of anything.
+  Do not widen `HEARTBEAT_FRESHNESS_WINDOW`; any finite window has the same
+  failure at window+1s, and the constant is deliberately not operator-tunable
+  upward (MLP2-051f security veto — downgrade attack surface). Do not drop the
+  freshness gate for *live* (non-durable) sessions; a stale live session is a
+  genuine liveness signal and must still fail closed.
+- **Files:** `crates/anvil-cli/src/activation/daemon_evidence.rs` (the
+  freshness predicate at `:577`, the window constant at `:123`, the
+  attribution fallback at `:395`),
+  `crates/anvil-cli/src/activation/render.rs` (the `StaleHeartbeat` copy at
+  `:547`/`:634`/`:909`), `crates/anvil-intercept/src/registry.rs:1842`
+  (the durable exemption — reference only, it is correct),
+  `crates/anvil-cli/src/registration.rs:298` (the only refresh site)
+- **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast -- activation`;
+  a regression test that pins a durable (activation-spine tagged) session with a
+  heartbeat far outside the window against a fresh `generated_at_unix` and
+  asserts the worktree still attests; prove RED by reverting the predicate.
+  Manual: on a host with a running daemon and a registered worktree, read
+  `anvil status --json` more than 45 s after the last `anvil start` and confirm
+  the state is not `ready_restart_required`.
+- **Identified From:** operator report 2026-08-31 — recurring across the
+  operator's own projects and observed live while shadowing a first-time user
+  installing anvil, where it was the blocker to using the product. Root-caused
+  and reproduced the same day on anvil-001.
+- **Coordinates with:** ACTMO-013 / ADR-094 (the durable-membership decision
+  this gate never caught up with), ACTMO-014 (the TTL exemption itself),
+  MLP2-051f (the promotion path and its freshness window), CIB-072 (the Windows
+  half of the same stuck state — closed for `Unreachable`, this is the
+  `StaleHeartbeat` sibling and is **not** Windows-specific), CIB-343 (the
+  twelve-client handshake ladder that produced the nine HSV clients the
+  attribution fallback cannot handle)
+- **Confidence:** high — the mechanism is read directly in both crates, and the
+  state flip and its decay were measured end to end on a live daemon.
 
 ## Pack-12 intake (Dave B34 re-fire + B39–B42 + graph opportunity, 2026-08-31)
 
