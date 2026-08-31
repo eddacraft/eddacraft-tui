@@ -984,7 +984,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 )
             } else {
                 Some(
-                    "watch is the save-time fallback — to upgrade to pre-write validation, run `anvil mcp install` to wire up your MCP-capable editor (for example Cursor or Claude Code).",
+                    "watch is the save-time fallback — to upgrade to pre-write validation, run `anvil mcp install` to wire up your MCP-capable editor.",
                 )
             }
         }
@@ -996,7 +996,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 // composition (`anvil start --watch`) so the user does
                 // not have to discover the two surfaces independently.
                 Some(
-                    "run `anvil start` to wire your MCP-capable editor's MCP paths (for example Cursor or Claude Code), or `anvil start --watch` for save-time fallback protection.",
+                    "run `anvil start` to wire your MCP-capable editor, or `anvil start --watch` for save-time fallback protection.",
                 )
             } else {
                 Some("run `anvil start --verify` to re-check activation.")
@@ -2165,6 +2165,38 @@ mod tests {
             h.contains("anvil mcp install"),
             "Watching without MCP should advise install: {h}"
         );
+    }
+
+    #[test]
+    fn watching_without_mcp_hint_does_not_name_specific_editors() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.watch = WatchTier::Running;
+        let hint = repair_hint_for(&d)
+            .expect("Watching without MCP must have a next-step hint")
+            .to_lowercase();
+        for forbidden in ["claude", "cursor"] {
+            assert!(
+                !hint.contains(forbidden),
+                "Watching hint must not name {forbidden}: {hint}"
+            );
+        }
+    }
+
+    #[test]
+    fn needs_action_with_config_hint_does_not_name_specific_editors() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        assert_eq!(d.protection_state(), ProtectionState::NeedsAction);
+        let hint = repair_hint_for(&d)
+            .expect("NeedsAction with config must have a next-step hint")
+            .to_lowercase();
+        for forbidden in ["claude", "cursor"] {
+            assert!(
+                !hint.contains(forbidden),
+                "NeedsAction hint must not name {forbidden}: {hint}"
+            );
+        }
     }
 
     #[test]
