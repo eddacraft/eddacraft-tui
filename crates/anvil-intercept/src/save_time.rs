@@ -4312,7 +4312,7 @@ mod tests {
         assert_eq!(resp.workspace_assurance.state, AssuranceState::Stale);
         assert_eq!(
             resp.workspace_assurance.reason,
-            Some(StaleReason::CrossFileResolutionNeeded),
+            Some(StaleReason::NoParserOnThisPlatform),
         );
     }
 
