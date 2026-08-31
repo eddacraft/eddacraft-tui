@@ -241,6 +241,28 @@ skill.
   symlink fixtures
 - **Confidence:** medium
 
+### SKPKG-010: Install `using-anvil` with the managed bundle
+
+- **Status:** In Progress
+- **Intent:** Materialise the already-vendored `using-anvil` companion on
+  `anvil skill install` so the hand-off in `anvil-developer-functions` can
+  load. Do not add named skill selection (SKPKG-009) or change client
+  registry skill roots.
+- **Expected Outcome:** `anvil skill install` writes `using-anvil` next to
+  `anvil-developer-functions` at every selected client skill root, with the
+  same managed manifest, idempotence, verify/dry-run, and refuse-unmanaged
+  behaviour. Doctor evaluates both bundled skills. Default no-name install
+  remains "install the bundled set".
+- **Files:** `crates/anvil-cli/src/commands/skill.rs`,
+  `crates/anvil-cli/src/commands/skill_state.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/tests/skill_install.rs`,
+  `docs/public/anvil/integrations/skills.md`,
+  `docs/runbooks/cli-surface.md`
+- **Dependencies:** SKPKG-008
+- **Validation:** `cargo test -p eddacraft-anvil --test skill_install --no-fail-fast`
+- **Confidence:** high
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |

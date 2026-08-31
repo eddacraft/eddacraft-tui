@@ -16,13 +16,45 @@ use crate::activation::detect_agents::RealDetectionEnv;
 
 pub const MANIFEST_NAME: &str = ".anvil-managed.json";
 pub const DEFAULT_SKILL_NAME: &str = "anvil-developer-functions";
+pub const USING_ANVIL_SKILL_NAME: &str = "using-anvil";
 
 const SOURCE_COMMIT: &str = "ef5b34c5f424c9de4292406405e4bedfb603a65a";
+const USING_ANVIL_SOURCE_COMMIT: &str = "959b60cb2ab77cfaeb402b2c9b96efe0093e955f";
 
 pub(crate) const SKILL_MD: &str =
     include_str!("../../assets/skills/anvil-developer-functions/SKILL.md");
 pub(crate) const TOOL_REFERENCE: &str =
     include_str!("../../assets/skills/anvil-developer-functions/references/tool-reference.md");
+pub(crate) const USING_ANVIL_SKILL_MD: &str =
+    include_str!("../../assets/skills/using-anvil/SKILL.md");
+
+/// One skill snapshot embedded in the anvil binary (SKPKG).
+#[derive(Debug, Clone, Copy)]
+pub struct BundledSkill {
+    pub name: &'static str,
+    pub source_commit: &'static str,
+    pub files: &'static [(&'static str, &'static str)],
+}
+
+/// Managed skills `anvil skill install` writes for each selected client root.
+#[must_use]
+pub fn bundled_skills() -> &'static [BundledSkill] {
+    &[
+        BundledSkill {
+            name: DEFAULT_SKILL_NAME,
+            source_commit: SOURCE_COMMIT,
+            files: &[
+                ("SKILL.md", SKILL_MD),
+                ("references/tool-reference.md", TOOL_REFERENCE),
+            ],
+        },
+        BundledSkill {
+            name: USING_ANVIL_SKILL_NAME,
+            source_commit: USING_ANVIL_SOURCE_COMMIT,
+            files: &[("SKILL.md", USING_ANVIL_SKILL_MD)],
+        },
+    ]
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,24 +91,34 @@ pub struct SkillInstallReport {
     pub outcome: SkillInstallOutcome,
 }
 
-/// Build the managed manifest for the embedded `anvil-developer-functions` bundle.
+/// Build the managed manifest for one embedded skill bundle.
 #[must_use]
-pub fn expected_developer_functions_manifest() -> ManagedManifest {
-    let files = BTreeMap::from([
-        ("SKILL.md".to_string(), sha256(SKILL_MD.as_bytes())),
-        (
-            "references/tool-reference.md".to_string(),
-            sha256(TOOL_REFERENCE.as_bytes()),
-        ),
-    ]);
+pub fn expected_manifest_for(skill: &BundledSkill) -> ManagedManifest {
+    let files = skill
+        .files
+        .iter()
+        .map(|(relative, content)| (relative.to_string(), sha256(content.as_bytes())))
+        .collect();
     ManagedManifest {
         schema_version: 1,
-        skill: DEFAULT_SKILL_NAME.to_string(),
-        source_commit: SOURCE_COMMIT.to_string(),
+        skill: skill.name.to_string(),
+        source_commit: skill.source_commit.to_string(),
         anvil_version: env!("CARGO_PKG_VERSION").to_string(),
         bundle_digest: bundle_digest(&files),
         files,
     }
+}
+
+/// Build the managed manifest for the embedded `anvil-developer-functions` bundle.
+#[must_use]
+#[allow(dead_code)] // used by doctor/skill_state tests; the install path uses expected_manifest_for
+pub fn expected_developer_functions_manifest() -> ManagedManifest {
+    expected_manifest_for(
+        bundled_skills()
+            .iter()
+            .find(|skill| skill.name == DEFAULT_SKILL_NAME)
+            .expect("anvil-developer-functions is always bundled"),
+    )
 }
 
 /// Pure evaluation of a skill destination against an expected managed manifest.
@@ -210,7 +252,7 @@ pub fn discover_skill_paths(
         .collect()
 }
 
-/// Evaluate the default managed skill at discovered paths that exist, plus
+/// Evaluate every bundled managed skill at discovered paths that exist, plus
 /// paths for strongly detected skill-capable clients (so Absent is only
 /// reported when a client in that scope would care).
 #[must_use]
@@ -219,38 +261,41 @@ pub fn evaluate_known_skills(
     project: Option<&Path>,
 ) -> Vec<SkillInstallReport> {
     let env = RealDetectionEnv;
-    let expected = expected_developer_functions_manifest();
-    let mut interested: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut reports = Vec::new();
 
-    for (scope, root) in [
-        (InstallScope::Global, home),
-        (InstallScope::Project, project),
-    ] {
-        let Some(root) = root else {
-            continue;
-        };
-        for entry in AgentClientId::all() {
-            if !entry.supports_skill(scope) || !entry.detected(&env) {
+    for skill in bundled_skills() {
+        let expected = expected_manifest_for(skill);
+        let mut interested: BTreeSet<PathBuf> = BTreeSet::new();
+
+        for (scope, root) in [
+            (InstallScope::Global, home),
+            (InstallScope::Project, project),
+        ] {
+            let Some(root) = root else {
+                continue;
+            };
+            for entry in AgentClientId::all() {
+                if !entry.supports_skill(scope) || !entry.detected(&env) {
+                    continue;
+                }
+                if let Some(skill_root) = entry.skill_root(scope, root) {
+                    interested.insert(skill_root.join(skill.name));
+                }
+            }
+        }
+
+        for (path, clients) in discover_skill_paths(home, project, skill.name) {
+            let exists = path.exists();
+            if !exists && !interested.contains(&path) {
                 continue;
             }
-            if let Some(skill_root) = entry.skill_root(scope, root) {
-                interested.insert(skill_root.join(DEFAULT_SKILL_NAME));
-            }
+            let outcome = evaluate_install(&path, &expected);
+            reports.push(SkillInstallReport {
+                path,
+                clients,
+                outcome,
+            });
         }
-    }
-
-    let mut reports = Vec::new();
-    for (path, clients) in discover_skill_paths(home, project, DEFAULT_SKILL_NAME) {
-        let exists = path.exists();
-        if !exists && !interested.contains(&path) {
-            continue;
-        }
-        let outcome = evaluate_install(&path, &expected);
-        reports.push(SkillInstallReport {
-            path,
-            clients,
-            outcome,
-        });
     }
     reports
 }

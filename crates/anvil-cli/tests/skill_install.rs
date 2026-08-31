@@ -80,6 +80,50 @@ fn installs_embedded_bundle_for_codex_at_global_default() {
 }
 
 #[test]
+fn installs_using_anvil_companion_next_to_developer_functions() {
+    let root = tempfile::tempdir().unwrap();
+    let output = run(root.path(), &["--client", "codex"]);
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let skill = root.path().join(".agents/skills/using-anvil");
+    let body = fs::read_to_string(skill.join("SKILL.md")).unwrap();
+    let compact = body.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(compact.contains("name: using-anvil") || body.contains("name: using-anvil"));
+    assert!(compact.contains("anvil start") || compact.contains("`anvil start`"));
+    assert!(compact.contains("anvil doctor") || compact.contains("`anvil doctor`"));
+    assert!(
+        compact.contains("anvil-developer-functions"),
+        "companion skill must still name the edit-loop skill"
+    );
+    assert!(
+        !skill.join("references/tool-reference.md").exists(),
+        "using-anvil has no tool-reference file"
+    );
+
+    let manifest: Value =
+        serde_json::from_str(&fs::read_to_string(skill.join(".anvil-managed.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest["skill"], "using-anvil");
+    assert_eq!(
+        manifest["sourceCommit"],
+        "959b60cb2ab77cfaeb402b2c9b96efe0093e955f"
+    );
+    assert_eq!(manifest["bundleDigest"].as_str().unwrap().len(), 64);
+    assert_eq!(manifest["files"]["SKILL.md"].as_str().unwrap().len(), 64);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("using-anvil"),
+        "install report must name using-anvil: {stdout}"
+    );
+}
+
+#[test]
 fn project_scope_uses_client_project_root() {
     let root = tempfile::tempdir().unwrap();
     let output = run(
@@ -90,6 +134,11 @@ fn project_scope_uses_client_project_root() {
     assert!(
         root.path()
             .join(".claude/skills/anvil-developer-functions/SKILL.md")
+            .exists()
+    );
+    assert!(
+        root.path()
+            .join(".claude/skills/using-anvil/SKILL.md")
             .exists()
     );
 }

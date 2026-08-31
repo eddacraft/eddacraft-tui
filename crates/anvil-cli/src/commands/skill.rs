@@ -14,11 +14,8 @@ use crate::GlobalArgs;
 use crate::activation::agent_registry::{AgentClientId, InstallScope};
 use crate::activation::detect_agents::RealDetectionEnv;
 use crate::commands::skill_state::{
-    self, DEFAULT_SKILL_NAME, MANIFEST_NAME, ManagedManifest, SKILL_MD, TOOL_REFERENCE,
-    expected_developer_functions_manifest,
+    self, BundledSkill, MANIFEST_NAME, ManagedManifest, bundled_skills, expected_manifest_for,
 };
-
-const SKILL_NAME: &str = DEFAULT_SKILL_NAME;
 
 #[derive(Debug, Args)]
 pub struct SkillArgs {
@@ -28,7 +25,7 @@ pub struct SkillArgs {
 
 #[derive(Debug, Subcommand)]
 enum SkillCommand {
-    /// Install the bundled Anvil developer-functions skill.
+    /// Install the bundled Anvil agent skills.
     Install(SkillInstallArgs),
 }
 
@@ -112,23 +109,26 @@ fn run_install(args: &SkillInstallArgs, global: &GlobalArgs) -> Result<()> {
             );
         };
         destinations
-            .entry(skill_root.join(SKILL_NAME))
+            .entry(skill_root)
             .or_default()
             .push(entry.label());
     }
 
     let mut reports = Vec::new();
-    for (destination, clients) in destinations {
-        let status = if args.verify {
-            verify_bundle(&destination)?;
-            "verified"
-        } else if args.dry_run {
-            preview_bundle(&destination)?;
-            "would install"
-        } else {
-            install_bundle(&destination)?
-        };
-        reports.push(TargetReport::new(clients, &destination, status));
+    for (skill_root, clients) in destinations {
+        for skill in bundled_skills() {
+            let destination = skill_root.join(skill.name);
+            let status = if args.verify {
+                verify_bundle(&destination, skill)?;
+                "verified"
+            } else if args.dry_run {
+                preview_bundle(&destination, skill)?;
+                "would install"
+            } else {
+                install_bundle(&destination, skill)?
+            };
+            reports.push(TargetReport::new(clients.clone(), &destination, status));
+        }
     }
 
     if global.json {
@@ -231,22 +231,22 @@ fn resolve_clients(
     Ok(selected.into_iter().collect())
 }
 
-fn preview_bundle(destination: &Path) -> Result<()> {
+fn preview_bundle(destination: &Path, skill: &BundledSkill) -> Result<()> {
     ensure_safe_destination(destination)?;
     if path_exists_nofollow(destination)? {
-        validate_managed_state(destination)?;
+        validate_managed_state(destination, skill)?;
     }
     Ok(())
 }
 
-fn install_bundle(destination: &Path) -> Result<&'static str> {
+fn install_bundle(destination: &Path, skill: &BundledSkill) -> Result<&'static str> {
     ensure_safe_destination(destination)?;
     let current = if path_exists_nofollow(destination)? {
-        Some(validate_managed_state(destination)?)
+        Some(validate_managed_state(destination, skill)?)
     } else {
         None
     };
-    let expected = expected_manifest();
+    let expected = expected_manifest_for(skill);
     if current.as_ref() == Some(&expected) {
         return Ok("already installed");
     }
@@ -267,15 +267,12 @@ fn install_bundle(destination: &Path) -> Result<&'static str> {
         )
     })?;
 
-    write_staged_file(staging.path(), "SKILL.md", SKILL_MD)?;
-    write_staged_file(
-        staging.path(),
-        "references/tool-reference.md",
-        TOOL_REFERENCE,
-    )?;
+    for (relative, content) in skill.files {
+        write_staged_file(staging.path(), relative, content)?;
+    }
     let manifest = format!("{}\n", serde_json::to_string_pretty(&expected)?);
     write_staged_file(staging.path(), MANIFEST_NAME, &manifest)?;
-    let staged_manifest = validate_managed_state(staging.path())?;
+    let staged_manifest = validate_managed_state(staging.path(), skill)?;
     if staged_manifest != expected {
         bail!("staged managed skill bundle failed integrity verification");
     }
@@ -293,10 +290,10 @@ fn install_bundle(destination: &Path) -> Result<&'static str> {
     })
 }
 
-fn verify_bundle(destination: &Path) -> Result<()> {
+fn verify_bundle(destination: &Path, skill: &BundledSkill) -> Result<()> {
     ensure_safe_destination(destination)?;
-    let actual = validate_managed_state(destination)?;
-    let expected = expected_manifest();
+    let actual = validate_managed_state(destination, skill)?;
+    let expected = expected_manifest_for(skill);
     if actual != expected {
         bail!(
             "managed skill at {} is valid but not the bundle shipped by this anvil version",
@@ -306,7 +303,7 @@ fn verify_bundle(destination: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
+fn validate_managed_state(destination: &Path, skill: &BundledSkill) -> Result<ManagedManifest> {
     let manifest_path = destination.join(MANIFEST_NAME);
     ensure_safe_destination(&manifest_path)?;
     if !path_exists_nofollow(&manifest_path)? {
@@ -329,7 +326,7 @@ fn validate_managed_state(destination: &Path) -> Result<ManagedManifest> {
             crate::display_path::shown(&manifest_path)
         )
     })?;
-    if manifest.schema_version != 1 || manifest.skill != SKILL_NAME {
+    if manifest.schema_version != 1 || manifest.skill != skill.name {
         bail!(
             "managed manifest {} has unsupported schema or skill identity; refusing to overwrite",
             crate::display_path::shown(&manifest_path)
@@ -442,10 +439,6 @@ fn validate_no_unmanaged_entries(
         }
     }
     Ok(())
-}
-
-fn expected_manifest() -> ManagedManifest {
-    expected_developer_functions_manifest()
 }
 
 fn write_staged_file(destination: &Path, relative: &str, content: &str) -> Result<()> {

@@ -1293,9 +1293,9 @@ $ anvil lsp --stdio
 ## anvil skill
 
 **Class:** Setup / Admin **Purpose:** Install and verify the beta Anvil Agent
-Skill bundle. **When to use:** To make Anvil's developer-function guidance
-available to one or more detected agent harnesses without fetching the private
-skill catalogue.
+Skill bundle. **When to use:** To make Anvil's agent-skill guidance
+(`anvil-developer-functions` and `using-anvil`) available to one or more
+detected agent harnesses without fetching the private skill catalogue.
 
 **Synopsis:**
 `anvil skill install [--client <client>]... [--scope <global|project>]`

@@ -13,6 +13,12 @@ engineering maintenance are recorded in the
 
 ### Added
 
+- **`anvil skill install` also writes `using-anvil`.** The managed installer
+  already shipped `anvil-developer-functions`. The companion setup/CLI skill was
+  vendored in the binary but never installed, so agents could not load the
+  hand-off it names. Repeat install now writes both skills to each selected
+  client root, with the same provenance and refuse-unmanaged rules.
+
 - **`anvil check` writes last-run reports under `.anvil/`.** Every run that
   produces a result overwrites `.anvil/last-check.txt` (the same human report as
   plain stdout) and `.anvil/last-check.json` (the existing check JSON schema).

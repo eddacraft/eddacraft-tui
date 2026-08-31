@@ -2121,7 +2121,7 @@ fn check_intercept_socket_rendezvous_from(
     }
 }
 
-/// Soft freshness of the managed `anvil-developer-functions` skill installs.
+/// Soft freshness of the managed bundled skill installs.
 fn check_managed_skills() -> DiagnosticCheck {
     let home = crate::util::user_home_dir();
     let project = std::env::current_dir().ok();
@@ -2219,7 +2219,7 @@ fn classify_managed_skill_status(
         return (
             CheckStatus::Pass,
             format!(
-                "managed skill anvil-developer-functions is fresh at {fresh} site{}",
+                "managed anvil skills are fresh at {fresh} site{}",
                 if fresh == 1 { "" } else { "s" }
             ),
             Remediation::default(),
@@ -2230,7 +2230,7 @@ fn classify_managed_skill_status(
         return (
             CheckStatus::Warn,
             format!(
-                "managed skill anvil-developer-functions is stale at {stale} site{} (reinstall to match this anvil)",
+                "managed anvil skills are stale at {stale} site{} (reinstall to match this anvil)",
                 if stale == 1 { "" } else { "s" }
             ),
             Remediation {
@@ -2267,8 +2267,7 @@ fn classify_managed_skill_status(
         // Detected clients, nothing installed (or only Absent rows).
         return (
             CheckStatus::Warn,
-            "managed skill anvil-developer-functions is not installed for detected agent clients"
-                .to_string(),
+            "managed anvil skills are not installed for detected agent clients".to_string(),
             Remediation {
                 summary: "Install the managed skill with `anvil skill install`.".to_string(),
                 command: Some("anvil skill install".to_string()),
@@ -5008,21 +5007,22 @@ mod tests {
 
     // --- managed-skills (skill freshness) ---
 
-    fn write_expected_skill_install(destination: &std::path::Path) {
-        use crate::commands::skill_state::{
-            MANIFEST_NAME, SKILL_MD, TOOL_REFERENCE, expected_developer_functions_manifest,
-        };
+    fn write_expected_skill_install(skill_root: &std::path::Path) {
+        use crate::commands::skill_state::{MANIFEST_NAME, bundled_skills, expected_manifest_for};
 
-        std::fs::create_dir_all(destination.join("references")).unwrap();
-        std::fs::write(destination.join("SKILL.md"), SKILL_MD).unwrap();
-        std::fs::write(
-            destination.join("references/tool-reference.md"),
-            TOOL_REFERENCE,
-        )
-        .unwrap();
-        let expected = expected_developer_functions_manifest();
-        let body = format!("{}\n", serde_json::to_string_pretty(&expected).unwrap());
-        std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+        for skill in bundled_skills() {
+            let destination = skill_root.join(skill.name);
+            for (relative, content) in skill.files {
+                let path = destination.join(relative);
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent).unwrap();
+                }
+                std::fs::write(path, content).unwrap();
+            }
+            let expected = expected_manifest_for(skill);
+            let body = format!("{}\n", serde_json::to_string_pretty(&expected).unwrap());
+            std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+        }
     }
 
     #[test]
@@ -5641,14 +5641,9 @@ mod tests {
 
     #[test]
     fn managed_skills_pass_when_project_install_matches_expected() {
-        use crate::commands::skill_state::DEFAULT_SKILL_NAME;
-
         let project = tempfile::tempdir().unwrap();
-        let destination = project
-            .path()
-            .join(".agents/skills")
-            .join(DEFAULT_SKILL_NAME);
-        write_expected_skill_install(&destination);
+        let skill_root = project.path().join(".agents/skills");
+        write_expected_skill_install(&skill_root);
 
         // home=None avoids scanning the real user home; only the project
         // fixture is evaluated. Existing Fresh installs pass regardless of

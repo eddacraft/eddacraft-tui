@@ -2,8 +2,8 @@
 id: agent-skills
 title: Agent skills
 description:
-  Install and verify the managed anvil developer-functions skill in supported
-  clients when your binary exposes it.
+  Install and verify the managed anvil skills in supported clients when your
+  binary exposes them.
 owner: SKPKG
 upstream:
   - crates/anvil-cli/src/commands/skill.rs
@@ -13,11 +13,18 @@ verified_against: 0.9.2-beta
 
 # Agent skills
 
-Managed **agent skills** teach a supported AI client how to call anvil's
-developer functions safely. They do not replace MCP configuration or prove
-protection on their own.
+Managed **agent skills** teach a supported AI client how to operate anvil. They
+do not replace MCP configuration or prove protection on their own.
 
-The bundled skill name is `anvil-developer-functions`.
+`anvil skill install` writes two skills into each selected client root:
+
+- `anvil-developer-functions` — in-session graph-context tools and the pre-write
+  validation gate
+- `using-anvil` — setup, `anvil check` / `anvil gate`, doctor, CI, and light
+  config
+
+The edit-loop skill names `using-anvil` as its companion; both must be present
+for that hand-off to load.
 
 ## Check whether your binary supports skills
 
@@ -28,7 +35,7 @@ anvil --help
 `0.9.1-beta` and later list `skill` in top-level help. If your installed binary
 does not, upgrade and re-check help before following the rest of this page.
 
-## Install the managed skill
+## Install the managed skills
 
 Open the subcommand help on the same binary for the current client ids, scope,
 verify, and dry-run flags:
