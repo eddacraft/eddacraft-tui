@@ -316,6 +316,55 @@ test('proves the renderer version before publishing the CLI summary', async () =
   }
 });
 
+// The trusted `--no-sandbox` fallback is selected by matching Chromium's
+// "No usable sandbox!" FATAL line. mmdc colourises stderr when the environment
+// asks for colour, which appends an SGR reset after the final `--no-sandbox.`
+// and defeats the `$` anchor — so the fallback silently failed to engage and
+// every diagram reported a launch failure. CI never saw it: stderr is not a TTY
+// there, so no escapes are emitted.
+const SANDBOX_FATAL =
+  '[0831/132859.360500:FATAL:content/browser/zygote_host/zygote_host_impl_linux.cc:129] ' +
+  'No usable sandbox! If you are running on Ubuntu 23.10+ or another Linux distro that has ' +
+  'disabled unprivileged user namespaces with AppArmor, see ' +
+  'https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md. ' +
+  'Otherwise see ' +
+  'https://chromium.googlesource.com/chromium/src/+/main/docs/linux/suid_sandbox_development.md ' +
+  'for more information on developing with the (older) SUID sandbox. If you want to live ' +
+  'dangerously and need an immediate workaround, you can try using --no-sandbox.';
+
+function sandboxFailure(stderr) {
+  const error = new Error('Command failed');
+  error.stderr = stderr;
+  return error;
+}
+
+async function detectedSandboxMode(stderr) {
+  let mode = 'not-probed';
+  const render = createMermaidRenderer({
+    root: process.cwd(),
+    onMode: (value) => {
+      mode = value;
+    },
+    execute: async (_command, args) => {
+      // Fail only the probe launch; the fallback render is allowed to succeed.
+      if (!args.includes('--puppeteerConfigFile')) throw sandboxFailure(stderr);
+      return { stdout: '', stderr: '' };
+    },
+  });
+  await render({ source: 'flowchart LR\n  A --> B', path: 'x.md', line: 1 }).catch(() => {});
+  return mode;
+}
+
+test('the trusted sandbox fallback engages on an uncoloured launch failure', async () => {
+  assert.equal(await detectedSandboxMode(SANDBOX_FATAL), 'conditional-no-sandbox-fallback');
+});
+
+test('the trusted sandbox fallback engages when mmdc colourises its stderr', async () => {
+  // A leading colour code and a trailing SGR reset, exactly as mmdc emits.
+  const coloured = `\u001b[31m${SANDBOX_FATAL}\u001b[39m`;
+  assert.equal(await detectedSandboxMode(coloured), 'conditional-no-sandbox-fallback');
+});
+
 // CIB-383: on a `pull_request` event `actions/checkout` checks out
 // `refs/pull/N/merge`, so bare `HEAD` is the PR merged into current main and
 // carries main's newer commits. Diffing to it blames the PR for upstreams

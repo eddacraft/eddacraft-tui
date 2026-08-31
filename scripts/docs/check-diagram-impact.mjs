@@ -185,9 +185,18 @@ export async function verifyMermaidVersion({ root, execute = execFileAsync }) {
   return MERMAID_RENDERER_VERSION;
 }
 
+// mmdc colourises its stderr when the environment asks for colour, which puts
+// an SGR reset immediately after the final `--no-sandbox.` and defeats the `$`
+// anchor below. CI never sees it — stderr is not a TTY there, so no escapes are
+// emitted, the match succeeds and the fallback engages. Locally the match
+// failed, the trusted fallback never activated, and every diagram document
+// reported a launch failure instead. Strip SGR sequences before matching so the
+// verdict does not depend on whether something upstream decided to colour.
+const SGR_ESCAPE = /\u001B\[[0-9;]*m/gu;
+
 function isTrustedSandboxLaunchFailure(error) {
   const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
-  return TRUSTED_SANDBOX_LAUNCH_FAILURE.test(stderr);
+  return TRUSTED_SANDBOX_LAUNCH_FAILURE.test(stderr.replace(SGR_ESCAPE, ''));
 }
 
 async function detectMermaidSandboxMode({ command, execute }) {
