@@ -1035,6 +1035,22 @@ impl TuiConsentPlan {
             return;
         }
 
+        // CIB-343 regression: the legacy `install::collect_candidates` pass
+        // above also emits an `mcp:<label>` offer for this client. That pass
+        // used to cover only Cursor and Claude Code, so the two passes barely
+        // overlapped and a hardcoded `retain` for those two ids was enough.
+        // #3966 widened `all_clients()` to the full twelve-client ladder, so
+        // both passes now cover the same set and every registry-served client
+        // was offered *twice* on the picker.
+        //
+        // The registry offer wins: it carries the client's reload hint and has
+        // already dry-run the installer to skip settled clients. But it must
+        // inherit the legacy pass's drift classification — that pass is the one
+        // that reads the existing config, and dropping its `unsafe_drift` would
+        // turn a foreign or unparseable file from "Inspect" into a plain
+        // unguarded write.
+        let inherited_drift = self.take_legacy_mcp_offer(&id);
+
         self.offers.push(TuiConsentOffer {
             id: id.clone(),
             label: format!("{} MCP", entry.display_name),
@@ -1046,7 +1062,7 @@ impl TuiConsentPlan {
             ),
             kind: TuiConsentOfferKind::Mcp,
             repo_scoped: scope == InstallScope::Project,
-            unsafe_drift: None,
+            unsafe_drift: inherited_drift,
         });
         self.registry_mcp_candidates.insert(
             id,
@@ -1055,6 +1071,23 @@ impl TuiConsentPlan {
                 scope,
             },
         );
+    }
+    /// Drop the legacy-pass offer for `id`, returning the drift reason it had
+    /// recorded (if any) so the registry offer that replaces it can carry the
+    /// same safety gate forward.
+    ///
+    /// Returns `None` both when no legacy offer existed and when it existed
+    /// without drift — the caller wants "what drift must I preserve?", and both
+    /// cases answer "none".
+    fn take_legacy_mcp_offer(&mut self, id: &str) -> Option<String> {
+        let drift = self
+            .offers
+            .iter()
+            .find(|offer| offer.id == id)
+            .and_then(|offer| offer.unsafe_drift.clone());
+        self.offers.retain(|offer| offer.id != id);
+        self.mcp_candidates.remove(id);
+        drift
     }
 }
 
@@ -2527,6 +2560,99 @@ verdict: completed"
         assert_eq!(applied.first_wave_mcp_lines.len(), 1);
         assert!(home.path().join(".codex/config.toml").exists());
         assert!(!home.path().join(".config/opencode/opencode.json").exists());
+    }
+
+    /// CIB-343 regression: under the real `anvil start` policy
+    /// (`McpInstallPolicy::Install`) the legacy `collect_candidates` pass and
+    /// the registry pass both emit `mcp:<label>`, so every registry-served
+    /// client was listed twice on the picker.
+    ///
+    /// The sibling tests could not catch this for two independent reasons:
+    /// they build the plan with `McpInstallPolicy::Skip`, which skips the
+    /// legacy pass entirely, and they collect offer ids into a `BTreeSet`,
+    /// which silently dedupes. This one uses `Install` and counts.
+    #[test]
+    fn install_policy_offers_each_mcp_client_exactly_once() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let mut plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Install,
+            &crate::activation::mcp_client::all_client_ids(),
+            Some(crate::activation::mcp_client::AnvilEntry::local_stdio(
+                PathBuf::from("/usr/local/bin/anvil"),
+            )),
+            false,
+        );
+
+        plan.add_registry_mcp_offers(true, InstallScope::Global, &[]);
+        plan.add_project_only_registry_mcp_offers(&[]);
+
+        let mut counts: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+        for offer in plan.offers() {
+            if offer.kind == TuiConsentOfferKind::Mcp {
+                *counts.entry(offer.id.as_str()).or_default() += 1;
+            }
+        }
+
+        let duplicated: Vec<_> = counts
+            .iter()
+            .filter(|(_, n)| **n > 1)
+            .map(|(id, n)| format!("{id} x{n}"))
+            .collect();
+        assert!(
+            duplicated.is_empty(),
+            "every MCP client must be offered exactly once; duplicated: {duplicated:?}",
+        );
+        assert!(
+            !counts.is_empty(),
+            "the Install policy must actually produce MCP offers",
+        );
+    }
+
+    /// The dedupe must not silently drop the legacy pass's safety gate. The
+    /// legacy pass is the one that reads the existing config, so when it
+    /// classifies a foreign/unparseable file as `UnsafeDrift` the surviving
+    /// registry offer has to carry that reason forward — otherwise the row
+    /// renders as a plain write and the confirmation gate never fires.
+    #[test]
+    fn registry_offer_inherits_legacy_unsafe_drift() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let mut plan = build_tui_consent_plan_with_home(
+            dir.path(),
+            Some(home.path()),
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            None,
+            false,
+        );
+
+        // Stand in for the legacy pass having classified drift on this client.
+        plan.offers.push(TuiConsentOffer {
+            id: "mcp:codex".to_string(),
+            label: "Codex MCP".to_string(),
+            description: "Inspect /somewhere/config.toml".to_string(),
+            blurb: "legacy".to_string(),
+            kind: TuiConsentOfferKind::Mcp,
+            repo_scoped: false,
+            unsafe_drift: Some("existing entry is not anvil-shaped".to_string()),
+        });
+
+        plan.add_registry_mcp_offers(true, InstallScope::Global, &[]);
+
+        let codex: Vec<_> = plan
+            .offers()
+            .iter()
+            .filter(|offer| offer.id == "mcp:codex")
+            .collect();
+        assert_eq!(codex.len(), 1, "the duplicate must be collapsed");
+        assert_eq!(
+            codex[0].unsafe_drift.as_deref(),
+            Some("existing entry is not anvil-shaped"),
+            "the surviving offer must keep the legacy drift reason",
+        );
     }
 
     #[test]
