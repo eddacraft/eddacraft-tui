@@ -231,7 +231,9 @@ for path in "${paths[@]}"; do
 
   # Tracked anvil project config (canonical `.anvil.yaml` plus legacy `.anvilrc`).
   # Not compiled source; keep it out of `unknown` so dogfood config PRs do not
-  # force the full Node matrix. oxfmt formats YAML, so require format.
+  # force the full Node matrix. oxfmt formats the `.anvil.*` shapes — YAML,
+  # JSON, and TOML alike — so require format. Extensionless `.anvilrc` has no
+  # oxfmt handler.
   case "${path}" in
     .anvil.yaml | .anvil.yml | .anvil.json | .anvil.toml | .anvilrc)
       add_unique path_classes 'project-config'
