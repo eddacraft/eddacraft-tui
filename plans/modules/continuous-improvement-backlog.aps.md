@@ -12169,3 +12169,52 @@ hang before opening a supervisor ticket.
   `append_spawn_log` were all read directly; medium on the remediation shape,
   since a byte/age cap and a repeat-counter are both defensible and that is an
   upstream call.
+
+### CIB-382: Close residual intercept rendezvous lifecycle and PID trust gaps
+
+- **Status:** Ready
+- **Priority:** P1 — a mutable PID instruction can turn `intercept stop` into
+  a cross-principal signal deputy, while opposite-canonical repair processes can
+  stop both daemons and then deadlock indefinitely. The machine-readable partial
+  stop gap was fixed before #4215 merged and remains part of the acceptance
+  contract so the three Council blockers close together.
+- **Intent:** PR #4215 fixed XDG/state-home daemon rendezvous and merged at
+  `0fc9736b`, but the exact-head Council review at `f34b17fd` identified
+  three residuals. The merged head now exposes every stop candidate and exits
+  non-zero on partial failure; preserve that behaviour. Close the two remaining
+  paths: the PID-file descriptor gate accepts group/world-writable instructions,
+  and `doctor --fix` retains a sibling start lock while blocking on the
+  opposite canonical start lock.
+- **Expected Outcome:**
+  1. Unix `intercept stop --json` keeps its legacy summary fields, reports
+     every candidate, and exits non-zero whenever any candidate is unresolved.
+  2. `doctor --fix` cannot form an AB/BA wait between concurrent processes
+     whose environments reverse the canonical XDG/state-home candidate order,
+     while sibling daemon rebound remains fenced through final classification.
+  3. The stop path refuses a same-UID regular PID file when its open descriptor
+     is group- or world-writable; owner-only legitimate PID files retain their
+     current behaviour.
+- **Non-scope / do not:** do not redesign daemon discovery, broaden socket
+  topology, relax owner/symlink/start-time checks, remove the sibling rebound
+  fence, or change the existing JSON `outcome`, `pid`, or registration-impact
+  fields. Do not edit architecture diagrams: this is lifecycle ordering and
+  inode validation inside the existing per-user IPC boundary.
+- **Files:** `crates/anvil-intercept/src/lib.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`,
+  `crates/anvil-cli/tests/intercept_stop.rs`, and focused tests beside the
+  owning implementations
+- **Validation:** `cargo test -p eddacraft-anvil-intercept`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`;
+  `cargo fmt --all -- --check`;
+  `cargo clippy --workspace --all-targets -- -D warnings`;
+  `pnpm docs:check`.
+- **Identified From:** Council session `council-b946413d` on PR #4215,
+  published at issue comment `5470809802`; explicitly authorised for repair by
+  the operator on 2026-08-31 after the original PR merged.
+- **Coordinates with:** V060F-002, CIB-168, PR #4215, the protected
+  `crates/anvil-intercept/src/ipc.rs` surface, and the current daemon
+  start/PID lock contract.
+- **Confidence:** high — all three paths are source-local and reproducible; the
+  partial-stop regressions already pass on `main`, while the PID inode mode and
+  opposite-canonical lock-order controls are absent.
