@@ -12218,3 +12218,65 @@ hang before opening a supervisor ticket.
 - **Confidence:** high — all three paths are source-local and reproducible; the
   partial-stop regressions already pass on `main`, while the PID inode mode and
   opposite-canonical lock-order controls are absent.
+
+### CIB-383: change-scoped docs-owed diffs to the merge ref, so a PR is blamed for main's commits
+
+- **Status:** Proposed
+- **Priority:** P2 — a false gate failure on any PR open while main moves,
+  which here is most of them; each false demand costs a re-date, and every
+  re-date starts its own one-level-per-run cascade
+- **Intent:** The `Check documentation owed by this change` step runs
+  `check-docs-owed.mjs --since "${base}" --fail-on-owed`, and the script diffs
+  `` `${since}...HEAD` `` (`scripts/docs/check-docs-owed.mjs:229`).
+
+  On a `pull_request` event `actions/checkout` is configured without a `ref:`
+  (`.github/workflows/ci.yml:149`), so it checks out `refs/pull/N/merge` —
+  **this PR merged into the current tip of main**. `HEAD` therefore carries
+  every commit main gained since the branch was cut, and the range sweeps them
+  in. The gate then demands re-dates for documents whose declared upstreams
+  *someone else* moved.
+
+  The base is **not** the defect: the three-dot form already makes the range
+  merge-base-relative on the base side. Narrowing the base is a no-op. The
+  defect is entirely on the head side.
+
+  Measured on PR #4247, run `33330096596`: base `069e76c46`, step reported
+  `22 checked, 17 owed (10 gating)` and failed, naming
+  `crates/anvil-cli/ARCHITECTURE.md` and
+  `crates/anvil-graph-cache/ARCHITECTURE.md`. That PR is plans-and-log-only and
+  touches neither. `git rev-list --count 069e76c46..origin/main` was **94**, and
+  `0e5cdb6d4` and `3b13a901f` — both on main — changed the first of those files.
+
+  Reproduced on this repository with the base held constant and only the head
+  varied: a head carrying main's later commits reports **40 checked, 21 owed,
+  13 gating, exit 1**; the real PR tip reports **0 checked, 0 owed, exit 0**.
+- **Expected Outcome:** The change-scoped gate reports only documents whose
+  declared upstreams **this PR** moved. A PR merely behind main is not failed
+  for commits it does not contain, and rebasing is not a precondition for a
+  truthful verdict.
+- **Non-scope / do not:** do not weaken `--fail-on-owed` or widen the baseline
+  to absorb the noise — the verdict is what is wrong, not the strictness. Do
+  not change the corpus-wide `docs:check` run, which is whole-corpus by design
+  and unaffected. Do not "fix" the base with `git merge-base`; that is a no-op
+  and was tried.
+- **Files:** `scripts/docs/check-docs-owed.mjs`, `.github/workflows/ci.yml`
+- **Validation:** with the base fixed, a head that excludes main's later
+  commits reports zero owed for upstreams only main moved, while a document the
+  branch itself moved is still reported; `pnpm docs:check` unchanged.
+- **Identified From:** bookkeeping PRs #4243 and #4247, 2026-08-30/31 — both
+  repeatedly failed for documents they had not touched, costing several
+  rebase-and-re-date rounds before the range was inspected.
+- **Coordinates with:** CIB-376 (docs-owed comparing committer timestamps
+  rather than ancestry — same gate, adjacent defect); the
+  `Check diagram impact for this change` step, which reads the same event
+  fields and has the identical defect
+- **Guarded:** both suites build a repository shaped like the failure — a
+  governed document whose declared upstream only `main` moves, a PR head behind
+  `main` touching nothing it declares, and a merge commit in GitHub's parent
+  order — and assert that the merge ref reports the finding while `--head` does
+  not. Each was proven RED by reverting the production line. The earlier
+  attempt failed only because a synthetic document used a one-column
+  `| Upstream |` table; the parser wants the two-column
+  `| Upstream | Downstream |` form.
+- **Confidence:** high — the mechanism is confirmed against a real run and
+  reproduced locally with the head as the only variable
