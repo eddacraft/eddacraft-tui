@@ -271,10 +271,10 @@ pub fn evaluate_known_skills(
     let mut occupied_roots: BTreeSet<PathBuf> = BTreeSet::new();
     for skill in bundled {
         for (path, _) in discover_skill_paths(home, project, skill.name) {
-            if path.exists() {
-                if let Some(root) = path.parent() {
-                    occupied_roots.insert(root.to_path_buf());
-                }
+            if path.exists()
+                && let Some(root) = path.parent()
+            {
+                occupied_roots.insert(root.to_path_buf());
             }
         }
     }

@@ -800,6 +800,7 @@ function renderScopedCommand(name, surface, commands) {
   const extra =
     name === 'start'
       ? `Interactive \`anvil start\` offers every installable MCP client (unticked by default). ` +
+        `Selecting a client also installs the managed skills when that client has a documented skill location. ` +
         `Scripted multi-client install uses \`--mcp-client <id>\` (repeatable), \`--all-mcp-clients\`, and \`--mcp-scope global|project\`. ` +
         `Discover client ids with \`anvil mcp install --help\`.\n\n`
       : '';

@@ -653,14 +653,14 @@ impl TuiConsentPlan {
                 self.root.as_path(),
             ));
         }
-        if !global_clients.is_empty() {
-            if let Some(home) = self.home.as_deref() {
-                lines.extend(crate::commands::skill::install_for_activation(
-                    &global_clients,
-                    InstallScope::Global,
-                    home,
-                ));
-            }
+        if !global_clients.is_empty()
+            && let Some(home) = self.home.as_deref()
+        {
+            lines.extend(crate::commands::skill::install_for_activation(
+                &global_clients,
+                InstallScope::Global,
+                home,
+            ));
         }
         lines
     }
