@@ -94,6 +94,62 @@ describe('wrapNeonClient (APGOV-008)', () => {
     expect(result).toEqual([{ ok: 1 }]);
     expect(inner.query).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps Neon query descriptors unexecuted so transaction() can batch them', async () => {
+    const execute = vi.fn(async () => [{ ok: 1 }]);
+
+    class FakeQuery {
+      queryData = { query: 'SELECT 1', params: [] as unknown[] };
+      then(onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) {
+        return execute().then(onFulfilled, onRejected);
+      }
+    }
+
+    const inner = Object.assign(
+      vi.fn(() => new FakeQuery()),
+      {
+        transaction: vi.fn(async (queries: FakeQuery[]) => {
+          if (!queries.every((query) => query instanceof FakeQuery)) {
+            throw new Error('transaction() expects Neon query descriptors');
+          }
+          return [[{ ok: 1 }]];
+        }),
+      }
+    ) as unknown as NeonClient;
+
+    const sql = wrapNeonClient(inner);
+    const query = sql`SELECT 1`;
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(query).toBeInstanceOf(FakeQuery);
+
+    await expect(sql.transaction([query])).resolves.toEqual([[{ ok: 1 }]]);
+    expect(execute).not.toHaveBeenCalled();
+    expect(inner.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a connect-class failure on a deferred Neon query descriptor', async () => {
+    const impl = vi
+      .fn()
+      .mockRejectedValueOnce(connectFailure())
+      .mockResolvedValueOnce([{ ok: 1 }]);
+
+    class FakeQuery {
+      queryData = { query: 'SELECT 1', params: [] as unknown[] };
+      then(onFulfilled?: (value: unknown) => unknown, onRejected?: (reason: unknown) => unknown) {
+        return impl().then(onFulfilled, onRejected);
+      }
+    }
+
+    const inner = vi.fn(() => new FakeQuery()) as unknown as NeonClient;
+    const sql = wrapNeonClient(inner);
+    const query = sql`SELECT 1`;
+
+    expect(impl).not.toHaveBeenCalled();
+    await expect(query).resolves.toEqual([{ ok: 1 }]);
+    expect(impl).toHaveBeenCalledTimes(2);
+    expect(inner).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('getClient / setClient wrap the shared Neon client', () => {

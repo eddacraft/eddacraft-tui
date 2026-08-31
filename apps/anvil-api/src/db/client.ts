@@ -62,14 +62,61 @@ async function invokeWithOneConnectRetry<T>(op: () => T | PromiseLike<T>): Promi
   }
 }
 
+type QueryDescriptor = PromiseLike<unknown> & {
+  queryData: unknown;
+  then: (...args: unknown[]) => unknown;
+  catch?: (...args: unknown[]) => unknown;
+};
+
+function isQueryDescriptor(value: unknown): value is QueryDescriptor {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    'queryData' in value &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
+}
+
+function withConnectRetry<T>(make: () => T): T {
+  const first = make();
+  if (isQueryDescriptor(first)) {
+    const originalThen = first.then.bind(first);
+    first.then = ((onFulfilled?: unknown, onRejected?: unknown) =>
+      originalThen(onFulfilled, (error: unknown) => {
+        if (!isConnectClassFailure(error)) {
+          if (typeof onRejected === 'function') {
+            return (onRejected as (reason: unknown) => unknown)(error);
+          }
+          return Promise.reject(error);
+        }
+        debug('retrying Neon query after connect-class failure');
+        return Promise.resolve(make()).then(
+          onFulfilled as ((value: unknown) => unknown) | undefined,
+          onRejected as ((reason: unknown) => unknown) | undefined
+        );
+      })) as typeof first.then;
+    first.catch = ((onRejected?: unknown) => first.then(undefined, onRejected)) as NonNullable<
+      QueryDescriptor['catch']
+    >;
+    return first as T;
+  }
+  return Promise.resolve(first).catch((error: unknown) => {
+    if (!isConnectClassFailure(error)) {
+      throw error;
+    }
+    debug('retrying Neon query after connect-class failure');
+    return make();
+  }) as T;
+}
+
 /** Wrap a Neon HTTP client so one connect-class failure is retried (APGOV-008). */
 export function wrapNeonClient(client: NeonClient): NeonClient {
   const wrapped = ((strings: TemplateStringsArray, ...params: unknown[]) =>
-    invokeWithOneConnectRetry(() => client(strings, ...params))) as NeonClient;
+    withConnectRetry(() => client(strings, ...params))) as NeonClient;
 
   if (typeof client.query === 'function') {
     wrapped.query = ((...args: Parameters<NeonClient['query']>) =>
-      invokeWithOneConnectRetry(() => client.query(...args))) as NeonClient['query'];
+      withConnectRetry(() => client.query(...args))) as NeonClient['query'];
   }
 
   if (typeof client.unsafe === 'function') {
