@@ -383,13 +383,18 @@ export async function runDiagramImpactCli(
     throw new Error('choose only one of --since or --paths-file');
   }
 
+  // `??` only falls back for null/undefined. A blank `--head` would otherwise
+  // produce `${since}...` and silently change the range under test.
+  const trimmedHead = typeof values.head === 'string' ? values.head.trim() : '';
+  const headRef = trimmedHead === '' ? 'HEAD' : trimmedHead;
+
   let changedPaths;
   if (values['paths-file']) {
     changedPaths = lines(await readFile(path.resolve(root, values['paths-file']), 'utf8'));
   } else if (values.since) {
     const result = await execFileAsync(
       'git',
-      ['diff', '--name-only', '--diff-filter=ACDMR', `${values.since}...${values.head ?? 'HEAD'}`],
+      ['diff', '--name-only', '--diff-filter=ACDMR', `${values.since}...${headRef}`],
       { cwd: root }
     );
     changedPaths = lines(result.stdout);

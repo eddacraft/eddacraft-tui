@@ -234,14 +234,14 @@ jobs:
             echo "::error::Cannot determine diagram-impact diff base: '${base:-<unset>}' is not a usable commit."
             exit 2
           fi
-          head_args=""
+          head_args=()
           if [ -n "${DIAGRAM_IMPACT_PR_HEAD:-}" ] &&
              git cat-file -e "${DIAGRAM_IMPACT_PR_HEAD}^{commit}" 2>/dev/null; then
-            head_args="--head ${DIAGRAM_IMPACT_PR_HEAD}"
+            head_args=(--head "${DIAGRAM_IMPACT_PR_HEAD}")
             echo "Diffing to the PR head ${DIAGRAM_IMPACT_PR_HEAD} (not the merge ref)"
           fi
           echo "Checking diagram impact against ${base}"
-          node scripts/docs/check-diagram-impact.mjs --since "${base}" ${head_args}
+          node scripts/docs/check-diagram-impact.mjs --since "${base}" "${head_args[@]}"
 
       # ADR-119 / ADR-117: documentation owed by THIS change. `code-changed`
       # (not `source-changed`) so a Rust-only or workflow-only PR that moves a
@@ -277,14 +277,14 @@ jobs:
             echo "Base '${base:-<unset>}' unusable; falling back to HEAD~1"
             base="$(git rev-parse HEAD~1)"
           fi
-          head_args=""
+          head_args=()
           if [ -n "${DOCS_OWED_PR_HEAD:-}" ] &&
              git cat-file -e "${DOCS_OWED_PR_HEAD}^{commit}" 2>/dev/null; then
-            head_args="--head ${DOCS_OWED_PR_HEAD}"
+            head_args=(--head "${DOCS_OWED_PR_HEAD}")
             echo "Diffing to the PR head ${DOCS_OWED_PR_HEAD} (not the merge ref)"
           fi
           echo "Comparing declared upstreams against ${base}"
-          node scripts/docs/check-docs-owed.mjs --since "${base}" ${head_args} --fail-on-owed
+          node scripts/docs/check-docs-owed.mjs --since "${base}" "${head_args[@]}" --fail-on-owed
 
       - name: Report APS index count drift
         if:

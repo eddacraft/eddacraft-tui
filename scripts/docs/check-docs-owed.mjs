@@ -227,18 +227,27 @@ function globPathspec(glob) {
   return re;
 }
 
+// `??` only falls back for null/undefined. A blank `--head` would otherwise
+// produce `${since}...` and a summary that named a different range.
+function resolveHeadRef(head) {
+  const trimmed = typeof head === 'string' ? head.trim() : '';
+  return trimmed === '' ? 'HEAD' : trimmed;
+}
+
+const headRef = resolveHeadRef(values.head);
+
 /** Paths touched in the diff range, when running in diff mode. */
 let changedPaths = null;
 if (values.since) {
   try {
     changedPaths = new Set(
-      git(['diff', '--name-only', `${values.since}...${values.head ?? 'HEAD'}`])
+      git(['diff', '--name-only', `${values.since}...${headRef}`])
         .split('\n')
         .filter(Boolean)
     );
   } catch (err) {
     process.stderr.write(
-      `[${SURFACE}] cannot run: bad --since ref "${values.since}" or --head ref "${values.head ?? 'HEAD'}"\n`
+      `[${SURFACE}] cannot run: bad --since ref "${values.since}" or --head ref "${headRef}"\n`
     );
     process.stderr.write(`[${SURFACE}] ${err.message}\n`);
     process.exit(2);
@@ -530,7 +539,7 @@ const summary = {
   skippedArchived: skipped,
   withoutGovernanceMetadata: unparsed,
   corpus: files.length,
-  mode: changedPaths ? `diff (${values.since}...${values.head ?? 'HEAD'})` : 'corpus',
+  mode: changedPaths ? `diff (${values.since}...${headRef})` : 'corpus',
 };
 
 if (values.json) {

@@ -498,6 +498,23 @@ test('--head scopes the diff to the PR head, so main-only movement is not owed',
   assert.deepEqual(JSON.parse(output).findings, []);
 });
 
+test('blank --head is treated as HEAD', async (t) => {
+  const { root, base } = await buildMergeRefRepo();
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const { code, output } = await captureCli([
+    '--root',
+    root,
+    '--since',
+    base,
+    '--head',
+    '   ',
+    '--json',
+  ]);
+  assert.equal(code, 1, `blank --head must not silently empty the range: ${output}`);
+  assert.equal(JSON.parse(output).findings[0]?.path, 'docs/architecture/owner.md');
+});
+
 test('the real --since collector retains a deleted exact declared upstream', async () => {
   const root = await mkdtemp(join(tmpdir(), 'diagram-impact-deletion-'));
   const upstream = join(root, 'crates', 'example', 'src', 'lib.rs');

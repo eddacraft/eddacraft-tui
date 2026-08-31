@@ -132,3 +132,20 @@ test('the summary names the range actually used, so scope is auditable', async (
   const { out } = await runChecker(root, ['--since', base, '--head', prHead]);
   assert.match(out, new RegExp(`diff \\(${base}\\.\\.\\.${prHead}\\)`));
 });
+
+test('blank --head is treated as HEAD, so the summary matches the range used', async (t) => {
+  const { root, base } = await buildMergeRefRepo();
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const { out } = await runChecker(root, ['--since', base, '--head', '   ']);
+  assert.match(
+    out,
+    new RegExp(`diff \\(${base}\\.\\.\\.HEAD\\)`),
+    `summary must name HEAD, not the blank flag:\n${out}`
+  );
+  assert.match(
+    out,
+    /docs\/architecture\/owner\.md/,
+    'blank --head must not silently empty the diff range'
+  );
+});
