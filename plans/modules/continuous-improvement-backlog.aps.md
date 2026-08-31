@@ -12278,5 +12278,16 @@ hang before opening a supervisor ticket.
   attempt failed only because a synthetic document used a one-column
   `| Upstream |` table; the parser wants the two-column
   `| Upstream | Downstream |` form.
+- **Found alongside (distinct defect, same repair PR):** `diagram-impact` was
+  failing every diagram document on a developer machine while CI stayed green.
+  The trusted `--no-sandbox` fallback already existed, but its detection matcher
+  is `$`-anchored and mmdc appends an SGR reset immediately after the final
+  `--no-sandbox.`, so `isTrustedSandboxLaunchFailure` never matched, the
+  fallback never engaged, and a browser launch failure surfaced as a diagram
+  finding. CI never saw it because stderr there is not a TTY, so no escapes are
+  emitted — the inverse of the usual green-locally/red-in-CI split. Fixed by
+  stripping SGR sequences before matching; `pnpm docs:check` goes 14/15 -> 15/15
+  locally. Recorded here because the two arrived together and share a file, not
+  because they share a cause.
 - **Confidence:** high — the mechanism is confirmed against a real run and
   reproduced locally with the head as the only variable
