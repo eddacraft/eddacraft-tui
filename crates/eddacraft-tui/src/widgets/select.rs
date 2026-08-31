@@ -1,5 +1,6 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, StatefulWidget, Widget};
 use unicode_width::UnicodeWidthStr;
@@ -155,7 +156,17 @@ impl<T: Theme> StatefulWidget for Select<'_, T> {
                 } else {
                     self.theme.base()
                 };
-                let desc_style = label_style.fg(self.theme.muted());
+                // A highlighted row already carries the accent background, so
+                // re-tinting the description to `muted()` would paint Ghost
+                // Grey on anvil Ember — 1.18:1, effectively unreadable. On the
+                // selected row keep the highlight foreground (which is picked
+                // to contrast with the accent) and drop the weight instead, so
+                // the description still reads as subordinate to its label.
+                let desc_style = if i == state.selected {
+                    label_style.remove_modifier(Modifier::BOLD)
+                } else {
+                    label_style.fg(self.theme.muted())
+                };
 
                 Line::from(vec![
                     Span::styled(
@@ -268,6 +279,92 @@ mod tests {
             alpha, bravo,
             "descriptions must share a column (alpha={alpha}, bravo={bravo}):\n{text}"
         );
+    }
+
+    /// The selected row's description must stay legible.
+    ///
+    /// It used to be styled `highlighted().fg(muted())`, which kept the accent
+    /// background but swapped the foreground to Ghost Grey: anvil Ember against
+    /// Ghost Grey is **1.18:1**, unreadable in a real terminal.
+    ///
+    /// The invariant asserted here is *no degradation within the row* — the
+    /// description must be at least as legible as the label beside it, which is
+    /// the text the design already treats as readable. That survives a palette
+    /// retune, where a hardcoded threshold would not.
+    ///
+    /// When this guard landed, `highlighted()` (The Void on anvil Ember) sat
+    /// at 4.50:1, exactly on the AA floor. The later Ember/Brick retune lifted
+    /// that pairing; this widget still does not own the brand palette. The
+    /// hard floor below is well above the broken muted-on-accent state so a
+    /// regression cannot pass unnoticed.
+    #[test]
+    fn selected_row_description_is_no_less_legible_than_its_label() {
+        use crate::theme::EddaCraftTheme;
+
+        let area = Rect::new(0, 0, 60, 2);
+        let mut buf = Buffer::empty(area);
+        let mut state = SelectState::default();
+        let theme = EddaCraftTheme;
+        // Row 0 is selected by default.
+        StatefulWidget::render(
+            Select::new(
+                vec![
+                    SelectItem::new("Cursor MCP", "describe-me"),
+                    SelectItem::new("Codex MCP", "other"),
+                ],
+                &theme,
+            ),
+            area,
+            &mut buf,
+            &mut state,
+        );
+
+        let desc_x = cell_column(&buf, "describe-me").expect("description is rendered");
+        let label_x = cell_column(&buf, "Cursor MCP").expect("label is rendered");
+        let desc = &buf[(desc_x, area.y)];
+        let label = &buf[(label_x, area.y)];
+
+        let desc_ratio = contrast_ratio(desc.fg, desc.bg);
+        let label_ratio = contrast_ratio(label.fg, label.bg);
+
+        assert!(
+            desc_ratio >= label_ratio,
+            "selected description ({desc_ratio:.2}:1, fg={:?} on bg={:?}) is less legible \
+             than its own label ({label_ratio:.2}:1)",
+            desc.fg,
+            desc.bg,
+        );
+        assert!(
+            desc_ratio >= 3.0,
+            "selected description is {desc_ratio:.2}:1 (fg={:?} on bg={:?}); \
+             far below any usable floor",
+            desc.fg,
+            desc.bg,
+        );
+    }
+
+    fn srgb_channel(channel: u8) -> f64 {
+        let c = f64::from(channel) / 255.0;
+        if c <= 0.03928 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    fn relative_luminance(color: ratatui::style::Color) -> f64 {
+        let ratatui::style::Color::Rgb(r, g, b) = color else {
+            panic!("theme colours are expected to be Rgb, got {color:?}");
+        };
+        0.2126 * srgb_channel(r) + 0.7152 * srgb_channel(g) + 0.0722 * srgb_channel(b)
+    }
+
+    /// WCAG 2.1 relative-contrast ratio between two opaque colours.
+    fn contrast_ratio(fg: ratatui::style::Color, bg: ratatui::style::Color) -> f64 {
+        let a = relative_luminance(fg);
+        let b = relative_luminance(bg);
+        let (hi, lo) = if a > b { (a, b) } else { (b, a) };
+        (hi + 0.05) / (lo + 0.05)
     }
 
     fn buffer_plain(buf: &Buffer) -> String {
