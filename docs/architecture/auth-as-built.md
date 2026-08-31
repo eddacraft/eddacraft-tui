@@ -1,8 +1,8 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                        |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-30 against CLAWOPEN-002, CLAWOPEN-003, and anvil-api account-activity best-effort ingest on Neon timeout; authentication diagram unchanged |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                 |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-31 against APGOV-008 bounded Neon HTTP connect retry in `apps/anvil-api/src/db/client.ts`; authentication diagram unchanged. Prior: 2026-08-30 CLAWOPEN-002/003 and account-activity 202-on-timeout |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |

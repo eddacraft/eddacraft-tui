@@ -161,7 +161,8 @@ describe('POST /account/activity (BACT-005)', () => {
   it('returns 202 when feature-touch upsert fails (best-effort ingest)', async () => {
     // Regression: Neon connect timeouts (fetch failed / ETIMEDOUT) must not
     // 500 this fire-and-forget route. A 5xx trips the hosted SLO; the CLI
-    // already ignores the body. Skip stamp — the same DB is unreachable.
+    // already ignores the body. APGOV-008 retries once in the shared client;
+    // exhausted retries still land here. Skip stamp — the same DB is unreachable.
     mocks.upsertAccountFeatureTouch.mockRejectedValue(
       new Error('Error connecting to database: TypeError: fetch failed')
     );

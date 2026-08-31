@@ -1,8 +1,8 @@
 # anvil API architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                          |
-| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-30 against CLAWOPEN-002 suspended-account reactivation in `src/routes/admin.ts`; privileged admin trust and the request/persistence diagram remain unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                       |
+| ------------ | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-08-31 against APGOV-008 bounded Neon HTTP connect retry in `src/db/client.ts`; request/persistence diagram still ends at Neon persistence with no new node. Prior: 2026-08-30 CLAWOPEN-002; privileged admin trust unchanged |
 
 | Upstream                                                                                    | Downstream                                       |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------ |

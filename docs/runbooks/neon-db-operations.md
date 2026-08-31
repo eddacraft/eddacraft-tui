@@ -1,12 +1,12 @@
 # Neon DB Operations Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                                                                     |
-| ------- | ------------- | ------ | ------ | --------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-05-24 against production Neon API and `apps/anvil-api/scripts/migrate.mjs` |
+| Type    | Authority     | Owner  | Status | Freshness                                                                        |
+| ------- | ------------- | ------ | ------ | -------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-08-31 against APGOV-008 and `apps/anvil-api/src/db/client.ts` |
 
-| Upstream                             | Downstream                                                        |
-| ------------------------------------ | ----------------------------------------------------------------- |
-| `apps/anvil-api/scripts/migrate.mjs` | on-call operators, post-deploy smoke check, db-migrations runbook |
+| Upstream                                                                                  | Downstream                                                        |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `apps/anvil-api/scripts/migrate.mjs`, `apps/anvil-api/src/db/client.ts` (APGOV-008 retry) | on-call operators, post-deploy smoke check, db-migrations runbook |
 
 ## Purpose
 
@@ -88,8 +88,12 @@ Expected: JSON success response, no 5xx.
      `POST /api/v1/account/activity` (~750ms). Node Happy Eyeballs can
      black-hole Neon IPv6 from Vercel; the anvil-api Neon client prefers IPv4
      DNS results.
-   - Account-activity ingest is best-effort (202 + log) on persist failure;
-     `/health` still reports `db: unreachable` when `SELECT 1` fails.
+   - The shared Neon client retries once on connect-class failures (`ETIMEDOUT`,
+     `fetch failed`). Two consecutive failures still surface to the caller. SQL
+     and constraint errors are not retried.
+   - Account-activity ingest is best-effort (202 + log) on persist failure,
+     including after exhausted connect retries; `/health` still reports
+     `db: unreachable` when `SELECT 1` fails.
    - Recovery: reduce traffic, inspect long-running queries, verify connection
      limits.
 
