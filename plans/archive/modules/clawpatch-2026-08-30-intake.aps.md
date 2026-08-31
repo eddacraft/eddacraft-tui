@@ -50,7 +50,7 @@ to the shared CIB module.
 ### CLAW30-001: Triage and file the latest Clawpatch run
 
 - **Status:** Done 2026-08-31; thirteen receipts persisted, seven finding issues
-  read back, and claim #4279 open for the publishing PR.
+  read back, and claim #4279 recorded for the publishing PR.
 - **Intent:** Every selected allegation has a current-source disposition and
   every actionable cluster has exactly one visible owner.
 - **Expected Outcome:** The full store is inventoried; the selected records are
