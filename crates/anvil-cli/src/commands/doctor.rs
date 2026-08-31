@@ -1419,7 +1419,7 @@ fn state_boundary_warn(
     if diagnostic_command {
         summary.push_str(
             " The command below is diagnostic: `git check-ignore -v` names the rule \
-             and line that swallow the path, it changes nothing.",
+             and line that swallow the path; it changes nothing.",
         );
     }
 
