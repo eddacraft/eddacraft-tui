@@ -1307,6 +1307,7 @@ fn stop_daemon_candidates(
     mut stop: impl FnMut(&Path) -> Result<StopOutcome>,
 ) -> Result<Vec<StopReport>> {
     let mut reports = Vec::with_capacity(candidates.len());
+    let mut canonical_failure = None;
     for (index, path) in candidates.into_iter().enumerate() {
         match stop(&path) {
             Ok(outcome) => reports.push(StopReport {
@@ -1314,13 +1315,21 @@ fn stop_daemon_candidates(
                 outcome: Ok(outcome),
             }),
             Err(err) if index == 0 && canonical_error == CanonicalStopError::Return => {
-                return Err(err);
+                let message = format!("{err:#}");
+                canonical_failure = Some(err);
+                reports.push(StopReport {
+                    pid_file: path,
+                    outcome: Err(message),
+                });
             }
             Err(err) => reports.push(StopReport {
                 pid_file: path,
                 outcome: Err(format!("{err:#}")),
             }),
         }
+    }
+    if let Some(err) = canonical_failure {
+        return Err(err);
     }
     Ok(reports)
 }
@@ -3200,7 +3209,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn canonical_refusal_stops_legacy_callers_but_batch_reporting_continues() {
+    fn canonical_refusal_fails_legacy_callers_after_sibling_cleanup() {
         use std::cell::Cell;
 
         let candidates = vec![
@@ -3209,12 +3218,21 @@ mod tests {
         ];
         let legacy_calls = Cell::new(0);
         let err = stop_daemon_candidates(candidates.clone(), CanonicalStopError::Return, |_| {
-            legacy_calls.set(legacy_calls.get() + 1);
-            Err(anyhow::anyhow!("canonical PID instruction is unsafe"))
+            let call = legacy_calls.get();
+            legacy_calls.set(call + 1);
+            if call == 0 {
+                Err(anyhow::anyhow!("canonical PID instruction is unsafe"))
+            } else {
+                Ok(StopOutcome::Signalled { pid: 222 })
+            }
         })
-        .expect_err("legacy callers must reject an unsafe canonical record");
+        .expect_err("legacy callers must reject an unsafe canonical record after cleanup");
         assert_eq!(err.to_string(), "canonical PID instruction is unsafe");
-        assert_eq!(legacy_calls.get(), 1, "legacy stop must not reach siblings");
+        assert_eq!(
+            legacy_calls.get(),
+            2,
+            "legacy stop must visit siblings before returning the canonical refusal"
+        );
 
         let batch_calls = Cell::new(0);
         let reports = stop_daemon_candidates(candidates, CanonicalStopError::Report, |_| {
