@@ -274,7 +274,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-007: Honest “when it runs” docs and shipped skills
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-31 via PR #4268
 - **Intent:** Stop teaching that save-time green means the AST catalogue ran,
   or that someone must remember `anvil gate` for cheap rules.
 - **Expected Outcome:** Public evaluation-model, `using-anvil` /
@@ -380,5 +380,6 @@ every save, and **without** defaulting `anvil watch --action gate`.
 GTAO-001, GTAO-002, and GTAO-008 are Merged 2026-08-22 via PR #4084.
 GTAO-003 and GTAO-005 (Wave 2) are Merged 2026-08-27 via PR #4168.
 GTAO-004 Merged 2026-08-30 via PR #4252. GTAO-006 Merged 2026-08-30 via PR #4254.
+GTAO-007 Merged 2026-08-31 via PR #4268.
 Remaining items stay Draft: GTAO-009/-010 (Wave 4). Do not convert PY-008 to
 `detection: ast`.
