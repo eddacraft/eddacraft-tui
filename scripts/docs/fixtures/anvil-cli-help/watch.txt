@@ -1,4 +1,4 @@
-Watch files and report save-time findings after the baseline scan
+Watch files and report save-time findings after the baseline scan (default action is check, not the full gate).
 
 Usage: anvil watch [OPTIONS]
 

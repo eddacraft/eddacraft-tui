@@ -38,8 +38,20 @@ Keep these terms distinct:
 - **Gate:** the workflow judgement over one or more checks; use it to decide
   whether work can advance.
 
-Use `anvil check` for targeted analysis. Use `anvil gate` when the user needs
-pass/fail workflow judgement.
+Use `anvil check` (or MCP `anvil_check`) for targeted analysis — regex **and**
+AST. Use `anvil gate` / MCP `anvil_gate` **only** when the user asked whether
+the change can merge. Pre-write `anvil_validate_write` and save-time watch are
+regex plus secrets; a green save is not an AST pass. Default `anvil watch`
+action is `check`, not `gate`.
+
+## When it runs
+
+| Layer                 | What runs                                 | Call                                                                      |
+| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------- |
+| Pre-write / save-time | Regex + secrets. No AST.                  | MCP `anvil_validate_write` / `anvil_apply_patch`; `anvil watch` save-time |
+| On-demand check       | Regex + AST + secrets                     | `anvil check --changed` or MCP `anvil_check`                              |
+| Background follow-up  | AST after allow; does not block the write | Watch stderr (`ANVIL_AST_FOLLOWUP=0` disables)                            |
+| Merge judgement       | Full gate                                 | `anvil gate` / `anvil_gate` when the user asked if it can merge           |
 
 ## First response workflow
 
@@ -49,9 +61,10 @@ When helping with anvil in a repo:
 2. If setup state matters, run `anvil start --verify` or `anvil status --verify`
    before changing config.
 3. Use `anvil doctor` for environment health and setup diagnostics.
-4. Use `anvil check --all` to inspect current findings.
-5. Use `anvil gate --profile dev` or a narrower gate when deciding whether work
-   can proceed.
+4. Before claiming work is done, run `anvil check --changed` (or MCP
+   `anvil_check`). Do not treat a save-time allow as that pass.
+5. Run `anvil gate --profile dev` or `anvil_gate` only when the user asked
+   whether the change can merge or land.
 
 Do not claim anvil is protecting a repo until anvil reports the protection
 state.
@@ -96,19 +109,20 @@ Watch mode is a fallback, not equivalent to MCP pre-write interception.
 
 ## Choosing commands
 
-| Need                                | Command                          |
-| ----------------------------------- | -------------------------------- |
-| Verify setup without writing config | `anvil start --verify`           |
-| Inspect environment health          | `anvil doctor`                   |
-| Surface source findings             | `anvil check --all`              |
-| Scan staged files                   | `anvil check --changed --staged` |
-| Decide whether work can advance     | `anvil gate --profile dev`       |
-| Run a CI gate                       | `anvil gate --profile ci`        |
-| Continuous save-time validation     | `anvil watch --source`           |
-| Machine-readable watch stream       | `anvil --json watch`             |
+| Need                                  | Command                              |
+| ------------------------------------- | ------------------------------------ |
+| Verify setup without writing config   | `anvil start --verify`               |
+| Inspect environment health            | `anvil doctor`                       |
+| Surface source findings (regex + AST) | `anvil check --all`                  |
+| Scan changed or staged files          | `anvil check --changed` / `--staged` |
+| Decide whether work can **merge**     | `anvil gate --profile dev`           |
+| Run a CI gate                         | `anvil gate --profile ci`            |
+| Continuous save-time (not full gate)  | `anvil watch --source`               |
+| Machine-readable watch stream         | `anvil --json watch`                 |
 
 Prefer narrow commands when the user is investigating one issue. Prefer `gate`
-when the user asks whether the repo is safe to merge, commit, or proceed.
+only when the user asks whether the change is safe to merge. Do not run the full
+gate because a save looked clean.
 
 ## Configuration
 

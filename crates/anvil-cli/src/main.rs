@@ -233,7 +233,9 @@ enum Commands {
     ///
     /// Honours `.anvilrc#checks` (and `.anvil.<ext>`) for the
     /// planless-eligible subset: `antipattern-scan` and `secret-detection`.
-    /// Profile-based or config-heavy checks (`architecture`, `policy`,
+    /// Merges regex and AST anti-pattern tiers. Save-time and pre-write
+    /// (`anvil_validate_write`) stay regex-only; a green save is not an AST
+    /// pass. Profile-based or config-heavy checks (`architecture`, `policy`,
     /// `import-boundaries`, `command-safety`, `lint`, `test`, `coverage`,
     /// `dependency`) live under `anvil gate`.
     ///
@@ -351,7 +353,7 @@ enum Commands {
     /// Configure gate check settings and thresholds.
     #[command(name = "gate-config")]
     GateConfig(commands::gate_config::GateConfigArgs),
-    /// Watch files and report save-time findings after the baseline scan.
+    /// Watch files and report save-time findings after the baseline scan (default action is check, not the full gate).
     Watch(commands::watch::WatchArgs),
     /// Export constraints and configuration.
     Export(commands::export::ExportArgs),

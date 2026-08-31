@@ -17,7 +17,9 @@ that you use together:
   decision, and never block.
 - **`anvil_validate_write`** / **`anvil_apply_patch`** are the pre-write
   enforcement gate for edits. Call them _before_ applying a write; they return a
-  decision based on secrets, anti-patterns, and boundary rules.
+  decision based on secrets, **regex** anti-patterns, and boundary rules. They
+  do **not** run the AST catalogue. `allow` is not proof `anvil_check` would be
+  clean.
 
 Rule of thumb: reach for the **graph-context tools** when you are trying to
 _understand_ code, and for the **pre-write gate** when you are about to _change_
@@ -158,6 +160,9 @@ A worked safe-refactor sequence ties the loop together:
    any `coverage_gaps`.
 4. Make the edit, then `anvil_apply_patch` (or patch-only
    `anvil_validate_write`) before writing.
+5. Before claiming the work is done, call MCP `anvil_check` (or CLI
+   `anvil check --changed`). That is regex **plus AST**. Call `anvil_gate` only
+   when the user asked whether the change can merge.
 
 ## Tools at a glance
 
@@ -169,7 +174,7 @@ A worked safe-refactor sequence ties the loop together:
 | `anvil_impact_of_change` | What breaks if I change these files                  | Paths only, never diffs; ≤200 files; 2-hop depth                    |
 | `anvil_affected_tests`   | Which tests to run; coverage gaps                    | Import heuristic, not verified coverage                             |
 | `anvil_symbol_context`   | Understand one symbol without reading the whole file | Snippets are opt-in; can return `bounded` partials                  |
-| `anvil_validate_write`   | Check a write before applying it                     | Prefer patch/apply_patch; honour `block`; `decision` alone on allow |
+| `anvil_validate_write`   | Check a write before applying it                     | Regex + secrets, not AST; honour `block`; `decision` alone on allow |
 | `anvil_apply_patch`      | Lean pre-write check of a unified diff               | Scans added lines only; same decision table as validate_write       |
 
 For clients that prefer MCP resources to tool calls, three identity-only

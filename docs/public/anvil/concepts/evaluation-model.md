@@ -8,7 +8,8 @@ upstream:
   - crates/anvil-cli/src/commands/check.rs
   - crates/anvil-cli/src/commands/gate.rs
   - crates/anvil-cli/src/commands/check_catalog.rs
-verified_against: 0.9.6-beta
+  - plans/decisions/127-always-on-cheap-catalogue.md
+verified_against: 0.9.7-beta
 ---
 
 # How anvil evaluates a project
@@ -88,7 +89,7 @@ profile, policy bundle, or project-level config beyond the source itself.
 
 | Command       | Engines it will run                                                                                                                        | What it ignores                                                                                                                   |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `anvil check` | Only `secret-detection` and `antipattern-scan`                                                                                             | Every other catalogue engine, **even if** it appears in top-level `checks:`. Unknown / non-planless entries are silently ignored. |
+| `anvil check` | Only `secret-detection` and `antipattern-scan` (regex **and** AST anti-pattern tiers)                                                      | Every other catalogue engine, **even if** it appears in top-level `checks:`. Unknown / non-planless entries are silently ignored. |
 | `anvil gate`  | The gate set: init-default checks, other `checks:` entries that are gate-supported, and default-on surface checks behind `track.surface.*` | Engines the profile / `--only-checks` / `--skip-checks` exclude                                                                   |
 
 `import-boundaries` (alias `architecture`), `policy`, `command-safety`, `lint`,
@@ -147,6 +148,16 @@ Error-severity findings still fail the gate on their own merit.
 
 ## When anvil runs (pre-write, save-time, daemon, witness)
 
+These four layers are **not** the same catalogue. A green save is not proof that
+AST rules ran. Default `anvil watch` is not the full gate.
+
+| Layer                     | What runs                                                                                      | Typical path                                                                                          |
+| ------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Pre-write / save-time** | Regex anti-patterns and secrets. Interactive latency budget. **No AST.**                       | Daemon intercept, MCP `anvil_validate_write` / `anvil_apply_patch`, `anvil watch` save-time.          |
+| **On-demand check**       | Regex **plus AST** anti-patterns, and secrets. Still the planless pair only.                   | CLI `anvil check`, MCP `anvil_check`.                                                                 |
+| **Background follow-up**  | AST after a daemon **allow**. Does not block the write. One stderr line if it finds something. | Watch after save. Kill switch: `ANVIL_AST_FOLLOWUP=0`.                                                |
+| **Merge judgement**       | Full gate set (lint, test, coverage, policy, surfaces, …).                                     | `anvil gate`, Git hooks **if installed**, adopter CI `anvil gate --profile ci`. Default watch is not. |
+
 | Moment                   | What it is                             | Typical path                                                                    |
 | ------------------------ | -------------------------------------- | ------------------------------------------------------------------------------- |
 | **Pre-write validation** | Evaluates a write **before** it lands. | Local daemon / intercept, and MCP `anvil_validate_write` / `anvil_apply_patch`. |
@@ -168,6 +179,9 @@ commands do not follow that gitignore rule.
   treat it as a public engine.
 - Surface checks are shipped with flag status: they are default-on in gate
   today, not list-editable via `checks:`.
+- Save-time / pre-write `allow` is regex plus secrets. It is not an AST pass.
+- Default `anvil watch` action is `check`, not `gate`. `--action gate` is
+  opt-in.
 
 ## Try it
 

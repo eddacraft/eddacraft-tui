@@ -1,12 +1,12 @@
 # Quality Model
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                              |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Authoritative | KERN  | Live   | Last reviewed 2026-08-20 at `d9b30b23d` against `crates/anvil-cli/src/commands/check_catalog.rs`, `crates/anvil-kernel-types/src/diagnostics.rs`, and `crates/anvil-kernel-types/src/notifications.rs` |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | KERN  | Live   | Last reviewed 2026-08-31 against ADR-127, `crates/anvil-cli/src/commands/check_catalog.rs`, `crates/anvil-cli/src/ast_followup.rs`, `crates/anvil-kernel-types/src/diagnostics.rs`, and `crates/anvil-kernel-types/src/notifications.rs` |
 
-| Upstream                                                                                                                                               | Downstream                                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `crates/anvil-cli/src/commands/check_catalog.rs`, `crates/anvil-kernel-types/src/diagnostics.rs`, and `crates/anvil-kernel-types/src/notifications.rs` | Architecture docs, CLI/TUI copy, check/gate/audit/watch terminology, public product documentation |
+| Upstream                                                                                                                                                                                                | Downstream                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli/src/commands/check_catalog.rs`, ADR-127, `crates/anvil-cli/src/ast_followup.rs`, `crates/anvil-kernel-types/src/diagnostics.rs`, and `crates/anvil-kernel-types/src/notifications.rs` | Architecture docs, CLI/TUI copy, check/gate/audit/watch terminology, public product documentation |
 
 This document defines the conceptual architecture of Anvil's quality system. It
 is the internal reference for how to talk about checks, findings, gates, watch
@@ -181,6 +181,8 @@ Targeted or exploratory analysis.
 - Use when the goal is to inspect files and surface findings.
 - `check` is the best fit for planless, local, developer-driven analysis.
 - This is the flagship analysis surface for scanners such as anti-patterns.
+- CLI `anvil check` and MCP `anvil_check` merge **regex and AST** anti-pattern
+  tiers. That is not the save-time / pre-write path.
 
 ### `anvil gate`
 
@@ -188,8 +190,8 @@ Workflow judgement.
 
 - Use when the question is whether work passes the required set of checks.
 - A gate aggregates selected checks into one decision surface.
-- Gates are the right conceptual layer for CI, merge readiness, and continuous
-  watch judgements.
+- Gates are the right conceptual layer for CI, merge readiness, and optional
+  `anvil watch --action gate`. Default watch is **not** a gate.
 
 ### `anvil watch`
 
@@ -200,8 +202,11 @@ Continuous mode over checks and gates.
   gate on each change, or `--action none` for an architecture/dependency-only
   watch with no code-quality scan.
 - When a save-time daemon is already available, watch routes changed-path
-  validation through the daemon. Headless, `--json`, CI, hook, and piped runs
-  stay deterministic and do not prompt to start a daemon.
+  validation through the daemon. That path is **regex plus secrets**. After an
+  allow, a background CLI `anvil check` may run AST without blocking the write
+  (one stderr line if it finds something). Kill switch: `ANVIL_AST_FOLLOWUP=0`.
+- Headless, `--json`, CI, hook, and piped runs stay deterministic and do not
+  prompt to start a daemon.
 - It should be understood as continuous quality feedback, not as a separate
   parallel quality system. See [`checks-as-built.md`](./checks-as-built.md) for
   the live event-emission + deferred-dispatch path.

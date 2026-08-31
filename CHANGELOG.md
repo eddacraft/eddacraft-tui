@@ -57,6 +57,11 @@ engineering maintenance are recorded in the
 
 ### Changed
 
+- **Docs and shipped skills say when AST actually runs.** Pre-write and
+  save-time stay regex plus secrets. `anvil check` / MCP `anvil_check` add AST.
+  Watch may print a non-blocking AST follow-up after allow. `anvil gate` is the
+  merge judgement; default watch is not.
+
 - **`anvil watch` reports background AST findings in one line.** After a
   save-time allow, the cheap-catalogue follow-up still does not block the write.
   When it finds something, stderr prints a single `AST follow-up` warning so a

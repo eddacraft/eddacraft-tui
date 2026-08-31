@@ -1,6 +1,6 @@
 Scan files for anti-patterns and hardcoded secrets (planless mode).
 
-Honours `.anvilrc#checks` (and `.anvil.<ext>`) for the planless-eligible subset: `antipattern-scan` and `secret-detection`. Profile-based or config-heavy checks (`architecture`, `policy`, `import-boundaries`, `command-safety`, `lint`, `test`, `coverage`, `dependency`) live under `anvil gate`.
+Honours `.anvilrc#checks` (and `.anvil.<ext>`) for the planless-eligible subset: `antipattern-scan` and `secret-detection`. Merges regex and AST anti-pattern tiers. Save-time and pre-write (`anvil_validate_write`) stay regex-only; a green save is not an AST pass. Profile-based or config-heavy checks (`architecture`, `policy`, `import-boundaries`, `command-safety`, `lint`, `test`, `coverage`, `dependency`) live under `anvil gate`.
 
 Every run that produces a result overwrites `.anvil/last-check.txt` (human report) and `.anvil/last-check.json` (same schema as `--format json`) so findings can be opened in an editor or handed to an agent without using terminal scrollback.
 
