@@ -2,7 +2,7 @@
 source: src/shell.rs
 expression: buffer_to_string(&buf)
 ---
-[[fg:#CC5500,bold]‡[fg:#CC5500,bold]][fg:#CC5500,bold] a[fg:#CC5500,bold]n[fg:#CC5500,bold]v[fg:#CC5500,bold]i[fg:#CC5500,bold]l[fg:#CC5500,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]G[fg:#EBEBEB]a[fg:#EBEBEB]t[fg:#EBEBEB]e[fg:#EBEBEB]                                            
+[[fg:#D95A00,bold]‡[fg:#D95A00,bold]][fg:#D95A00,bold] a[fg:#D95A00,bold]n[fg:#D95A00,bold]v[fg:#D95A00,bold]i[fg:#D95A00,bold]l[fg:#D95A00,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]G[fg:#EBEBEB]a[fg:#EBEBEB]t[fg:#EBEBEB]e[fg:#EBEBEB]                                            
                                                             
                                                             
                                                             
