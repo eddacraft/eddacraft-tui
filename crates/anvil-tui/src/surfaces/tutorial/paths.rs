@@ -543,7 +543,15 @@ mod tests {
     fn user_facing_copy(steps: &[TutorialStep]) -> String {
         steps
             .iter()
-            .map(|s| format!("{}\n{}\n{}", s.title, s.description, s.instruction))
+            .map(|s| {
+                format!(
+                    "{}\n{}\n{}\n{}",
+                    s.title,
+                    s.description,
+                    s.instruction,
+                    s.verify_hint.as_deref().unwrap_or("")
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n")
             .to_lowercase()
@@ -608,6 +616,15 @@ mod tests {
                 "tutorial copy must not name {forbidden}; use generic MCP-capable wording"
             );
         }
+    }
+
+    #[test]
+    fn user_facing_copy_includes_verify_hints() {
+        let body = user_facing_copy(&autoplay_protection_loop_steps());
+        assert!(
+            body.contains("did not report its expected ap-003 finding"),
+            "verify_hint is shown on verification failure and must be scanned"
+        );
     }
 
     #[test]
