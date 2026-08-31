@@ -105,14 +105,14 @@ this change advance?" Select a profile with `--profile`, restrict engines with
 
 ### Watch, doctor, audit, architecture, policy, baseline
 
-| Surface              | Role                                                                                                                | Default posture                                     |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `anvil watch`        | Continuous mode. Default action is `check` (therefore the planless pair). `--action gate` or `--action none` exist. | Not itself a check.                                 |
-| `anvil doctor`       | Setup / environment health.                                                                                         | Not a gate.                                         |
-| `anvil audit`        | Broader exploratory reporting over findings.                                                                        | Not a merge decision.                               |
-| `anvil architecture` | Structure definition.                                                                                               | Enforcement is still a check (`import-boundaries`). |
-| `anvil policy`       | Pack install, show, validate, test, and gate.                                                                       | Policy is one family of **gate** checks (`policy`). |
-| `anvil baseline`     | Record of findings accepted when anvil was introduced.                                                              | Not a check.                                        |
+| Surface              | Role                                                                                                                                                          | Default posture                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `anvil watch`        | Continuous mode. Default action is `check`, not `gate`. Save-time stays regex + secrets, not the AST planless pair. `--action gate` or `--action none` exist. | Not itself a check.                                 |
+| `anvil doctor`       | Setup / environment health.                                                                                                                                   | Not a gate.                                         |
+| `anvil audit`        | Broader exploratory reporting over findings.                                                                                                                  | Not a merge decision.                               |
+| `anvil architecture` | Structure definition.                                                                                                                                         | Enforcement is still a check (`import-boundaries`). |
+| `anvil policy`       | Pack install, show, validate, test, and gate.                                                                                                                 | Policy is one family of **gate** checks (`policy`). |
+| `anvil baseline`     | Record of findings accepted when anvil was introduced.                                                                                                        | Not a check.                                        |
 
 A **rule** is one compiled anti-pattern pattern. Rules belong to the
 `antipattern-scan` check; they are not interchangeable with checks or with a
