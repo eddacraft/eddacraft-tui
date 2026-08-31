@@ -330,7 +330,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-009: PY-011 AST companions for PY-008 regex blinds
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-31 via PR #4283
 - **Intent:** Catch dynamic `eval` / `exec` / `compile` shapes PY-008
   documents as unseeable, without taking PY-008 off save-time.
 - **Expected Outcome:** Additive **PY-011** (`detection: ast`) fires on: a
@@ -356,7 +356,7 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 ### GTAO-010: PY-012 AST companion for PY-009 `yaml.load` loader
 
-- **Status:** In Progress
+- **Status:** Merged 2026-08-31 via PR #4283
 - **Intent:** Distinguish unsafe `yaml.load` from a same-call SafeLoader,
   which the regex tier cannot do.
 - **Expected Outcome:** Additive **PY-012** (`detection: ast`) fires on
@@ -381,5 +381,6 @@ GTAO-001, GTAO-002, and GTAO-008 are Merged 2026-08-22 via PR #4084.
 GTAO-003 and GTAO-005 (Wave 2) are Merged 2026-08-27 via PR #4168.
 GTAO-004 Merged 2026-08-30 via PR #4252. GTAO-006 Merged 2026-08-30 via PR #4254.
 GTAO-007 Merged 2026-08-31 via PR #4268.
-Remaining items: GTAO-009/-010 In Progress (Wave 4). Do not convert PY-008 to
+GTAO-009 and GTAO-010 (Wave 4) Merged 2026-08-31 via PR #4283.
+Remaining items: none. Do not convert PY-008 to
 `detection: ast`.
