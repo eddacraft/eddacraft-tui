@@ -18,7 +18,7 @@ use crate::activation::agent_registry::{AgentClientId, InstallScope, McpConfigKi
 use crate::activation::detect_agents::RealDetectionEnv;
 use crate::activation::mcp_client::preferred_mcp_command;
 use crate::commands::daemon_recycle::{
-    DaemonRecycleHooks, DaemonRecycleOutcome, recycle_daemon_if_version_skew,
+    DaemonRecycleHooks, DaemonRecycleOutcome, DaemonStopBatch, recycle_daemon_if_version_skew,
 };
 use crate::commands::mcp_config::default_client_config_root;
 use crate::commands::mcp_generation::{generation_path, read_generation};
@@ -439,18 +439,6 @@ fn force_recycle(hooks: &dyn DaemonRecycleHooks) -> DaemonRecycleOutcome {
 
 fn force_recycle_running(hooks: &dyn DaemonRecycleHooks, before: String) -> DaemonRecycleOutcome {
     let stop = match hooks.stop_daemon() {
-        Ok(stop) if stop.signalled_pids.is_empty() => {
-            return if hooks.running_daemon().is_none() {
-                DaemonRecycleOutcome::NotRunning
-            } else {
-                DaemonRecycleOutcome::Failed {
-                    before: Some(before),
-                    recovery: "could not stop the daemon (no PID file); \
-                               run `anvil intercept stop` then `anvil start`"
-                        .to_owned(),
-                }
-            };
-        }
         Ok(stop) => stop,
         Err(recovery) => {
             return DaemonRecycleOutcome::Failed {
@@ -459,16 +447,42 @@ fn force_recycle_running(hooks: &dyn DaemonRecycleHooks, before: String) -> Daem
             };
         }
     };
+    let DaemonStopBatch {
+        signalled_pids,
+        canonical_error,
+        sibling_errors,
+    } = stop;
+    if signalled_pids.is_empty() {
+        if let Some(recovery) = canonical_error {
+            return DaemonRecycleOutcome::Failed {
+                before: Some(before),
+                recovery,
+            };
+        }
+        return if hooks.running_daemon().is_none() {
+            DaemonRecycleOutcome::NotRunning
+        } else {
+            DaemonRecycleOutcome::Failed {
+                before: Some(before),
+                recovery: "could not stop the daemon (no PID file); \
+                           run `anvil intercept stop` then `anvil start`"
+                    .to_owned(),
+            }
+        };
+    }
     let mut stop_failures = Vec::new();
-    for pid in stop.signalled_pids {
+    for pid in signalled_pids {
         if let Err(recovery) = hooks.wait_for_pid_exit(pid) {
             stop_failures.push(recovery);
         }
     }
-    if !stop.candidate_errors.is_empty() {
+    if let Some(recovery) = canonical_error {
+        stop_failures.push(recovery);
+    }
+    if !sibling_errors.is_empty() {
         tracing::debug!(
-            skipped = stop.candidate_errors.len(),
-            errors = ?stop.candidate_errors,
+            skipped = sibling_errors.len(),
+            errors = ?sibling_errors,
             "force recycle observed sibling PID-file record errors; not aborting restart"
         );
     }
@@ -646,6 +660,8 @@ mod tests {
     struct RecordingHooks {
         running: Option<RunningDaemon>,
         stop_pids: Vec<u32>,
+        stop_canonical_error: Option<String>,
+        stop_sibling_errors: Vec<String>,
         start_after: Result<String, String>,
         calls: RefCell<Vec<RecycleCall>>,
     }
@@ -657,6 +673,8 @@ mod tests {
                     version: "0.5.1-beta".into(),
                 }),
                 stop_pids: vec![4242],
+                stop_canonical_error: None,
+                stop_sibling_errors: Vec::new(),
                 start_after: Ok("0.9.2-beta".into()),
                 calls: RefCell::new(Vec::new()),
             }
@@ -668,6 +686,8 @@ mod tests {
                     version: "0.9.2-beta".into(),
                 }),
                 stop_pids: vec![4242],
+                stop_canonical_error: None,
+                stop_sibling_errors: Vec::new(),
                 start_after: Ok("0.9.2-beta".into()),
                 calls: RefCell::new(Vec::new()),
             }
@@ -687,7 +707,8 @@ mod tests {
             self.calls.borrow_mut().push(RecycleCall::Stop);
             Ok(DaemonStopBatch {
                 signalled_pids: self.stop_pids.clone(),
-                candidate_errors: Vec::new(),
+                canonical_error: self.stop_canonical_error.clone(),
+                sibling_errors: self.stop_sibling_errors.clone(),
             })
         }
 
@@ -725,6 +746,25 @@ mod tests {
                 RecycleCall::Wait(4242),
                 RecycleCall::Start
             ]
+        );
+    }
+
+    #[test]
+    fn daemon_restart_waits_but_fails_on_canonical_pid_refusal() {
+        let mut hooks = RecordingHooks::matching();
+        hooks.stop_canonical_error = Some("canonical PID instruction is unsafe".into());
+        let report = refresh_daemon(DaemonMode::Restart, false, "0.9.2-beta", &hooks);
+        assert!(
+            report
+                .action
+                .contains("canonical PID instruction is unsafe"),
+            "canonical refusal must be reported: {}",
+            report.action,
+        );
+        assert_eq!(
+            hooks.calls(),
+            vec![RecycleCall::Stop, RecycleCall::Wait(4242)],
+            "forced recycle must wait for signalled siblings but never restart after canonical refusal",
         );
     }
 

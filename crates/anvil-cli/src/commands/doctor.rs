@@ -2605,8 +2605,6 @@ fn stop_sibling_intercept_sockets(
 
 #[cfg(unix)]
 fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: bool) {
-    use anvil_intercept::ensure::{EnsureOutcome, StartCapability};
-
     let candidates = match anvil_intercept::ipc::resolve_socket_connect_candidates() {
         Ok(paths) if !paths.is_empty() => paths,
         Ok(_) | Err(_) => {
@@ -2618,8 +2616,82 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
             return;
         }
     };
+    let operations = InterceptSocketRendezvousFixOps {
+        acquire_repair:
+            anvil_intercept::ensure::acquire_daemon_rendezvous_repair_lock_for_socket_candidates,
+        classify: classify_intercept_sockets,
+        stop_siblings: stop_sibling_intercept_sockets,
+        canonical_only: canonical_is_the_only_live_socket,
+        launch: crate::commands::intercept::launch_save_time_daemon,
+    };
+    apply_intercept_socket_rendezvous_fix_with(check, speak, &candidates, operations);
+}
+
+#[cfg(unix)]
+struct InterceptSocketRendezvousFixOps<AcquireRepair, Classify, StopSiblings, CanonicalOnly, Launch>
+{
+    acquire_repair: AcquireRepair,
+    classify: Classify,
+    stop_siblings: StopSiblings,
+    canonical_only: CanonicalOnly,
+    launch: Launch,
+}
+
+#[cfg(unix)]
+fn apply_intercept_socket_rendezvous_fix_with<
+    RepairGuard,
+    SiblingGuards,
+    AcquireRepair,
+    Classify,
+    StopSiblings,
+    CanonicalOnly,
+    Launch,
+>(
+    check: &mut DiagnosticCheck,
+    speak: bool,
+    candidates: &[PathBuf],
+    operations: InterceptSocketRendezvousFixOps<
+        AcquireRepair,
+        Classify,
+        StopSiblings,
+        CanonicalOnly,
+        Launch,
+    >,
+) where
+    AcquireRepair: FnOnce(&[PathBuf]) -> std::io::Result<RepairGuard>,
+    Classify: FnOnce(&[PathBuf]) -> (Vec<PathBuf>, Option<String>),
+    StopSiblings: FnOnce(&[PathBuf], bool) -> Option<SiblingGuards>,
+    CanonicalOnly: FnMut(&[PathBuf]) -> bool,
+    Launch:
+        FnOnce(anvil_intercept::ensure::StartCapability) -> anvil_intercept::ensure::EnsureOutcome,
+{
+    use anvil_intercept::ensure::{EnsureOutcome, StartCapability};
+
+    let InterceptSocketRendezvousFixOps {
+        acquire_repair,
+        classify,
+        stop_siblings,
+        mut canonical_only,
+        launch,
+    } = operations;
+
+    // Competing doctors can see the same candidates in opposite canonical
+    // order. Serialise the whole repair before taking any per-candidate start
+    // lock, then retain it through canonical launch and final classification.
+    let _repair_lock = match acquire_repair(candidates) {
+        Ok(lock) => lock,
+        Err(err) => {
+            if speak {
+                eprintln!(
+                    "  Failed to fix intercept-socket-rendezvous: could not lock rendezvous \
+                     repair: {err}"
+                );
+            }
+            return;
+        }
+    };
     let canonical = &candidates[0];
-    let (live, canonical_invalid) = classify_intercept_sockets(&candidates);
+    let (live, canonical_invalid) = classify(candidates);
     if let Some(reason) = canonical_invalid {
         if speak {
             eprintln!("  Failed to fix intercept-socket-rendezvous: {reason}");
@@ -2640,10 +2712,10 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
         }
         return;
     }
-    let Some(_sibling_guards) = stop_sibling_intercept_sockets(&siblings, speak) else {
+    let Some(_sibling_guards) = stop_siblings(&siblings, speak) else {
         return;
     };
-    if canonical_is_the_only_live_socket(&candidates) {
+    if canonical_only(candidates) {
         check.status = CheckStatus::Pass;
         check.message = format!("intercept daemon socket at {}", canonical.display());
         check.auto_fixable = false;
@@ -2655,9 +2727,9 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
         }
         return;
     }
-    match crate::commands::intercept::launch_save_time_daemon(StartCapability::MaySpawn) {
+    match launch(StartCapability::MaySpawn) {
         EnsureOutcome::Started | EnsureOutcome::Reused => {
-            if !canonical_is_the_only_live_socket(&candidates) {
+            if !canonical_only(candidates) {
                 if speak {
                     eprintln!(
                         "  Failed to fix intercept-socket-rendezvous: canonical socket was not the \
@@ -5012,6 +5084,110 @@ mod tests {
         );
         assert_eq!(check.status, CheckStatus::Warn);
         assert!(!check.auto_fixable);
+    }
+
+    /// CIB-382/C-001/C-006: exercise the doctor repair path itself so moving
+    /// the global repair lock below sibling locks, or dropping it before final
+    /// classification, cannot leave the helper-only lock test green.
+    #[cfg(unix)]
+    #[test]
+    fn rendezvous_fix_holds_global_lock_across_the_complete_doctor_repair() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Arc, Mutex};
+
+        struct DropEvent {
+            events: Arc<Mutex<Vec<&'static str>>>,
+            label: &'static str,
+        }
+
+        impl Drop for DropEvent {
+            fn drop(&mut self) {
+                self.events.lock().expect("event log").push(self.label);
+            }
+        }
+
+        let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
+        let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
+        let mut check = check_intercept_socket_rendezvous_from(
+            &canonical,
+            LiveInterceptSocket::At(vec![sibling.clone()]),
+        );
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let canonical_checks = Arc::new(AtomicUsize::new(0));
+        let candidates = vec![canonical, sibling.clone()];
+
+        apply_intercept_socket_rendezvous_fix_with(
+            &mut check,
+            false,
+            &candidates,
+            InterceptSocketRendezvousFixOps {
+                acquire_repair: {
+                    let events = Arc::clone(&events);
+                    move |_: &[PathBuf]| {
+                        events
+                            .lock()
+                            .expect("event log")
+                            .push("repair-lock-acquired");
+                        Ok::<_, std::io::Error>(DropEvent {
+                            events,
+                            label: "repair-lock-dropped",
+                        })
+                    }
+                },
+                classify: {
+                    let events = Arc::clone(&events);
+                    move |_: &[PathBuf]| {
+                        events.lock().expect("event log").push("classified");
+                        (vec![sibling], None)
+                    }
+                },
+                stop_siblings: {
+                    let events = Arc::clone(&events);
+                    move |_: &[PathBuf], _: bool| {
+                        events.lock().expect("event log").push("siblings-stopped");
+                        Some(DropEvent {
+                            events,
+                            label: "sibling-guards-dropped",
+                        })
+                    }
+                },
+                canonical_only: {
+                    let events = Arc::clone(&events);
+                    let canonical_checks = Arc::clone(&canonical_checks);
+                    move |_: &[PathBuf]| {
+                        let call = canonical_checks.fetch_add(1, Ordering::SeqCst);
+                        events.lock().expect("event log").push(if call == 0 {
+                            "canonical-checked-before-launch"
+                        } else {
+                            "canonical-final-classification"
+                        });
+                        call > 0
+                    }
+                },
+                launch: {
+                    let events = Arc::clone(&events);
+                    move |_| {
+                        events.lock().expect("event log").push("launched");
+                        anvil_intercept::ensure::EnsureOutcome::Started
+                    }
+                },
+            },
+        );
+
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert_eq!(
+            *events.lock().expect("event log"),
+            vec![
+                "repair-lock-acquired",
+                "classified",
+                "siblings-stopped",
+                "canonical-checked-before-launch",
+                "launched",
+                "canonical-final-classification",
+                "sibling-guards-dropped",
+                "repair-lock-dropped",
+            ],
+        );
     }
 
     /// MF-3: the crashed-sibling shape — no PID file (or a stale one), but the

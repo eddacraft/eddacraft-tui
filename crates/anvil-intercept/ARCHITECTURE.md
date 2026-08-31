@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                            |
-| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-31 for live-probed dual-path Unix rendezvous, watch reconnect, locked daemon lifecycle repair, and MF-1 sibling PID-file record errors that must not abort stop or recycle; transport, admission, egress, save-time, peer-admission topology, and diagrams otherwise unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                   |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-31 for CIB-382 physical-identity rendezvous repair and descriptor-mode PID trust, live-probed dual-path Unix rendezvous, watch reconnect, locked daemon lifecycle repair, and MF-1 sibling PID-file record errors; transport, admission, egress, save-time, peer-admission topology, and diagrams otherwise unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -16,24 +16,28 @@ as a dated compatibility and history record.
 
 The local transport boundary differs by platform. On Unix, the daemon relies on
 an owner-only `0700` directory and `0600` socket; it does not compare a Unix
-caller UID after accept. Clients connect to the first candidate that passes the
-owner-only metadata gate, accepts a connection, and presents a same-user peer,
-among the bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when
-set). A missing or connection-refused candidate may fall through; unsafe
-canonical metadata remains fatal. Dual-path is a client rendezvous, not a second
-listener, and it covers the intercept socket and PID file only — the save-time
-driver registry, the watch driver log, the graph cache, and egress consent
-remain single-path. Unix clients validate the connected daemon UID before
-sending proposed content, while the Linux listener also obtains the peer PID
-used by optional lineage checks. Windows uses an owner-only named-pipe DACL and
-the server explicitly compares the connected peer's SID with the pipe owner's
-SID. Save-time `validate_paths` requests then pass workspace admission before
-guarded reads and validation. `scan_buffer` is the caller-buffer lane for both
-MidEdit and PreWrite requests and has a separate, platform-dependent
-cross-check. A fence is a separate durable safety state triggered by spoof
-detection, an interrupt that cannot safely complete, or an unattributed or
-unregistered change. Cascade engages only after repeated fence events; degraded
-assurance alone does not fence a worktree.
+caller UID after accept. It creates the PID signal instruction as `0600`; the
+stop path validates the already-open descriptor and refuses group- or
+world-writable PID inodes. A refused inode remains tainted even if its mode is
+later tightened, so recovery replaces it through a fresh owner-only daemon
+lifecycle. Clients connect to the first candidate that passes the owner-only
+metadata gate, accepts a connection, and presents a same-user peer, among the
+bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when set). A
+missing or connection-refused candidate may fall through; unsafe canonical
+metadata remains fatal. Dual-path is a client rendezvous, not a second listener,
+and it covers the intercept socket and PID file only — the save-time driver
+registry, the watch driver log, the graph cache, and egress consent remain
+single-path. Unix clients validate the connected daemon UID before sending
+proposed content, while the Linux listener also obtains the peer PID used by
+optional lineage checks. Windows uses an owner-only named-pipe DACL and the
+server explicitly compares the connected peer's SID with the pipe owner's SID.
+Save-time `validate_paths` requests then pass workspace admission before guarded
+reads and validation. `scan_buffer` is the caller-buffer lane for both MidEdit
+and PreWrite requests and has a separate, platform-dependent cross-check. A
+fence is a separate durable safety state triggered by spoof detection, an
+interrupt that cannot safely complete, or an unattributed or unregistered
+change. Cascade engages only after repeated fence events; degraded assurance
+alone does not fence a worktree.
 
 ## Save, validation, and fence flow
 
@@ -166,13 +170,19 @@ owns their cross-component client and capability relationship.
 - Long-lived Unix watch clients retain the ordered candidate set and repeat the
   live-listener selection on every connection, including after fallback, so a
   daemon relocation does not pin the process to an obsolete endpoint.
-- Doctor socket cleanup holds the per-install start lock across stop and then
-  the PID lock through canonical startup and final all-candidate classification.
-  A live or rebound socket is never removed. Version recycle waits every
-  signalled candidate PID and then starts at the canonical socket; a malformed
-  or unproven sibling PID file does not abort that restart.
-  `anvil intercept stop` reports every candidate, including skipped sibling PID
-  files, and still exits zero after the canonical candidate was acted on.
+- Doctor socket cleanup resolves every verified candidate directory to its
+  physical path, then holds one sorted, deduplicated repair coordinator for the
+  set. It next holds the per-install start lock across stop and the PID lock
+  through canonical startup and final all-candidate classification. Opposite
+  canonical ordering and permitted ancestor aliases therefore cannot create a
+  cyclic wait. A live or rebound socket is never removed. Version recycle waits
+  every signalled candidate PID and then starts at the canonical socket; a
+  malformed or unproven sibling PID file does not abort that restart.
+  `anvil intercept stop` reports every candidate, including skipped siblings. A
+  sibling refusal does not change a successful canonical outcome, while a
+  canonical PID-instruction refusal is a non-zero partial failure and prevents
+  both automatic and forced recycle from starting a replacement daemon after any
+  already-signalled siblings exit.
 - Windows IPC uses an owner-only pipe DACL and the server compares the connected
   peer SID with the pipe-owner SID before dispatch.
 - The production `scan_buffer` session-ownership and environment-tag spoof

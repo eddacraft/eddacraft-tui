@@ -400,6 +400,64 @@ pub fn acquire_daemon_start_lock_for_pid_file(pid_path: &Path) -> io::Result<std
     acquire_ensure_lock(&runtime_dir.join("intercept.ensure.lock"))
 }
 
+/// Serialise operator repair across every socket candidate, independent of
+/// which candidate the current process considers canonical.
+///
+/// Each verified candidate parent is resolved to its physical path before the
+/// set is sorted and deduplicated, so permitted ancestor aliases converge on
+/// the same coordinator. The coordinator uses a distinct lock file from daemon
+/// start, allowing doctor to retain sibling start/PID fences while starting the
+/// canonical daemon without an opposite-canonical AB/BA cycle.
+///
+/// # Errors
+///
+/// Returns an invalid-input error when no candidate has a parent, or an I/O
+/// error when any candidate directory cannot be securely established and
+/// resolved to a physical identity, or when the advisory lock cannot be opened
+/// or locked.
+#[cfg(unix)]
+pub fn acquire_daemon_rendezvous_repair_lock_for_socket_candidates(
+    socket_candidates: &[PathBuf],
+) -> io::Result<std::fs::File> {
+    let mut candidate_dirs = socket_candidates
+        .iter()
+        .filter_map(|candidate| candidate.parent().map(Path::to_path_buf))
+        .collect::<Vec<_>>();
+    candidate_dirs.sort();
+    candidate_dirs.dedup();
+    if candidate_dirs.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "intercept rendezvous repair needs a socket candidate with a parent",
+        ));
+    }
+
+    let mut physical_dirs = Vec::with_capacity(candidate_dirs.len());
+    for candidate_dir in candidate_dirs {
+        crate::ensure_secure_runtime_dir(&candidate_dir)
+            .map_err(|err| io::Error::other(format!("{err:#}")))?;
+        let physical_dir = candidate_dir.canonicalize().map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!(
+                    "failed to resolve intercept runtime directory {}: {err}",
+                    candidate_dir.display()
+                ),
+            )
+        })?;
+        physical_dirs.push(physical_dir);
+    }
+    physical_dirs.sort();
+    physical_dirs.dedup();
+    let coordinator = physical_dirs.first().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "intercept rendezvous repair has no physical coordinator directory",
+        )
+    })?;
+    acquire_ensure_lock(&coordinator.join("intercept.rendezvous-repair.lock"))
+}
+
 // ---------------------------------------------------------------------------
 // Real Unix probe + launcher
 // ---------------------------------------------------------------------------
@@ -1270,6 +1328,97 @@ mod tests {
             outcomes.contains(&EnsureOutcome::Reused),
             "the other reused it: {outcomes:?}"
         );
+    }
+
+    /// CIB-382: two doctor processes can see the same runtime candidates in
+    /// opposite canonical order. They must enter rendezvous repair through one
+    /// order-independent lock instead of each retaining the other's start lock.
+    #[test]
+    fn rendezvous_repair_lock_serialises_reversed_candidate_order() {
+        use std::sync::mpsc;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime_socket = dir.path().join("runtime/anvil/intercept.sock");
+        let state_socket = dir.path().join("state/anvil/intercept.sock");
+        let forward = vec![runtime_socket.clone(), state_socket.clone()];
+        let reversed = vec![state_socket, runtime_socket];
+
+        let first = acquire_daemon_rendezvous_repair_lock_for_socket_candidates(&forward)
+            .expect("first repair lock");
+        let (acquired_tx, acquired_rx) = mpsc::channel();
+        let waiter = std::thread::spawn(move || {
+            let second = acquire_daemon_rendezvous_repair_lock_for_socket_candidates(&reversed)
+                .expect("reversed repair lock");
+            acquired_tx
+                .send(second)
+                .expect("report reversed lock acquisition");
+        });
+
+        assert!(
+            acquired_rx
+                .recv_timeout(Duration::from_millis(100))
+                .is_err(),
+            "reversed canonical order must contend on the same repair lock",
+        );
+        drop(first);
+        let second = acquired_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("reversed repair should proceed after the first lock releases");
+        drop(second);
+        waiter.join().expect("repair-lock waiter");
+    }
+
+    /// CIB-382/C-003: raw path sorting is not a shared identity when one
+    /// process reaches state home through an ancestor alias. Both physical
+    /// candidate sets must still choose the same repair coordinator.
+    #[test]
+    fn rendezvous_repair_lock_normalises_ancestor_aliases() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        use std::sync::mpsc;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let physical_home = dir.path().join("a-home/u");
+        let alias_home = dir.path().join("z-home");
+        let runtime_dir = dir.path().join("m-runtime/anvil");
+        let state_dir = physical_home.join(".local/state/anvil");
+        std::fs::create_dir_all(&runtime_dir).expect("runtime directory");
+        std::fs::create_dir_all(&state_dir).expect("state directory");
+        for candidate_dir in [&runtime_dir, &state_dir] {
+            std::fs::set_permissions(candidate_dir, std::fs::Permissions::from_mode(0o700))
+                .expect("owner-only candidate directory");
+        }
+        symlink(&physical_home, &alias_home).expect("ancestor alias");
+
+        let runtime_socket = runtime_dir.join("intercept.sock");
+        let physical_state_socket = state_dir.join("intercept.sock");
+        let aliased_state_socket = alias_home.join(".local/state/anvil/intercept.sock");
+        let physical_candidates = vec![runtime_socket.clone(), physical_state_socket];
+        let aliased_reversed = vec![aliased_state_socket, runtime_socket];
+
+        let first =
+            acquire_daemon_rendezvous_repair_lock_for_socket_candidates(&physical_candidates)
+                .expect("first repair lock");
+        let (acquired_tx, acquired_rx) = mpsc::channel();
+        let waiter = std::thread::spawn(move || {
+            let second =
+                acquire_daemon_rendezvous_repair_lock_for_socket_candidates(&aliased_reversed)
+                    .expect("aliased repair lock");
+            acquired_tx.send(second).expect("report lock acquisition");
+        });
+
+        assert!(
+            acquired_rx
+                .recv_timeout(Duration::from_millis(100))
+                .is_err(),
+            "ancestor aliases for the same directory must contend on one repair lock",
+        );
+        drop(first);
+        drop(
+            acquired_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("second lock"),
+        );
+        waiter.join().expect("repair-lock waiter");
     }
 
     #[test]

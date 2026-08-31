@@ -65,6 +65,36 @@ fn stop_with_unresolved_sibling(root: &Path, json: bool) -> Output {
         .expect("run split-candidate intercept stop")
 }
 
+fn stop_with_writable_canonical_pid(root: &Path) -> Output {
+    use std::os::unix::fs::PermissionsExt;
+
+    let runtime = root.join("runtime");
+    let canonical_dir = runtime.join("anvil");
+    let home = root.join("home");
+    let sibling_dir = home.join(".local/state/anvil");
+    fs::create_dir_all(&canonical_dir).expect("canonical runtime dir");
+    fs::create_dir_all(&sibling_dir).expect("sibling runtime dir");
+    for dir in [&canonical_dir, &sibling_dir] {
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
+            .expect("owner-only runtime dir");
+    }
+    let canonical_pid = canonical_dir.join("intercept.pid");
+    fs::write(&canonical_pid, "2147483646\nstart_time=1\n").expect("write canonical PID file");
+    fs::set_permissions(&canonical_pid, fs::Permissions::from_mode(0o620))
+        .expect("make canonical PID file group-writable");
+
+    Command::new(ANVIL_BIN)
+        .args(["--json", "intercept", "stop"])
+        .env("HOME", &home)
+        .env("USERPROFILE", &home)
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .env_remove("ANVIL_HOME")
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .expect("run stop with writable canonical PID file")
+}
+
 #[test]
 fn stop_with_no_daemon_reports_not_running() {
     let home = tempfile::tempdir().expect("tempdir");
@@ -148,6 +178,37 @@ fn stop_json_reports_every_candidate_and_exits_zero_on_unresolved_sibling() {
     assert!(
         out.stderr.is_empty(),
         "JSON partial failure is already reported on stdout: {}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
+#[test]
+fn stop_json_reports_writable_canonical_pid_and_every_sibling() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let out = stop_with_writable_canonical_pid(root.path());
+
+    assert!(
+        !out.status.success(),
+        "unsafe canonical PID metadata must exit non-zero; stdout: {}; stderr: {}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let document: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("stdout must be one JSON document");
+    assert_eq!(document["outcome"], "not-running");
+    assert_eq!(document["pid"], serde_json::Value::Null);
+    assert_eq!(
+        document["registered_losing_protection"],
+        serde_json::Value::Null
+    );
+    assert_eq!(document["result"], "partial-failure");
+    assert_eq!(document["partial_failure"], true);
+    assert_eq!(document["candidates"].as_array().map(Vec::len), Some(2));
+    assert_eq!(document["candidates"][0]["outcome"], "unresolved");
+    assert_eq!(document["candidates"][1]["outcome"], "not-running");
+    assert!(
+        out.stderr.is_empty(),
+        "JSON refusal is already reported on stdout: {}",
         String::from_utf8_lossy(&out.stderr),
     );
 }

@@ -24,7 +24,8 @@ pub(crate) struct RunningDaemon {
 #[derive(Debug, Default)]
 pub(crate) struct DaemonStopBatch {
     pub(crate) signalled_pids: Vec<u32>,
-    pub(crate) candidate_errors: Vec<String>,
+    pub(crate) canonical_error: Option<String>,
+    pub(crate) sibling_errors: Vec<String>,
 }
 
 /// Successful stop → wait → start recycle, with versions for operator report.
@@ -100,20 +101,6 @@ pub(crate) fn recycle_daemon_if_version_skew(
 
     let before = running.version;
     let stop = match hooks.stop_daemon() {
-        Ok(stop) if stop.signalled_pids.is_empty() => {
-            // Race: the daemon can exit between the version probe and stop.
-            // Re-probe; if it is gone, fall through to ordinary ensure.
-            return if hooks.running_daemon().is_none() {
-                DaemonRecycleOutcome::NotRunning
-            } else {
-                DaemonRecycleOutcome::Failed {
-                    before: Some(before),
-                    recovery: "could not stop the skewed daemon (no PID file); \
-                               run `anvil intercept stop` then `anvil start`"
-                        .to_owned(),
-                }
-            };
-        }
         Ok(stop) => stop,
         Err(recovery) => {
             return DaemonRecycleOutcome::Failed {
@@ -122,19 +109,47 @@ pub(crate) fn recycle_daemon_if_version_skew(
             };
         }
     };
+    let DaemonStopBatch {
+        signalled_pids,
+        canonical_error,
+        sibling_errors,
+    } = stop;
+    if signalled_pids.is_empty() {
+        if let Some(recovery) = canonical_error {
+            return DaemonRecycleOutcome::Failed {
+                before: Some(before),
+                recovery,
+            };
+        }
+        // Race: the daemon can exit between the version probe and stop.
+        // Re-probe; if it is gone, fall through to ordinary ensure.
+        return if hooks.running_daemon().is_none() {
+            DaemonRecycleOutcome::NotRunning
+        } else {
+            DaemonRecycleOutcome::Failed {
+                before: Some(before),
+                recovery: "could not stop the skewed daemon (no PID file); \
+                           run `anvil intercept stop` then `anvil start`"
+                    .to_owned(),
+            }
+        };
+    }
 
     let mut stop_failures = Vec::new();
-    for pid in stop.signalled_pids {
+    for pid in signalled_pids {
         if let Err(recovery) = hooks.wait_for_pid_exit(pid) {
             stop_failures.push(recovery);
         }
     }
+    if let Some(recovery) = canonical_error {
+        stop_failures.push(recovery);
+    }
     // Sibling PID-file record errors (malformed/unproven/ungated) are not a live
     // daemon. Spec item 9 / MF-1: they must not abort restart after a signal.
-    if !stop.candidate_errors.is_empty() {
+    if !sibling_errors.is_empty() {
         tracing::debug!(
-            skipped = stop.candidate_errors.len(),
-            errors = ?stop.candidate_errors,
+            skipped = sibling_errors.len(),
+            errors = ?sibling_errors,
             "recycle observed sibling PID-file record errors; not aborting restart"
         );
     }
@@ -204,39 +219,27 @@ impl DaemonRecycleHooks for LiveDaemonRecycleHooks {
         })
     }
 
+    #[cfg(unix)]
+    fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
+        let reports =
+            anvil_intercept::request_daemon_stop_all().map_err(|err| format!("{err:#}"))?;
+        Ok(daemon_stop_batch_from_reports(reports))
+    }
+
+    #[cfg(windows)]
     fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
         use anvil_intercept::StopOutcome;
 
-        #[cfg(unix)]
-        {
-            let reports =
-                anvil_intercept::request_daemon_stop_all().map_err(|err| format!("{err:#}"))?;
-            let mut pids = Vec::new();
-            let mut errors = Vec::new();
-            for report in reports {
-                match report.outcome {
-                    Ok(StopOutcome::Signalled { pid }) => pids.push(pid),
-                    Ok(StopOutcome::StaleCleared { .. } | StopOutcome::NotRunning) => {}
-                    Err(err) => errors.push(format!("{}: {err}", report.pid_file.display())),
-                }
+        match anvil_intercept::request_daemon_stop() {
+            Ok(StopOutcome::Signalled { pid }) => Ok(DaemonStopBatch {
+                signalled_pids: vec![pid],
+                canonical_error: None,
+                sibling_errors: Vec::new(),
+            }),
+            Ok(StopOutcome::StaleCleared { .. } | StopOutcome::NotRunning) => {
+                Ok(DaemonStopBatch::default())
             }
-            Ok(DaemonStopBatch {
-                signalled_pids: pids,
-                candidate_errors: errors,
-            })
-        }
-        #[cfg(windows)]
-        {
-            match anvil_intercept::request_daemon_stop() {
-                Ok(StopOutcome::Signalled { pid }) => Ok(DaemonStopBatch {
-                    signalled_pids: vec![pid],
-                    candidate_errors: Vec::new(),
-                }),
-                Ok(StopOutcome::StaleCleared { .. } | StopOutcome::NotRunning) => {
-                    Ok(DaemonStopBatch::default())
-                }
-                Err(err) => Err(format!("{err:#}")),
-            }
+            Err(err) => Err(format!("{err:#}")),
         }
     }
 
@@ -260,6 +263,28 @@ impl DaemonRecycleHooks for LiveDaemonRecycleHooks {
             }
         }
     }
+}
+
+#[cfg(unix)]
+fn daemon_stop_batch_from_reports(reports: Vec<anvil_intercept::StopReport>) -> DaemonStopBatch {
+    use anvil_intercept::StopOutcome;
+
+    let mut batch = DaemonStopBatch::default();
+    for (index, report) in reports.into_iter().enumerate() {
+        match report.outcome {
+            Ok(StopOutcome::Signalled { pid }) => batch.signalled_pids.push(pid),
+            Ok(StopOutcome::StaleCleared { .. } | StopOutcome::NotRunning) => {}
+            Err(error) => {
+                let error = format!("{}: {error}", report.pid_file.display());
+                if index == 0 {
+                    batch.canonical_error = Some(error);
+                } else {
+                    batch.sibling_errors.push(error);
+                }
+            }
+        }
+    }
+    batch
 }
 
 #[cfg(any(unix, windows))]
@@ -303,7 +328,8 @@ mod tests {
         running: Option<RunningDaemon>,
         stop_pids: Vec<u32>,
         stop_err: Option<String>,
-        stop_candidate_errors: Vec<String>,
+        stop_canonical_error: Option<String>,
+        stop_sibling_errors: Vec<String>,
         wait_ok: bool,
         gone_after_stop: bool,
         start_after: Result<String, String>,
@@ -316,7 +342,8 @@ mod tests {
                 running: None,
                 stop_pids: Vec::new(),
                 stop_err: None,
-                stop_candidate_errors: Vec::new(),
+                stop_canonical_error: None,
+                stop_sibling_errors: Vec::new(),
                 wait_ok: false,
                 gone_after_stop: false,
                 start_after: Err("start not configured".into()),
@@ -367,7 +394,8 @@ mod tests {
             }
             Ok(DaemonStopBatch {
                 signalled_pids: self.stop_pids.clone(),
-                candidate_errors: self.stop_candidate_errors.clone(),
+                canonical_error: self.stop_canonical_error.clone(),
+                sibling_errors: self.stop_sibling_errors.clone(),
             })
         }
 
@@ -428,7 +456,7 @@ mod tests {
     fn recycle_waits_for_signalled_daemons_then_starts_despite_sibling_record_error() {
         let mut hooks = RecordingHooks::skewed();
         hooks.stop_pids = vec![4242];
-        hooks.stop_candidate_errors = vec!["sibling PID was unproven".into()];
+        hooks.stop_sibling_errors = vec!["sibling PID was unproven".into()];
         let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
         assert!(matches!(outcome, DaemonRecycleOutcome::Recycled { .. }));
         assert_eq!(
@@ -440,6 +468,60 @@ mod tests {
             ],
             "sibling PID-file record errors must not abort restart after a signalled daemon exits",
         );
+    }
+
+    #[test]
+    fn recycle_waits_but_does_not_restart_after_canonical_pid_refusal() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.stop_pids = vec![4343];
+        hooks.stop_canonical_error = Some("canonical PID instruction is unsafe".into());
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert!(
+            matches!(
+                outcome,
+                DaemonRecycleOutcome::Failed { ref recovery, .. }
+                    if recovery.contains("canonical PID instruction is unsafe")
+            ),
+            "canonical refusal must fail recycle: {outcome:?}",
+        );
+        assert_eq!(
+            hooks.calls(),
+            vec![RecycleCall::Stop, RecycleCall::Wait(4343)],
+            "recycle must wait for an already-signalled sibling but never restart after canonical refusal",
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stop_batch_preserves_canonical_and_sibling_error_identity() {
+        use std::path::PathBuf;
+
+        use anvil_intercept::{StopOutcome, StopReport};
+
+        let batch = daemon_stop_batch_from_reports(vec![
+            StopReport {
+                pid_file: PathBuf::from("/runtime/anvil/intercept.pid"),
+                outcome: Err("canonical PID instruction is unsafe".into()),
+            },
+            StopReport {
+                pid_file: PathBuf::from("/state/anvil/intercept.pid"),
+                outcome: Ok(StopOutcome::Signalled { pid: 4343 }),
+            },
+            StopReport {
+                pid_file: PathBuf::from("/legacy/anvil/intercept.pid"),
+                outcome: Err("sibling PID was unproven".into()),
+            },
+        ]);
+
+        assert_eq!(batch.signalled_pids, vec![4343]);
+        assert!(
+            batch
+                .canonical_error
+                .as_deref()
+                .is_some_and(|error| error.contains("canonical PID instruction is unsafe")),
+        );
+        assert_eq!(batch.sibling_errors.len(), 1);
+        assert!(batch.sibling_errors[0].contains("sibling PID was unproven"));
     }
 
     #[test]

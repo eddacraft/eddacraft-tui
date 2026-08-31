@@ -903,7 +903,14 @@ impl PidFileGuard {
     }
 
     fn create_identity(path: &Path) -> std::io::Result<PidFileIdentity> {
-        let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(path)?;
         let record = write_pid_record(&mut file)?;
         PidFileIdentity::from_file(&file, record)
     }
@@ -1236,7 +1243,11 @@ fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus)
 pub fn request_daemon_stop() -> Result<StopOutcome> {
     #[cfg(unix)]
     {
-        let reports = request_daemon_stop_all()?;
+        let reports = stop_daemon_candidates(
+            resolve_daemon_stop_candidates()?,
+            CanonicalStopError::Return,
+            stop_daemon_at,
+        )?;
         Ok(summarise_stop_reports(&reports))
     }
     #[cfg(windows)]
@@ -1254,35 +1265,57 @@ pub struct StopReport {
     /// [`request_daemon_stop_all`] is always the canonical path.
     pub pid_file: PathBuf,
     /// What happened at that path, or the reason it could not be acted on.
-    /// A sibling candidate that cannot be proven never fails the whole stop.
+    /// Each candidate is reported so batch callers can finish best-effort work.
     pub outcome: Result<StopOutcome, String>,
 }
 
 /// Stop every intercept daemon reachable across the PID-file candidates,
 /// reporting each candidate separately.
 ///
-/// The canonical candidate is authoritative: if it cannot be acted on, the
-/// whole call fails. A non-canonical candidate that is malformed, unprovable,
-/// or sits under a directory that fails the owner-only gate is recorded as an
-/// error in its own [`StopReport`] and skipped — a stale or planted file in a
-/// directory this process's environment does not govern must never be able to
-/// fail a stop the canonical daemon already honoured.
+/// A candidate that is malformed, unprovable, or fails an owner-only gate is
+/// recorded as an error in its own [`StopReport`] and skipped. Legacy callers
+/// that require the canonical candidate to succeed use [`request_daemon_stop`],
+/// which preserves its fail-closed behaviour after collecting every report.
 #[cfg(unix)]
 pub fn request_daemon_stop_all() -> Result<Vec<StopReport>> {
-    let candidates = match crate::ipc::resolve_pid_file_connect_candidates() {
+    stop_daemon_candidates(
+        resolve_daemon_stop_candidates()?,
+        CanonicalStopError::Report,
+        stop_daemon_at,
+    )
+}
+
+#[cfg(unix)]
+fn resolve_daemon_stop_candidates() -> Result<Vec<PathBuf>> {
+    Ok(match crate::ipc::resolve_pid_file_connect_candidates() {
         Ok(paths) if !paths.is_empty() => paths,
         _ => vec![default_pid_file_path()?],
-    };
+    })
+}
+
+#[cfg(unix)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CanonicalStopError {
+    Return,
+    Report,
+}
+
+#[cfg(unix)]
+fn stop_daemon_candidates(
+    candidates: Vec<PathBuf>,
+    canonical_error: CanonicalStopError,
+    mut stop: impl FnMut(&Path) -> Result<StopOutcome>,
+) -> Result<Vec<StopReport>> {
     let mut reports = Vec::with_capacity(candidates.len());
     for (index, path) in candidates.into_iter().enumerate() {
-        match stop_daemon_at(&path) {
+        match stop(&path) {
             Ok(outcome) => reports.push(StopReport {
                 pid_file: path,
                 outcome: Ok(outcome),
             }),
-            // Canonical is this process's own daemon: a failure there is the
-            // caller's failure.
-            Err(err) if index == 0 => return Err(err),
+            Err(err) if index == 0 && canonical_error == CanonicalStopError::Return => {
+                return Err(err);
+            }
             Err(err) => reports.push(StopReport {
                 pid_file: path,
                 outcome: Err(format!("{err:#}")),
@@ -1390,6 +1423,7 @@ fn validate_pid_file_identity_for_read(
     path: &Path,
     is_regular: bool,
     file_uid: u32,
+    file_mode: u32,
     expected_uid: u32,
 ) -> Result<()> {
     if !is_regular {
@@ -1401,6 +1435,17 @@ fn validate_pid_file_identity_for_read(
             path.display(),
             file_uid,
             expected_uid,
+        );
+    }
+    if file_mode & 0o022 != 0 {
+        anyhow::bail!(
+            "refusing group/world-writable PID file {} (mode {:o}): another user could have \
+             rewritten the signal instruction; treat this PID record as untrusted, identify and \
+             stop the daemon independently, remove '{}', then run `anvil start` to create a new \
+             owner-only PID file",
+            path.display(),
+            file_mode & 0o777,
+            path.display(),
         );
     }
     Ok(())
@@ -1437,6 +1482,7 @@ fn read_pid_file_for_stop(path: &Path) -> Result<Option<String>> {
         path,
         metadata.is_file(),
         metadata.uid(),
+        metadata.permissions().mode(),
         geteuid().as_raw(),
     )?;
     let mut record = String::new();
@@ -2941,6 +2987,7 @@ mod tests {
             Path::new("/runtime/anvil/intercept.pid"),
             true,
             foreign_uid,
+            0o600,
             expected_uid,
         )
         .expect_err("foreign-owned PID file must be refused");
@@ -2958,6 +3005,7 @@ mod tests {
             Path::new("/runtime/anvil/intercept.pid"),
             false,
             expected_uid,
+            0o600,
             expected_uid,
         )
         .expect_err("non-regular PID file must be refused");
@@ -2965,6 +3013,80 @@ mod tests {
             err.to_string().contains("not a regular file"),
             "unexpected error: {err:#}",
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pid_file_identity_policy_accepts_non_writable_group_and_world_modes() {
+        let expected_uid = geteuid().as_raw();
+        for mode in [0o600, 0o640, 0o644] {
+            validate_pid_file_identity_for_read(
+                Path::new("/runtime/anvil/intercept.pid"),
+                true,
+                expected_uid,
+                mode,
+                expected_uid,
+            )
+            .unwrap_or_else(|err| panic!("mode {mode:o} should remain valid: {err:#}"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pid_file_guard_creates_owner_only_signal_instruction() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700))
+            .expect("secure PID directory");
+        let pid_file = dir.path().join("intercept.pid");
+
+        let guard = PidFileGuard::acquire(&pid_file).expect("create PID guard");
+        let mode = fs::metadata(&pid_file)
+            .expect("stat PID file")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "new PID instructions must be owner-only");
+        drop(guard);
+    }
+
+    /// CIB-382: the opened PID inode is a signal-delivery instruction. Even
+    /// under an owner-matched, non-writable parent, another local principal
+    /// must not be able to rewrite that instruction through group/other write
+    /// permission before it is parsed.
+    #[cfg(unix)]
+    #[test]
+    fn stop_daemon_refuses_group_or_world_writable_pid_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        for mode in [0o620, 0o602, 0o622] {
+            let dir = tempfile::tempdir().expect("tempdir");
+            fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755))
+                .expect("accepted parent mode");
+            let pid_file = dir.path().join("intercept.pid");
+            fs::write(&pid_file, "2147483646\nstart_time=1\n").expect("write stale PID file");
+            fs::set_permissions(&pid_file, fs::Permissions::from_mode(mode))
+                .expect("set writable PID mode");
+
+            let err = stop_daemon_at(&pid_file)
+                .expect_err("group/world-writable PID file must be refused");
+            let message = format!("{err:#}");
+            assert!(
+                message.contains("refusing group/world-writable PID file"),
+                "unexpected error for mode {mode:o}: {message}",
+            );
+            assert!(
+                !message.contains("chmod"),
+                "tightening permissions cannot authenticate tainted contents: {message}",
+            );
+            assert!(
+                message.contains("remove") && message.contains("anvil start"),
+                "recovery must replace the tainted inode through a fresh daemon start: {message}",
+            );
+            assert!(
+                pid_file.exists(),
+                "refusal must not consume the untrusted instruction for mode {mode:o}",
+            );
+        }
     }
 
     /// MF-4: the PID file is a signal-delivery instruction, so a parent another
@@ -3074,6 +3196,44 @@ mod tests {
             StopOutcome::Signalled { pid: 9 },
             "a live daemon that was signalled outranks a cleared stale file",
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_refusal_stops_legacy_callers_but_batch_reporting_continues() {
+        use std::cell::Cell;
+
+        let candidates = vec![
+            PathBuf::from("/canonical/intercept.pid"),
+            PathBuf::from("/sibling/intercept.pid"),
+        ];
+        let legacy_calls = Cell::new(0);
+        let err = stop_daemon_candidates(candidates.clone(), CanonicalStopError::Return, |_| {
+            legacy_calls.set(legacy_calls.get() + 1);
+            Err(anyhow::anyhow!("canonical PID instruction is unsafe"))
+        })
+        .expect_err("legacy callers must reject an unsafe canonical record");
+        assert_eq!(err.to_string(), "canonical PID instruction is unsafe");
+        assert_eq!(legacy_calls.get(), 1, "legacy stop must not reach siblings");
+
+        let batch_calls = Cell::new(0);
+        let reports = stop_daemon_candidates(candidates, CanonicalStopError::Report, |_| {
+            let call = batch_calls.get();
+            batch_calls.set(call + 1);
+            if call == 0 {
+                Err(anyhow::anyhow!("canonical PID instruction is unsafe"))
+            } else {
+                Ok(StopOutcome::NotRunning)
+            }
+        })
+        .expect("batch stop reports candidate failures");
+        assert_eq!(
+            batch_calls.get(),
+            2,
+            "batch stop must visit every candidate"
+        );
+        assert!(reports[0].outcome.is_err());
+        assert_eq!(reports[1].outcome, Ok(StopOutcome::NotRunning));
     }
 
     // V060F-004: runtime check on the macOS CI leg — the helper must

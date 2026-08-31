@@ -225,6 +225,20 @@ fn stop_result_json(
     })
 }
 
+#[cfg(unix)]
+fn ensure_canonical_stop_report_complete(reports: &[anvil_intercept::StopReport]) -> Result<()> {
+    let Some(canonical) = reports.first() else {
+        anyhow::bail!("intercept daemon stop produced no canonical candidate report");
+    };
+    if let Err(error) = &canonical.outcome {
+        anyhow::bail!(
+            "intercept daemon stop refused canonical candidate {}: {error}",
+            canonical.pid_file.display(),
+        );
+    }
+    Ok(())
+}
+
 #[cfg(any(unix, windows))]
 fn run_stop(json_mode: bool) -> Result<()> {
     use anvil_intercept::StopOutcome;
@@ -257,7 +271,11 @@ fn run_stop(json_mode: bool) -> Result<()> {
         #[cfg(unix)]
         {
             crate::output::json::print(&stop_result_json(&outcome, registered, &reports))?;
-            return Ok(());
+            return if ensure_canonical_stop_report_complete(&reports).is_ok() {
+                Ok(())
+            } else {
+                Err(crate::output::AlreadyReported.into())
+            };
         }
         #[cfg(windows)]
         {
@@ -320,6 +338,7 @@ fn run_stop(json_mode: bool) -> Result<()> {
                 println!("  skipped {}: {err}", report.pid_file.display());
             }
         }
+        ensure_canonical_stop_report_complete(&reports)?;
     }
     Ok(())
 }

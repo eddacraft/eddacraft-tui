@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-08-31 for CIB-382's physical-identity Unix rendezvous repair, complete canonical-refusal JSON, and trusted writable-PID recovery. Also reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -326,9 +326,12 @@ drifted owned entries and poke live children) unless MCP heal is pinned. The
 `$HOME/.local/state/anvil/intercept.sock`) is missing but a sibling under the
 other prefix is live; `--fix` stops that sibling daemon and starts one at the
 canonical socket. It does not follow socket symlinks and does not cross an
-`ANVIL_HOME` prefix. Cleanup holds the daemon start and PID locks and re-probes
-before unlinking, so a live or concurrently rebound socket blocks the fix
-instead of being removed.
+`ANVIL_HOME` prefix. Cleanup resolves each verified candidate directory to its
+physical path and serialises the sorted, deduplicated set through one repair
+lock. It then holds the daemon start and PID locks and re-probes before
+unlinking. A live or concurrently rebound socket blocks the fix instead of being
+removed; opposite canonical ordering and ancestor aliases cannot deadlock two
+repairs.
 
 **Synopsis:** `anvil doctor [--fix]`
 
@@ -1001,12 +1004,18 @@ In JSON mode, `stop` retains the aggregate `outcome`, `pid`, and
 `registered_losing_protection` fields. It also emits `result` (`complete` or
 `partial-failure`), `partial_failure`, and a `candidates` array containing each
 PID path's outcome, PID, and error. Any unresolved candidate sets
-`partial_failure: true` for observability; the command still exits 0 after the
-canonical candidate was acted on.
+`partial_failure: true` for observability. A refused canonical PID instruction
+exits 1 after emitting the complete document; an unresolved sibling remains
+visible but does not change exit 0 after the canonical candidate was acted on.
 
 **Common errors:**
 
 - Daemon not running: start with `anvil intercept start --foreground`.
+- Unsafe Unix PID file: `stop` refuses a group- or world-writable PID signal
+  instruction before parsing it. Treat the existing inode and contents as
+  tainted: identify and stop the daemon through an independently trusted
+  mechanism, remove `<PID_PATH>`, then run `anvil start` so the daemon creates a
+  new owner-only PID file. Do not make the old inode acceptable with `chmod`.
 
 **Examples:**
 
