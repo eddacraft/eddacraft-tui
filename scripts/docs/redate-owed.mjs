@@ -89,6 +89,14 @@ export function rewriteFreshness(existing, { date, note }) {
   return squash(`Last reviewed ${date} ${note} Prior review: ${trimmed}`);
 }
 
+/**
+ * Run one gate and take its JSON report.
+ *
+ * No `--head` is threaded through (CIB-383 added one to both gates): that flag
+ * exists for CI, where `actions/checkout` leaves HEAD on `refs/pull/N/merge`.
+ * This tool re-dates and commits, so it only ever runs on a real branch and the
+ * gates' `HEAD` default is the correct tip by construction.
+ */
 async function runGate(root, script, args) {
   try {
     const { stdout } = await execFileAsync(
