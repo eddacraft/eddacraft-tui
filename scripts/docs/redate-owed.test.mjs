@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { findFreshnessCell, rewriteFreshness, tableCells } from './redate-owed.mjs';
+import {
+  findFreshnessCell,
+  hasUnescapedPipe,
+  rewriteFreshness,
+  tableCells,
+} from './redate-owed.mjs';
 
 const metadataTable = [
   '# Example',
@@ -85,4 +90,21 @@ test('rewriteFreshness collapses whitespace so the markdown table stays one row'
     note: 'Note.',
   });
   assert.ok(!rewritten.includes('\n'));
+});
+
+test('hasUnescapedPipe catches a note that would break the metadata table', () => {
+  assert.equal(hasUnescapedPipe('no pipes here'), false);
+  assert.equal(hasUnescapedPipe('adds a | column'), true);
+  assert.equal(hasUnescapedPipe('|leading pipe'), true);
+  assert.equal(hasUnescapedPipe('escaped \\| pipe is fine'), false);
+});
+
+test('a rejected note leaves the metadata table with its five columns', () => {
+  // The guard exists because the note is joined back with ' | ': an unescaped
+  // pipe silently adds a column to every document in the cascade.
+  const note = 'broke | it';
+  assert.equal(hasUnescapedPipe(note), true);
+  const cells = [...findFreshnessCell(metadataTable).cells];
+  cells[4] = rewriteFreshness(cells[4], { date: '2026-08-31', note });
+  assert.equal(`| ${cells.join(' | ')} |`.split('|').length - 2, 6);
 });

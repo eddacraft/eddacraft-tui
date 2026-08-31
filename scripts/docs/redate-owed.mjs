@@ -24,11 +24,19 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { resolve } from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import { parseArgs, promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 const SURFACE = 'redate-owed';
 const DEFAULT_MAX_ROUNDS = 6;
+
+/**
+ * A `|` that markdown would read as a column break — one not already escaped.
+ */
+export function hasUnescapedPipe(value) {
+  return /(^|[^\\])\|/u.test(value);
+}
 
 export function tableCells(line) {
   return line
@@ -204,6 +212,17 @@ export async function runRedateCli(argv = process.argv.slice(2)) {
     process.stderr.write(`[${SURFACE}] --write requires a non-empty --note\n`);
     return 2;
   }
+  // The note lands in a markdown table cell, so a bare `|` would add columns and
+  // corrupt the DOCGOV-002 metadata table — across every document in the
+  // cascade. Refuse before writing anything rather than escaping silently: the
+  // note is written verbatim, so altering it is not this tool's call.
+  if (values.note && hasUnescapedPipe(values.note)) {
+    process.stderr.write(
+      `[${SURFACE}] --note may not contain an unescaped '|' — it would break the ` +
+        `metadata table. Write it as '\\|' for a literal pipe.\n`
+    );
+    return 2;
+  }
   const maxRounds = Number.parseInt(values['max-rounds'] ?? `${DEFAULT_MAX_ROUNDS}`, 10);
   if (!Number.isInteger(maxRounds) || maxRounds < 1) {
     process.stderr.write(`[${SURFACE}] --max-rounds must be a positive integer\n`);
@@ -277,7 +296,7 @@ export async function runRedateCli(argv = process.argv.slice(2)) {
   return 1;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     process.exit(await runRedateCli());
   } catch (error) {
