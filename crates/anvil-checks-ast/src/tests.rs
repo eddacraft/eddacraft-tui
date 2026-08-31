@@ -1007,6 +1007,20 @@ fn py011_fires_on_builtins_compile_dynamic() {
 }
 
 #[test]
+fn py011_fires_on_compile_alias_and_dunder_builtins() {
+    assert!(fires(
+        "src/app.py",
+        "from builtins import compile as build\nbuild(src, '<s>', 'exec')\n",
+        "PY-011"
+    ));
+    assert!(fires(
+        "src/app.py",
+        "__builtins__.compile(src, '<s>', 'exec')\n",
+        "PY-011"
+    ));
+}
+
+#[test]
 fn py011_silent_on_re_compile() {
     assert!(!fires("src/app.py", "re.compile(pat)\n", "PY-011"));
 }
