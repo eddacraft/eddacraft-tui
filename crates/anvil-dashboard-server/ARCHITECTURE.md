@@ -1,8 +1,8 @@
 # anvil dashboard server architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                |
-| ------------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DASH  | Live   | Last reviewed 2026-08-28 against PR #4194's Windows concurrent OpenAPI export repair; server and OpenAPI topology and diagrams unchanged |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                              |
+| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Derived   | DASH  | Live   | Last reviewed 2026-08-31 against CIB-389 `skipped` gate-history status in `src/capabilities/history.rs`; capability and access-flow diagrams unchanged |
 
 | Upstream                                                                                                                                        | Downstream                                          |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |

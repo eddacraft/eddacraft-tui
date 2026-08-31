@@ -24,6 +24,15 @@ pub const MAX_FILE_ENTRIES: usize = 10_000;
 /// (ADR-125).
 pub const WORKSPACE_ROOT_NOT_ADMITTED: &str = "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository";
 
+/// Whether a GCTX `NotReady` recovery hint still warrants an on-demand re-warm.
+///
+/// A platform with no symbol parser cannot populate the graph (CIB-385).
+/// Retrying would loop a scan that `prepare_scan` now refuses to enqueue.
+#[must_use]
+pub(crate) fn should_rewarm_not_ready(recovery_hint: &str) -> bool {
+    !recovery_hint.contains("no symbol parser")
+}
+
 /// Validate that `workspace_root` is an admitted MCP workspace for
 /// `server_root`. Returns the canonicalised `(server_root, workspace_root)`
 /// pair on success.
@@ -591,6 +600,14 @@ pub fn category_str(category: WarningCategory) -> &'static str {
 mod tests {
     use super::*;
     use anvil_checks::antipattern::{Confidence, Location, Suppression, SuppressionScope};
+
+    #[test]
+    fn rewarm_skips_the_platform_parser_cap() {
+        assert!(should_rewarm_not_ready("the workspace graph is warming"));
+        assert!(!should_rewarm_not_ready(
+            "graph-backed context is not available on this platform; the daemon has no symbol parser"
+        ));
+    }
 
     fn sample_warning(severity: WarningSeverity, suppressed: bool) -> Warning {
         Warning {

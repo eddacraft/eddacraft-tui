@@ -329,10 +329,15 @@ pub fn prepare_scan(
         let timeout_stale_readable = m.state() == AssuranceState::Stale
             && m.reason() == Some(StaleReason::ScanTimeout)
             && resident_graph_is_readable(&ctx.cache, key);
+        if ctx.parser.is_none() {
+            m.mark_stale(StaleReason::NoParserOnThisPlatform);
+        }
+        let no_parser = ctx.parser.is_none();
         // Explicit requests always (re)scan; opportunistic warm-ups skip an
-        // already-warm (or timeout-stale-but-readable) worktree.
-        let needs =
-            priority == ScanPriority::Interactive || !(already_warm || timeout_stale_readable);
+        // already-warm (or timeout-stale-but-readable) worktree. A daemon with
+        // no parser cannot warm — do not enqueue a scan that will abort.
+        let needs = !no_parser
+            && (priority == ScanPriority::Interactive || !(already_warm || timeout_stale_readable));
         if needs {
             m.request_full_scan(priority);
         }
@@ -1025,13 +1030,18 @@ mod tests {
         let ctx = ctx_with(None, DosCaps::default());
         let key = key_for(root);
         let machine = machine();
-        let job = prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background)
-            .expect("a cold worktree must enqueue a scan");
-        job.run();
+        assert!(
+            prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background).is_none(),
+            "a daemon with no parser must not enqueue a scan that will abort"
+        );
+        assert!(
+            prepare_scan(&ctx, &machine, &key, root, ScanPriority::Interactive).is_none(),
+            "interactive requests also cannot populate without a parser"
+        );
         assert_eq!(
             lock(&machine).state(),
             AssuranceState::Stale,
-            "no parser → stale, not clean"
+            "no parser → stale, not pending or clean"
         );
         assert_eq!(
             lock(&machine).reason(),

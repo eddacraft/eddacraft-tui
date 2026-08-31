@@ -1,8 +1,8 @@
 # anvil CLI architecture
 
-| Type         | Authority | Owner          | Status | Freshness                                                                                                                                                                            |
-| ------------ | --------- | -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-30 against CONF-011 `src/commands/conformance.rs` and its process tests; the existing CLI-to-checks dependency covers the new caller, so topology is unchanged |
+| Type         | Authority | Owner          | Status | Freshness                                                                                                                                                                         |
+| ------------ | --------- | -------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-31 against CIB-385 through CIB-389 pack-12 honesty (workspace-root binding, GCTX re-warm skip, gate-history `skipped`); CLI topology and diagrams unchanged |
 
 | Upstream                                                                                      | Downstream                                                                                              |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |

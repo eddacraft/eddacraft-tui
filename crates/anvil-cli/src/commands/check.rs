@@ -238,13 +238,12 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
     // toplevel (CIB-386), not the process cwd — a hook whose cwd is $HOME
     // must not pay that tree's cost for a file in another repo.
     let workspace_root = match source {
-        FileSource::Explicit => files.first().and_then(|path| {
+        FileSource::Explicit => args.files.first().and_then(|path| {
             let path = Path::new(path);
-            let hint = if path.is_file() {
-                path.parent().unwrap_or(path)
-            } else {
-                path
-            };
+            let hint = path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(path);
             resolve_workspace_root_in(Some(hint))
         }),
         FileSource::All | FileSource::Changed => resolve_workspace_root_in(None),
@@ -1080,9 +1079,10 @@ fn git_toplevel() -> Result<std::path::PathBuf> {
 }
 
 fn git_toplevel_in(dir: &Path) -> Result<std::path::PathBuf> {
+    let dir = crate::display_path::canonicalise(dir).unwrap_or_else(|_| dir.to_path_buf());
     let output = Command::new("git")
         .args(["-C"])
-        .arg(dir)
+        .arg(&dir)
         .args(["rev-parse", "--show-toplevel"])
         .output()
         .map_err(|e| anyhow::anyhow!("Failed to run git: {e}"))?;

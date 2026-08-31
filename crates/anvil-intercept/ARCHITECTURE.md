@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                   |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-31 for CIB-382 physical-identity rendezvous repair and descriptor-mode PID trust, live-probed dual-path Unix rendezvous, watch reconnect, locked daemon lifecycle repair, and MF-1 sibling PID-file record errors; transport, admission, egress, save-time, peer-admission topology, and diagrams otherwise unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                   |
+| ------------ | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-31 for CIB-385 no-parser graph honesty (stale reason, skip scan enqueue, GCTX recovery hints) after CIB-382 rendezvous and PID-trust repair; save/validation/fence diagrams unchanged |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -212,6 +212,8 @@ owns their cross-component client and capability relationship.
   notification cannot silently clear a successfully persisted safety posture.
 - Stale or unavailable graph assurance is surfaced as degraded evidence; it is
   never relabelled as fresh assurance and does not itself trigger a fence.
+- A daemon with no symbol parser reports `no-parser-on-this-platform` stale
+  assurance and does not enqueue a full scan that cannot populate the graph.
 
 The wider client-to-daemon sequence remains in the
 [driver framework as-built](../../docs/architecture/driver-framework-as-built.md).

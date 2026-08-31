@@ -1,8 +1,8 @@
 # anvil graph-cache architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                        |
-| ------------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | GV2   | Live   | Last reviewed 2026-08-29 against `src/lib.rs`, `src/incremental.rs`, ADR-064, ADR-063, ADR-069, ADR-077, ADR-105 |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                    |
+| ------------ | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | GV2   | Live   | Last reviewed 2026-08-31 against `crates/anvil-kernel-types/src/graph.rs` ordinal default (CIB-387); source-to-graph flow diagrams unchanged |
 
 | Upstream                                                                                                                 | Downstream                                                                |
 | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |

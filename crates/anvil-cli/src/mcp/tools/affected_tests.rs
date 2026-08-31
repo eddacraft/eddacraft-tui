@@ -25,7 +25,9 @@ use anvil_intercept_proto::protocol::{
 };
 
 use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
-use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
+use crate::mcp::tools::shared::{
+    redact_workspace_root, should_rewarm_not_ready, validate_workspace_root,
+};
 
 pub const TOOL_NAME: &str = "anvil_affected_tests";
 
@@ -146,7 +148,7 @@ fn parse_changed_files(arguments: &Value) -> Result<Vec<String>, String> {
 fn should_rewarm(outcome: &anvil_gctx_types::AffectedTestsOutcome) -> bool {
     use anvil_gctx_types::AffectedTestsOutcome as Outcome;
     match outcome {
-        Outcome::NotReady { .. } => true,
+        Outcome::NotReady { recovery_hint } => should_rewarm_not_ready(recovery_hint),
         Outcome::Ready(_)
         | Outcome::Unavailable
         | Outcome::Disabled
@@ -258,6 +260,11 @@ mod tests {
         assert!(!should_rewarm(&AffectedTestsOutcome::Disabled));
         assert!(!should_rewarm(&AffectedTestsOutcome::InvalidQuery {
             reason: "bad".into(),
+        }));
+        assert!(!should_rewarm(&AffectedTestsOutcome::NotReady {
+            recovery_hint:
+                "graph-backed context is not available on this platform; the daemon has no symbol parser"
+                    .into(),
         }));
     }
 

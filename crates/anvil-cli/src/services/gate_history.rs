@@ -86,7 +86,8 @@ pub(crate) fn load_recent(root: &Path, limit: usize) -> Vec<GateHistoryPoint> {
         .filter(|line| !line.iter().all(u8::is_ascii_whitespace))
         .filter_map(|line| serde_json::from_slice::<GateHistoryPoint>(line).ok())
         .filter(|point| {
-            matches!(point.status.as_str(), "pass" | "warn" | "fail") && point.score.is_finite()
+            matches!(point.status.as_str(), "pass" | "warn" | "fail" | "skipped")
+                && point.score.is_finite()
         })
         .collect();
     points.sort_by(|left, right| right.recorded_at.cmp(&left.recorded_at));
@@ -146,6 +147,23 @@ mod tests {
             ],
         );
         assert_eq!(load_recent(tmp.path(), 5).len(), 1);
+    }
+
+    #[test]
+    fn retains_skipped_zero_check_points() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        write_history(
+            tmp.path(),
+            &[
+                r#"{"recorded_at":"2026-08-18T10:00:00Z","score":0.0,"status":"skipped","status_label":"SKIPPED","warning_count":0,"duration_seconds":"0.1","checks_run":"0"}"#,
+                r#"{"recorded_at":"2026-08-17T19:41:45Z","score":100.0,"status":"pass","status_label":"PASSED","warning_count":0,"duration_seconds":"0.5","checks_run":"1"}"#,
+            ],
+        );
+        let points = load_recent(tmp.path(), 5);
+        assert_eq!(points.len(), 2);
+        assert_eq!(points[0].status, "skipped");
+        assert!((points[0].score - 0.0).abs() < f64::EPSILON);
+        assert_eq!(points[1].status, "pass");
     }
 
     #[test]

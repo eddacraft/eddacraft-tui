@@ -118,6 +118,21 @@ fn keeps_only_newest_500_valid_points_and_reports_the_cap_gap() {
 }
 
 #[test]
+fn retains_skipped_zero_check_points() {
+    let (_root, workspace) = workspace_with_history(Some(concat!(
+        "{\"recorded_at\":\"2026-07-01T12:00:00Z\",\"score\":0,\"status\":\"skipped\",\"status_label\":\"skipped\",\"warning_count\":0}\n",
+        "{\"recorded_at\":\"2026-07-02T12:00:00Z\",\"score\":100,\"status\":\"pass\",\"status_label\":\"pass\",\"warning_count\":0}\n"
+    )));
+    let history = load_protection_history(&workspace);
+
+    assert_eq!(history.data_state, DataState::Complete);
+    assert_eq!(history.points.len(), 2);
+    assert_eq!(history.points[0].status, "skipped");
+    assert!((history.points[0].score - 0.0).abs() < f64::EPSILON);
+    assert_eq!(history.points[1].status, "pass");
+}
+
+#[test]
 fn rejects_out_of_range_scores_without_hiding_valid_points() {
     let (_root, workspace) = workspace_with_history(Some(concat!(
         "{\"recorded_at\":\"2026-07-01T12:00:00Z\",\"score\":-1,\"status\":\"fail\",\"status_label\":\"negative\",\"warning_count\":1}\n",

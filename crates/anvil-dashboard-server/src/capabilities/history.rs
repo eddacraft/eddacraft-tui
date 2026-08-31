@@ -29,7 +29,7 @@ pub fn load_protection_history(workspace: &Workspace) -> ProtectionHistory {
         .filter_map(
             |line| match serde_json::from_slice::<ProtectionHistoryPoint>(line) {
                 Ok(point)
-                    if matches!(point.status.as_str(), "pass" | "warn" | "fail")
+                    if matches!(point.status.as_str(), "pass" | "warn" | "fail" | "skipped")
                         && point.score.is_finite()
                         && (0.0..=100.0).contains(&point.score)
                         && utc_sort_key(&point.recorded_at).is_some() =>

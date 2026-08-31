@@ -20,7 +20,9 @@ use anvil_intercept_proto::protocol::{
     WorkspaceAssurance,
 };
 
-use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
+use crate::mcp::tools::shared::{
+    redact_workspace_root, should_rewarm_not_ready, validate_workspace_root,
+};
 
 pub const TOOL_NAME: &str = "anvil_symbol_context";
 
@@ -167,7 +169,7 @@ fn snippet_egress_hint(
 fn should_rewarm(outcome: &anvil_gctx_types::SymbolContextOutcome) -> bool {
     use anvil_gctx_types::SymbolContextOutcome as Outcome;
     match outcome {
-        Outcome::NotReady { .. } => true,
+        Outcome::NotReady { recovery_hint } => should_rewarm_not_ready(recovery_hint),
         Outcome::Ready(_)
         | Outcome::Bounded(_)
         | Outcome::BudgetExceeded(_)
@@ -461,6 +463,11 @@ mod tests {
         assert!(!should_rewarm(&SymbolContextOutcome::Disabled));
         assert!(!should_rewarm(&SymbolContextOutcome::InvalidQuery {
             reason: "bad".into(),
+        }));
+        assert!(!should_rewarm(&SymbolContextOutcome::NotReady {
+            recovery_hint:
+                "graph-backed context is not available on this platform; the daemon has no symbol parser"
+                    .into(),
         }));
     }
 

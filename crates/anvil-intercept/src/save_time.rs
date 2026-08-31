@@ -2431,18 +2431,34 @@ fn implicit_scan_disabled(raw: Option<&str>) -> bool {
     raw.map(str::trim) == Some("0")
 }
 
-fn unpopulated_graph_recovery_hint(reason: Option<StaleReason>) -> String {
-    match reason {
-        Some(StaleReason::NoParserOnThisPlatform) => {
-            "graph-backed context is not available on this platform; the daemon has no symbol parser"
-                .to_string()
-        }
-        _ => concat!(
-            "the workspace graph is not yet populated; ",
-            "save a file or request a full scan to warm it"
-        )
-        .to_string(),
+const NO_PARSER_GRAPH_HINT: &str =
+    "graph-backed context is not available on this platform; the daemon has no symbol parser";
+const UNPOPULATED_GRAPH_HINT: &str = concat!(
+    "the workspace graph is not yet populated; ",
+    "save a file or request a full scan to warm it"
+);
+
+fn no_parser_or_fallback(
+    reason: Option<StaleReason>,
+    parser_absent: bool,
+    fallback: &str,
+) -> String {
+    if parser_absent || reason == Some(StaleReason::NoParserOnThisPlatform) {
+        return NO_PARSER_GRAPH_HINT.to_string();
     }
+    fallback.to_string()
+}
+
+fn unpopulated_graph_recovery_hint(reason: Option<StaleReason>, parser_absent: bool) -> String {
+    no_parser_or_fallback(reason, parser_absent, UNPOPULATED_GRAPH_HINT)
+}
+
+fn warming_or_no_parser_hint(
+    reason: Option<StaleReason>,
+    parser_absent: bool,
+    warming_hint: &str,
+) -> String {
+    no_parser_or_fallback(reason, parser_absent, warming_hint)
 }
 
 /// Compute the GCTX search outcome for an admitted root (GCTX-010 / ADR-084).
@@ -2488,8 +2504,11 @@ fn gctx_search_outcome(
         // restarted the 60s timeout loop.
         AssuranceState::Pending | AssuranceState::Running if assurance.generation == 0 => {
             SearchSymbolsOutcome::NotReady {
-                recovery_hint: "the workspace graph is warming; retry the search shortly"
-                    .to_string(),
+                recovery_hint: warming_or_no_parser_hint(
+                    assurance.reason,
+                    state.parser.is_none(),
+                    "the workspace graph is warming; retry the search shortly",
+                ),
             }
         }
         // DSV-045: `Bounded` is a *populated* (warm-but-truncated) graph — read
@@ -2518,7 +2537,10 @@ fn gctx_search_outcome(
                     }
                 }
                 None => SearchSymbolsOutcome::NotReady {
-                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                    recovery_hint: unpopulated_graph_recovery_hint(
+                        assurance.reason,
+                        state.parser.is_none(),
+                    ),
                 },
             }
         }
@@ -2568,8 +2590,11 @@ fn gctx_find_dependents_outcome(
     match assurance.state {
         AssuranceState::Unavailable | AssuranceState::Unknown => FindDependentsOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => FindDependentsOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry the traversal shortly"
-                .to_string(),
+            recovery_hint: warming_or_no_parser_hint(
+                assurance.reason,
+                state.parser.is_none(),
+                "the workspace graph is warming; retry the traversal shortly",
+            ),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // C2: collect under the lock, project after release.
@@ -2591,7 +2616,10 @@ fn gctx_find_dependents_outcome(
                     }
                 }
                 None => FindDependentsOutcome::NotReady {
-                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                    recovery_hint: unpopulated_graph_recovery_hint(
+                        assurance.reason,
+                        state.parser.is_none(),
+                    ),
                 },
             }
         }
@@ -2653,8 +2681,11 @@ fn gctx_find_callers_outcome(
     match assurance.state {
         AssuranceState::Unavailable | AssuranceState::Unknown => FindCallersOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => FindCallersOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry the traversal shortly"
-                .to_string(),
+            recovery_hint: warming_or_no_parser_hint(
+                assurance.reason,
+                state.parser.is_none(),
+                "the workspace graph is warming; retry the traversal shortly",
+            ),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // A non-Clean graph may be missing call edges → the caller set is
@@ -2687,7 +2718,10 @@ fn gctx_find_callers_outcome(
                     }
                 }
                 None => FindCallersOutcome::NotReady {
-                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                    recovery_hint: unpopulated_graph_recovery_hint(
+                        assurance.reason,
+                        state.parser.is_none(),
+                    ),
                 },
             }
         }
@@ -2709,7 +2743,11 @@ fn gctx_graph_stats_outcome(
     match assurance.state {
         AssuranceState::Unavailable | AssuranceState::Unknown => GraphStatsOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => GraphStatsOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry shortly".to_string(),
+            recovery_hint: warming_or_no_parser_hint(
+                assurance.reason,
+                state.parser.is_none(),
+                "the workspace graph is warming; retry shortly",
+            ),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // C2: read the counts under the lock; the projection is counts-only.
@@ -2724,7 +2762,10 @@ fn gctx_graph_stats_outcome(
             match collected {
                 Some(projection) => GraphStatsOutcome::Ready(projection),
                 None => GraphStatsOutcome::NotReady {
-                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                    recovery_hint: unpopulated_graph_recovery_hint(
+                        assurance.reason,
+                        state.parser.is_none(),
+                    ),
                 },
             }
         }
@@ -2749,7 +2790,11 @@ fn gctx_graph_edges_outcome(
     match assurance.state {
         AssuranceState::Unavailable | AssuranceState::Unknown => GraphEdgesOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => GraphEdgesOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry shortly".to_string(),
+            recovery_hint: warming_or_no_parser_hint(
+                assurance.reason,
+                state.parser.is_none(),
+                "the workspace graph is warming; retry shortly",
+            ),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // C2: collect under the lock (symbol graph), project after release.
@@ -2769,7 +2814,10 @@ fn gctx_graph_edges_outcome(
                     }
                 }
                 None => GraphEdgesOutcome::NotReady {
-                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                    recovery_hint: unpopulated_graph_recovery_hint(
+                        assurance.reason,
+                        state.parser.is_none(),
+                    ),
                 },
             }
         }
@@ -3005,8 +3053,11 @@ fn gctx_impact_outcome(
     match assurance.state {
         AssuranceState::Unavailable | AssuranceState::Unknown => ImpactOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => ImpactOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry the impact query shortly"
-                .to_string(),
+            recovery_hint: warming_or_no_parser_hint(
+                assurance.reason,
+                state.parser.is_none(),
+                "the workspace graph is warming; retry the impact query shortly",
+            ),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // C2: collect under the lock (both graphs), project after release. The
@@ -3018,7 +3069,10 @@ fn gctx_impact_outcome(
             match collected {
                 Some(collected) => ImpactOutcome::Ready(GctxProjector::project_impact(collected)),
                 None => ImpactOutcome::NotReady {
-                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                    recovery_hint: unpopulated_graph_recovery_hint(
+                        assurance.reason,
+                        state.parser.is_none(),
+                    ),
                 },
             }
         }
@@ -3061,8 +3115,11 @@ fn gctx_affected_tests_outcome(
     match assurance.state {
         AssuranceState::Unavailable | AssuranceState::Unknown => AffectedTestsOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => AffectedTestsOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry the affected-tests query shortly"
-                .to_string(),
+            recovery_hint: warming_or_no_parser_hint(
+                assurance.reason,
+                state.parser.is_none(),
+                "the workspace graph is warming; retry the affected-tests query shortly",
+            ),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // C2: collect under the lock (dependency graph only), project after
@@ -3077,7 +3134,10 @@ fn gctx_affected_tests_outcome(
                     AffectedTestsOutcome::Ready(GctxProjector::project_affected_tests(collected))
                 }
                 None => AffectedTestsOutcome::NotReady {
-                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                    recovery_hint: unpopulated_graph_recovery_hint(
+                        assurance.reason,
+                        state.parser.is_none(),
+                    ),
                 },
             }
         }
@@ -3195,8 +3255,11 @@ fn gctx_get_snippet_outcome(
     match assurance.state {
         AssuranceState::Unavailable | AssuranceState::Unknown => SnippetOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => SnippetOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry the snippet query shortly"
-                .to_string(),
+            recovery_hint: warming_or_no_parser_hint(
+                assurance.reason,
+                state.parser.is_none(),
+                "the workspace graph is warming; retry the snippet query shortly",
+            ),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // CE-3: omit gitignored files from snippet egress. Build the matcher
@@ -3215,7 +3278,10 @@ fn gctx_get_snippet_outcome(
             let location = match resolved {
                 None => {
                     return SnippetOutcome::NotReady {
-                        recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                        recovery_hint: unpopulated_graph_recovery_hint(
+                            assurance.reason,
+                            state.parser.is_none(),
+                        ),
                     };
                 }
                 Some(None) => return SnippetOutcome::SymbolNotFound,
@@ -3309,8 +3375,11 @@ fn gctx_symbol_context_outcome(
     match assurance.state {
         AssuranceState::Unavailable | AssuranceState::Unknown => SymbolContextOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => SymbolContextOutcome::NotReady {
-            recovery_hint: "the workspace graph is warming; retry the context query shortly"
-                .to_string(),
+            recovery_hint: warming_or_no_parser_hint(
+                assurance.reason,
+                state.parser.is_none(),
+                "the workspace graph is warming; retry the context query shortly",
+            ),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // CE-3: omit gitignored files from snippet/context egress. Built before
@@ -3342,7 +3411,10 @@ fn gctx_symbol_context_outcome(
             });
             let Some((candidates, locations)) = collected else {
                 return SymbolContextOutcome::NotReady {
-                    recovery_hint: unpopulated_graph_recovery_hint(assurance.reason),
+                    recovery_hint: unpopulated_graph_recovery_hint(
+                        assurance.reason,
+                        state.parser.is_none(),
+                    ),
                 };
             };
             let mut file_bytes = std::collections::HashMap::new();
@@ -5817,6 +5889,57 @@ mod tests {
             },
         );
         assert!(matches!(scheme, SearchSymbolsOutcome::InvalidQuery { .. }));
+    }
+
+    #[test]
+    fn unpopulated_hint_names_missing_parser_instead_of_save_a_file() {
+        let hint = unpopulated_graph_recovery_hint(None, true);
+        assert!(hint.contains("no symbol parser"));
+        assert!(!hint.contains("save a file"));
+        let hint =
+            unpopulated_graph_recovery_hint(Some(StaleReason::NoParserOnThisPlatform), false);
+        assert!(hint.contains("no symbol parser"));
+        let hint = unpopulated_graph_recovery_hint(None, false);
+        assert!(hint.contains("save a file"));
+    }
+
+    #[test]
+    fn warming_hint_names_missing_parser_instead_of_retry() {
+        let fallback = "the workspace graph is warming; retry the search shortly";
+        let hint = warming_or_no_parser_hint(None, true, fallback);
+        assert!(hint.contains("no symbol parser"));
+        assert!(!hint.contains("retry"));
+        let hint = warming_or_no_parser_hint(None, false, fallback);
+        assert_eq!(hint, fallback);
+    }
+
+    #[test]
+    fn gctx_search_pending_without_parser_names_the_platform_cap() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let pending = assurance(AssuranceState::Pending, None);
+        let outcome = gctx_search_outcome(
+            &state,
+            &key,
+            &pending,
+            &SearchSymbolsQuery::default(),
+            false,
+        );
+        match outcome {
+            SearchSymbolsOutcome::NotReady { recovery_hint } => {
+                assert!(
+                    recovery_hint.contains("no symbol parser"),
+                    "first-contact GCTX must not ask the operator to save a file: {recovery_hint}"
+                );
+                assert!(
+                    !recovery_hint.contains("save a file"),
+                    "platform-cap NotReady must not recommend a save-to-warm path: {recovery_hint}"
+                );
+            }
+            other => panic!("expected NotReady, got {other:?}"),
+        }
     }
 
     /// CE-11 kill-switch: a disabled surface egresses nothing even with a warm,
