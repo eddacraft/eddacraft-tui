@@ -486,6 +486,8 @@ pub(crate) struct TuiConsentApplyOutcome {
     pub registry_installs: Vec<RegistryInstallRow>,
     pub first_wave_mcp_lines: Vec<String>,
     pub first_wave_mcp_errors: Vec<String>,
+    /// Managed skills installed for the MCP clients chosen this run.
+    pub skill_install_lines: Vec<String>,
 }
 
 impl TuiConsentPlan {
@@ -585,6 +587,9 @@ impl TuiConsentPlan {
             .map(RegistryInstallRow::line)
             .collect();
 
+        let skill_install_lines =
+            self.install_skills_for_selected_mcp(&selected, &selected_candidates);
+
         TuiConsentApplyOutcome {
             install_report,
             written_workflows,
@@ -596,7 +601,68 @@ impl TuiConsentPlan {
             registry_installs,
             first_wave_mcp_lines,
             first_wave_mcp_errors,
+            skill_install_lines,
         }
+    }
+
+    fn install_skills_for_selected_mcp(
+        &self,
+        selected: &BTreeSet<&str>,
+        selected_candidates: &std::collections::BTreeMap<
+            crate::activation::diagnostic::McpClientId,
+            install::Candidate,
+        >,
+    ) -> Vec<String> {
+        use crate::activation::mcp_client::ConfigScope;
+
+        let mut project_clients = Vec::new();
+        let mut global_clients = Vec::new();
+        for candidate in selected_candidates.values() {
+            match candidate.scope {
+                ConfigScope::Workspace => {
+                    if !self.project_writes_gated {
+                        project_clients.push(candidate.id);
+                    }
+                }
+                ConfigScope::Global => global_clients.push(candidate.id),
+            }
+        }
+        for (id, candidate) in &self.registry_mcp_candidates {
+            if !selected.contains(id.as_str()) {
+                continue;
+            }
+            match candidate.scope {
+                InstallScope::Project => {
+                    if !self.project_writes_gated {
+                        project_clients.push(candidate.client);
+                    }
+                }
+                InstallScope::Global => global_clients.push(candidate.client),
+            }
+        }
+        project_clients.sort();
+        project_clients.dedup();
+        global_clients.sort();
+        global_clients.dedup();
+
+        let mut lines = Vec::new();
+        if !project_clients.is_empty() {
+            lines.extend(crate::commands::skill::install_for_activation(
+                &project_clients,
+                InstallScope::Project,
+                self.root.as_path(),
+            ));
+        }
+        if !global_clients.is_empty() {
+            if let Some(home) = self.home.as_deref() {
+                lines.extend(crate::commands::skill::install_for_activation(
+                    &global_clients,
+                    InstallScope::Global,
+                    home,
+                ));
+            }
+        }
+        lines
     }
 
     fn apply_registry_mcp_candidates(&self, selected: &BTreeSet<&str>) -> Vec<RegistryInstallRow> {

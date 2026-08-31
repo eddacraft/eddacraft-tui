@@ -1139,6 +1139,9 @@ fn activation_install_rows(
         for row in &applied.registry_installs {
             rows.push(format!("{}: {}", row.display_name, row.label()));
         }
+        for line in &applied.skill_install_lines {
+            rows.push(line.clone());
+        }
     }
     rows.extend(settled_mcp.iter().cloned());
     // "other" only reads honestly when something else is listed above it;
@@ -2418,6 +2421,7 @@ fn install_first_wave_mcp_clients_at(
         .to_str()
         .context("anvil executable path is not valid UTF-8")?;
     let mut lines = Vec::new();
+    let mut skill_clients = Vec::new();
     for client in clients {
         if args.mcp_scope == InstallScope::Global
             && matches!(client, AgentClientId::ClaudeCode | AgentClientId::Cursor)
@@ -2434,6 +2438,7 @@ fn install_first_wave_mcp_clients_at(
             }
             continue;
         }
+        skill_clients.push(client);
         match mcp_installer::install(client, args.mcp_scope, root, command, false, false) {
             Ok(report) => lines.push(format!(
                 "anvil: {} MCP config {} at {}",
@@ -2451,6 +2456,13 @@ fn install_first_wave_mcp_clients_at(
             )),
             Err(error) => return Err(error),
         }
+    }
+    if !skill_clients.is_empty() {
+        lines.extend(crate::commands::skill::install_for_activation(
+            &skill_clients,
+            args.mcp_scope,
+            root,
+        ));
     }
     Ok(lines)
 }
@@ -5761,11 +5773,42 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(lines.len(), 2);
+        assert_eq!(
+            lines
+                .iter()
+                .filter(|line| line.contains("MCP config"))
+                .count(),
+            2,
+            "two MCP receipts: {lines:?}"
+        );
         assert!(project.path().join(".mcp.json").exists());
         assert!(project.path().join(".cursor/mcp.json").exists());
         assert!(!home.path().join(".claude.json").exists());
         assert!(!home.path().join(".cursor/mcp.json").exists());
+        assert!(
+            project
+                .path()
+                .join(".claude/skills/anvil-developer-functions/SKILL.md")
+                .exists()
+        );
+        assert!(
+            project
+                .path()
+                .join(".claude/skills/using-anvil/SKILL.md")
+                .exists()
+        );
+        assert!(
+            project
+                .path()
+                .join(".cursor/skills/anvil-developer-functions/SKILL.md")
+                .exists()
+        );
+        assert!(
+            project
+                .path()
+                .join(".cursor/skills/using-anvil/SKILL.md")
+                .exists()
+        );
 
         reconcile_plain_mcp_diagnostic(
             project.path(),
@@ -5778,6 +5821,66 @@ mod tests {
             diagnostic.protection_state(),
             activation::state::ProtectionState::ReadyRestartRequired,
         );
+    }
+
+    #[test]
+    fn plain_mcp_client_installs_skills_for_codex() {
+        let project = tempfile::TempDir::new().unwrap();
+        let home = tempfile::TempDir::new().unwrap();
+        std::fs::write(project.path().join(".anvil.json"), r#"{"checks":[]}"#).unwrap();
+        let mut args = start_args_default();
+        args.mcp_scope = InstallScope::Project;
+        args.mcp_client = vec![AgentClientId::Codex];
+        let lines = install_first_wave_mcp_clients_at(
+            &args,
+            StartRenderMode::Plain,
+            Some(home.path()),
+            project.path(),
+            Path::new(activation::mcp_client::PREFERRED_MCP_COMMAND),
+        )
+        .unwrap();
+        assert!(
+            lines.iter().any(|line| line.contains("skills installed")),
+            "expected skill install receipt: {lines:?}"
+        );
+        assert!(
+            project
+                .path()
+                .join(".agents/skills/anvil-developer-functions/SKILL.md")
+                .exists()
+        );
+        assert!(
+            project
+                .path()
+                .join(".agents/skills/using-anvil/SKILL.md")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn plain_mcp_client_skips_skills_when_client_has_no_skill_root() {
+        let project = tempfile::TempDir::new().unwrap();
+        let home = tempfile::TempDir::new().unwrap();
+        std::fs::write(project.path().join(".anvil.json"), r#"{"checks":[]}"#).unwrap();
+        let mut args = start_args_default();
+        args.mcp_scope = InstallScope::Project;
+        args.mcp_client = vec![AgentClientId::Grok];
+        let lines = install_first_wave_mcp_clients_at(
+            &args,
+            StartRenderMode::Plain,
+            Some(home.path()),
+            project.path(),
+            Path::new(activation::mcp_client::PREFERRED_MCP_COMMAND),
+        )
+        .unwrap();
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("skipped") && line.contains("skills")),
+            "Grok has MCP but no skill root: {lines:?}"
+        );
+        assert!(!project.path().join(".agents/skills").exists());
+        assert!(!project.path().join(".grok/skills").exists());
     }
 
     #[test]

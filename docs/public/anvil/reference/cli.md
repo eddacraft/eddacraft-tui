@@ -123,8 +123,10 @@ Activate anvil in this repository.
 | `--mcp-scope`       | Scope for clients selected with --mcp-client (and first-wave install)                               |
 
 Interactive `anvil start` offers every installable MCP client (unticked by
-default). Scripted multi-client install uses `--mcp-client <id>` (repeatable),
-`--all-mcp-clients`, and `--mcp-scope global|project`. Discover client ids with
+default). Selecting a client also installs the managed skills when that client
+has a documented skill location. Scripted multi-client install uses
+`--mcp-client <id>` (repeatable), `--all-mcp-clients`, and
+`--mcp-scope global|project`. Discover client ids with
 `anvil mcp install --help`.
 
 ### `anvil check`

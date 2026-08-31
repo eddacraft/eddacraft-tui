@@ -13,6 +13,11 @@ engineering maintenance are recorded in the
 
 ### Added
 
+- **`anvil start` installs managed skills for chosen MCP clients.** Ticking a
+  client (or passing `--mcp-client`) now writes the bundled skills at that
+  client's skill root, not only the MCP config. Clients with no skill location
+  (for example Grok) are skipped without failing activation.
+
 - **`anvil skill install` also writes `using-anvil`.** The managed installer
   already shipped `anvil-developer-functions`. The companion setup/CLI skill was
   vendored in the binary but never installed, so agents could not load the

@@ -37,6 +37,10 @@ does not, upgrade and re-check help before following the rest of this page.
 
 ## Install the managed skills
 
+`anvil start` installs these skills for every MCP client you tick (or pass with
+`--mcp-client`). Clients with no documented skill location are skipped without
+failing activation. Repeat or repair with:
+
 Open the subcommand help on the same binary for the current client ids, scope,
 verify, and dry-run flags:
 
@@ -84,7 +88,10 @@ managed.
 Skills and MCP are complementary:
 
 1. Configure the client with [MCP integration](mcp.md) so it can call anvil.
-2. Install the skill so the client has a maintained procedure for those tools.
+   Interactive `anvil start` also installs the managed skills for the MCP
+   clients you choose.
+2. Repair or refresh later with `anvil skill install` if doctor reports stale or
+   unmanaged skill copies.
 3. Verify protection with `anvil start --verify`. On later days, bare `anvil`
    turns protection on without reinstalling.
 

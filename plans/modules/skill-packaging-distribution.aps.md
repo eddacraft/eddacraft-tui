@@ -263,6 +263,25 @@ skill.
 - **Validation:** `cargo test -p eddacraft-anvil --test skill_install --no-fail-fast`
 - **Confidence:** high
 
+### SKPKG-011: `anvil start` installs skills for chosen MCP clients
+
+- **Status:** In Progress
+- **Intent:** When the operator selects MCP clients on `anvil start` (TUI
+  consent ticks, `--mcp-client`, or `--all-mcp-clients`), also install the
+  managed skill bundle for those clients at the same scope. Skip clients with
+  no documented skill root without failing activation.
+- **Expected Outcome:** Choosing Codex/Claude/Cursor on start writes
+  `anvil-developer-functions` and `using-anvil` beside that client's MCP
+  config. Grok (MCP-only) is skipped with a receipt line. Unmanaged skill
+  directories skip rather than abort start. `--verify` / `--json` / `--no-mcp`
+  still write no skills.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/commands/skill.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/mod.rs`
+- **Dependencies:** SKPKG-010
+- **Validation:** `cargo test -p eddacraft-anvil --bin anvil plain_mcp_client --no-fail-fast`
+- **Confidence:** high
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |

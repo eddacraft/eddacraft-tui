@@ -231,6 +231,63 @@ fn resolve_clients(
     Ok(selected.into_iter().collect())
 }
 
+/// Install bundled skills for activation (`anvil start`).
+///
+/// Clients without a documented skill root are skipped, not failed, so
+/// choosing Grok MCP does not abort start. Unmanaged/modified skill
+/// directories are also skipped with a line rather than blocking MCP.
+pub(crate) fn install_for_activation(
+    clients: &[AgentClientId],
+    scope: InstallScope,
+    root: &Path,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut destinations: BTreeMap<PathBuf, Vec<&'static str>> = BTreeMap::new();
+    for client in clients {
+        let entry = *client.entry();
+        match entry.skill_root(scope, root) {
+            Some(skill_root) => {
+                destinations
+                    .entry(skill_root)
+                    .or_default()
+                    .push(entry.label());
+            }
+            None => lines.push(format!(
+                "anvil: skipped {} skills: no documented {}-scope skill location",
+                entry.display_name,
+                scope.label()
+            )),
+        }
+    }
+
+    for (skill_root, labels) in destinations {
+        let names = labels.join(", ");
+        let mut statuses = Vec::new();
+        let mut failed = None;
+        for skill in bundled_skills() {
+            match install_bundle(&skill_root.join(skill.name), skill) {
+                Ok(status) => statuses.push(status),
+                Err(error) => {
+                    failed = Some(error);
+                    break;
+                }
+            }
+        }
+        if let Some(error) = failed {
+            lines.push(format!("anvil: skipped {names} skills: {error:#}"));
+            continue;
+        }
+        let status = if statuses.iter().all(|item| *item == "already installed") {
+            "already installed"
+        } else {
+            "installed"
+        };
+        let path = crate::display_path::shown(&skill_root);
+        lines.push(format!("anvil: {names} skills {status} at {path}"));
+    }
+    lines
+}
+
 fn preview_bundle(destination: &Path, skill: &BundledSkill) -> Result<()> {
     ensure_safe_destination(destination)?;
     if path_exists_nofollow(destination)? {
