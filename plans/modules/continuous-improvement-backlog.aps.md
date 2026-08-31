@@ -12405,6 +12405,90 @@ hang before opening a supervisor ticket.
 - **Confidence:** high — the mechanism is read directly in both crates, and the
   state flip and its decay were measured end to end on a live daemon.
 
+### CIB-385: GCTX graph tools are structurally unavailable on Windows, behind copy that says "still warming"
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P1 — not the platform gap itself (that is a known, deliberate
+  scope decision) but the honesty defect on top of it: a permanent capability
+  cap is rendered as a transient state, so a Windows user waits for something
+  that can never happen
+- **Intent:** on Windows the intercept daemon can never warm a workspace graph.
+  Three `cfg(unix)` gates compound:
+  1. the kernel-backed symbol parser is injected only under `#[cfg(unix)]`
+     (`crates/anvil-cli/src/commands/intercept.rs:1691`), so the Windows daemon
+     starts with no parser at all;
+  2. `crates/anvil-intercept/src/full_scan_executor.rs:475` aborts every full
+     scan to `Stale` when `ctx.parser` is `None` — deliberately, so the daemon
+     never serves a phantom-clean empty graph (ADR-085, DSV-010b);
+  3. both graph-base paths are whole-module `#![cfg(unix)]`
+     (`crates/anvil-cli/src/graph_base_producer.rs:7`,
+     `crates/anvil-intercept/src/graph_base_warm_start.rs:3`), so the
+     base+delta route cannot substitute for the cold scan either.
+
+  There is therefore **no code path that warms a graph on Windows**.
+  `anvil_affected_tests`, `anvil_search_symbols`, `anvil_find_callers`,
+  `anvil_find_dependents`, `anvil_impact_of_change` and `anvil_symbol_context`
+  return `not_ready` permanently, and `validate_paths` returns `Partial`,
+  never `Certified`.
+
+  The `not_ready` copy says the workspace graph is **"still warming"**, which
+  reads as transient and invites waiting or retrying. Compounding it,
+  `anvil watch` reports its own warm-up as complete — that is a *different*
+  cache (`crates/anvil-cli/src/commands/watch.rs:396`), not the daemon graph
+  the GCTX tools read — so the two surfaces contradict each other on the same
+  machine.
+- **Evidence:** 2026-08-31 beta session on Windows
+  (`\\?\C:\Source\...`), anvil 0.9.7-beta. The operator had the tester stop
+  the daemon and restart it in the foreground; its log carried both warnings
+  verbatim:
+
+  ```text
+  no symbol parser injected — validate_paths returns Partial verdicts only
+    (no Certified); the kernel-backed parser is wired by anvil-cli
+  no parser injected; full scan aborted to stale (never phantom-clean) —
+    this daemon cannot warm a graph (e.g. the Windows daemon, DSV-010b)
+  ```
+
+  The agent in that session reported `anvil_affected_tests` never leaving
+  `not_ready` and fell back to tracing imports by hand, while the tester's
+  `anvil watch` showed a warm cache. The daemon restart could not have helped
+  and the session was spent on it.
+- **Expected Outcome:** a Windows user is told, once and clearly, that
+  graph-backed context is not available on this platform in this release —
+  not that something is warming. Whatever the eventual capability decision,
+  the `not_ready` payload distinguishes **"warming, retry shortly"** from
+  **"unsupported on this platform"**, and `anvil doctor` / `anvil status`
+  agree with it. The `anvil watch` warm-up line must not read as evidence that
+  the GCTX graph is ready, since it is a different cache.
+- **Non-scope / do not:** do not "fix" this by injecting a stub parser or
+  relaxing the `full_scan_executor` abort — serving an empty graph as `Clean`
+  is precisely the phantom-clean failure ADR-085 §106 forbids, and it would
+  turn an honest `not_ready` into a false `ready`. Do not scope Windows
+  parser support into this item; that is a real capability decision with its
+  own cost (it is the `#[cfg(unix)]` on the tree-sitter injection under
+  ADR-064) and belongs in its own item if it is wanted. This item is the
+  honesty half only.
+- **Files:** `crates/anvil-cli/src/commands/intercept.rs` (the `#[cfg(unix)]`
+  parser injection, ~L1691), `crates/anvil-intercept/src/full_scan_executor.rs`
+  (~L475, the abort and its warning), the GCTX `not_ready` payload and the six
+  tool descriptions under `crates/anvil-cli/src/mcp/tools/`,
+  `crates/anvil-cli/src/commands/watch.rs` (~L396, the colliding warm-up line)
+- **Validation:** on Windows, a GCTX tool call reports a platform cap rather
+  than "still warming", and the reason is reachable from `anvil doctor`. On
+  Unix the `not_ready`-while-warming path is unchanged — a cold daemon must
+  still say "warming" and still graduate, so a regression test needs both
+  arms.
+- **Identified From:** 2026-08-31 operator-shadowed Windows beta session;
+  root-caused the same day by reading the three `cfg` gates.
+- **Coordinates with:** DSV-010b / ADR-070 (the Windows save-time staging that
+  deliberately left the verdict path unix-gated), ADR-085 §106 (the
+  never-phantom-clean rule the abort implements), ADR-064 (tree-sitter links
+  into `anvil-cli`, never `anvil-intercept` — the reason the injection is
+  where it is), CIB-343 (twelve-client handshake, same activation honesty
+  family), CIB-072 (the earlier Windows "stuck state, honest copy only"
+  precedent — the same shape of half-fix)
+- **Confidence:** high — all three gates read directly in source, and the
+  daemon's own two warnings from the affected host say the same thing.
 ## Pack-12 intake (Dave B34 re-fire + B39–B42 + graph opportunity, 2026-08-31)
 
 Source: operator inbox `Projects/tmp/anvil-beta/Dave/inbox`. Four zips plus a
