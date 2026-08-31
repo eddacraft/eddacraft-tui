@@ -1236,6 +1236,33 @@ mod tests {
 
     // ---- MLP2-054: Kindling row emission ------------------------------
 
+    /// Pin the usage-collection opt-out variables to "not opted out" for the
+    /// duration of `f`.
+    ///
+    /// `do_not_track_suppresses_the_audit_kindling_row` sets `DO_NOT_TRACK`
+    /// through `temp_env`, which mutates the environment of the **whole
+    /// process**. Rust runs these tests as threads inside that one process, so
+    /// an emitting test that does not pin the same variables can observe the
+    /// opt-out mid-flight, take the `usage_collection_disabled` early return in
+    /// `emit_audit_kindling_row`, and write no sidecar at all — surfacing as
+    /// `kindling sidecar exists: NotFound` in whichever emitter lost the race.
+    ///
+    /// Routing every emitter through `temp_env` is what actually fixes it:
+    /// `with_vars` takes a global lock shared by all `temp_env` callers, so the
+    /// opt-out test and the emitters can no longer overlap. Setting the vars
+    /// correctly is necessary but not sufficient — it is the shared lock that
+    /// serialises them.
+    fn with_usage_collection_enabled<T>(f: impl FnOnce() -> T) -> T {
+        temp_env::with_vars(
+            [
+                ("DO_NOT_TRACK", None::<&str>),
+                ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None),
+                ("ANVIL_USAGE_DISABLE", None),
+            ],
+            f,
+        )
+    }
+
     fn read_kindling_lines(repo_root: &Path) -> Vec<serde_json::Value> {
         let path = repo_root
             .join("anvil")
@@ -1255,9 +1282,10 @@ mod tests {
         write_minimal_chain(tmp.path(), &["aaa", "bbb"]);
         let report = run_audit_chain(tmp.path(), "HEAD", None, 5);
 
-        emit_audit_kindling_row(tmp.path(), &report, 42).expect("emit");
-
-        let rows = read_kindling_lines(tmp.path());
+        let rows = with_usage_collection_enabled(|| {
+            emit_audit_kindling_row(tmp.path(), &report, 42).expect("emit");
+            read_kindling_lines(tmp.path())
+        });
         assert_eq!(rows.len(), 1, "one audit run must produce one row");
         assert_eq!(rows[0]["kind"], "gate_evaluated");
         assert_eq!(rows[0]["gate_id"], AUDIT_CHAIN_GATE_ID);
@@ -1298,10 +1326,11 @@ mod tests {
         write_minimal_chain(tmp.path(), &["aaa"]);
         let report = run_audit_chain(tmp.path(), "HEAD", None, 5);
 
-        emit_audit_kindling_row(tmp.path(), &report, 10).expect("first emit");
-        emit_audit_kindling_row(tmp.path(), &report, 11).expect("second emit");
-
-        let rows = read_kindling_lines(tmp.path());
+        let rows = with_usage_collection_enabled(|| {
+            emit_audit_kindling_row(tmp.path(), &report, 10).expect("first emit");
+            emit_audit_kindling_row(tmp.path(), &report, 11).expect("second emit");
+            read_kindling_lines(tmp.path())
+        });
         assert_eq!(
             rows.len(),
             2,
@@ -1324,9 +1353,10 @@ mod tests {
         );
         let expected = report.chain_head_hash.clone().unwrap();
 
-        emit_audit_kindling_row(tmp.path(), &report, 1).expect("emit");
-
-        let rows = read_kindling_lines(tmp.path());
+        let rows = with_usage_collection_enabled(|| {
+            emit_audit_kindling_row(tmp.path(), &report, 1).expect("emit");
+            read_kindling_lines(tmp.path())
+        });
         assert_eq!(
             rows[0]["inputs"]["baseline_hash"].as_str(),
             Some(expected.as_str()),
@@ -1341,9 +1371,10 @@ mod tests {
         let report = run_audit_chain(tmp.path(), "HEAD", None, 5);
         assert!(report.chain_head_hash.is_none());
 
-        emit_audit_kindling_row(tmp.path(), &report, 1).expect("emit");
-
-        let rows = read_kindling_lines(tmp.path());
+        let rows = with_usage_collection_enabled(|| {
+            emit_audit_kindling_row(tmp.path(), &report, 1).expect("emit");
+            read_kindling_lines(tmp.path())
+        });
         assert!(
             rows[0]["inputs"].get("baseline_hash").is_none(),
             "empty-chain runs must omit baseline_hash from the row"
@@ -1762,8 +1793,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let mut report = run_audit_chain(tmp.path(), "HEAD", None, 5);
         report.partial = true;
-        emit_audit_kindling_row(tmp.path(), &report, 1).expect("emit");
-        let rows = read_kindling_lines(tmp.path());
+        let rows = with_usage_collection_enabled(|| {
+            emit_audit_kindling_row(tmp.path(), &report, 1).expect("emit");
+            read_kindling_lines(tmp.path())
+        });
         assert_eq!(rows.len(), 1, "partial reports still produce one row");
         assert_eq!(
             rows[0]["partial"], true,
@@ -1783,8 +1816,10 @@ mod tests {
         // so pre-MLP2-056 consumers stay byte-compat.
         let tmp = TempDir::new().unwrap();
         let report = run_audit_chain(tmp.path(), "HEAD", None, 5);
-        emit_audit_kindling_row(tmp.path(), &report, 1).expect("emit");
-        let rows = read_kindling_lines(tmp.path());
+        let rows = with_usage_collection_enabled(|| {
+            emit_audit_kindling_row(tmp.path(), &report, 1).expect("emit");
+            read_kindling_lines(tmp.path())
+        });
         assert!(
             rows[0].get("partial").is_none(),
             "complete audit runs must omit the partial field from the wire"
