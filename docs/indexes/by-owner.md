@@ -119,6 +119,12 @@
 | ------------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ----- | ------ |
 | [CLI Output Stream Policy](../../docs/guides/cli-output-streams.md) | `docs/guides/cli-output-streams.md` | Guide | Authoritative | CLAR  | Live   |
 
+## CLAW30
+
+| Document                                                                                                    | Path                                              | Type  | Authority | Owner  | Status |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----- | --------- | ------ | ------ |
+| [Clawpatch intake triage — 2026-08-30 to 2026-08-31](../../docs/reviews/2026-08-30-clawpatch-latest-run.md) | `docs/reviews/2026-08-30-clawpatch-latest-run.md` | Guide | Advisory  | CLAW30 | Live   |
+
 ## CLI
 
 | Document                                                                                    | Path                                           | Type     | Authority | Owner | Status     |
