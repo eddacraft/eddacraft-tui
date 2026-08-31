@@ -112,8 +112,9 @@ so.
 
 ### Observation honesty / telemetry / insights
 
-- **`DO_NOT_TRACK` is a real hard-off across save-time and fence producers; any
-  non-empty value other than `0`/`false`.** (CIB-364, #4196)
+- **`DO_NOT_TRACK` is a real hard-off across save-time and fence producers.**
+  Telemetry honours any non-empty value other than `0`/`false`; usage collection
+  opts out on presence alone. (CIB-364, #4196)
 - **Skipped boundary check / unmeasured drift no longer look like pass / zero.**
   (CIB-365, #4198)
 - **Drift snapshot `--no-save` under isolated `ANVIL_HOME`.** (CIB-366, #4201)
