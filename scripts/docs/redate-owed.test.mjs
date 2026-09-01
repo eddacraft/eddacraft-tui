@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 
 import {
@@ -110,12 +111,22 @@ test('a rejected note leaves the metadata table with its five columns', () => {
   assert.equal(`| ${cells.join(' | ')} |`.split('|').length - 2, 6);
 });
 
-test('localDate uses the local calendar, not UTC', () => {
-  // 07:09 on 1 Sep in UTC+8 is still 31 Aug in UTC. The corpus dates in local
-  // time, so the UTC form would stamp yesterday onto a review done today.
-  const morningInUtcPlus8 = new Date('2026-09-01T07:09:00+08:00');
-  assert.equal(morningInUtcPlus8.toISOString().slice(0, 10), '2026-08-31');
-  assert.equal(localDate(morningInUtcPlus8), '2026-09-01');
+test('localDate follows the machine timezone rather than UTC', () => {
+  // Pinned in a child process: `getDate()` is relative to the runner's zone, so
+  // asserting UTC+8 behaviour in-process passes locally and fails on a UTC
+  // runner — which is exactly how the first version of this test broke CI.
+  const moduleUrl = new URL('./redate-owed.mjs', import.meta.url).href;
+  const script =
+    `import(${JSON.stringify(moduleUrl)}).then((m) => ` +
+    `process.stdout.write(m.localDate(new Date('2026-08-31T23:09:00Z'))))`;
+  const run = (timezone) =>
+    execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+      env: { ...process.env, TZ: timezone },
+    }).toString();
+
+  // The same instant is 1 Sep in Perth and still 31 Aug in UTC.
+  assert.equal(run('Australia/Perth'), '2026-09-01');
+  assert.equal(run('UTC'), '2026-08-31');
 });
 
 test('localDate zero-pads month and day', () => {
