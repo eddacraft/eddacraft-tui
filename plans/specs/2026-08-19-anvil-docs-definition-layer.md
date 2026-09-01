@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Accepted | 2026-08-31 — SKPKG-011 public CLI generator extra for start-time managed skills; IA/nav diagrams unchanged. Prior: GTAO-007 honesty pass on evaluation-model, what-anvil-can-do, and quality-model; IA/nav diagrams unchanged. Prior: documentation-governance freshness bump for the `classify-changes.sh` project-config path class |
+| Spec | Authoritative for DOCDEF design and the DOCRB-011 live-nav split | [DOCDEF](../modules/docs-definition-layer.aps.md), [DOCRB](../archive/modules/docs-rebaseline.aps.md) | Accepted | 2026-09-01 — for the documentation-governance addition recording that review cascades and naming `pnpm docs:redate`; no authority, trigger, exemption, or metadata rule changed. Prior 2026-08-31 — SKPKG-011 public CLI generator extra for start-time managed skills; IA/nav diagrams unchanged. Prior: GTAO-007 honesty pass on evaluation-model, what-anvil-can-do, and quality-model; IA/nav diagrams unchanged. Prior: documentation-governance freshness bump for the `classify-changes.sh` project-config path class |
 
 | Upstream | Downstream |
 | -------- | ---------- |
