@@ -12291,9 +12291,10 @@ hang before opening a supervisor ticket.
   because they share a cause.
 - **Confidence:** high — the mechanism is confirmed against a real run and
   reproduced locally with the head as the only variable
+
 ### CIB-384: activation parks every worktree at `ready_restart_required` because durable membership never heartbeats
 
-- **Status:** Ready by operator authorisation
+- **Status:** Merged 2026-09-01 via PR #4292 (`bde0e7736`)
 - **Priority:** P1 — the single most-reported adoption blocker. It is the state
   a first-time user lands in and cannot leave, and the remediation the surface
   prints makes it worse
@@ -12407,7 +12408,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-385: GCTX graph tools are structurally unavailable on Windows, behind copy that says "still warming"
 
-- **Status:** Ready by operator authorisation
+- **Status:** Merged 2026-09-01 via PR #4307 (`560f01dfa`)
 - **Priority:** P1 — not the platform gap itself (that is a known, deliberate
   scope decision) but the honesty defect on top of it: a permanent capability
   cap is rendered as a transient state, so a Windows user waits for something
