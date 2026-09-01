@@ -4,7 +4,13 @@
 | -- | ---- | ----- | -------- | ------ | -------- |
 | JOURNEY | Conductor | Josh | high | In Progress | 9/11 |
 
-**Last reviewed:** 2026-08-01 — **JOURNEY-011 Merged** via #3474; filed earlier (bare `anvil` daily ensure
+**Last reviewed:** 2026-09-01 — onboarding-entry intake: filed **JOURNEY-012**
+Ready (`anvil start` never points at `anvil welcome`, so a first-time user on
+the activation path is never told the tutorial exists) and **JOURNEY-013**
+Proposed (re-test activation navigation against the unreleased help bar before
+designing a splash). Both from the accepted
+[`onboarding entry design`](../specs/2026-09-01-onboarding-entry-design.md).
+Stored `N/M` left to reconciliation per ADR-053. Prior 2026-08-01 — **JOURNEY-011 Merged** via #3474; filed earlier (bare `anvil` daily ensure
 vs `anvil start` reconfigure; ADR-114 / ONSW). Prior 2026-07-30 note: the
 `v0.9.0-beta` cut chain (JOURNEY-001..006) remains complete and shipped (record:
 [`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md); closeout
@@ -340,6 +346,81 @@ the operator explicitly promotes them into the cut.
   `cargo test -p eddacraft-anvil ensure`; `cargo test -p eddacraft-anvil start`.
 - **Confidence:** high
 
+### JOURNEY-012: `anvil start` points a new user at the tutorial
+
+- **Status:** Ready
+- **Intent:** the tutorial is offered on the post-install banner
+  (`install.sh:167-168`, CIB-288) and second of three in first-run onboarding
+  (`surfaces/onboarding/welcome.rs:23-37`), but **`anvil start` never mentions
+  `anvil welcome` or the tutorial at all** — the only matches in
+  `commands/start.rs` are an unrelated code comment. A first-time user who
+  installs anvil and runs `anvil start` is therefore never told the tutorial
+  exists, because the offer lives exclusively on the `anvil welcome` path.
+  Observed on a shadowed first-time install; the returning-user hub ordering
+  (tutorial fifth of seven) is **not** the cause, since that surface is never
+  reached on this path.
+- **Expected Outcome:** on the interactive TTY path, `anvil start` ends by
+  naming `anvil welcome` as the next step, shown while — and only while —
+  `~/.anvil/tutorial-progress.json` records no completed path. The pointer
+  reads existing user-scoped state
+  (`commands/tutorial.rs:400-402`, `surfaces/tutorial/mod.rs:381`) and writes
+  none, so it disappears permanently once any path is completed, with no config
+  surface and no new persisted state.
+- **Non-scope / do not:** do not reorder the welcome hub, change the installer
+  banner (CIB-288 deliberately leads with the ungated command and has a guard
+  test), or touch the onboarding menu. Do not add a dismissal prompt or read a
+  keypress — `anvil start` must keep exiting deterministically. Do not emit the
+  pointer on `--json`, `--verify`, piped or CI paths; those carry byte-stable
+  single-document contracts (ADR-103). Do not create or migrate
+  `tutorial-progress.json` from activation — unreadable or absent means "not
+  completed".
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/activation/render.rs`,
+  `crates/anvil-cli/src/commands/tutorial.rs` (read-only reuse of
+  `progress_file_path`)
+- **Dependencies:** none
+- **Coordinates with:** CIB-288 (installer banner, already correct), CIB-351
+  (learning-path entry), ADR-103 (TTY-default and its degradation contracts),
+  JOURNEY-013
+- **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast -- start`; a
+  test proving the pointer is absent once a completed path is present and
+  present when none is; a test proving `--json` / `--verify` output is
+  byte-unchanged.
+- **Design:** [`onboarding entry design`](../specs/2026-09-01-onboarding-entry-design.md)
+- **Confidence:** high — the gap and the state file were both read in source.
+
+### JOURNEY-013: Re-test first-run activation navigation before designing a splash
+
+- **Status:** Proposed
+- **Intent:** the operator observed a first-time user struggling to move between
+  the `anvil start` consent screens and proposed a first-run splash teaching the
+  key model. Investigation found the observed build cannot support that
+  conclusion: at `v0.9.7-beta` `consent_help_text` **does not exist** — the
+  consent picker had no help bar at all, and the only help string in that file
+  belongs to the evidence pane and reads `j/k scroll …`. The contextual bar
+  naming arrows landed in `e586b6e53` (2026-08-21), which `git tag --contains`
+  places in no release tag. An unknown share of the observed difficulty is
+  therefore already fixed and unreleased, and a first-run splash is expensive to
+  walk back.
+- **Expected Outcome:** one first-time user is observed against a build carrying
+  the contextual help bar, and the residual difficulty (if any) is recorded
+  concretely enough to design against — distinguishing "did not see the hint",
+  "did not understand that arrows step between sections", and "did not
+  understand the picker is a form that needs a deliberate toggle". The outcome
+  is a decision to design a splash, to change the stepping affordance, or to
+  close this as fixed.
+- **Non-scope / do not:** do not design or build a splash, a key-hint overlay,
+  or a progress indicator before this evidence exists. Do not treat the
+  `h`/`j`/`k`/`l` aliases as missing — they have been live throughout, as
+  deliberate silent aliases.
+- **Dependencies:** a release (or local build) carrying `e586b6e53`
+- **Coordinates with:** ADR-103, ACTTUI (archived), JOURNEY-012
+- **Validation:** a short observation record linked from this item, naming the
+  build SHA the session ran.
+- **Design:** [`onboarding entry design`](../specs/2026-09-01-onboarding-entry-design.md)
+- **Confidence:** high on the diagnosis; the item exists precisely because
+  confidence in the *remedy* is low until re-measured.
+
 ## Sequencing
 
 ```text
@@ -353,6 +434,10 @@ Release cut:
 Post-cut expansion:
   JOURNEY-007 || JOURNEY-008 || JOURNEY-009 || JOURNEY-010
   ADR-114 -> ONSW-001..006 -> JOURNEY-011
+
+Onboarding entry (2026-09-01 design):
+  JOURNEY-012                      (independent; tutorial discovery)
+  e586b6e53 released -> JOURNEY-013 (gates any activation-splash work)
 ```
 
 ## Release Gate
