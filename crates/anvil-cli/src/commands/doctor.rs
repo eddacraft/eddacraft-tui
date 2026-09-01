@@ -5276,6 +5276,38 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    fn wait_for_dropped_listener_to_stop_accepting(socket: &Path) {
+        use std::time::{Duration, Instant};
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            match anvil_intercept::ipc::probe_socket_path_for_client(socket) {
+                Err(err) if anvil_intercept::ipc::live_socket_absent(&err) => return,
+                Ok(()) if Instant::now() < deadline => {
+                    // The test binary runs subprocess-spawning tests in
+                    // parallel. A child forked before `drop(listener)` can
+                    // briefly retain the close-on-exec descriptor until exec,
+                    // so wait until the fixture is observably stale before
+                    // asking doctor to remove it.
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                Ok(()) => {
+                    panic!(
+                        "dropped listener at {} still accepts connections after one second",
+                        socket.display()
+                    );
+                }
+                Err(err) => {
+                    panic!(
+                        "dropped listener at {} became unsafe instead of stale: {err}",
+                        socket.display()
+                    );
+                }
+            }
+        }
+    }
+
     /// MF-3: the crashed-sibling shape — no PID file (or a stale one), but the
     /// socket inode left behind by a daemon that never got to unlink it.
     ///
@@ -5304,6 +5336,7 @@ mod tests {
         drop(listener);
         std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))
             .expect("0600 socket");
+        wait_for_dropped_listener_to_stop_accepting(&socket);
 
         // Precondition: the metadata-only check the old code trusted says this
         // orphan is a perfectly good socket.
@@ -5393,6 +5426,7 @@ mod tests {
         drop(listener);
         std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))
             .expect("0600 socket");
+        wait_for_dropped_listener_to_stop_accepting(&socket);
         let pid_path = runtime.join("intercept.pid");
 
         let guards = stop_sibling_intercept_sockets(std::slice::from_ref(&socket), false)
