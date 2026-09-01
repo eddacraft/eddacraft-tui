@@ -1612,23 +1612,54 @@ fi
 # Case D: an unreadable document is a tooling failure, not a clean corpus. Only
 # a metadata ParseError may be absorbed as "no governance metadata"; an I/O
 # error means the surface never read what it is about to report on.
+#
+# Sealed inside a purpose-made fixture, not against the live corpus. The earlier
+# version chmod'd the tracked `docs/testing/benchmark-results.md` to 000 and
+# restored it on a later line, outside any trap: a CI timeout or Ctrl-C landing
+# in that window left a tracked file unreadable in the working tree, and every
+# docs surface afterwards reported "could not run" until someone noticed and
+# chmod'd it back by hand. A fixture under `tmp_root` cannot outlive the run —
+# the EXIT trap removes it either way.
 echo "case D: docs-owed exits 2 when it cannot read the corpus"
-unreadable="${repo_root}/docs/testing/benchmark-results.md"
-if [[ -r "${unreadable}" ]]; then
-  perms="$(stat -c '%a' "${unreadable}")"
-  chmod 000 "${unreadable}"
+sealed_root="${tmp_root}/sealed"
+mkdir -p "${sealed_root}/docs/guides"
+(
+  cd "${sealed_root}"
+  git init -q .
+  git config user.email t@example.com
+  git config user.name t
+  : >README.md
+  cat >docs/guides/sealed.md <<'DOC'
+# Sealed
+
+| Type  | Authority     | Owner | Status | Freshness                                    |
+| ----- | ------------- | ----- | ------ | -------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2001-01-01 against `README.md` |
+
+| Upstream    | Downstream |
+| ----------- | ---------- |
+| `README.md` | none       |
+
+Body.
+DOC
+  git add -A
+  git commit -qm "sealed fixture"
+)
+chmod 000 "${sealed_root}/docs/guides/sealed.md"
+if [[ -r "${sealed_root}/docs/guides/sealed.md" ]]; then
+  # Running as root (or on a filesystem ignoring the mode) makes the case
+  # unprovable rather than passing: say so instead of asserting nothing.
+  pass "skipped: cannot make a file unreadable in this environment"
+else
   set +e
-  (cd "${repo_root}" && node "${owed_script}" --no-baseline >/dev/null 2>&1)
+  (cd "${repo_root}" && node "${owed_script}" --root "${sealed_root}" --no-baseline >/dev/null 2>&1)
   unread_status=$?
   set -e
-  chmod "${perms}" "${unreadable}"
   if [[ "${unread_status}" -eq 2 ]]; then
     pass "unreadable governed doc exits 2 (tooling), not 0 (clean)"
   else
     fail "unreadable governed doc expected exit 2; got ${unread_status}"
   fi
-else
-  pass "skipped: fixture doc not readable to begin with"
 fi
 
 # Case E: the ADR-119 D2 granularity split (DOCFRESH-002).
