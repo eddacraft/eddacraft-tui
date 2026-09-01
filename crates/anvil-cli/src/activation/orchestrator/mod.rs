@@ -1049,9 +1049,9 @@ impl TuiConsentPlan {
         // that reads the existing config, and dropping its `unsafe_drift` would
         // turn a foreign or unparseable file from "Inspect" into a plain
         // unguarded write.
-        let inherited_drift = self.take_legacy_mcp_offer(&id);
+        let (legacy_position, inherited_drift) = self.take_legacy_mcp_offer(&id);
 
-        self.offers.push(TuiConsentOffer {
+        let offer = TuiConsentOffer {
             id: id.clone(),
             label: format!("{} MCP", entry.display_name),
             description: format!("Write {}", path.display()),
@@ -1063,7 +1063,12 @@ impl TuiConsentPlan {
             kind: TuiConsentOfferKind::Mcp,
             repo_scoped: scope == InstallScope::Project,
             unsafe_drift: inherited_drift,
-        });
+        };
+        if let Some(position) = legacy_position {
+            self.offers.insert(position, offer);
+        } else {
+            self.offers.push(offer);
+        }
         self.registry_mcp_candidates.insert(
             id,
             RegistryMcpCandidate {
@@ -1072,14 +1077,14 @@ impl TuiConsentPlan {
             },
         );
     }
-    /// Drop the legacy-pass offer for `id`, returning the drift reason it had
-    /// recorded (if any) so the registry offer that replaces it can carry the
-    /// same safety gate forward.
+    /// Drop the legacy-pass offer for `id`, returning its position and drift
+    /// reason so the registry offer that replaces it can preserve both the
+    /// picker order and safety gate.
     ///
-    /// Returns `None` both when no legacy offer existed and when it existed
-    /// without drift — the caller wants "what drift must I preserve?", and both
-    /// cases answer "none".
-    fn take_legacy_mcp_offer(&mut self, id: &str) -> Option<String> {
+    /// The position is `None` when no legacy offer existed. The drift reason is
+    /// `None` both when no offer existed and when it existed without drift.
+    fn take_legacy_mcp_offer(&mut self, id: &str) -> (Option<usize>, Option<String>) {
+        let position = self.offers.iter().position(|offer| offer.id == id);
         let drift = self
             .offers
             .iter()
@@ -1087,7 +1092,7 @@ impl TuiConsentPlan {
             .and_then(|offer| offer.unsafe_drift.clone());
         self.offers.retain(|offer| offer.id != id);
         self.mcp_candidates.remove(id);
-        drift
+        (position, drift)
     }
 }
 
@@ -2639,6 +2644,17 @@ verdict: completed"
             repo_scoped: false,
             unsafe_drift: Some("existing entry is not anvil-shaped".to_string()),
         });
+        // A later MCP row makes an append-based replacement observably reorder
+        // the stable picker list.
+        plan.offers.push(TuiConsentOffer {
+            id: "mcp:sentinel".to_string(),
+            label: "Sentinel MCP".to_string(),
+            description: "Do not move ahead of Codex".to_string(),
+            blurb: "test sentinel".to_string(),
+            kind: TuiConsentOfferKind::Mcp,
+            repo_scoped: false,
+            unsafe_drift: None,
+        });
 
         plan.add_registry_mcp_offers(true, InstallScope::Global, &[]);
 
@@ -2652,6 +2668,20 @@ verdict: completed"
             codex[0].unsafe_drift.as_deref(),
             Some("existing entry is not anvil-shaped"),
             "the surviving offer must keep the legacy drift reason",
+        );
+        let codex_position = plan
+            .offers()
+            .iter()
+            .position(|offer| offer.id == "mcp:codex")
+            .expect("Codex offer must survive");
+        let sentinel_position = plan
+            .offers()
+            .iter()
+            .position(|offer| offer.id == "mcp:sentinel")
+            .expect("sentinel offer must survive");
+        assert!(
+            codex_position < sentinel_position,
+            "replacement must keep the legacy offer's position",
         );
     }
 
