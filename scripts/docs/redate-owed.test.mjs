@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   findFreshnessCell,
   hasUnescapedPipe,
+  localDate,
   rewriteFreshness,
   tableCells,
 } from './redate-owed.mjs';
@@ -107,4 +108,17 @@ test('a rejected note leaves the metadata table with its five columns', () => {
   const cells = [...findFreshnessCell(metadataTable).cells];
   cells[4] = rewriteFreshness(cells[4], { date: '2026-08-31', note });
   assert.equal(`| ${cells.join(' | ')} |`.split('|').length - 2, 6);
+});
+
+test('localDate uses the local calendar, not UTC', () => {
+  // 07:09 on 1 Sep in UTC+8 is still 31 Aug in UTC. The corpus dates in local
+  // time, so the UTC form would stamp yesterday onto a review done today.
+  const morningInUtcPlus8 = new Date('2026-09-01T07:09:00+08:00');
+  assert.equal(morningInUtcPlus8.toISOString().slice(0, 10), '2026-08-31');
+  assert.equal(localDate(morningInUtcPlus8), '2026-09-01');
+});
+
+test('localDate zero-pads month and day', () => {
+  assert.equal(localDate(new Date(2026, 0, 5)), '2026-01-05');
+  assert.equal(localDate(new Date(2026, 11, 31)), '2026-12-31');
 });

@@ -18,6 +18,14 @@
  * This tool never invents a justification. `--note` is written verbatim into
  * every cell it touches; deciding that a rule or diagram is unaffected stays a
  * human claim.
+ *
+ * The note is placed between the date and the demoted `Prior review …` text, so
+ * phrase it to sit between them: `for the X change; Y is unaffected.` reads as
+ * "Last reviewed 2026-08-31 for the X change; Y is unaffected. Prior review
+ * 2026-08-30 …". A note opening with its own capitalised verb collides with the
+ * date, and one without closing punctuation collides with `Prior review`. It
+ * also lands in a markdown table cell, so use inline code for commands and
+ * paths as the surrounding cells do.
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -30,6 +38,19 @@ import { parseArgs, promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const SURFACE = 'redate-owed';
 const DEFAULT_MAX_ROUNDS = 6;
+
+/**
+ * Today's date in the **local** calendar, as `YYYY-MM-DD`.
+ *
+ * Not `toISOString()`: that is UTC, and this repository dates in local time
+ * (UTC+8). West of midnight UTC the two disagree, so the UTC form silently
+ * stamps yesterday onto a review done today — and a document dated a day behind
+ * its upstream's commit is owed again the moment the gate runs.
+ */
+export function localDate(now = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
 
 /**
  * A `|` that markdown would read as a column break — one not already escaped.
@@ -209,7 +230,7 @@ export async function runRedateCli(argv = process.argv.slice(2)) {
     process.stderr.write(`[${SURFACE}] --since <base> is required\n`);
     return 2;
   }
-  const date = values.date ?? new Date().toISOString().slice(0, 10);
+  const date = values.date ?? localDate();
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(date)) {
     process.stderr.write(`[${SURFACE}] --date must be YYYY-MM-DD, got '${date}'\n`);
     return 2;
