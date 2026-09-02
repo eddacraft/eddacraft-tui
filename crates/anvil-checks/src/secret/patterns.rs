@@ -303,6 +303,34 @@ static BARE_REDACTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
 /// on access (caught by every test that exercises the secret scanner) so a bad
 /// regex is a loud CI failure instead of a silent reduction in detection
 /// coverage.
+/// The built-in patterns only, without the vendored tier-1 rules.
+///
+/// The scan path uses this plus [`crate::secret::vendored::vendored_patterns_for`],
+/// which gates the expensive vendored regexes on their literal prefix. Forcing
+/// the combined [`DEFAULT_COMPILED_PATTERNS`] instead would compile all 27
+/// tier-1 rules — ~78 ms — on every `anvil check` process, which is what put the
+/// save-time CPU budget over its ceiling.
+pub static BUILTIN_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock::new(|| {
+    SECRET_PATTERNS
+        .iter()
+        .map(|pattern| {
+            let regex = Regex::new(pattern.pattern).unwrap_or_else(|err| {
+                panic!(
+                    "built-in secret pattern `{}` failed to compile: {err}",
+                    pattern.name
+                )
+            });
+            CompiledPattern {
+                name: pattern.name.to_string(),
+                regex,
+                high_confidence: pattern.high_confidence,
+                secret_group: None,
+                ruleset_version: None,
+            }
+        })
+        .collect()
+});
+
 pub static DEFAULT_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock::new(|| {
     let mut compiled: Vec<CompiledPattern> = SECRET_PATTERNS
         .iter()

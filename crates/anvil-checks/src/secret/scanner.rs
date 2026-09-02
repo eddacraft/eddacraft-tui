@@ -11,7 +11,7 @@ use crate::secret::entropy::{
     detect_high_entropy_strings_over_source, is_path_shaped_document_token,
 };
 use crate::secret::patterns::{
-    CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
+    BUILTIN_COMPILED_PATTERNS, CompiledPattern, PatternMatcher, compile_custom_patterns,
 };
 use crate::secret::source::{LineSource, LineWindow, for_each_windowed_line};
 use crate::secret::types::{
@@ -787,7 +787,10 @@ fn scan_source_with_compiled_patterns(
     limit: usize,
 ) -> io::Result<(Vec<SecretFinding>, ScanStats)> {
     let matcher = PatternMatcher::new(&config.custom_allowlist);
-    let default_patterns: &[CompiledPattern] = &DEFAULT_COMPILED_PATTERNS;
+    // Built-ins only. The vendored tier-1 rules join per line via
+    // `vendored_patterns_for`, which gates them on their literal prefix so an
+    // ordinary line compiles none of them.
+    let default_patterns: &[CompiledPattern] = &BUILTIN_COMPILED_PATTERNS;
     let mut findings = Vec::new();
     let mut stats = ScanStats::default();
 
@@ -807,7 +810,14 @@ fn scan_source_with_compiled_patterns(
         ));
     }
 
-    let patterns_iter = || default_patterns.iter().chain(custom_patterns.iter());
+    // Both passes must see the same pattern set, or the entropy pass would stop
+    // suppressing findings on lines a vendored rule already matched.
+    let patterns_for = |line: &str| {
+        default_patterns
+            .iter()
+            .chain(crate::secret::vendored::vendored_patterns_for(line))
+            .chain(custom_patterns.iter())
+    };
     let track_rust_cfg_test = is_rust_source_path(file_path);
 
     // Pass 1 — patterns. Line-local apart from the radius-2 context window
@@ -830,7 +840,7 @@ fn scan_source_with_compiled_patterns(
             }
 
             let mut line_matches: Vec<(&CompiledPattern, std::ops::Range<usize>)> = Vec::new();
-            for pattern in patterns_iter() {
+            for pattern in patterns_for(line) {
                 for range in pattern.match_ranges(line) {
                     if skip_and_record(&mut stats, &matcher, pattern, file_path, window, &range) {
                         continue;
@@ -888,7 +898,7 @@ fn scan_source_with_compiled_patterns(
                 if line.len() > config.max_line_bytes {
                     return false;
                 }
-                patterns_iter().all(|pattern| {
+                patterns_for(line).all(|pattern| {
                     pattern.match_ranges(line).all(|range| {
                         should_skip_pattern_match(
                             pattern,

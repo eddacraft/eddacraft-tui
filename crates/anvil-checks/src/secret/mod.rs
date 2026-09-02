@@ -14,8 +14,8 @@ pub use entropy::{
 };
 pub use git_scanner::scan_git_history;
 pub use patterns::{
-    CompiledPattern, DEFAULT_ALLOWLIST, PatternMatcher, SECRET_PATTERNS, compile_custom_patterns,
-    compile_secret_patterns,
+    BUILTIN_COMPILED_PATTERNS, CompiledPattern, DEFAULT_ALLOWLIST, DEFAULT_COMPILED_PATTERNS,
+    PatternMatcher, SECRET_PATTERNS, compile_custom_patterns, compile_secret_patterns,
 };
 pub use scanner::{
     ScanStats, scan_content, scan_content_with_compiled_patterns, scan_content_with_limit,
@@ -28,5 +28,5 @@ pub use types::{
 };
 pub use vendored::{
     VENDORED_COMPILED_PATTERNS, VENDORED_RULESET, VENDORED_RULESET_VERSION, VendoredRule,
-    VendoredRuleset,
+    VendoredRuleset, vendored_patterns_for, vendored_prefix_gate_is_active,
 };

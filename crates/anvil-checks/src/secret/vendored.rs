@@ -43,9 +43,9 @@
 //! `scripts/secret/refresh-gitleaks-ruleset.sh` from a digest-verified upstream
 //! pin; `--check` fails CI on drift. See `vendor/gitleaks/PROVENANCE.md`.
 
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 
-use regex::Regex;
+use regex::{Regex, RegexSet};
 use serde::Deserialize;
 
 use crate::secret::patterns::CompiledPattern;
@@ -163,6 +163,74 @@ pub static VENDORED_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock
         .map(|rule| compile_vendored_rule(rule, &version))
         .collect()
 });
+
+/// Literal-prefix gate over the vendored rules.
+///
+/// Tier 1's admission criterion *is* the literal provider prefix (`glpat-`,
+/// `shpat_`, `NRAK-`, …), recorded on each rule so it is auditable. Every tier-1
+/// pattern contains its prefix literally and none has a top-level alternation,
+/// so a line without the prefix cannot match the rule — which makes the prefix a
+/// sound gate, not a heuristic. `vendored_prefix_gate_invariants` pins both of
+/// those properties so a refresh cannot quietly break the reasoning.
+///
+/// This exists because compiling the tier-1 regexes is expensive: measured at
+/// 78 ms for 27 rules against 2 ms for the 21 built-ins — 30x per pattern. The
+/// save-time path spawns a fresh `anvil check` per debounced save, so that was
+/// 78 ms of regex compilation on every save, which took the churn-path CPU
+/// budget from 30% to ~73% against a 50% ceiling. The gate itself is 27 escaped
+/// literals and compiles in ~1 ms.
+///
+/// `None` means the gate could not be built; every rule then compiles as before.
+/// Slower, never less detection.
+static VENDORED_PREFIX_GATE: LazyLock<Option<RegexSet>> = LazyLock::new(|| {
+    RegexSet::new(VENDORED_RULESET.rules.iter().map(|rule| {
+        let literal = regex::escape(&rule.prefix);
+        // Seven tier-1 rules are case-insensitive; their prefix must be matched
+        // the same way or the gate would hide a real match.
+        if rule.pattern.contains("(?i)") {
+            format!("(?i){literal}")
+        } else {
+            literal
+        }
+    }))
+    .ok()
+});
+
+/// One lazily-compiled slot per vendored rule, so a rule costs its ~3 ms only
+/// when a line actually carries its prefix.
+static VENDORED_LAZY_PATTERNS: LazyLock<Vec<OnceLock<CompiledPattern>>> = LazyLock::new(|| {
+    VENDORED_RULESET
+        .rules
+        .iter()
+        .map(|_| OnceLock::new())
+        .collect()
+});
+
+/// Whether the prefix gate is live. Exposed so a test can prove the fast path is
+/// in use rather than silently falling back to compiling all 27 rules.
+#[must_use]
+pub fn vendored_prefix_gate_is_active() -> bool {
+    VENDORED_PREFIX_GATE.is_some()
+}
+
+/// The vendored rules that could match `line`, compiled on first need.
+///
+/// Usually empty — ordinary source carries no provider prefix — and an empty
+/// `Vec` does not allocate.
+#[must_use]
+pub fn vendored_patterns_for(line: &str) -> Vec<&'static CompiledPattern> {
+    let version = &*VENDORED_RULESET_VERSION;
+    let compile = |index: usize| -> &'static CompiledPattern {
+        VENDORED_LAZY_PATTERNS[index]
+            .get_or_init(|| compile_vendored_rule(&VENDORED_RULESET.rules[index], version))
+    };
+
+    match VENDORED_PREFIX_GATE.as_ref() {
+        Some(gate) => gate.matches(line).iter().map(compile).collect(),
+        // No gate: preserve the previous behaviour exactly — every rule runs.
+        None => (0..VENDORED_RULESET.rules.len()).map(compile).collect(),
+    }
+}
 
 #[cfg(test)]
 mod tests {
