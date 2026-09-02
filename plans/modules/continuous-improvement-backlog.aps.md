@@ -12680,13 +12680,17 @@ reply.
 - **Confidence:** high on the record shape (Dave counted unpiped);
   medium on the writer, which this item does not need to name first.
 
-### CIB-390: a validation command that examined nothing must say so, not exit 0 quietly
+### CIB-390: a check that has not reached a verdict must not read as a pass
 
 - **Status:** Ready by operator authorisation
 - **Priority:** P2 — no wrong verdict is shipped, but it manufactures false
   confidence in exactly the place the project has twice decided it will not
   tolerate it (CIB-278, CIB-316)
-- **Intent:** `markdownlint --ignore-path .markdownlintignore <file>` on a path
+- **Intent:** two shapes of the same defect, both observed in one session. A
+  check reports something that is **not a verdict** — because it examined
+  nothing, or because it has not finished — and the reader takes it for a pass.
+
+  **Shape A — examined nothing.** `markdownlint --ignore-path .markdownlintignore <file>` on a path
   the ignore file excludes receives an **empty file list**, prints its usage
   banner, and exits **0**. `.markdownlintignore` excludes `plans/**`
   ("internal planning content with its own conventions"), so every
@@ -12699,38 +12703,77 @@ reply.
   been examined. The banner is the only signal, and it looks like help output
   rather than a warning.
 
+  **Shape B — not yet final.** The same session read **in-flight CI state as a
+  settled verdict**, twice, on PR #4317:
+
+  - `gh pr checks` was sampled while checks were still arriving; `Docs Lint`
+    appeared **absent** from the required set, and that snapshot was reported
+    as a diagnosis ("a required-but-path-gated check never reports"). It was
+    simply not back yet. Left alone, the PR moved `BLOCKED` → `UNSTABLE` →
+    `CLEAN` with no intervention.
+  - Earlier in the same PR, a stale Copilot review was blamed for the block on
+    the strength of one `mergeStateStatus: BLOCKED` reading, when a sibling PR
+    (#4308) had merged with an equally stale review — so that could not have
+    been the cause.
+
+  Both shapes have the same failure mode: **a non-final or empty result was
+  treated as a result.** The repo already has this written down for the CI case
+  — "zero pending checks is not the same as CI done; read BLOCKED-with-nothing-failing
+  as *not finished*" — but nothing enforces it, and the guidance lives in
+  operator memory rather than in the tools.
+
   This is the same defect class the project has already ruled on twice:
   **CIB-278** (`docs:check` exit 2 must mean "could not run", never a content
   pass) and **CIB-316** (ten shell contract tests that nothing invoked — "the
-  strongest form of the unfalsifiable-guard defect"). This is a third
-  instance, reached from a new direction: the guard runs, and examines zero
-  inputs.
-- **Expected Outcome:** a validation command that can legitimately examine
-  nothing states what it examined. Either the repo's lint entry points report
-  a file count (`N files checked` — `aps:active-lint` already does exactly
-  this, and its output is unambiguous as a result), or a wrapper fails when a
-  named input is silently excluded by an ignore file. An operator or agent
-  reading the output can tell "clean" from "did not run".
+  strongest form of the unfalsifiable-guard defect"). These are the third and
+  fourth instances, reached from new directions: the guard runs and examines
+  zero inputs, and the guard is read before it has answered.
+- **Expected Outcome:** a reader can always tell **pass** from **did not run**
+  and from **not finished yet**.
+
+  For shape A: a validation command that can legitimately examine nothing
+  states what it examined. Either the repo's lint entry points report a file
+  count (`N files checked` — `aps:active-lint` already does exactly this, and
+  its output is unambiguous as a result), or a wrapper fails when a named input
+  is silently excluded by an ignore file.
+
+  For shape B: the repo's own CI-status helper distinguishes "all required
+  contexts reported and passed" from "some required context has not reported",
+  so a caller cannot mistake an incomplete sample for a verdict. `gh pr checks`
+  alone cannot express this — it lists what exists, not what is *required and
+  missing* — so the check belongs in a small wrapper that reads the branch
+  ruleset's required contexts and names the ones still absent.
 - **Non-scope / do not:** do not remove `plans/**` from `.markdownlintignore` —
   the exclusion is deliberate and APS files have their own conventions and
   their own canonical lint. Do not make markdownlint fail on an empty file
-  list globally; a directory sweep that legitimately matches nothing is fine.
-  The defect is the *named input* silently dropped.
+  list globally; a directory sweep that legitimately matches nothing is fine —
+  the defect is the *named input* silently dropped. Do not turn shape B into a
+  polling helper that blocks indefinitely; it must report "not finished" and
+  return, leaving the waiting decision to the caller.
 - **Files:** `.markdownlintignore`, `package.json` (`lint:md`, `lint:md:fix`),
-  `.lintstagedrc.cjs`, any wrapper introduced for the count assertion
-- **Validation:** naming an ignored file explicitly produces a non-zero exit or
-  an explicit "0 files examined" line; naming a linted file still passes and
-  still fails on a real violation (prove RED on both arms). `pnpm lint:md`
-  over the repo is unchanged.
-- **Identified From:** 2026-09-02 session filing CIB-384/385, where "clean"
-  was reported for a command that examined no files. Found only because the
-  usage banner was noticed and chased.
+  `.lintstagedrc.cjs`, any wrapper introduced for the count assertion; plus the
+  CI-status helper for shape B (new; no existing script owns this)
+- **Validation:** shape A — naming an ignored file explicitly produces a
+  non-zero exit or an explicit "0 files examined" line; naming a linted file
+  still passes and still fails on a real violation (prove RED on both arms);
+  `pnpm lint:md` over the repo is unchanged. Shape B — against a PR with a
+  required context still pending, the helper reports that context by name and
+  does **not** report success; against a fully-reported green PR it reports
+  success. Both arms proven, or the helper is another unfalsifiable guard.
+- **Identified From:** 2026-09-02 session. Shape A while filing CIB-384/385,
+  where "clean" was reported for a command that examined no files — found only
+  because the usage banner was noticed and chased. Shape B on PR #4317, where
+  two successive wrong diagnoses of a merge block were both drawn from
+  mid-flight CI samples; the block resolved itself with no action.
 - **Coordinates with:** CIB-278 (tooling-vs-content taxonomy — the same
   "could not run" boundary), CIB-316 (unfalsifiable guards), CIB-295 (an
   advisory-only surface whose FAIL clause was unsatisfiable), CIB-336
-  (tests derived from the pattern rather than the threat model)
-- **Confidence:** high — reproduced directly, and the ignore rule is one line
-  in `.markdownlintignore`.
+  (tests derived from the pattern rather than the threat model), CIB-391
+  (its sibling: a verdict that is real but non-deterministic)
+- **Confidence:** high on both shapes — shape A reproduced directly and the
+  ignore rule is one line in `.markdownlintignore`; shape B has two recorded
+  instances from one PR, with the resolved-without-intervention outcome as
+  proof the diagnoses were wrong rather than merely unlucky.
 
 ### CIB-391: run the suite under a hostile ambient profile so environment-dependent tests fail deterministically
 
