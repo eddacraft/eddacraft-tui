@@ -400,3 +400,32 @@ jobs:
         # failures in later binaries — surfaces every platform-specific
         # failure in a single run instead of one binary at a time.
         run: cargo test --workspace --target ${{ matrix.target }} --no-fail-fast -- --test-threads=1
+
+  # CIB-391: the ordinary suite under a hostile ambient profile. Nightly
+  # only — a first red is expected (the umask 002 intercept_stop failure
+  # is the proof the leg has teeth). Do not copy this job onto per-PR CI.
+  hostile-ambient:
+    name: Hostile ambient (umask 002, privacy opt-out, live daemon)
+    runs-on: ${{ vars.RUST_TEST_RUNNER || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Free disk space
+        if: vars.RUST_TEST_RUNNER == ''
+        uses: ./.github/actions/free-disk-space
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: hostile-ambient
+
+      - name: Install OPA
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          version: v1.16.1
+
+      - name: Run suite under hostile ambient
+        shell: bash
+        run: bash scripts/ci/hostile-ambient.sh
