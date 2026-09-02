@@ -55,8 +55,13 @@ runs:
           docker image prune --all --force >/dev/null 2>&1 || true
         '
         if [ "$RECLAIM_MODE" = "background" ]; then
-          # Detached from this step's process group so the runner does not
-          # wait on it; it keeps running under later steps of the same job.
+          # The runner considers a step finished when its shell exits and
+          # the step's stdout/stderr pipes close, so the reclaim is
+          # backgrounded with its output redirected away from those pipes
+          # (`>/dev/null 2>&1`) and `nohup`/`disown` keep it from being
+          # hung up or tracked by the shell on exit. It stays in the same
+          # process group; it simply outlives the step and keeps running
+          # under later steps of the same job.
           # The reclaim is best-effort by construction, so nothing checks
           # its exit status — a job that needed the space and did not get
           # it fails on ENOSPC exactly as it would without this action.
