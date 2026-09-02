@@ -21,7 +21,7 @@ const STAGES = [
     title: 'LEARN',
     state: 'being built',
     current: false,
-    text: 'drift against your baseline is checked today. outcomes feeding back into the next decision is the part still being built.',
+    text: 'drift against your baseline is checked today. feeding outcomes back into the next decision is the part still being built.',
   },
 ] as const;
 

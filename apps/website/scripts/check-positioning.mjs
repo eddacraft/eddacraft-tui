@@ -2,13 +2,20 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const appDir = new URL('../app/', import.meta.url);
 const componentsDir = new URL('../components/', import.meta.url);
+
+// Walk a directory recursively so nested routes (app/security, app/privacy, ...)
+// are held to the same contract as the landing page.
+function walk(dir, keep) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const url = new URL(entry.isDirectory() ? `${entry.name}/` : entry.name, dir);
+    if (entry.isDirectory()) return walk(url, keep);
+    return keep(entry.name) ? [url] : [];
+  });
+}
+
 const files = [
-  ...readdirSync(appDir)
-    .filter((name) => name.endsWith('.tsx') || name.endsWith('.css'))
-    .map((name) => new URL(`../app/${name}`, import.meta.url)),
-  ...readdirSync(componentsDir)
-    .filter((name) => name.endsWith('.tsx'))
-    .map((name) => new URL(`../components/${name}`, import.meta.url)),
+  ...walk(appDir, (name) => name.endsWith('.tsx') || name.endsWith('.css')),
+  ...walk(componentsDir, (name) => name.endsWith('.tsx')),
 ];
 const content = files.map((file) => readFileSync(file, 'utf8')).join('\n');
 
