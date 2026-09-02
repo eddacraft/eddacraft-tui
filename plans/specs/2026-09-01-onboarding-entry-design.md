@@ -34,7 +34,7 @@ The tutorial is **already offered prominently** at the two places that exist:
   project* / **Choose a learning path** / *Go to command menu*.
 
 The "tutorial is fifth of seven" position is the **returning-user hub**
-(`surfaces/welcome/mod.rs:28-36`), a different surface reached only after
+(`crates/anvil-tui/src/surfaces/welcome/mod.rs:28-36`), a different surface reached only after
 first-run is complete.
 
 The actual gap: **`anvil start` never mentions `anvil welcome` or the tutorial
@@ -85,7 +85,7 @@ On the **interactive TTY path only**, `anvil start` ends by naming
 
 That file already exists and is already user-scoped
 (`crates/anvil-cli/src/commands/tutorial.rs:400-402`), carrying
-`completed_paths` (`surfaces/tutorial/mod.rs:381`). The pointer therefore
+`completed_paths` (`crates/anvil-tui/src/surfaces/tutorial/mod.rs:381`). The pointer therefore
 **reads existing state and writes none**: it appears for a user who has never
 finished a tutorial path, and disappears permanently once they have — with no
 config surface, no new persisted state, and nothing for the user to learn.

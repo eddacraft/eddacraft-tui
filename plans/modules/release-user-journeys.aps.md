@@ -351,9 +351,9 @@ the operator explicitly promotes them into the cut.
 - **Status:** Ready
 - **Intent:** the tutorial is offered on the post-install banner
   (`install.sh:167-168`, CIB-288) and second of three in first-run onboarding
-  (`surfaces/onboarding/welcome.rs:23-37`), but **`anvil start` never mentions
+  (`crates/anvil-tui/src/surfaces/onboarding/welcome.rs:23-37`), but **`anvil start` never mentions
   `anvil welcome` or the tutorial at all** — the only matches in
-  `commands/start.rs` are an unrelated code comment. A first-time user who
+  `crates/anvil-cli/src/commands/start.rs` are an unrelated code comment. A first-time user who
   installs anvil and runs `anvil start` is therefore never told the tutorial
   exists, because the offer lives exclusively on the `anvil welcome` path.
   Observed on a shadowed first-time install; the returning-user hub ordering
@@ -363,7 +363,7 @@ the operator explicitly promotes them into the cut.
   naming `anvil welcome` as the next step, shown while — and only while —
   `~/.anvil/tutorial-progress.json` records no completed path. The pointer
   reads existing user-scoped state
-  (`commands/tutorial.rs:400-402`, `surfaces/tutorial/mod.rs:381`) and writes
+  (`crates/anvil-cli/src/commands/tutorial.rs:400-402`, `crates/anvil-tui/src/surfaces/tutorial/mod.rs:381`) and writes
   none, so it disappears permanently once any path is completed, with no config
   surface and no new persisted state.
 - **Non-scope / do not:** do not reorder the welcome hub, change the installer
