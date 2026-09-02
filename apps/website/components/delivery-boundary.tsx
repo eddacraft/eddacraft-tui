@@ -1,23 +1,23 @@
 const OPERATING = [
-  'deterministic pre-write and save-time protection',
-  'resident graph and assistant-facing context',
-  'checks, policy and configurable enforcement',
-  'protection claims, witness chains and review capsules',
+  'deterministic checks before a write and at save-time',
+  'a resident graph of the code, with context served to your assistant',
+  'built-in checks, your own policy, and enforcement you choose',
+  'a durable record of what was checked, for review and audit',
 ];
 
 const COMPLETING = [
-  'general intent conformance',
-  'connected evidence providers',
-  'independently verifiable decision receipts',
-  'closed outcome-learning loop',
+  'checking a change against the intent behind it',
+  'evidence drawn from the tools you already run',
+  'decision receipts a third party can verify',
+  'outcomes feeding back into future decisions',
 ];
 
 const DEFAULT_CHECKS = [
-  ['secret-detection', 'credentials and secrets never enter the diff'],
-  ['command-safety', 'destructive or unexpected shell is blocked'],
-  ['antipattern-scan', 'known unsafe shapes in the proposed write'],
+  ['secret-detection', 'credentials and tokens never enter the diff'],
+  ['command-safety', 'destructive or unexpected shell is stopped'],
+  ['antipattern-scan', 'known unsafe shapes caught in the proposed write'],
   ['import-boundaries', 'layer and package rules held at save-time'],
-  ['team policy', 'deterministic rules as the organisation matures'],
+  ['your policy', 'your own rules, evaluated the same way every time'],
 ] as const;
 
 function BoundaryColumn({
@@ -55,8 +55,8 @@ export function DeliveryBoundary() {
     <section id="roadmap" className="site-section bg-surface">
       <div className="site-container grid gap-10 py-16 lg:grid-cols-[0.8fr_1.2fr] lg:items-start lg:py-20">
         <div>
-          <span className="font-mono text-sm text-anvil">[ = ]</span>
-          <h2 className="mt-5 font-mono text-3xl uppercase leading-tight text-off-white sm:text-4xl">
+          <p className="section-label mb-5">{'// DELIVERY_BOUNDARY'}</p>
+          <h2 className="font-mono text-3xl uppercase leading-tight text-off-white sm:text-4xl">
             THE CONTROL POINT
             <br />
             <span className="text-anvil">SHIPS TODAY.</span>
@@ -67,7 +67,11 @@ export function DeliveryBoundary() {
           </h2>
           <p className="mt-6 max-w-md font-sans text-sm leading-6 text-ghost-grey">
             anvil sits in the workflow as an independent, deterministic judge. The first run is
-            useful at zero config. The no arrives at write-time, so the agent can correct.
+            useful with zero configuration. A refusal arrives at write-time, while the agent can
+            still correct the work.
+          </p>
+          <p className="mt-4 max-w-md font-sans text-sm leading-6 text-ghost-grey">
+            This is the one place on this page where the line between shipped and planned is drawn.
           </p>
         </div>
         <div className="space-y-4">

@@ -1,7 +1,7 @@
 const MOBILE_STAGES = [
-  ['UNDERSTAND', 'resident graph and applicable context', true],
-  ['BUILD', 'proposed change and minimum evidence', true],
-  ['DECIDE', 'deterministic constraints and enforcement', true],
+  ['UNDERSTAND', 'a living graph of the code, and the context that applies', true],
+  ['BUILD', 'the proposed change and the evidence behind it', true],
+  ['DECIDE', 'deterministic policy: block or pass', true],
   ['LEARN', 'outcomes improve future understanding', false],
 ] as const;
 
@@ -33,15 +33,15 @@ export function DecisionIntegrityFlywheel() {
     <section id="system" className="site-section">
       <div className="site-container grid gap-12 py-16 lg:grid-cols-[0.72fr_1.28fr] lg:items-center lg:py-24">
         <div>
-          <p className="section-label mb-5">{'// TARGET_PRODUCT_SYSTEM'}</p>
+          <p className="section-label mb-5">{'// DECISION_INTEGRITY'}</p>
           <h2 className="font-mono text-3xl uppercase leading-tight text-off-white sm:text-4xl">
             DECISION INTEGRITY
             <br />
             <span className="text-anvil">FLYWHEEL</span>
           </h2>
           <p className="mt-6 max-w-md font-sans text-base leading-7 text-ghost-grey">
-            Every decision makes the next one better. The graph and protection path provide the
-            operating foundation; the wider evidence and learning loop is still being built.
+            Every decision should make the next one better. Understand, build and decide operate
+            today. Learn, where outcomes feed back into understanding, is still being built.
           </p>
 
           <div className="mt-8 space-y-3 font-mono text-xs text-ghost-grey">
@@ -119,19 +119,19 @@ export function DecisionIntegrityFlywheel() {
           <FlywheelNode
             className="left-1/2 top-4 -translate-x-1/2"
             title="UNDERSTAND"
-            description="resident graph and applicable context"
+            description="a living graph of the code, and the context that applies"
             current
           />
           <FlywheelNode
             className="right-0 top-1/2 -translate-y-1/2"
             title="BUILD"
-            description="proposed change and minimum evidence"
+            description="the proposed change and the evidence behind it"
             current
           />
           <FlywheelNode
             className="bottom-2 left-1/2 -translate-x-1/2"
             title="DECIDE"
-            description="deterministic constraints and enforcement"
+            description="deterministic policy: block or pass"
             current
           />
           <FlywheelNode

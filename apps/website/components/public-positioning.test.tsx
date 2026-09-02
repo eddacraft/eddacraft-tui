@@ -31,11 +31,11 @@ describe('rendered website positioning', () => {
       '12 MCP CLIENTS',
       'PROTECTION IS THE ENTRY POINT.',
       'DECISION INTEGRITY FLYWHEEL',
-      '// PARTS',
+      '// FOUR_STAGES',
       'THE CONTROL POINT SHIPS TODAY.',
       'THE SYSTEM THAT CREATES WORK SHOULD NOT JUDGE IT ALONE.',
       'TRUST INFRASTRUCTURE FOR AI-ASSISTED WORK.',
-      'BUILD WITH SPEED. SHIP WITH INTEGRITY.',
+      'LET THE AGENT RUN. KEEP THE JUDGE.',
       'REVIEW_CAPACITY',
       'THE WRITE EITHER HAS A JUDGE,',
     ]) {
@@ -50,14 +50,14 @@ describe('rendered website positioning', () => {
     expect(textOf(<TrustGap />)).toContain('DECISION INTEGRITY IS THE SYSTEM AROUND IT.');
     expect(textOf(<WriteConsequence />)).toContain('THE WRITE EITHER HAS A JUDGE,');
     expect(textOf(<DecisionIntegrityFlywheel />)).toContain('DECISION INTEGRITY FLYWHEEL');
-    expect(textOf(<ProductStages />)).toContain('// PARTS');
-    expect(textOf(<ProductStages />)).toContain('POLICY ENGINE');
+    expect(textOf(<ProductStages />)).toContain('// FOUR_STAGES');
+    expect(textOf(<ProductStages />)).toContain('DECIDE');
     expect(textOf(<DeliveryBoundary />)).toContain('THE CONTROL POINT SHIPS TODAY.');
     expect(textOf(<DecisionModel />)).toContain(
       'THE SYSTEM THAT CREATES WORK SHOULD NOT JUDGE IT ALONE.'
     );
     expect(textOf(<CompanyBand />)).toContain('TRUST INFRASTRUCTURE FOR AI-ASSISTED WORK.');
-    expect(textOf(<CLIFooter />)).toContain('BUILD WITH SPEED. SHIP WITH INTEGRITY.');
+    expect(textOf(<CLIFooter />)).toContain('LET THE AGENT RUN. KEEP THE JUDGE.');
     expect(textOf(<SocialCard />)).toContain('TRUST THE CODE');
     expect(textOf(<SocialCard />)).toContain('MCP REQUEST :: anvil_validate_write');
   });

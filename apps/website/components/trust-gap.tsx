@@ -30,14 +30,14 @@ export function TrustGap() {
               behalf.
             </p>
             <p>
-              After an unsupervised hour you cannot reconstruct what happened from the agent’s
-              account. Asking the agent is not an audit: the model is biased toward its own work,
-              compaction already dropped the rules file, and re-analysing raw logs is a tax.
+              After an unsupervised hour you cannot reconstruct what happened from the agent’s own
+              account. The model is inclined to approve its own work, the rules you gave it may have
+              dropped out of its context, and reading the raw logs back is a cost nobody pays.
             </p>
             <p>
-              Logs, monitoring, governance programmes and model-provider explanations can each show
-              something. None of the systems teams use today establishes, on its own, whether a
-              particular AI-assisted change deserved to be trusted.
+              Logs record what happened. Evidence shows what was true. Policy states what was
+              required. Nothing in the usual toolchain puts those three together for a single change
+              and says whether it deserved to be trusted.
             </p>
             <dl className="grid gap-px border border-structure bg-structure sm:grid-cols-3">
               {IMPACTS.map(([term, meaning]) => (
@@ -80,12 +80,13 @@ export function TrustGap() {
           </div>
           <div className="space-y-4 font-sans text-base leading-7 text-ghost-grey">
             <p>
-              Today, anvil protects supported software changes as they are written and maintains a
-              living model of the code beneath them.
+              Today, anvil checks code as it is written and keeps a living model of the codebase
+              beneath it.
             </p>
             <p>
-              That control point is the foundation for a broader system connecting intent, evidence,
-              policy and durable decisions.
+              That control point is the foundation for a broader system: one that connects the
+              intent behind a change, the evidence for it, the policy that applied, and a durable
+              record of the decision.
             </p>
           </div>
         </div>

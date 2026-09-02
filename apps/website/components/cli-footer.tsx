@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 
-const ANVIL_VERSION = 'v0.9.5-beta';
-const ANVIL_BUILD_HASH = '5c4b61a';
+import { ANVIL_BUILD_HASH, ANVIL_VERSION } from '@/lib/release';
 
 interface ResponseLine {
   text: string;
@@ -193,12 +192,13 @@ export function CLIFooter() {
         <div className="min-w-0">
           <p className="section-label mb-5">{'// EARLY_ACCESS'}</p>
           <h2 className="text-3xl leading-tight text-off-white sm:text-4xl">
-            BUILD WITH SPEED.
+            LET THE AGENT RUN.
             <br />
-            <span className="text-anvil">SHIP WITH INTEGRITY.</span>
+            <span className="text-anvil">KEEP THE JUDGE.</span>
           </h2>
           <p className="mt-5 max-w-md font-sans text-sm leading-6 text-ghost-grey">
-            Get early access to anvil and help shape trustworthy AI-assisted software engineering.
+            anvil is onboarding engineering teams in controlled cohorts. Request early access and
+            take the next available slot.
           </p>
         </div>
 

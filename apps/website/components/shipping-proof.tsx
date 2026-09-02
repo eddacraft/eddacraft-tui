@@ -1,3 +1,5 @@
+import { ANVIL_VERSION } from '@/lib/release';
+
 const PROOF_POINTS = [
   'LOCAL EXECUTION',
   'DETERMINISTIC POLICY',
@@ -18,7 +20,7 @@ export function ShippingProof() {
           ))}
         </div>
         <p className="border-t border-structure px-4 py-2 text-right text-[9px] text-ghost-grey/80">
-          reference: 28.3 µs incremental :: 1.6 µs policy :: deus :: 2026-06-26
+          current release {ANVIL_VERSION} :: checks run on your machine :: no source upload required
         </p>
       </div>
     </section>

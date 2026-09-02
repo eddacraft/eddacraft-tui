@@ -3,7 +3,7 @@ const MODEL_STEPS = [
   ['EVIDENCE', 'what was demonstrably true'],
   ['POLICY', 'which constraints applied'],
   ['DETERMINISTIC DECISION', 'the independent trust boundary'],
-  ['DECISION RECEIPT', 'what was true and why'],
+  ['DECISION RECEIPT', 'why the action was trusted'],
 ] as const;
 
 export function DecisionModel() {
@@ -12,7 +12,7 @@ export function DecisionModel() {
       <div className="site-container py-16 lg:py-20">
         <div className="grid gap-8 lg:grid-cols-[0.7fr_1.3fr]">
           <div>
-            <p className="section-label mb-5">{'// TARGET_DECISION_MODEL'}</p>
+            <p className="section-label mb-5">{'// DECISION_MODEL'}</p>
             <h2 className="font-mono text-3xl uppercase leading-tight text-off-white">
               THE SYSTEM THAT CREATES WORK
               <br />
@@ -21,13 +21,13 @@ export function DecisionModel() {
           </div>
           <div className="font-sans text-base leading-7 text-ghost-grey">
             <p>
-              Decision Integrity applies to a particular action. AI may help interpret, explain or
-              remediate, but deterministic software remains the final authority at the trust
-              boundary.
+              Every decision is about one specific action. AI can help explain the change, interpret
+              a finding, or fix the problem. Deterministic software makes the final call at the
+              trust boundary, and it is never the model that wrote the code.
             </p>
             <p className="mt-4 text-sm text-ghost-grey/80">
-              This is the target model. General intent conformance and independently verifiable
-              decision receipts are not presented as shipped capabilities.
+              This is the model anvil is built toward. Intent and receipts are the stages still
+              being completed; the delivery boundary below draws that line.
             </p>
           </div>
         </div>

@@ -2,7 +2,8 @@ import Link from 'next/link';
 
 export const metadata = {
   title: 'Privacy Policy — anvil by eddacraft',
-  description: 'Privacy policy for anvil, the AI governance tool by eddacraft.',
+  description:
+    'Privacy policy for anvil, the independent control point for AI-assisted software engineering, by eddacraft.',
 };
 
 export default function PrivacyPage() {
@@ -52,8 +53,9 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">DESCRIPTION</h2>
             <div className="text-text-muted pl-6 space-y-4">
               <p>
-                anvil is a developer tool for AI governance. We are committed to protecting your
-                privacy and being transparent about the data we handle.
+                anvil is a developer tool that checks AI-assisted code changes on your machine. We
+                are committed to protecting your privacy and being transparent about the data we
+                handle.
               </p>
               <p>
                 We operate under a principle of{' '}
@@ -82,10 +84,30 @@ export default function PrivacyPage() {
                 </p>
               </div>
               <div>
+                <p className="text-text-primary mb-1">Beta Accounts</p>
+                <p className="pl-4">
+                  When you sign in to a beta account, we record the identity returned by your
+                  sign-in provider and login timestamps, used for product access and support.
+                </p>
+              </div>
+
+              <div>
                 <p className="text-text-primary mb-1">CLI Telemetry</p>
                 <p className="pl-4">
-                  The anvil CLI may collect anonymous performance metrics. Telemetry can be disabled
-                  via <span className="text-anvil">anvil config set telemetry false</span>.
+                  The anvil CLI sends a narrow anonymous usage beacon, at most once per installation
+                  per day, and only after an interactive first run has shown its notice. It never
+                  includes source code, file paths, command arguments, findings or free text. Turn
+                  it off with <span className="text-anvil">anvil telemetry off</span>,{' '}
+                  <span className="text-anvil">ANVIL_TELEMETRY=off</span> or{' '}
+                  <span className="text-anvil">DO_NOT_TRACK=1</span>. The complete payload is
+                  documented at{' '}
+                  <a
+                    href="https://docs.eddacraft.ai/anvil/operations/telemetry"
+                    className="text-anvil hover:underline"
+                  >
+                    docs.eddacraft.ai
+                  </a>
+                  .
                 </p>
               </div>
             </div>
@@ -109,8 +131,8 @@ export default function PrivacyPage() {
                   <span className="text-edda">-</span> Repository contents or git history
                 </li>
                 <li>
-                  <span className="text-edda">-</span> Personal information beyond email for
-                  waitlist
+                  <span className="text-edda">-</span> Personal information beyond what is listed
+                  above
                 </li>
               </ul>
             </div>
@@ -121,8 +143,8 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">DATA STORAGE</h2>
             <div className="text-text-muted pl-6 space-y-4">
               <p>
-                Data is stored on servers located in the European Union and the United States. We
-                use industry-standard encryption for data at rest and in transit.
+                Waitlist and account records are stored in a managed Postgres database. Data in
+                transit uses TLS; data at rest is encrypted by the database provider.
               </p>
             </div>
           </section>
@@ -206,7 +228,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-anvil font-bold mb-2">AUTHOR</h2>
             <div className="text-text-muted pl-6">
-              <p>eddacraft, Inc.</p>
+              <p>eddacraft</p>
             </div>
           </section>
         </div>
@@ -214,7 +236,7 @@ export default function PrivacyPage() {
         {/* Man Page Footer */}
         <div className="flex justify-between items-center text-text-muted text-xs sm:text-sm mt-12 border-t border-structure pt-4">
           <span>eddacraft</span>
-          <span>January 2026</span>
+          <span>September 2026</span>
           <span>ANVIL-PRIVACY(7)</span>
         </div>
       </div>

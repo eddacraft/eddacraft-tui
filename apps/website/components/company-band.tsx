@@ -3,6 +3,7 @@ export function CompanyBand() {
     <section className="site-section">
       <div className="site-container grid gap-10 py-16 md:grid-cols-[0.55fr_1.05fr_0.9fr] md:items-center lg:py-20">
         <div className="font-mono">
+          <p className="section-label mb-5">{'// BUILT_BY_EDDACRAFT'}</p>
           <div className="text-edda">eddacraft</div>
           <div className="mt-4 text-anvil">[ = ]</div>
         </div>
@@ -13,8 +14,9 @@ export function CompanyBand() {
         </h2>
         <div className="font-sans text-base leading-7 text-ghost-grey">
           <p>
-            eddacraft builds technology that makes AI-assisted work independently trustworthy. anvil
-            begins with software engineering.
+            eddacraft builds trust infrastructure for work done with AI: the independent layer that
+            says whether the work can be relied on. anvil is where that starts, with software
+            engineering.
           </p>
           <a
             href="https://eddacraft.ai"

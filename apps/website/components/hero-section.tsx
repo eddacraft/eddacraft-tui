@@ -111,8 +111,9 @@ export function HeroSection() {
             engineering.
           </p>
           <p className="mt-5 max-w-xl font-sans text-base leading-7 text-ghost-grey">
-            The agent proposes. anvil judges the write against deterministic policy — before it
-            reaches the diff. You can let it run without treating the agent as the auditor.
+            The agent proposes a write. anvil checks it against deterministic policy before it
+            reaches the diff, and the agent hears the answer while it can still fix the work. The
+            judge is never the model that wrote the code.
           </p>
           <p className="mt-5 max-w-xl font-sans text-base leading-7 text-ghost-grey">
             Understand the change. Apply your standards. Stop unsafe work before it reaches review.

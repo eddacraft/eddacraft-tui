@@ -15,8 +15,9 @@ const content = files.map((file) => readFileSync(file, 'utf8')).join('\n');
 const qualifiedFiles = new Map([
   ['decision-integrity-flywheel.tsx', ['still being built', 'system being completed']],
   ['delivery-boundary.tsx', ['operating today', 'system being completed']],
-  ['decision-model.tsx', ['This is the target model', 'not presented as shipped capabilities']],
-  ['trust-gap.tsx', ['Today, anvil protects', 'foundation for a broader system']],
+  ['decision-model.tsx', ['built toward', 'delivery boundary']],
+  ['trust-gap.tsx', ['Today, anvil', 'foundation for a broader system']],
+  ['product-stages.tsx', ['being built']],
   [
     'cli-footer.tsx',
     ['Dialog.Root', 'Dialog.Title', 'Dialog.Description', 'Dialog.Close', 'Close'],

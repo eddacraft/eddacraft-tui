@@ -1,3 +1,5 @@
+import { ANVIL_VERSION } from '@/lib/release';
+
 export function SocialCard() {
   return (
     <div
@@ -26,7 +28,7 @@ export function SocialCard() {
           <span style={{ color: '#EBEBEB' }}>eddacraft</span>
           <span style={{ color: '#CC5500' }}>anvil</span>
         </div>
-        <span style={{ color: '#EBEBEB' }}>v0.9.5-beta</span>
+        <span style={{ color: '#EBEBEB' }}>{ANVIL_VERSION}</span>
       </div>
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 64 }}>
