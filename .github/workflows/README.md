@@ -67,6 +67,7 @@ fixture enforces both directions.
 | `editor-coexistence.yml`               | PR + Integration                            | `pull_request` / `push` to `main` (anvil-cli/kernel/hook paths, harness, policy doc) plus `workflow_dispatch` — ADOPT-006 LSP/formatter coexistence gate                                                                                                                                                                                                   | ADOPT        |
 | `council-gate.yml`                     | Auxiliary (review gate)                     | `pull_request` (all; passes unless a change touches a protected save-time auth/confinement path) plus `workflow_dispatch` — CIB-149 gate: requires the `council:reviewed` label for changes to paths listed in `.claude/hooks/council-protected-paths`; self-guards the list + this workflow, dismisses the label on new commits                           | CICD         |
 | `bench-nightly.yml`                    | Assurance                                   | `workflow_dispatch` only (manual; nightly `schedule` removed while no `bench` runner is online)                                                                                                                                                                                                                                                            | CICD         |
+| `r2-sccache-pilot.yml`                 | Auxiliary (cache experiment)                | `workflow_dispatch` from `main` only — DEVENV-008 R2-backed `sccache` compile experiment; protected by the `r2-sccache` environment and never exposed to pull-request code                                                                                                                                                                                 | DEVENV       |
 | `ci-nightly.yml`                       | Assurance                                   | `schedule` (daily 17:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node, cross-compile assurance; resource budgets run as a sibling nightly via `resource-budget.yml` @ 17:15                                                                                                                                  | CICD         |
 | `ci-cost-report.yml`                   | Assurance                                   | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                                                                                                                                                                                            | CICD         |
 | `release-readiness.yml`                | Release candidate                           | `workflow_dispatch` only — exact `sourceSha` validation, `dist plan` packaging contract, resource-budget gate on that SHA, candidate metadata artefact; no publish credentials                                                                                                                                                                             | RELORCH      |
@@ -261,6 +262,17 @@ Rust criterion + stress + midedit benchmarks. `bench.yml` is push-to-`main`
 (`workflow_dispatch`) — its nightly `schedule` was removed while no self-hosted
 `bench` runner is online (scheduled runs only queued and were cancelled). Re-add
 the documented cron in the workflow header to restore the nightly cadence.
+
+### `r2-sccache-pilot.yml` — R2 sccache experiment
+
+DEVENV-008's manual, non-gating compiler-cache experiment. It runs only from
+`refs/heads/main`, uses the protected `r2-sccache` GitHub environment, and
+uploads same-runner control timings, runner/toolchain identity, and
+`sccache --show-stats` evidence. It has no `pull_request`, `push`, or scheduled
+trigger, so Cloudflare credentials never enter a job that checks out proposed
+code. The operator setup, comparison protocol, success bar, and rollback are
+recorded in
+[`plans/audits/2026-09-02-r2-sccache-pilot.md`](../../plans/audits/2026-09-02-r2-sccache-pilot.md).
 
 ### `resource-budget.yml` — Resource Budget
 

@@ -1,0 +1,190 @@
+name: R2 sccache Pilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache_backend:
+        description: 'Cache backend under test'
+        required: true
+        default: r2
+        type: choice
+        options:
+          - none
+          - rust-cache
+          - r2
+      compile_surface:
+        description: 'Representative Rust compile surface'
+        required: true
+        default: check
+        type: choice
+        options:
+          - check
+          - test-build
+      cache_mode:
+        description: 'R2 access mode'
+        required: true
+        default: READ_WRITE
+        type: choice
+        options:
+          - READ_WRITE
+          - READ_ONLY
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r2-sccache-pilot
+  cancel-in-progress: false
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  SCCACHE_S3_KEY_PREFIX: anvil-001/rust/v1
+  SCCACHE_VERSION: '0.17.0'
+
+jobs:
+  pilot:
+    name: Compile (${{ inputs.cache_backend }}, ${{ inputs.compile_surface }})
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: r2-sccache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Guard — only run trusted main
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != 'workflow_dispatch' ]; then
+            echo "::error::R2 sccache pilot refused: GITHUB_EVENT_NAME=$GITHUB_EVENT_NAME"
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != 'refs/heads/main' ]; then
+            echo "::error::R2 sccache pilot refused: GITHUB_REF=$GITHUB_REF (only refs/heads/main is allowed)"
+            exit 1
+          fi
+          echo "SCCACHE_SERVER_UDS=${RUNNER_TEMP}/anvil-r2-sccache-${GITHUB_RUN_ID}.sock" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+
+      - name: Install sccache
+        if: inputs.cache_backend == 'r2'
+        uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6
+        with:
+          tool: sccache@${{ env.SCCACHE_VERSION }}
+
+      - name: Restore the current Rust CI cache
+        if: inputs.cache_backend == 'rust-cache'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+
+      - name: Configure the R2 backend
+        if: inputs.cache_backend == 'r2'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_SCCACHE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SCCACHE_SECRET_ACCESS_KEY }}
+          SCCACHE_BUCKET: ${{ vars.R2_SCCACHE_BUCKET }}
+          SCCACHE_ENDPOINT: ${{ vars.R2_SCCACHE_ENDPOINT }}
+          SCCACHE_REGION: auto
+          SCCACHE_S3_RW_MODE: ${{ inputs.cache_mode }}
+        run: |
+          set -euo pipefail
+          for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY SCCACHE_BUCKET SCCACHE_ENDPOINT; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is not configured in the r2-sccache environment"
+              exit 1
+            fi
+          done
+          case "$SCCACHE_ENDPOINT" in
+            https://*.r2.cloudflarestorage.com) ;;
+            *)
+              echo '::error::SCCACHE_ENDPOINT must be an HTTPS Cloudflare R2 endpoint'
+              exit 1
+              ;;
+          esac
+          sccache --start-server
+          sccache --zero-stats
+          echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+
+      - name: Capture runner and toolchain identity
+        run: |
+          {
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "rustc=$(rustc --version)"
+            echo "cargo=$(cargo --version)"
+            echo "kernel=$(uname -a)"
+            echo "processors=$(getconf _NPROCESSORS_ONLN)"
+          } | tee "${RUNNER_TEMP}/r2-sccache-runner.txt"
+
+      - name: Fetch Rust dependencies
+        run: cargo fetch --locked
+
+      - name: Run representative compile
+        env:
+          PILOT_BACKEND: ${{ inputs.cache_backend }}
+          PILOT_SURFACE: ${{ inputs.compile_surface }}
+        run: |
+          set -uo pipefail
+          started_at=$(date +%s)
+          case "$PILOT_SURFACE" in
+            check) cargo check --workspace --all-targets ;;
+            test-build) cargo test --workspace --no-run ;;
+            *)
+              echo "::error::Unsupported compile surface: $PILOT_SURFACE"
+              exit 2
+              ;;
+          esac
+          compile_status=$?
+          elapsed_seconds=$(($(date +%s) - started_at))
+          {
+            echo "backend=$PILOT_BACKEND"
+            echo "surface=$PILOT_SURFACE"
+            echo "cache_mode=${{ inputs.cache_mode }}"
+            echo "elapsed_seconds=$elapsed_seconds"
+            echo "exit_status=$compile_status"
+          } | tee "${RUNNER_TEMP}/r2-sccache-timing.txt"
+          {
+            echo '## R2 sccache pilot'
+            echo
+            echo "- Backend: $PILOT_BACKEND"
+            echo "- Surface: $PILOT_SURFACE"
+            echo "- Cache mode: ${{ inputs.cache_mode }}"
+            echo "- Compile wall time: ${elapsed_seconds}s"
+            echo "- Compile exit status: $compile_status"
+            echo "- Commit: $GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$compile_status"
+
+      - name: Capture sccache statistics
+        if: always() && inputs.cache_backend == 'r2'
+        run: |
+          sccache --show-stats | tee "${RUNNER_TEMP}/r2-sccache-stats.txt"
+          {
+            echo
+            echo '```text'
+            cat "${RUNNER_TEMP}/r2-sccache-stats.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop sccache
+        if: always() && inputs.cache_backend == 'r2'
+        run: sccache --stop-server || true
+
+      - name: Upload pilot evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cache-pilot-${{ inputs.cache_backend }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/r2-sccache-runner.txt
+            ${{ runner.temp }}/r2-sccache-stats.txt
+            ${{ runner.temp }}/r2-sccache-timing.txt
+          if-no-files-found: warn
+          retention-days: 30

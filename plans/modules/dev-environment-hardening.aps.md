@@ -216,7 +216,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-008: Spike — reproducible dev-environment base (go/no-go ADR)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Wave:** 2 (spike / evaluate)
 - **Intent:** Decide whether to re-platform the dev environment onto a reproducible
   base, with a hard exit so it cannot become open-ended research.
@@ -230,8 +230,10 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
   as spike inputs.
 - **Validation:** The go/no-go ADR is merged and linked from this item; if "go",
   it carries a migration plan; if "defer", it records why.
-- **Dependencies:** Informed by DEVENV-001..007 outcomes (treated as spike inputs,
-  not pre-empted by them).
+- **Inputs:** DEVENV-001..007 outcomes inform the spike; they are evidence, not
+  blocking dependencies or work to pre-empt.
+- **Evidence:** R2-backed `sccache` pilot issue #4322 and
+  [`plans/audits/2026-09-02-r2-sccache-pilot.md`](../audits/2026-09-02-r2-sccache-pilot.md).
 - **Files:** `plans/decisions/` (the go/no-go ADR), a spike report under
   `plans/specs/` or `plans/audits/`.
 - **Confidence:** medium — the substrate trade-offs are real and the win depends on

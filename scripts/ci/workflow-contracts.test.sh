@@ -100,4 +100,30 @@ if ! grep -Fq -- 'CICD-005 gated' "${readme}"; then
   exit 1
 fi
 
+r2_pilot="${workflows_dir}/r2-sccache-pilot.yml"
+if [ -f "${r2_pilot}" ]; then
+  if [ "$(grep -Fxc 'on:' "${r2_pilot}")" -ne 1 ]; then
+    echo 'r2-sccache-pilot.yml must use one block-form on mapping' >&2
+    exit 1
+  fi
+  trigger_block=$(sed -n '/^on:$/,/^permissions:$/p' "${r2_pilot}")
+  declared_triggers=$(printf '%s\n' "${trigger_block}" | grep -E '^  [^[:space:]#].*:' || true)
+  if [ "${declared_triggers}" != '  workflow_dispatch:' ]; then
+    echo 'r2-sccache-pilot.yml must keep workflow_dispatch as its sole trigger' >&2
+    printf '%s\n' "${declared_triggers}" >&2
+    exit 1
+  fi
+  for contract in \
+    "    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'" \
+    '    environment: r2-sccache' \
+    '    runs-on: ubuntu-24.04' \
+    '          echo "SCCACHE_SERVER_UDS=${RUNNER_TEMP}/anvil-r2-sccache-${GITHUB_RUN_ID}.sock" >> "$GITHUB_ENV"' \
+    '          persist-credentials: false'; do
+    if ! grep -Fxq -- "${contract}" "${r2_pilot}"; then
+      echo "r2-sccache-pilot.yml is missing trust-boundary contract: ${contract}" >&2
+      exit 1
+    fi
+  done
+fi
+
 echo 'workflow-contract map checks passed'
