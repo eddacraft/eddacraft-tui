@@ -6493,7 +6493,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `lru` 0.18.2
+- `lru` 0.18.3
 
 <details>
 <summary>Licence text</summary>
@@ -9711,7 +9711,7 @@ the following restrictions:
 | `zerocopy-derive` | 0.8.56 | MIT License | https://github.com/google/zerocopy |
 | `zerocopy` | 0.8.56 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
-| `lru` | 0.18.2 | MIT License | https://github.com/jeromefroe/lru-rs.git |
+| `lru` | 0.18.3 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
 | `font8x8` | 0.3.1 | MIT License | https://gitlab.com/saibatizoku/font8x8-rs |
 | `smawk` | 0.3.3 | MIT License | https://github.com/mgeisler/smawk |
