@@ -149,13 +149,17 @@ assert_contains "${docs_shell_project}" '"{workspaceRoot}/flags/surfaces.json"'
 assert_contains "${flags_catalogue_project}" '"{workspaceRoot}/flags/surfaces.json"'
 assert_contains "${dashboard_project}" '"{workspaceRoot}/flags/surfaces.json"'
 assert_contains "${cli_project}" '"{workspaceRoot}/flags/surfaces.json"'
-assert_contains "${rust_test_workflow}" 'all_json=$(pnpm exec nx show projects --withTarget=check --json)'
-assert_contains "${rust_test_workflow}" 'affected_json=$(pnpm exec nx show projects --affected --withTarget=check'
-assert_contains "${rust_test_workflow}" 'affected="${all}"'
-assert_contains "${rust_test_workflow}" 'No affected Rust projects detected; running all Rust projects'
-assert_not_contains "${rust_test_workflow}" 'echo "all=$(pnpm exec nx show projects'
-assert_not_contains "${rust_test_workflow}" 'echo "affected=$(pnpm exec nx show projects'
-assert_not_contains "${rust_test_workflow}" 'No affected Rust projects detected"'
+# CI-cost 2026-09: the required `Test` gate runs the same full-workspace
+# nextest suite on PRs and pushes. The RUSTNX-007 Nx-affected PR path
+# (`nx run-many -t test` over `nx show projects --affected`) measured 435s
+# average against 263s for `nextest --workspace` on the same runner, plus
+# ~80s of pnpm/Nx setup it alone needed — pin that it does not come back.
+assert_contains "${rust_test_workflow}" 'run: cargo nextest run --workspace --no-fail-fast'
+assert_contains "${rust_test_workflow}" 'run: cargo test --doc --workspace'
+assert_not_contains "${rust_test_workflow}" 'pnpm exec nx show projects --affected'
+assert_not_contains "${rust_test_workflow}" 'pnpm exec nx run-many -t test'
+assert_not_contains "${rust_test_workflow}" 'uses: ./.github/actions/setup-workspace'
+assert_not_contains "${rust_test_workflow}" "github.event_name != 'pull_request'"
 # CICD-006: PR/integration runs do not invoke coverage flags or upload coverage artefacts.
 assert_not_contains "${ci_workflow}" '--coverage --coverage.reporter=json-summary --coverage.reporter=text'
 assert_not_contains "${ci_workflow}" 'name: coverage-report-22.x'

@@ -22,11 +22,6 @@ on:
       - 'Cargo.lock'
       - 'dist-workspace.toml'
       - 'rust-toolchain.toml'
-      - 'pnpm-workspace.yaml'
-      - 'nx.json'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/actions/setup-workspace/**'
       - '.github/actions/free-disk-space/**'
       - '.github/workflows/rust-tests.yml'
   pull_request: {}
@@ -93,11 +88,6 @@ jobs:
               - 'Cargo.lock'
               - 'dist-workspace.toml'
               - 'rust-toolchain.toml'
-              - 'pnpm-workspace.yaml'
-              - 'nx.json'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - '.github/actions/setup-workspace/**'
               - '.github/actions/free-disk-space/**'
               - '.github/workflows/rust-tests.yml'
       - name: Decide whether the Rust test gate must run
@@ -126,26 +116,6 @@ jobs:
           steps.gate.outputs.run == 'true' && (github.event.pull_request.head.repo.fork ||
           vars.RUST_TEST_RUNNER == '')
         uses: ./.github/actions/free-disk-space
-
-      - name: Setup workspace for Nx affected
-        if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
-        uses: ./.github/actions/setup-workspace
-      - name: Detect Rust Nx projects
-        if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
-        id: rust-projects
-        shell: bash
-        run: |
-          set -euo pipefail
-          all_json=$(pnpm exec nx show projects --withTarget=check --json)
-          affected_json=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json)
-          all=$(jq -er 'if type == "array" and length > 0 then join(",") else error("no Rust projects expose the check target") end' <<< "$all_json")
-          affected=$(jq -er 'if type == "array" then join(",") else error("affected Rust projects were not returned as an array") end' <<< "$affected_json")
-          if [ -z "$affected" ]; then
-            echo "::warning::No affected Rust projects detected; running all Rust projects"
-            affected="${all}"
-          fi
-          echo "all=${all}" >> "$GITHUB_OUTPUT"
-          echo "affected=${affected}" >> "$GITHUB_OUTPUT"
 
       # Run the pin guard before any expensive setup so a stray version
       # reference fails fast without burning toolchain install time. Invoke via
@@ -194,36 +164,29 @@ jobs:
 
       # CICD-006: coverage moved to nightly assurance (ci-nightly.yml). PR/push
       # runs are the strict test gate only — no coverage instrumentation.
-      - name: Run tests (affected on PRs)
-        if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
-        env:
-          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
-        run: |
-          if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
-            echo "::error::Rust project detection produced an empty test selection"
-            exit 1
-          fi
-          # `stream` (not `static`): static buffers each task's output and
-          # flushes it in one burst as the step exits, and the runner's log
-          # capture drops that final burst — a failing cargo task's assertion
-          # output (and nx's own failure summary) never reaches the job log,
-          # making real test failures look like opaque runner crashes.
-          pnpm exec nx run-many -t test --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=stream
-
-      # Push events run the full workspace suite via nextest (the strict gate).
-      # Failure here MUST fail the workflow.
+      #
+      # PR and push run the SAME full-workspace nextest gate. RUSTNX-007 had PRs
+      # run `nx run-many -t test` over Nx-affected crates instead; measured
+      # 2026-09-02 over 21 PR runs that was a pessimisation, not a saving:
+      # affected path 435s avg (+80s pnpm install and Nx graph) vs 263s for
+      # `nextest --workspace` on the same runner. The Nx path spawns
+      # `cargo build -p <dep>` per `^build` dependency and then `cargo test -p`
+      # per crate, up to three cargo processes contending for the target-dir
+      # lock, and most PRs touch anvil-kernel or anvil-cli so "affected" is
+      # nearly the whole graph anyway. nextest schedules every test binary in
+      # one process on all cores. Failure here MUST fail the workflow.
       - name: Install cargo-nextest
-        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        if: steps.gate.outputs.run == 'true'
         uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: Run tests (nextest)
-        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        if: steps.gate.outputs.run == 'true'
         run: cargo nextest run --workspace --no-fail-fast
       # nextest does not run doctests, so run them separately to preserve the
       # same test surface as the pre-RUSTNX-002 `cargo test` invocation.
       - name: Run doctests
-        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        if: steps.gate.outputs.run == 'true'
         run: cargo test --doc --workspace
 
       # eddacraft-tui all-features gates (TUIR-006 / CIB-030): the workspace
