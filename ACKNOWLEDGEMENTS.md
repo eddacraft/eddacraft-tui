@@ -3910,7 +3910,7 @@ SOFTWARE.
 
 Used by:
 
-- `indexmap` 2.14.0
+- `indexmap` 2.14.1
 
 <details>
 <summary>Licence text</summary>
@@ -9600,7 +9600,7 @@ the following restrictions:
 | `parking_lot_core` | 0.9.12 | MIT License | https://github.com/Amanieu/parking_lot |
 | `thread_local` | 1.1.10 | MIT License | https://github.com/Amanieu/thread_local-rs |
 | `fallible-streaming-iterator` | 0.1.9 | MIT License | https://github.com/sfackler/fallible-streaming-iterator |
-| `indexmap` | 2.14.0 | MIT License | https://github.com/indexmap-rs/indexmap |
+| `indexmap` | 2.14.1 | MIT License | https://github.com/indexmap-rs/indexmap |
 | `equivalent` | 1.0.2 | MIT License | https://github.com/indexmap-rs/equivalent |
 | `addr2line` | 0.25.1 | MIT License | https://github.com/gimli-rs/addr2line |
 | `scopeguard` | 1.2.0 | MIT License | https://github.com/bluss/scopeguard |
