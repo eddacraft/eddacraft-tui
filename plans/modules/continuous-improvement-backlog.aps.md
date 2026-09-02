@@ -12219,7 +12219,7 @@ hang before opening a supervisor ticket.
   partial-stop regressions already pass on `main`, while the PID inode mode and
   opposite-canonical lock-order controls are absent.
 
-### CIB-383: change-scoped docs-owed diffs to the merge ref, so a PR is blamed for main's commits
+### CIB-383: change-scoped docs-owed diffs to the PR head, so a PR is not blamed for main's commits
 
 - **Status:** Merged 2026-08-31 via PR #4278 (`495c2900a`)
 - **Priority:** P2 — a false gate failure on any PR open while main moves,
