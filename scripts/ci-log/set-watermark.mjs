@@ -11,6 +11,7 @@ const { values, positionals } = parseArgs({
     date: { type: 'string' },
     today: { type: 'boolean', default: false },
     never: { type: 'boolean', default: false },
+    force: { type: 'boolean', default: false },
     json: { type: 'boolean', default: false },
     help: { type: 'boolean', default: false, short: 'h' },
   },
@@ -25,6 +26,11 @@ if (values.help) {
       '  pnpm ci-log:set-watermark --today',
       '  pnpm ci-log:set-watermark --date YYYY-MM-DD',
       '  pnpm ci-log:set-watermark --never',
+      '  pnpm ci-log:set-watermark --force --today',
+      '',
+      'Refuses when the pending queue is non-empty or the tracked log differs',
+      'from origin/main. Recovery: pnpm ci-log:harvest, then commit. --force',
+      'overrides. A missing origin/main ref degrades to the pending check.',
       '',
     ].join('\n')
   );
@@ -42,7 +48,7 @@ try {
   if (date !== 'never' && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error(`invalid date: ${date}`);
   }
-  const written = setWatermark(date);
+  const written = setWatermark(date, { force: values.force });
   if (values.json) {
     process.stdout.write(`${JSON.stringify({ ok: true, lastTriaged: written })}\n`);
   } else {

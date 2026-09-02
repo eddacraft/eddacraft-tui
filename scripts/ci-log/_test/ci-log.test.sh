@@ -218,6 +218,7 @@ done
 "${APPEND[@]}" --date 2024-02-29 --task 'valid leap date' --agent codex >/dev/null
 grep -q '^### 2024-02-29 ' "$tmp/repo/.git/anvil/ci-log-pending/"*.md || \
   fail "append rejected valid leap date"
+"${HARVEST[@]}" --json >/dev/null
 "${WATER[@]}" --date 2024-02-29 >/dev/null
 grep -q 'Last triaged:\*\* 2024-02-29' plans/reviews/continuous-improvement-log.md || \
   fail "watermark rejected valid leap date"
@@ -268,5 +269,56 @@ fi
 if compgen -G "$tmp/repo/.git/anvil/ci-log-pending/.ci-log-pending-tmp-*" >/dev/null; then
   fail "owned pending publication temp leaked"
 fi
+
+# 15) CIB-375: set-watermark refuses an unharvested queue or a tracked log that
+# differs from origin/main. --force is the explicit override. A missing
+# origin/main ref degrades to the pending-queue check alone.
+"${HARVEST[@]}" --json >/dev/null
+git add plans/reviews/continuous-improvement-log.md
+git commit -q -m 'cib-375 origin snapshot'
+git branch -M main
+git update-ref refs/remotes/origin/main HEAD
+
+"${WATER[@]}" --date 2026-08-31 >/dev/null
+grep -q 'Last triaged:\*\* 2026-08-31' plans/reviews/continuous-improvement-log.md || \
+  fail "watermark refused a clean origin/main match"
+git add plans/reviews/continuous-improvement-log.md
+git commit -q -m 'cib-375 matching origin after stamp'
+git update-ref refs/remotes/origin/main HEAD
+
+"${APPEND[@]}" --task 'unharvested watermark bait' --agent grok --outcome queued >/dev/null
+if "${WATER[@]}" --date 2026-09-01 >"$tmp/wm-pending.out" 2>"$tmp/wm-pending.err"; then
+  fail "watermark advanced over an unharvested pending queue"
+fi
+grep -q 'ci-log:harvest' "$tmp/wm-pending.err" || \
+  fail "pending refusal omitted harvest recovery: $(cat "$tmp/wm-pending.err")"
+grep -q 'commit' "$tmp/wm-pending.err" || \
+  fail "pending refusal omitted commit recovery: $(cat "$tmp/wm-pending.err")"
+grep -q 'Last triaged:\*\* 2026-09-01' plans/reviews/continuous-improvement-log.md && \
+  fail "pending refusal still mutated the watermark"
+
+"${WATER[@]}" --force --date 2026-09-01 >/dev/null
+grep -q 'Last triaged:\*\* 2026-09-01' plans/reviews/continuous-improvement-log.md || \
+  fail "--force did not stamp over pending notes"
+"${HARVEST[@]}" --json >/dev/null
+
+if "${WATER[@]}" --date 2026-09-02 >"$tmp/wm-origin.out" 2>"$tmp/wm-origin.err"; then
+  fail "watermark advanced while the tracked log differs from origin/main"
+fi
+grep -q 'ci-log:harvest' "$tmp/wm-origin.err" || \
+  fail "origin/main refusal omitted harvest recovery: $(cat "$tmp/wm-origin.err")"
+grep -q 'commit' "$tmp/wm-origin.err" || \
+  fail "origin/main refusal omitted commit recovery: $(cat "$tmp/wm-origin.err")"
+grep -q 'Last triaged:\*\* 2026-09-02' plans/reviews/continuous-improvement-log.md && \
+  fail "origin/main refusal still mutated the watermark"
+
+"${WATER[@]}" --force --date 2026-09-02 >/dev/null
+grep -q 'Last triaged:\*\* 2026-09-02' plans/reviews/continuous-improvement-log.md || \
+  fail "--force did not stamp over origin/main drift"
+
+git update-ref -d refs/remotes/origin/main
+"${WATER[@]}" --date 2026-09-03 >/dev/null
+grep -q 'Last triaged:\*\* 2026-09-03' plans/reviews/continuous-improvement-log.md || \
+  fail "missing origin/main should degrade to the pending-queue check"
 
 printf 'ci-log.test.sh: OK\n'

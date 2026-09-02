@@ -352,8 +352,48 @@ export function readWatermark(cwd = process.cwd()) {
   return match ? match[1] : null;
 }
 
-export function setWatermark(date, { cwd = process.cwd() } = {}) {
+function originMainAvailable(cwd = process.cwd()) {
+  return Boolean(
+    runGit(['rev-parse', '--verify', '--quiet', 'origin/main'], { cwd, allowFail: true })
+  );
+}
+
+function trackedLogDiffersFromOriginMain(cwd = process.cwd()) {
+  try {
+    execFileSync('git', ['diff', '--quiet', 'origin/main', '--', TRACKED_LOG_REL], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return false;
+  } catch (error) {
+    if (error && error.status === 1) return true;
+    const stderr = error.stderr?.toString?.() ?? error.message;
+    throw new Error(`git diff origin/main -- ${TRACKED_LOG_REL} failed: ${stderr}`, {
+      cause: error,
+    });
+  }
+}
+
+export function assertWatermarkPreconditions({ cwd = process.cwd(), force = false } = {}) {
+  if (force) return;
+  const pending = listPendingFiles(cwd);
+  if (pending.length > 0) {
+    throw new Error(
+      `refusing to stamp the triage watermark: ${pending.length} pending note(s) are unharvested. Run \`pnpm ci-log:harvest\`, then commit the tracked log, before stamping. Pass --force to override.`
+    );
+  }
+  if (!originMainAvailable(cwd)) return;
+  if (trackedLogDiffersFromOriginMain(cwd)) {
+    throw new Error(
+      `refusing to stamp the triage watermark: ${TRACKED_LOG_REL} differs from origin/main. Run \`pnpm ci-log:harvest\`, then commit the tracked log, before stamping. Pass --force to override.`
+    );
+  }
+}
+
+export function setWatermark(date, { cwd = process.cwd(), force = false } = {}) {
   assertRealCalendarDate(date, { allowNever: true });
+  assertWatermarkPreconditions({ cwd, force });
   return withTrackedLogLock(cwd, () => {
     const path = trackedLogPath(cwd);
     const text = readText(path);

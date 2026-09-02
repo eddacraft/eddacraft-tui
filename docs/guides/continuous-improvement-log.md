@@ -1,8 +1,8 @@
 # Continuous Improvement Log
 
-| Type  | Authority     | Owner | Status | Freshness                                                                              |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------- |
-| Guide | Authoritative | CIB   | Live   | 2026-08-17 — harvested 77 pending notes; CIB-341..343 Merged on the bookkeeping branch |
+| Type  | Authority     | Owner | Status | Freshness                                                                               |
+| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------- |
+| Guide | Authoritative | CIB   | Live   | Last reviewed 2026-09-02 against CIB-375 `set-watermark` pending and origin/main guards |
 
 | Upstream                                                                                                                    | Downstream                                                      |
 | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
@@ -117,7 +117,12 @@ file is shared multi-writer; reconcile it only on the bookkeeping branch.
    CI-log entry), or **leave** (one-off lesson). Also apply deferred APS status
    reconcile for shipped CIB items (`Merged via PR #N` and friends).
 4. Promotion bar: intent + observable outcome + validation + source pointer.
-5. `pnpm ci-log:set-watermark -- --today`.
+5. `pnpm ci-log:set-watermark -- --today`. This refuses when the pending queue
+   is non-empty or the tracked log differs from local `origin/main`, and names
+   `pnpm ci-log:harvest` then commit. `--force` overrides. A missing
+   `origin/main` ref degrades to the pending-queue check. On a bookkeeping
+   branch whose harvest is not yet on `origin/main`, commit the harvest first,
+   then pass `--force`, or wait until that harvest is on `origin/main`.
 6. Append one triage closeout note via `pnpm ci-log:append` (or tracked).
 
 Workflow: `.claude/workflows/triage-ci-log.js` when running under Claude
@@ -125,14 +130,14 @@ workflows.
 
 ## Commands
 
-| Command                     | Purpose                                |
-| --------------------------- | -------------------------------------- |
-| `pnpm ci-log:append`        | Write pending (default) or `--tracked` |
-| `pnpm ci-log:harvest`       | Pending → tracked log                  |
-| `pnpm ci-log:status`        | Pending count, last entry, watermark   |
-| `pnpm ci-log:since`         | Entries since date or watermark        |
-| `pnpm ci-log:set-watermark` | Update triage watermark                |
-| `pnpm test:ci-log`          | Fixture tests                          |
+| Command                     | Purpose                                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `pnpm ci-log:append`        | Write pending (default) or `--tracked`                                                                         |
+| `pnpm ci-log:harvest`       | Pending → tracked log                                                                                          |
+| `pnpm ci-log:status`        | Pending count, last entry, watermark                                                                           |
+| `pnpm ci-log:since`         | Entries since date or watermark                                                                                |
+| `pnpm ci-log:set-watermark` | Stamp triage watermark; refuses an unharvested queue or a log that differs from `origin/main` unless `--force` |
+| `pnpm test:ci-log`          | Fixture tests                                                                                                  |
 
 ## Related
 
