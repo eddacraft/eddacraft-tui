@@ -45,6 +45,16 @@ runs:
         # `pnpm-workspace.yaml` package roots on purpose: an unanchored
         # `*/*/*/node_modules` would also match `node_modules/.pnpm/*/…`
         # and archive the whole tree twice.
+        #
+        # `~/.cache/puppeteer` is the one postinstall artefact that lives
+        # OUTSIDE node_modules: puppeteer's install script downloads
+        # chrome-headless-shell there, and `docs:check`'s diagram-impact
+        # surface renders Mermaid with it. The first hit-path run (PR #4325)
+        # failed 8 diagram fences with "Could not find chrome-headless-shell"
+        # because the postinstall never ran. Its version is pinned by the
+        # puppeteer entry in the lockfile, which is already in the key.
+        # (playwright's package does not download browsers on install;
+        # sharp and better-sqlite3 build into node_modules.)
         path: |
           node_modules
           apps/*/node_modules
@@ -53,8 +63,11 @@ runs:
           packages/*/node_modules
           packages/*/*/node_modules
           tools/*/node_modules
+          ~/.cache/puppeteer
+        # `v2`: bump whenever the path list changes — an entry saved under the
+        # old paths would otherwise hit and be missing the new ones.
         key:
-          node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ inputs.node-version }}-${{
+          node-modules-v2-${{ runner.os }}-${{ runner.arch }}-node${{ inputs.node-version }}-${{
           hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', 'package.json') }}
 
     - name: Setup Node.js ${{ inputs.node-version }}

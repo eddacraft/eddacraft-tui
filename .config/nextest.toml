@@ -27,3 +27,17 @@ success-output = "immediate"
 [[profile.default.overrides]]
 filter = 'package(eddacraft-anvil-policy) & (test(eval_harness_adapter_subprocess) | test(eval_harness_exit_code_classification))'
 retries = { backoff = "fixed", count = 2, delay = "500ms" }
+
+# CI-cost 2026-09 (PR #4325): `Rust Tests` now runs this same nextest gate on
+# PRs, not just on push, so PRs inherit main's flake rate. This LSP test is a
+# timing race between the didChange cancellation and the version-1
+# publication (asserts the first publication after didChange is version 2;
+# under load it observes 1) and was the failure behind four of the five most
+# recent red push runs on main (33466859720, 33470597614, 33597011237,
+# 33600292025). Two retries absorb it the same way GH #3182 does above; the
+# race itself is still owed a fix in `crates/anvil-cli/tests/lsp_diagnostics.rs`.
+# `no_daemon_makes_zero_rpc_calls_to_a_live_daemon_endpoint` failed the fifth
+# run once and is not retried here — one observation is not a pattern yet.
+[[profile.default.overrides]]
+filter = 'package(eddacraft-anvil) & test(changing_a_document_cancels_the_active_daemon_exchange)'
+retries = { backoff = "fixed", count = 2, delay = "500ms" }
