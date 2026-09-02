@@ -12798,7 +12798,9 @@ reply.
   3. `commands::doctor::tests::stop_sibling_sockets_clears_a_crash_orphaned_socket`
      — failed once on CI; passes 15/15 in isolation and 4/4 in the full suite
      locally, and `main`'s own CI is green. **Still unexplained**, and named
-     here as a symptom rather than a diagnosis.
+     here as a symptom rather than a diagnosis. Now filed in its own right as
+     **CIB-393**, which records the two causes already excluded and is scoped
+     to reproduction; this leg is its intended vehicle.
 
   Individually each looks like noise. Three in a day is a class: tests whose
   verdict depends on process-global environment, on the invoking user's umask,
@@ -12826,10 +12828,11 @@ reply.
 - **Identified From:** 2026-09-02 session; three environment-dependent failures
   encountered across unrelated PRs in one day, two of them costing a full-suite
   re-run to attribute.
-- **Coordinates with:** CIB-337 (de-flaking a self-documented-racy timing
-  test), CIB-338 (path-detection gate steps must fail open), CIB-316
-  (unfalsifiable guards), CIB-390 (the sibling "the check did not really run"
-  defect)
+- **Coordinates with:** CIB-393 (instance 3, filed separately as a
+  reproduction task — this leg is its intended vehicle), CIB-337 (de-flaking a
+  self-documented-racy timing test), CIB-338 (path-detection gate steps must
+  fail open), CIB-316 (unfalsifiable guards), CIB-390 (the sibling "the check
+  did not really run" defect)
 - **Confidence:** high on the class and on instances 1 and 2, which were both
   measured; low on instance 3, which is deliberately recorded as unexplained.
 
@@ -12888,3 +12891,82 @@ reply.
   high-entropy credentials — same false-positive family)
 - **Confidence:** high — the three findings were read at their line numbers and
   each is demonstrably fixture or prose.
+
+### CIB-393: `stop_sibling_sockets_clears_a_crash_orphaned_socket` fails on CI and cannot be reproduced locally
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P3 — one intermittent red on an unrelated PR. Filed as a
+  **reproduction task**, not a fix: the root cause is genuinely unknown and
+  this entry exists so the next occurrence lands against a record instead of
+  being re-diagnosed from scratch
+- **Intent:** `commands::doctor::tests::stop_sibling_sockets_clears_a_crash_orphaned_socket`
+  failed once on CI (PR [#4297](https://github.com/eddacraft/anvil-001/pull/4297),
+  2026-09-01, job `99909924022`) at `crates/anvil-cli/src/commands/doctor.rs:5317`:
+
+  ```text
+  a proven-dead sibling must not block the fix
+  ```
+
+  That is the `stop_sibling_intercept_sockets(&siblings, false).is_some()`
+  assertion, so the function returned `None` on the runner. The test builds a
+  self-contained fixture: a tempdir runtime dir at `0700`, a Unix socket bound
+  then dropped and set `0600`, and **no PID file** — the shape a SIGKILLed
+  daemon leaves behind.
+
+  **What has been excluded.** Two plausible causes were checked and do not
+  hold:
+
+  - *Cross-test lock contention.* `acquire_daemon_start_lock_for_pid_file`
+    resolves to `<runtime_dir>/intercept.ensure.lock`
+    (`crates/anvil-intercept/src/ensure.rs:398-401`) — it is scoped to the
+    fixture's own tempdir, not per-install or per-user, so a concurrent test
+    cannot contend for it.
+  - *A change under test.* The PR that saw the failure touched only
+    `activation/orchestrator/mod.rs`. `main`'s own CI was green across the
+    surrounding window.
+
+  **What has not been explained.** It passes **15/15** in isolation and
+  **4/4** in the full bin suite locally, so no local run has ever reproduced
+  it. The remaining suspect is the security precondition on the lock:
+  `acquire_ensure_lock` calls `ensure_secure_runtime_dir(parent)` before
+  opening the lock file (`ensure.rs:373-379`), and that is the one step whose
+  verdict can differ between a developer box and a CI runner for an identical
+  fixture — ownership, mode, or ancestor properties of the runner's `TMPDIR`.
+  **This is a hypothesis and is recorded as one.** The sibling failure in
+  `tests/intercept_stop.rs` — where a fixture PID file inherited `umask 002`,
+  became group-writable, and was correctly refused — is the same *family*
+  (permission validation on a temp fixture differing by environment) and is
+  the reason this suspect is named first, not evidence for it.
+- **Expected Outcome:** the failure is reproduced **deterministically**, and
+  only then diagnosed. The most likely vehicle is CIB-391's hostile-ambient
+  leg; if that leg reproduces it, this item becomes a normal defect with a
+  known cause. If it does not, the next occurrence has this record —
+  excluded causes included — to start from rather than repeating the work.
+- **Non-scope / do not:** do not `#[ignore]`, delete, or retry-wrap the test to
+  clear the red — it guards a real repair path (a crash-orphaned socket that
+  `--fix` could not heal), and its own docstring records that reverting the
+  unlink turns it red. Do not "fix" it by relaxing `ensure_secure_runtime_dir`;
+  that check is the trust boundary CIB-382 hardened, and loosening it to make a
+  test pass would trade a red for a security regression. Do not file a cause in
+  this entry that has not been reproduced.
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs` (~L5290-5320, the test),
+  `crates/anvil-cli/src/commands/doctor.rs` (~L2566-2620,
+  `stop_sibling_intercept_sockets` and its `None` paths),
+  `crates/anvil-intercept/src/ensure.rs` (~L373-401, the lock and its
+  `ensure_secure_runtime_dir` precondition)
+- **Validation:** a run that fails the assertion on demand, with the
+  responsible `None` branch identified — the function has four
+  (`no parent`, start-lock error, stop error, pid-still-running), and the
+  entry is not closable until the record says which one fired. Afterwards the
+  test passes on both a developer box and the reproducing environment.
+- **Identified From:** 2026-09-02 session; observed during pre-merge checks on
+  #4297 and deliberately left unfiled at the time because no reproduction
+  existed. Filed at operator request as the third instance motivating CIB-391.
+- **Coordinates with:** CIB-391 (the hostile-ambient leg that is the intended
+  reproduction vehicle — this item is its third listed instance), CIB-382
+  (the PID/socket trust boundary that must not be loosened to make this pass),
+  CIB-337 (de-flaking a racy timing test — same "prove it, do not paper it"
+  posture)
+- **Confidence:** high on the observation and on the two excluded causes, all
+  read directly from source or from the failing job. **Low on the cause** —
+  that is the point of the item, and the reason it is scoped to reproduction.
