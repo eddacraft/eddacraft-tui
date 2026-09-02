@@ -735,6 +735,94 @@ mod tests {
         );
     }
 
+    fn generated_record_id() -> String {
+        // Assembled so the fixture source is not itself one entropy token.
+        // Entropy ≈ 4.55 — above the 4.5 default, matching the 48/50
+        // clawpatch-audit false positives CIB-373 measured.
+        [
+            "fnd",
+            "_",
+            "sig",
+            "-",
+            "feat",
+            "-",
+            "library",
+            "-",
+            "7a6326200e",
+            "-",
+            "c18d",
+            "_",
+            "0bf498b547",
+        ]
+        .concat()
+    }
+
+    fn opaque_secret_token() -> String {
+        ["7kQ2", "mZ9p", "V4xL", "8nB3", "rW6t", "C1yH", "5jD0", "sF"].concat()
+    }
+
+    #[test]
+    fn does_not_flag_generated_record_id() {
+        let config = SecretCheckConfig::default();
+        let id = generated_record_id();
+        assert!(
+            super::calculate_entropy(&id) >= config.entropy_threshold,
+            "fixture must sit above the default threshold or the test is vacuous"
+        );
+        let content = format!("const id = '{id}';");
+        let findings = detect_high_entropy_strings(&content, "src/record.ts", &config);
+        assert!(
+            findings.is_empty(),
+            "generated record id should not be flagged as a secret, got: {:?}",
+            findings
+                .iter()
+                .map(|f| &f.redacted_match)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn generated_record_id_is_suppressed_but_a_real_secret_still_flags() {
+        let config = SecretCheckConfig::default();
+        let id = generated_record_id();
+        let token = opaque_secret_token();
+        let content = format!("const id = '{id}';\nconst token = '{token}';");
+        let findings = detect_high_entropy_strings(&content, "src/auth.ts", &config);
+        assert!(
+            findings.iter().any(|f| f.line == 2),
+            "real secret on line 2 must still flag, got: {:?}",
+            findings
+                .iter()
+                .map(|f| (f.line, &f.redacted_match))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            !findings.iter().any(|f| f.line == 1),
+            "generated record id on line 1 must be suppressed by the allowlist"
+        );
+    }
+
+    #[test]
+    fn mixed_case_record_like_token_still_flags() {
+        // The shape is lowercase-only. Uppercasing the prefix must not
+        // inherit the suppression — that is the non-vacuity control.
+        let config = SecretCheckConfig::default();
+        let id = generated_record_id();
+        let mixed = {
+            let mut chars = id.chars();
+            let first = chars.next().unwrap().to_ascii_uppercase();
+            format!("{first}{}", chars.as_str())
+        };
+        let content = format!("const id = '{mixed}';");
+        let findings = detect_high_entropy_strings(&content, "src/record.ts", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.pattern_name == "High Entropy String"),
+            "mixed-case record-like token must still flag: {findings:?}"
+        );
+    }
+
     #[test]
     fn detects_high_entropy_from_quoted_and_assignment_values() {
         let config = SecretCheckConfig {

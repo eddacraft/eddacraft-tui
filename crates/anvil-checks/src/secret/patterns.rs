@@ -147,7 +147,7 @@ pub const SECRET_PATTERNS: [SecretPattern; 21] = [
 /// header (`data:image/…;base64,`). Applies to *all* patterns including
 /// high-confidence ones, because a 40-char hex string really is just an
 /// SHA-1 hash regardless of where it appears.
-pub const DEFAULT_SHAPE_ALLOWLIST: [&str; 6] = [
+pub const DEFAULT_SHAPE_ALLOWLIST: [&str; 7] = [
     r"^[a-f0-9]{32}$",
     r"^[a-f0-9]{40}$",
     r"^[a-f0-9]{64}$",
@@ -164,6 +164,15 @@ pub const DEFAULT_SHAPE_ALLOWLIST: [&str; 6] = [
     // Crockford run starting `8`–`Z` is *not* allowlisted, keeping the
     // suppression as narrow as possible.
     r"^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+    // Content-addressed record identifiers (CIB-373): lowercase `kind_kind`
+    // prefix, kebab-case slug, then one or more hex tails. A diverse 47-char
+    // clawpatch `fnd_sig-…` reaches entropy ≈ 4.55. Mixed-case opaque tokens,
+    // `sk_live_…`, `ghp_…`, and Slack `xoxb-…` do not match.
+    //
+    // `(?-i)` is load-bearing: `PatternMatcher` compiles every allowlist
+    // entry with `(?i)`, which would otherwise let `Fnd_sig-…` inherit a
+    // suppression meant only for the lowercase public-id shape.
+    r"(?-i)^[a-z]{2,12}_[a-z]{2,16}(?:-[a-z0-9]+){1,8}-[0-9a-f]{8,}(?:-[_0-9a-f]{4,})+$",
 ];
 
 /// Keyword allowlist: suppresses fuzzy detections (entropy + low-confidence
@@ -183,13 +192,14 @@ pub const DEFAULT_KEYWORD_ALLOWLIST: [&str; 6] = [
 /// Combined default allowlist — preserved for back-compat with the
 /// pre-#1800 single-list contract. New code should prefer the
 /// shape / keyword split above.
-pub const DEFAULT_ALLOWLIST: [&str; 12] = [
+pub const DEFAULT_ALLOWLIST: [&str; 13] = [
     r"^[a-f0-9]{32}$",
     r"^[a-f0-9]{40}$",
     r"^[a-f0-9]{64}$",
     r"^0x[a-f0-9]+$",
     r"^data:image\/[a-z]+;base64,",
     r"^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+    r"(?-i)^[a-z]{2,12}_[a-z]{2,16}(?:-[a-z0-9]+){1,8}-[0-9a-f]{8,}(?:-[_0-9a-f]{4,})+$",
     r"placeholder",
     r"example",
     r"test",
@@ -824,7 +834,7 @@ mod tests {
         assert!(matcher.is_allowlisted("placeholder"));
         assert!(matcher.is_allowlisted("my-safe-value"));
         assert!(!matcher.is_allowlisted("ghp_abcdefghijklmnopqrstuvwxyz1234567890abc"));
-        assert_eq!(DEFAULT_ALLOWLIST.len(), 12);
+        assert_eq!(DEFAULT_ALLOWLIST.len(), 13);
 
         // Pin the back-compat contract structurally, not just by length:
         // `DEFAULT_ALLOWLIST` MUST be the in-order concatenation of the

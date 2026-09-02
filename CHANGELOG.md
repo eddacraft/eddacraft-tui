@@ -107,6 +107,11 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **Generated record identifiers are no longer flagged as high-entropy
+  secrets.** Content-addressed ids with a lowercase prefix, dashed segments, and
+  a hex tail stay quiet. Mixed-case opaque tokens and real credentials still
+  fire.
+
 - **Secret scans no longer report clean when they could not read the input.**
   Oversize lines, unreadable files, and scanner panics block a clean pass;
   extension skips stay advisory. `anvil audit` and planless `anvil check` report

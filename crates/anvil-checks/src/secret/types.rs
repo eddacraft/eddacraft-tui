@@ -192,7 +192,8 @@ pub enum FindingType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AllowlistProvenance {
-    /// A built-in shape-anchored entry (hex hash, `0x…`, data URI, ULID).
+    /// A built-in shape-anchored entry (hex hash, `0x…`, data URI, ULID,
+    /// content-addressed record id).
     BuiltinShape,
     /// A built-in documentation/test keyword (`example`, `test`, `dummy`, …).
     BuiltinKeyword,
