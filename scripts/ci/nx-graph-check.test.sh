@@ -20,6 +20,9 @@ fail() {
 assert_contains() {
   local file="$1"
   local expected="$2"
+  if [[ ! -f "${file}" ]]; then
+    fail "expected ${file} to exist"
+  fi
   if ! grep -Fq -- "${expected}" "${file}"; then
     fail "expected ${file} to contain: ${expected}"
   fi
@@ -85,6 +88,8 @@ restore() {
   cp "${fixture_backup}" "${fixture_pkg}"
   rm -f "${nxignore_backup}" "${fixture_backup}"
 }
+[[ -f "${nxignore}" ]] || fail "expected ${nxignore} to exist"
+[[ -f "${fixture_pkg}" ]] || fail "expected ${fixture_pkg} to exist"
 cp "${nxignore}" "${nxignore_backup}"
 cp "${fixture_pkg}" "${fixture_backup}"
 trap restore EXIT

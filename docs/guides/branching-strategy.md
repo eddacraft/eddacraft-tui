@@ -129,13 +129,17 @@ CI selects validation by risk and changed paths rather than branch tiering. The
 `main` ruleset enforces the always-running subset as required checks:
 
 - APS Drift Check
-- Nx Graph
 - Docs Lint
 - Lint & Format
 - Type Check
 - Unit Tests (Node 22.x, ubuntu-latest)
 - Security Summary
 - Detect Changes
+
+`Nx Graph` (`ci.yml`) is always-on so a nameless inferred project fails in CI
+rather than on Vercel after merge. Add that check name to the `main` ruleset
+only after the job exists on `main`; adding it earlier would block PRs whose
+workflow does not yet emit the check.
 
 Path-filtered and risk-targeted workflows (Build, E2E Harness, Release Gate,
 SAST, Secret Scan, Dependency Audit, Platform Smoke, License Compliance) run
