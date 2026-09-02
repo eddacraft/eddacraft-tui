@@ -393,8 +393,8 @@ export function assertWatermarkPreconditions({ cwd = process.cwd(), force = fals
 
 export function setWatermark(date, { cwd = process.cwd(), force = false } = {}) {
   assertRealCalendarDate(date, { allowNever: true });
-  assertWatermarkPreconditions({ cwd, force });
   return withTrackedLogLock(cwd, () => {
+    assertWatermarkPreconditions({ cwd, force });
     const path = trackedLogPath(cwd);
     const text = readText(path);
     const line = `> **Last triaged:** ${date}`;

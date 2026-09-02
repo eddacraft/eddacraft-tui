@@ -23,10 +23,10 @@ if (values.help) {
   process.stdout.write(
     [
       'Usage:',
-      '  pnpm ci-log:set-watermark --today',
-      '  pnpm ci-log:set-watermark --date YYYY-MM-DD',
-      '  pnpm ci-log:set-watermark --never',
-      '  pnpm ci-log:set-watermark --force --today',
+      '  pnpm ci-log:set-watermark -- --today',
+      '  pnpm ci-log:set-watermark -- --date YYYY-MM-DD',
+      '  pnpm ci-log:set-watermark -- --never',
+      '  pnpm ci-log:set-watermark -- --force --today',
       '',
       'Refuses when the pending queue is non-empty or the tracked log differs',
       'from origin/main. Recovery: pnpm ci-log:harvest, then commit. --force',
