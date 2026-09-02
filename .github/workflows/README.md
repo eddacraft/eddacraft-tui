@@ -67,7 +67,7 @@ fixture enforces both directions.
 | `editor-coexistence.yml`               | PR + Integration                     | `pull_request` (anvil-cli/kernel/hook paths, harness, policy doc); `push` to `main` only on cache-key inputs (`Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, the workflow) to seed the release cache PR runs restore; plus `workflow_dispatch` — ADOPT-006 LSP/formatter coexistence gate                                                              | ADOPT        |
 | `council-gate.yml`                     | Auxiliary (review gate)              | `pull_request` (all; passes unless a change touches a protected save-time auth/confinement path) plus `workflow_dispatch` — CIB-149 gate: requires the `council:reviewed` label for changes to paths listed in `.claude/hooks/council-protected-paths`; self-guards the list + this workflow, dismisses the label on new commits                           | CICD         |
 | `bench-nightly.yml`                    | Assurance                            | `workflow_dispatch` only (manual; nightly `schedule` removed while no `bench` runner is online)                                                                                                                                                                                                                                                            | CICD         |
-| `ci-nightly.yml`                       | Assurance                            | `schedule` (daily 17:00 UTC) plus `workflow_dispatch` — coverage (TS + Rust), expanded matrices, multi-version Node, cross-compile assurance; resource budgets run as a sibling nightly via `resource-budget.yml` @ 17:15                                                                                                                                  | CICD         |
+| `ci-nightly.yml`                       | Assurance                            | `schedule` (17:00 UTC Sun–Thu = 01:00 Perth Mon–Fri) plus `workflow_dispatch` — coverage (TS + Rust), cross-OS Node suites, cross-compile assurance (native `cargo test` on Linux/macOS/Windows); resource budgets run as a sibling nightly via `resource-budget.yml` @ 17:15                                                                              | CICD         |
 | `ci-cost-report.yml`                   | Assurance                            | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                                                                                                                                                                                            | CICD         |
 | `release-readiness.yml`                | Release candidate                    | `workflow_dispatch` only — exact `sourceSha` validation, `dist plan` packaging contract, resource-budget gate on that SHA, candidate metadata artefact; no publish credentials                                                                                                                                                                             | RELORCH      |
 | `release.yml`                          | Publish                              | `push: tags: …` only — cargo-dist build, publish, post-publish verification (PR dry-run removed; use release-readiness)                                                                                                                                                                                                                                    | RELORCH      |
@@ -315,12 +315,19 @@ restore, not to re-prove the merge (CI-cost 2026-09).
 
 ### `ci-nightly.yml` — Scheduled assurance
 
-Coverage (TS + Rust), expanded cross-platform matrices, multi-version Node
-tests, cross-compile assurance, and broader audits that do not belong on routine
-PR or integration push. Rust coverage uses `scripts/ci/rust-coverage.sh` with a
-`rust-coverage` `rust-cache` namespace (separate from `rust-ci`) and a
+Coverage (TS + Rust), cross-OS Node suites (macOS + Windows), the six-target
+cross-compile matrix (which also runs `cargo test --workspace` natively on the
+Linux, macOS and Windows hosts), and broader audits that do not belong on
+routine PR or integration push. Rust coverage uses `scripts/ci/rust-coverage.sh`
+with a `rust-coverage` `rust-cache` namespace (separate from `rust-ci`) and a
 180-minute job timeout. Resource-budget nightly assurance is owned by
 `resource-budget.yml` (17:15 UTC) rather than duplicated here.
+
+CI-cost 2026-09: runs on weekday Perth mornings only (`0 17 * * 0-4`); the
+macOS/Windows Node job no longer repeats `cargo test --workspace` (the
+`cross-compile` legs already do it natively with a warm cache); and the Linux
+`test-multi-node` job was removed as a strict subset of `coverage-typescript` +
+`cross-compile` + `coverage-rust`.
 
 ### `ci-cost-report.yml` — CI Cost Report
 
