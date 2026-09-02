@@ -8,7 +8,7 @@ const FAILED = 1;
 
 function usage() {
   process.stderr.write(
-    'Usage: scripts/ci/pr-required-status.mjs [--repo owner/repo] [--pr N] [--base BRANCH] [--required-json FILE] [--checks-json FILE]\n'
+    'Usage: scripts/ci/pr-required-status.mjs [--repo owner/repo] [--pr N] [--base BRANCH] [--required-json FILE] [--checks-json FILE] [--gh PATH]\n'
   );
 }
 
