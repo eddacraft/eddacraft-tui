@@ -288,9 +288,7 @@ fn call_with_validation_client(
         .flatten();
 
     let mut diagnostics = normalise_response_diagnostics(&diagnostics, backend);
-    if let Some(added) = added_lines_for_secret_scope(&request, materialised_original.as_deref()) {
-        diagnostics = filter_unchanged_line_secret_errors(diagnostics, &added);
-    }
+    diagnostics = apply_cib392_secret_scope(diagnostics, &request, materialised_original.as_deref());
 
     // POLRESET-006 / OPAE-007: additive pre-write policy evaluation, run AFTER
     // the intercept-rules scan and never replacing it (see
@@ -1679,9 +1677,7 @@ fn tiered_validation_payload(
     }
     diagnostics.extend(scoped_diagnostics);
     let mut diagnostics = normalise_response_diagnostics(&diagnostics, ValidationBackend::Embedded);
-    if let Some(added) = added_lines_for_secret_scope(request, None) {
-        diagnostics = filter_unchanged_line_secret_errors(diagnostics, &added);
-    }
+    diagnostics = apply_cib392_secret_scope(diagnostics, request, None);
 
     // The decision still flows through the enforcement-mode policy —
     // a scoped finding warns or blocks exactly as it would on the full
@@ -1742,6 +1738,17 @@ fn added_lines_for_secret_scope(
     };
     let post = request.content.as_deref()?;
     Some(added_line_numbers_from_pre_post(&original, post))
+}
+
+fn apply_cib392_secret_scope(
+    diagnostics: Vec<Diagnostic>,
+    request: &ValidateWriteRequest,
+    materialised_original: Option<&str>,
+) -> Vec<Diagnostic> {
+    match added_lines_for_secret_scope(request, materialised_original) {
+        Some(added) => filter_unchanged_line_secret_errors(diagnostics, &added),
+        None => diagnostics,
+    }
 }
 
 fn filter_unchanged_line_secret_errors(
