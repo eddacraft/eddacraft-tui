@@ -91,6 +91,9 @@ The PR contract is intentionally distinct from the integration push contract.
 See
 [CICD-005](../../plans/archive/modules/ci-cd-validation.aps.md#cicd-005-integration-sha-validation-redesign).
 
+- `Nx Graph` (`ci.yml`) is always-on and not path-gated (CIB-320). It computes
+  the Nx project graph with a cold cache so an unnamed inferred project fails in
+  CI instead of on Vercel after merge.
 - The primary required-check jobs (`Lint & Format`, `Type Check`, `Unit Tests`,
   `Docs Lint`) contain internal PR-only quick-skip paths (cheap success when
   their classifier signal is false). These ensure exactly one conclusion per
@@ -113,11 +116,11 @@ See
   for a push event.
 - `Integration Readiness` (`ci.yml`) is push-only and aggregates the **Node /
   TypeScript** side of the integration push (`docs-lint`, `metadata-validation`,
-  `platform-smoke`, `lint`, `typecheck`, `test`, `build`, `e2e-harness`). It
-  emits a single step summary identifying the SHA, the ref, the run link, and
-  the validating job results, and fails the workflow if any required Node-side
-  job reports `failure` / `cancelled`. `APS Drift Check` is treated as
-  warning-only evidence per
+  `platform-smoke`, `nx-graph`, `lint`, `typecheck`, `test`, `build`,
+  `e2e-harness`). It emits a single step summary identifying the SHA, the ref,
+  the run link, and the validating job results, and fails the workflow if any
+  required Node-side job reports `failure` / `cancelled`. `APS Drift Check` is
+  treated as warning-only evidence per
   [CICD-011](../../plans/archive/modules/ci-cd-validation.aps.md#cicd-011-apsreporelease-drift-checks-in-ci).
 - **Rust validation is intentionally not aggregated by `Integration Readiness`**
   — `rust.yml` (`Check`, `Test`, `Clippy`, `Format`, `Hakari verify`,

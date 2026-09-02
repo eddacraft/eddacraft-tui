@@ -500,6 +500,7 @@ jobs:
           pnpm test:ci-cost
           pnpm test:ci-fast-pr
           pnpm test:ci-integration
+          pnpm test:ci-nx-graph
           pnpm test:ci-matrix-targeting
           pnpm test:ci-drift-integration
           pnpm test:ci-workflow-contracts
@@ -737,6 +738,26 @@ jobs:
             --changed-files /tmp/aps-drift-files.txt \
             --pr-title "$PR_TITLE" \
             --pr-body-file /tmp/aps-drift-pr-body.txt
+
+  # CIB-320: compute the Nx project graph with a cold cache on every PR and
+  # push. Do not path-gate — the two real triggers were a security scanner
+  # directory and a benchmark fixture, neither of which touches Nx config.
+  nx-graph:
+    name: Nx Graph
+    timeout-minutes: 10
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+
+      - name: Compute Nx project graph (cold cache)
+        run: bash scripts/ci/nx-graph-check.sh
 
   # ── Job 1: Lint + Format ─────────────────────────────────────────
   # Gated on source-changed (not code-changed): pure-Rust PRs are
@@ -1271,6 +1292,7 @@ jobs:
       - metadata-validation
       - platform-smoke
       - aps-drift
+      - nx-graph
       - lint
       - typecheck
       - test
@@ -1288,6 +1310,7 @@ jobs:
           METADATA_RESULT: ${{ needs.metadata-validation.result }}
           PLATFORM_SMOKE_RESULT: ${{ needs.platform-smoke.result }}
           APS_DRIFT_RESULT: ${{ needs.aps-drift.result }}
+          NX_GRAPH_RESULT: ${{ needs.nx-graph.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TYPECHECK_RESULT: ${{ needs.typecheck.result }}
           TEST_RESULT: ${{ needs.test.result }}
@@ -1330,6 +1353,7 @@ jobs:
           summary "| CI Metadata Checks | ${METADATA_RESULT} |"
           summary "| Platform Smoke | ${PLATFORM_SMOKE_RESULT} |"
           summary "| APS Drift Check | ${APS_DRIFT_RESULT} |"
+          summary "| Nx Graph | ${NX_GRAPH_RESULT} |"
           summary "| Lint & Format | ${LINT_RESULT} |"
           summary "| Type Check | ${TYPECHECK_RESULT} |"
           summary "| Unit Tests (Node 22.x, ubuntu-latest) | ${TEST_RESULT} |"
@@ -1341,6 +1365,7 @@ jobs:
           DOCS_LINT_RESULT: ${{ needs.docs-lint.result }}
           METADATA_RESULT: ${{ needs.metadata-validation.result }}
           PLATFORM_SMOKE_RESULT: ${{ needs.platform-smoke.result }}
+          NX_GRAPH_RESULT: ${{ needs.nx-graph.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TYPECHECK_RESULT: ${{ needs.typecheck.result }}
           TEST_RESULT: ${{ needs.test.result }}
@@ -1374,4 +1399,10 @@ jobs:
                 ;;
             esac
           done
+          # CIB-320: Nx Graph is never path-gated, so skipped means the job
+          # disappeared and is not an acceptable integration result.
+          if [ "${NX_GRAPH_RESULT}" != "success" ]; then
+            echo "::error::Integration readiness failed: Nx Graph:${NX_GRAPH_RESULT} (always-on; skipped is not acceptable)"
+            failed=1
+          fi
           exit "$failed"

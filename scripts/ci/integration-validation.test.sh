@@ -96,7 +96,7 @@ assert_contains "${ci_workflow}" '## Integration Readiness'
 assert_contains "${ci_workflow}" 'Fail if any required integration job failed'
 
 # Readiness depends on the integration-validating jobs.
-for need in detect-changes docs-lint metadata-validation platform-smoke aps-drift lint typecheck test build e2e-harness; do
+for need in detect-changes docs-lint metadata-validation platform-smoke aps-drift nx-graph lint typecheck test build e2e-harness; do
   awk -v need="${need}" '
     /^  integration-readiness:/ { inside = 1; next }
     inside && /^  [a-z]/ { inside = 0 }

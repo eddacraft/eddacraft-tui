@@ -129,6 +129,7 @@ CI selects validation by risk and changed paths rather than branch tiering. The
 `main` ruleset enforces the always-running subset as required checks:
 
 - APS Drift Check
+- Nx Graph
 - Docs Lint
 - Lint & Format
 - Type Check
