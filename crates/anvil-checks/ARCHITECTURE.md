@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                             |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-08-30 against CONF-011's range-level PR declaration evaluator in `src/conformance/evaluate.rs`; the diagram makes the production PR declaration plus exact Git range input explicit. Previously reviewed 2026-08-30 against SDT-004's vendored tier-1 secret ruleset and CONF-005's deterministic PR-body adapter. |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-09-02 against the prefix-gated tier-1 compilation in `src/secret/vendored.rs`; the scan path now takes the built-ins plus gated vendored rules rather than the combined set, which the module notes below record — no component, edge, or boundary changed, so the diagram stands. Previously reviewed 2026-08-30 against CONF-011's range-level PR declaration evaluator in `src/conformance/evaluate.rs`; the diagram makes the production PR declaration plus exact Git range input explicit. Previously reviewed 2026-08-30 against SDT-004's vendored tier-1 secret ruleset and CONF-005's deterministic PR-body adapter. |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -70,10 +70,17 @@ path. Ordinary CLI callers may use the disk-reading wrapper.
 - [`secret/`](src/secret) combines named patterns with shaped entropy checks.
   [`types.rs`](src/secret/types.rs) carries the per-line size guard and result
   vocabulary; findings never include the raw secret value.
-  [`vendored.rs`](src/secret/vendored.rs) compiles the vendored provider ruleset
-  from the generated data under [`vendor/`](src/secret/vendor) and appends it to
-  the same `DEFAULT_COMPILED_PATTERNS` the built-ins occupy, so every surface
-  that already consults that set gains the rules together (SDT-004, ADR-136).
+  [`vendored.rs`](src/secret/vendored.rs) owns the vendored provider ruleset
+  from the generated data under [`vendor/`](src/secret/vendor). It appends to
+  `DEFAULT_COMPILED_PATTERNS` for the surfaces that consult that set directly
+  (SDT-004, ADR-136), but the scan path does not force it: compiling the tier-1
+  regexes costs ~30x a built-in each, and the save-time path spawns a process
+  per debounced save. The scanner takes `BUILTIN_COMPILED_PATTERNS` plus
+  `vendored_patterns_for`, which gates each tier-1 rule on the literal provider
+  prefix that is its tier-1 criterion and compiles it only when a line carries
+  that prefix. Detection is identical — no tier-1 pattern can match a line
+  without its prefix — and the gate falls back to compiling every rule if it
+  cannot be built.
 - [`reasoning/`](src/reasoning) owns the AI-001 comment-region check and its
   bounded entry point.
 - [`surface/env/`](src/surface/env) parses dotenv-shaped files and checks secret
