@@ -247,7 +247,17 @@ CICD-007. Weekly Monday 06:15 UTC schedule runs a full assurance sweep.
 ### `codeql.yml` — CodeQL
 
 Owns CodeQL analysis for JavaScript/TypeScript and Rust on PR, push, and weekly
-schedule.
+schedule. Rust runs on `build-mode: none` (no `cargo build` step; the extractor
+drives cargo itself) and, per the CI-cost 2026-07 posture, on push and schedule
+only.
+
+**GitHub Code Quality is deliberately off** (repo setting, disabled 2026-09 via
+`PATCH /repos/{owner}/{repo}/code-quality/setup`). It ran a second
+JavaScript/TypeScript + Python analysis on every PR push (55 runs / ~180 Linux
+minutes in a 39h sample) as `dynamic/github-code-quality/codeql` — redundant
+with this workflow's `+security-and-quality` suite, over ten helper scripts'
+worth of Python. Do not re-enable it as a free add-on; it bills like any other
+workflow.
 
 ### `napi.yml` — NAPI
 
