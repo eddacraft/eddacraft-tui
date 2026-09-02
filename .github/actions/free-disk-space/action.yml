@@ -6,28 +6,65 @@ description: >-
   can exhaust — surfacing as intermittent "No space left on device" failures that kill jobs
   mid-setup, on a different job each run. Linux-only; a no-op on macOS/Windows.
 
+inputs:
+  mode:
+    description: >-
+      `blocking` (default) waits for the reclaim to finish before the next step runs. `background`
+      detaches it and returns immediately, so the ~1.5-2 min of `rm`/`docker prune` overlaps the
+      checkout, toolchain install and cache restore that follow instead of serialising in front of
+      them (CI-cost 2026-09: measured 84s average across 179 blocking invocations in a 39h sample —
+      10% of all Linux minutes). Use `background` when the next several steps are setup, not a
+      multi-GB write; the stock image starts with ~13 GB free, which covers a cache restore while
+      the reclaim (~27 GB) lands behind it. Keep `blocking` when a step right after needs the full
+      headroom immediately.
+    required: false
+    default: 'blocking'
+
 runs:
   using: composite
   steps:
     - name: Reclaim runner disk
       shell: bash
+      env:
+        RECLAIM_MODE: ${{ inputs.mode }}
       run: |
         if [ "$RUNNER_OS" != "Linux" ]; then
           echo "Runner OS is $RUNNER_OS, not Linux; skipping disk reclaim."
           exit 0
         fi
+        case "$RECLAIM_MODE" in
+          blocking | background) ;;
+          *)
+            echo "::error::free-disk-space: unknown mode '$RECLAIM_MODE' (expected blocking|background)"
+            exit 1
+            ;;
+        esac
         echo "Disk before reclaim:"
         df -h / || true
         # Preinstalled toolchains that none of the repo CI jobs touch (~25-30 GB).
         # Each path is removed best-effort so an image layout change can
         # never fail the build — at worst we reclaim a little less.
-        sudo rm -rf \
-          /usr/share/dotnet \
-          /usr/local/lib/android \
-          /opt/ghc \
-          /usr/local/.ghcup \
-          /opt/hostedtoolcache/CodeQL \
-          /usr/share/swift || true
-        sudo docker image prune --all --force >/dev/null 2>&1 || true
+        reclaim='
+          rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/share/swift || true
+          docker image prune --all --force >/dev/null 2>&1 || true
+        '
+        if [ "$RECLAIM_MODE" = "background" ]; then
+          # Detached from this step's process group so the runner does not
+          # wait on it; it keeps running under later steps of the same job.
+          # The reclaim is best-effort by construction, so nothing checks
+          # its exit status — a job that needed the space and did not get
+          # it fails on ENOSPC exactly as it would without this action.
+          nohup sudo bash -c "$reclaim" >/dev/null 2>&1 &
+          disown
+          echo "Disk reclaim running in the background (pid $!)."
+          exit 0
+        fi
+        sudo bash -c "$reclaim"
         echo "Disk after reclaim:"
         df -h / || true

@@ -222,12 +222,21 @@ moved to `ci-nightly.yml` per CICD-006.
 
 ### `rust.yml` — Rust
 
-Owns Rust validation for both PR (affected) and integration push (full
-workspace). Includes Hakari verification, `cargo-deny`, acknowledgements
-freshness, and a cross-compile matrix gated on `rust-changed` and the
-release-gate condition (PR to `main`, push to `main`/`release/*`, or
-`workflow_dispatch`). Push to `dev` no longer triggers the matrix per CICD-008 —
-`dev` is the integration branch during migration but is not a release gate.
+Owns Rust validation for both PR (affected `check`) and integration push (full
+workspace). Includes Clippy (Linux + one Windows target), Hakari verification,
+`cargo-deny`, acknowledgements freshness, and a cross-compile matrix gated on
+`rust-changed` and the release-gate condition (PR to `main`, push to
+`main`/`release/*`, or `workflow_dispatch`). Push to `dev` no longer triggers
+the matrix per CICD-008 — `dev` is the integration branch during migration but
+is not a release gate.
+
+CI-cost 2026-09 shape: `Format` is checkout + rustfmt +
+`cargo fmt --all --check` only (no reclaim, pnpm, Nx or target cache — those
+were 258s of a 270s job); the nxrust plugin smoke is a PR-only step inside
+`Check` rather than its own job; `Hakari verify` builds nothing so it skips the
+disk reclaim; and the jobs that do build (`Check`, `Clippy`, `cargo-deny`,
+`Acknowledgements freshness`) run `free-disk-space` in `mode: background` so the
+~80s reclaim overlaps their setup instead of serialising in front of it.
 
 ### `security.yml` — Security
 

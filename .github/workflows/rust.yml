@@ -151,21 +151,6 @@ jobs:
       - name: Verify the vendored ruleset matches its pin
         run: bash scripts/secret/refresh-gitleaks-ruleset.sh --check --no-calibrate
 
-  nxrust-smoke:
-    name: nxrust Smoke
-    runs-on:
-      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
-      'ubuntu-latest' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
-      - name: Setup workspace
-        uses: ./.github/actions/setup-workspace
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-      - name: Run nxrust check smoke
-        run: pnpm exec nx run eddacraft-anvil-policy:check --skip-nx-cache --outputStyle=static
-
   check:
     name: Check
     runs-on:
@@ -175,8 +160,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # CI-cost 2026-09: `background` — the reclaim overlaps the pnpm install,
+      # toolchain install and cache restore below instead of blocking ~80s
+      # in front of them (see the action's `mode` input).
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
+        with:
+          mode: background
       - name: Setup workspace for Nx affected
         if: github.event_name == 'pull_request'
         uses: ./.github/actions/setup-workspace
@@ -195,6 +185,15 @@ jobs:
           # first job to finish actually saves. Restore-only here lets the
           # test job (the most comprehensive one) populate the cache.
           save-if: 'false'
+      # nxrust plugin smoke: proves `@eddacraft/nxrust` can drive a cargo
+      # target end to end, independent of the affected set below (which is
+      # empty on some PRs). CI-cost 2026-09: this was its own job paying a
+      # full checkout + reclaim + pnpm + toolchain (~3 min) for a 17s check;
+      # it now rides on this job's identical setup and runs on PRs only —
+      # a push-to-main re-run proved nothing the PR had not.
+      - name: Run nxrust check smoke
+        if: github.event_name == 'pull_request'
+        run: pnpm exec nx run eddacraft-anvil-policy:check --skip-nx-cache --outputStyle=static
       - name: Run check (affected on PRs, all on push)
         env:
           AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
@@ -218,6 +217,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
+        with:
+          mode: background
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
           components: clippy
@@ -303,41 +304,21 @@ jobs:
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
+    # CI-cost 2026-09: rustfmt is target-agnostic and touches no build
+    # artefact, so this job needs no disk reclaim, no pnpm/Nx affected
+    # graph and no target cache. Those steps cost 258s of a 270s job
+    # measured over 29 runs for a 12s `rustfmt` at the end; `cargo fmt
+    # --all --check` over the whole workspace runs in seconds, so the
+    # RUSTNX-007 affected scoping saved less than the setup it required.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
-      - name: Setup workspace for Nx affected
-        if: github.event_name == 'pull_request'
-        uses: ./.github/actions/setup-workspace
-      - name: Detect Rust Nx projects
-        if: github.event_name == 'pull_request'
-        id: rust-projects
-        shell: bash
-        run: |
-          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
-          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
           components: rustfmt
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          shared-key: rust-ci
-          save-if: 'false'
-      - name: Run rustfmt check (affected on PRs)
-        if: github.event_name == 'pull_request'
-        env:
-          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
-        run: |
-          if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
-            echo "No affected Rust projects detected"
-            exit 0
-          fi
-          pnpm exec nx run-many -t fmt-check --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
-      - uses: actions-rust-lang/rustfmt@4066006ec54a31931b9b1fddfd38f2fdf2d27143 # v1
-        if: github.event_name != 'pull_request'
+          # No target dir to cache for a formatting check.
+          cache: false
+      - name: Run rustfmt check
+        run: cargo fmt --all --check
 
   hakari:
     name: Hakari verify
@@ -347,8 +328,8 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
+      # No disk reclaim: hakari reads `cargo metadata` and builds nothing
+      # (CI-cost 2026-09 — the reclaim was ~40s of a 75s job).
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -378,6 +359,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
+        with:
+          mode: background
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
@@ -410,6 +393,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Free disk space
         uses: ./.github/actions/free-disk-space
+        with:
+          mode: background
       - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:

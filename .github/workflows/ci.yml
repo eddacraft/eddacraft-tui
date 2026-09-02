@@ -949,6 +949,9 @@ jobs:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.unit-tests-required == 'true'
         uses: ./.github/actions/free-disk-space
+        with:
+          # CI-cost 2026-09: overlaps the pnpm/OPA/Regal setup below.
+          mode: background
 
       # Run the pin guard before any expensive setup so a stray version
       # reference fails fast without burning ~2-3 minutes on pnpm + OPA install.
@@ -1199,6 +1202,9 @@ jobs:
 
       - name: Free runner disk space
         uses: ./.github/actions/free-disk-space
+        with:
+          # CI-cost 2026-09: overlaps the pnpm install below.
+          mode: background
 
       - name: Setup workspace
         uses: ./.github/actions/setup-workspace
