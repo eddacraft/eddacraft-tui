@@ -1,8 +1,8 @@
 # Repository Operations
 
-| Type  | Authority     | Owner | Status | Freshness                                                                           |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------- |
-| Guide | Authoritative | AICON | Live   | Last reviewed 2026-07-07 against `AGENTS.md`, `plans/project-context.md`, AICON-003 |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                       |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | AICON | Live   | Last reviewed 2026-09-02 for CIB-320 adding the always-on Nx Graph CI job and `nx:graph:check` script; documented CI gates, required-check names, and diagram rules are otherwise unchanged. Prior review 2026-07-07 against `AGENTS.md`, `plans/project-context.md`, AICON-003 |
 
 | Upstream                                                                                                       | Downstream                                            |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
