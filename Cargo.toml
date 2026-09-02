@@ -99,7 +99,7 @@ postcard = { version = "1", features = ["use-std"] }
 # as a dev-dependency and previously pinned the version independently.
 # Note: `regorus` (pinned `=0.11.0`, below) carries its own `jsonschema` as a
 # normal dependency, so the graph holds two copies until that pin moves.
-jsonschema = "0.50"
+jsonschema = "0.52"
 
 # Policy engine (ADR-040 — pinned at a committed minor version)
 # default-features off so the sole consumer (anvil-policy-engine) opts into a
