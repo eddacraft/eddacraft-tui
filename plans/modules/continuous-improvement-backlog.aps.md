@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 297/382  |
+| CIB | —     | In Progress | 305/384  |
 
 ## Purpose
 
@@ -12172,7 +12172,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-382: Close residual intercept rendezvous lifecycle and PID trust gaps
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-31 via PR #4295 (`9c900dd66`)
 - **Priority:** P1 — a mutable PID instruction can turn `intercept stop` into
   a cross-principal signal deputy, while opposite-canonical repair processes can
   stop both daemons and then deadlock indefinitely. The machine-readable partial
@@ -12221,7 +12221,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-383: change-scoped docs-owed diffs to the merge ref, so a PR is blamed for main's commits
 
-- **Status:** Proposed
+- **Status:** Merged 2026-08-31 via PR #4278 (`495c2900a`)
 - **Priority:** P2 — a false gate failure on any PR open while main moves,
   which here is most of them; each false demand costs a re-date, and every
   re-date starts its own one-level-per-run cascade
@@ -12524,19 +12524,19 @@ reply.
 | --- | --- | --- |
 | B34 gate hang | Re-fired on 0.9.7: gate RETURNS. Closed as the 0.9.7 linguist hang repair. Pack-11 map updated | **Closed.** No CIB |
 | B31 / B35 / B36 / B37 | Carried. Already filed. On Unreleased, not in published 0.9.7 | **CIB-359**, **CIB-360**, **CIB-361**, **CIB-362** |
-| B39 check cwd workspace | `check` binds workspace to `git rev-parse --show-toplevel` of cwd (else cwd), not the target path. A hook whose cwd is `$HOME` pays that tree's cost for a one-file check | **CIB-386** Ready P2 |
+| B39 check cwd workspace | `check` binds workspace to `git rev-parse --show-toplevel` of cwd (else cwd), not the target path. A hook whose cwd is `$HOME` pays that tree's cost for a one-file check | **CIB-386** Merged via #4307 |
 | Q-ADOPT-1 grandfathered debt | Question, not a finding. Exceptions stay L4 (B29). Baseline scanner integration is still future work. Intended path today is carry the red / documented bypass until that lands | **Won't file.** Answer in the reply |
-| Q-GATEHIST-1 zero-check records | 192/255 history lines are `pass` / score 100 / `checks_run` 0 / duration 0. Same honesty class as **CIB-365** (skipped presented as measured) | **CIB-389** Proposed P3 |
+| Q-GATEHIST-1 zero-check records | 192/255 history lines are `pass` / score 100 / `checks_run` 0 / duration 0. Same honesty class as **CIB-365** (skipped presented as measured) | **CIB-389** Merged via #4307 |
 | B40 Windows graph never warms | Daemon log: "no parser injected … this daemon cannot warm a graph (Windows daemon, DSV-010b)". Surface says `cross-file-resolution-needed` / "save a file". Doctor green | **CIB-385** (PR #4291). Do not re-file |
 | B41 doctor green over a dark graph | Same silence. CIB-385 already requires doctor/status to name the platform cap | **CIB-385** |
-| B40 secondary `!` negations | Overlap preflight does not honour gitignore-style `!src/cli.ts`. Driver failed preflight; only `architecture validate` said so. Docs do not advertise `!` | **CIB-388** Ready P3 |
+| B40 secondary `!` negations | Overlap preflight does not honour gitignore-style `!src/cli.ts`. Driver failed preflight; only `architecture validate` said so. Docs do not advertise `!` | **CIB-388** Merged via #4307 |
 | B42 `query_boundary` no-baseline | 0.9.7: `allowed:true` / `reason:no-baseline` / "Run anvil init". Current `main`: `allowed:false` / `reason:no-architecture`, and `resolve_architecture` loads standalone `.anvil/architecture.yaml`. The two baseline roots Dave named (`anvil/baseline.json` vs `.anvil/baseline.json`) are the capsule/CLI baseline snapshot, not this tool | **Won't file.** Retest next published beta |
-| UX-GRAPH-1 `find_callers` ordinal | `tools/list` required is `file,kind,name`; runtime `SymbolIdentity.ordinal` has no serde default, so a schema-valid call is rejected | **CIB-387** Ready P2 |
+| UX-GRAPH-1 `find_callers` ordinal | `tools/list` required is `file,kind,name`; runtime `SymbolIdentity.ordinal` has no serde default, so a schema-valid call is rejected | **CIB-387** Merged via #4307 |
 | OPP-1..5 graph opportunity | Observations about reach, not findings. Semantic long-tail, CI test-selection, `trust_of`, session-ownership tool, provenance reader | **Won't file.** Reply as product notes |
 
 ### CIB-386: `anvil check <file>` must not bind its workspace to the caller's cwd git toplevel
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-01 via PR #4307 (`560f01dfa`)
 - **Priority:** P2 — a user-scope hook whose cwd is `$HOME` turns a one-file
   check into a minutes-long scan and presents as a hung gate, not a cwd
   problem
@@ -12576,7 +12576,7 @@ reply.
 
 ### CIB-387: `anvil_find_callers` schema must match the runtime ordinal contract
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-01 via PR #4307 (`560f01dfa`)
 - **Priority:** P2 — a client that builds calls from `tools/list` cannot
   make a valid request
 - **Intent:** `anvil_find_callers`'s advertised `target.required` is
@@ -12609,7 +12609,7 @@ reply.
 
 ### CIB-388: architecture overlap preflight must reject or honour `!` negation patterns
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-01 via PR #4307 (`560f01dfa`)
 - **Priority:** P3 — a documented glob dialect this is not; an undocumented
   `!` is currently a silent overlap fail that only `architecture validate`
   reports, so the save-time driver never attaches
@@ -12646,7 +12646,7 @@ reply.
 
 ### CIB-389: a zero-check gate-history record must not present as a 100-score pass
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-01 via PR #4307 (`560f01dfa`)
 - **Priority:** P3 — the live `anvil gate` verdict Dave captured was
   correct (`checks_run` 2, duration 0.3, score 100, exit 0). The record
   is the problem, not the gate
