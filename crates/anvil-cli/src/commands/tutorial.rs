@@ -425,6 +425,33 @@ fn load_progress(path: &PathBuf) -> TutorialProgress {
         .unwrap_or_default()
 }
 
+/// JOURNEY-012: whether this user has completed at least one tutorial path.
+///
+/// Read **only**. Activation must never create, migrate, or write the progress
+/// file as a side effect of `anvil start`; it is the tutorial's state, and
+/// `anvil start` is merely asking it a question.
+///
+/// An absent, unreadable, or malformed file answers `false` — "not completed".
+/// That is the safe direction: the worst outcome is one extra pointer line for
+/// a user who has already done the tutorial, never a silently withheld pointer
+/// for a user who has not.
+pub(crate) fn any_path_completed() -> bool {
+    progress_file_path().is_ok_and(|path| any_path_completed_in(&path))
+}
+
+/// Path-injected half of [`any_path_completed`], so the behaviour is testable
+/// without reaching for the real home directory.
+///
+/// Any recorded label counts, including one this build no longer recognises: a
+/// stale label still evidences that the user engaged with the tutorial, and
+/// treating it as "not completed" would resurrect the pointer for someone who
+/// had finished.
+pub(crate) fn any_path_completed_in(path: &Path) -> bool {
+    !load_progress(&path.to_path_buf())
+        .completed_paths
+        .is_empty()
+}
+
 fn workspace_session_key(workspace_root: &Path) -> Option<String> {
     workspace_root.to_str().map(str::to_owned)
 }
@@ -1090,6 +1117,52 @@ mod tests {
                 .completed_paths
                 .contains(&"Policy checks".to_string())
         );
+    }
+
+    /// JOURNEY-012: the pointer's extinguisher. Absent, malformed and empty
+    /// all answer "not completed" — the pointer keeps showing — and any
+    /// recorded label ends it.
+    #[test]
+    fn any_path_completed_in_reads_only_and_fails_open_to_not_completed() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("absent.json");
+        assert!(
+            !any_path_completed_in(&missing),
+            "an absent file means the user has not finished a path",
+        );
+        assert!(
+            !missing.exists(),
+            "asking the question must never create the progress file",
+        );
+
+        let malformed = dir.path().join("malformed.json");
+        std::fs::write(&malformed, "{ this is not json").unwrap();
+        assert!(
+            !any_path_completed_in(&malformed),
+            "an unreadable file must not be mistaken for completion",
+        );
+
+        let empty = dir.path().join("empty.json");
+        std::fs::write(&empty, r#"{"completed_paths":[]}"#).unwrap();
+        assert!(!any_path_completed_in(&empty));
+
+        let done = dir.path().join("done.json");
+        std::fs::write(&done, r#"{"completed_paths":["Quick start"]}"#).unwrap();
+        assert!(
+            any_path_completed_in(&done),
+            "one completed path must retire the pointer",
+        );
+
+        // A label this build no longer recognises still counts: the user did
+        // engage with the tutorial, and resurrecting the pointer for them
+        // would be worse than staying quiet.
+        let stale = dir.path().join("stale.json");
+        std::fs::write(
+            &stale,
+            r#"{"completed_paths":["a path that no longer exists"]}"#,
+        )
+        .unwrap();
+        assert!(any_path_completed_in(&stale));
     }
 
     #[test]

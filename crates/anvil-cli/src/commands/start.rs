@@ -447,6 +447,13 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         let json = serde_json::to_string_pretty(&activation::render_json(&diagnostic))?;
         println!("{json}");
     } else {
+        // JOURNEY-012: decided once and shared by both compositions below, so
+        // the pre- and post-consent renders cannot disagree, and the progress
+        // file is read at most once per run.
+        let offer_tutorial =
+            should_offer_tutorial_pointer(read_only, start_is_interactive(), || {
+                crate::commands::tutorial::any_path_completed()
+            });
         let human_output = if repeat_collapsed {
             // CIB-190: one bounded local value receipt, pre-rendered here
             // in the command layer (where the wall clock lives) and
@@ -465,6 +472,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 mcp_policy,
                 &agent_inventory,
                 agents_cached,
+                offer_tutorial,
             )
         };
         if matches!(render_mode, StartRenderMode::Tui) {
@@ -585,6 +593,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     mcp_policy,
                     &agent_inventory,
                     agents_cached,
+                    offer_tutorial,
                 );
                 let mut verdict = activation_post_consent_surface(
                     post_consent_output,
@@ -2170,6 +2179,7 @@ fn render_start_human_output(
     mcp_policy: activation::orchestrator::McpInstallPolicy,
     agent_inventory: &activation::detect_agents::AgentInventory,
     agents_cached: bool,
+    offer_tutorial: bool,
 ) -> String {
     use std::fmt::Write as _;
 
@@ -2226,7 +2236,38 @@ fn render_start_human_output(
         }
     }
 
+    // JOURNEY-012: a first-time user arrives through `anvil start`, but the
+    // tutorial is only ever offered on the `anvil welcome` path, so they are
+    // never told it exists. Name it as the closing next step until they have
+    // finished one — the caller owns that decision, so this stays a pure
+    // composition. Deliberately not `next:`, which the diagnostic already uses
+    // for the repair hint.
+    if offer_tutorial {
+        out.push_str(
+            "  tutorial: new to anvil? `anvil welcome` walks through checks, findings, and the gate\n",
+        );
+    }
+
     out
+}
+
+/// JOURNEY-012: whether this run should point the user at `anvil welcome`.
+///
+/// Split from the terminal probe and from the tutorial-state read so the policy
+/// is testable without a PTY or a home directory — the same split
+/// `activation_tui_allowed` / `activation_tui_eligible` uses below.
+///
+/// - Read-only runs are excluded: `--verify` / `--json` carry byte-stable
+///   single-document contracts (ADR-103) and must not gain a line.
+/// - Non-interactive runs are excluded: a pointer in a CI log helps nobody.
+/// - `any_completed` is taken lazily so the progress file is never read on a
+///   run that could not show the pointer anyway.
+fn should_offer_tutorial_pointer(
+    read_only: bool,
+    interactive: bool,
+    any_completed: impl FnOnce() -> bool,
+) -> bool {
+    !read_only && interactive && !any_completed()
 }
 
 /// Whether the caller explicitly forced the plain path through the activation
@@ -5623,6 +5664,7 @@ mod tests {
             activation::orchestrator::McpInstallPolicy::Install,
             &activation::detect_agents::AgentInventory::default(),
             false,
+            false,
         );
         assert!(
             out.contains("project config may be written"),
@@ -5638,6 +5680,113 @@ mod tests {
             !out.contains("no worktree registered"),
             "render_start_human_output must not use the old jarring phrasing:
 {out}"
+        );
+    }
+
+    /// JOURNEY-012: the pointer is for an interactive user who has never
+    /// finished a tutorial path. Every other combination stays silent.
+    #[test]
+    fn tutorial_pointer_is_offered_only_to_an_unfinished_interactive_user() {
+        assert!(
+            should_offer_tutorial_pointer(false, true, || false),
+            "interactive, not read-only, nothing completed — the whole point",
+        );
+        assert!(
+            !should_offer_tutorial_pointer(false, true, || true),
+            "a user who has finished a path must stop seeing it",
+        );
+        assert!(
+            !should_offer_tutorial_pointer(false, false, || false),
+            "a non-interactive run must not gain a pointer",
+        );
+        assert!(
+            !should_offer_tutorial_pointer(true, true, || false),
+            "read-only runs carry byte-stable contracts (ADR-103)",
+        );
+    }
+
+    /// The progress file must not be read on a run that could not show the
+    /// pointer anyway. `anvil start --verify` is a read-only probe, and this
+    /// pins that it stays one — no home-directory IO smuggled in behind it.
+    #[test]
+    fn tutorial_state_is_not_read_when_the_pointer_cannot_be_shown() {
+        use std::cell::Cell;
+
+        let reads = Cell::new(0_u32);
+        let probe = || {
+            reads.set(reads.get() + 1);
+            false
+        };
+
+        assert!(!should_offer_tutorial_pointer(true, true, probe));
+        assert_eq!(
+            reads.get(),
+            0,
+            "read-only must short-circuit before the read"
+        );
+
+        let reads = Cell::new(0_u32);
+        let probe = || {
+            reads.set(reads.get() + 1);
+            false
+        };
+        assert!(!should_offer_tutorial_pointer(false, false, probe));
+        assert_eq!(
+            reads.get(),
+            0,
+            "non-interactive must short-circuit before the read",
+        );
+    }
+
+    /// The rendered line names the command and is distinct from the `next:`
+    /// repair hint the diagnostic already emits, so the two cannot be confused
+    /// for one another on the same screen.
+    #[test]
+    fn rendered_tutorial_pointer_names_welcome_and_is_not_the_repair_hint() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let diag = synth_diagnostic(activation::state::ProtectionState::NeedsAction);
+        let with_pointer = render_start_human_output(
+            dir.path(),
+            false,
+            &diag,
+            &activation::orchestrator::InstallReport::default(),
+            None,
+            activation::orchestrator::McpInstallPolicy::Install,
+            &activation::detect_agents::AgentInventory::default(),
+            false,
+            true,
+        );
+        let without = render_start_human_output(
+            dir.path(),
+            false,
+            &diag,
+            &activation::orchestrator::InstallReport::default(),
+            None,
+            activation::orchestrator::McpInstallPolicy::Install,
+            &activation::detect_agents::AgentInventory::default(),
+            false,
+            false,
+        );
+
+        assert!(
+            with_pointer.contains("`anvil welcome`"),
+            "the pointer must name the command to run:\n{with_pointer}",
+        );
+        assert!(
+            with_pointer.contains("\n  tutorial: "),
+            "the pointer must use its own key, not `next:`:\n{with_pointer}",
+        );
+        assert!(
+            !without.contains("`anvil welcome`"),
+            "a finished user must see no pointer:\n{without}",
+        );
+        assert_eq!(
+            with_pointer.replace(
+                "  tutorial: new to anvil? `anvil welcome` walks through checks, findings, and the gate\n",
+                "",
+            ),
+            without,
+            "the pointer must be purely additive — nothing else may shift",
         );
     }
 
@@ -5676,6 +5825,7 @@ mod tests {
             None,
             activation::orchestrator::McpInstallPolicy::Install,
             &activation::detect_agents::AgentInventory::default(),
+            false,
             false,
         );
 
