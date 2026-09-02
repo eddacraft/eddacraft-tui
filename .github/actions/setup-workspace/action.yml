@@ -17,15 +17,67 @@ runs:
     - name: Install pnpm
       uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
 
+    # CI-cost 2026-09: cache the installed `node_modules` trees, not just the
+    # pnpm store. With only the store cached, every job still paid ~30s to
+    # restore the 644 MB store and then ~47s for `pnpm install` to hard-link
+    # 2,585 packages out of it — measured 90s average across 241 invocations
+    # in a 39h sample, 14% of all Linux minutes, for jobs whose real work was
+    # often shorter than that. A hit here skips both: the store restore is
+    # turned off below and the install becomes an `--offline` no-op check.
+    #
+    # Linux only: the nightly Windows/macOS legs are a handful of runs a day
+    # and the repo's 10 GB cache quota is already saturated by Rust target
+    # caches; one node_modules entry per lockfile hash (Linux, PR scope +
+    # main scope) roughly replaces the Linux store entries it makes idle.
+    #
+    # Key inputs are everything that changes the installed tree: lockfile,
+    # workspace layout, pnpm settings, root manifest (packageManager pin),
+    # plus OS/arch and the Node major (native modules such as better-sqlite3
+    # are ABI-specific). pnpm's own `node_modules/.modules.yaml` + the
+    # `--frozen-lockfile` check on hit guard against anything the key misses.
+    - name: Restore node_modules
+      id: node-modules
+      if: runner.os == 'Linux'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4
+      with:
+        # The root tree plus every workspace member's tree (they hold the
+        # symlinks into the root `.pnpm` store). Globs are anchored to the
+        # `pnpm-workspace.yaml` package roots on purpose: an unanchored
+        # `*/*/*/node_modules` would also match `node_modules/.pnpm/*/…`
+        # and archive the whole tree twice.
+        path: |
+          node_modules
+          apps/*/node_modules
+          crates/*/node_modules
+          infra/node_modules
+          packages/*/node_modules
+          packages/*/*/node_modules
+          tools/*/node_modules
+        key:
+          node-modules-${{ runner.os }}-${{ runner.arch }}-node${{ inputs.node-version }}-${{
+          hashFiles('pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc', 'package.json') }}
+
     - name: Setup Node.js ${{ inputs.node-version }}
       uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
       with:
         node-version: ${{ inputs.node-version }}
-        cache: 'pnpm'
+        # The store is only worth restoring when node_modules has to be
+        # installed from it; an empty string disables setup-node's caching.
+        cache: ${{ steps.node-modules.outputs.cache-hit != 'true' && 'pnpm' || '' }}
 
     - name: Install dependencies
+      if: steps.node-modules.outputs.cache-hit != 'true'
       shell: bash
       run: pnpm install --frozen-lockfile
+
+    # On a hit, `--offline` verifies the restored tree matches the lockfile
+    # without touching the network or the store; it completes in seconds and
+    # fails loud if the cache is somehow stale, so a wrong key can never
+    # silently run tests against the wrong dependency set.
+    - name: Verify restored dependencies
+      if: steps.node-modules.outputs.cache-hit == 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile --offline
 
     - name: Set Nx SHAs
       if: inputs.nx-shas == 'true'
