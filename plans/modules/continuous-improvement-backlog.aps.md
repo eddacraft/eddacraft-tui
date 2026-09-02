@@ -12679,3 +12679,169 @@ reply.
 - **Coordinates with:** CIB-365, DASHCORE retained history
 - **Confidence:** high on the record shape (Dave counted unpiped);
   medium on the writer, which this item does not need to name first.
+
+### CIB-390: a validation command that examined nothing must say so, not exit 0 quietly
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — no wrong verdict is shipped, but it manufactures false
+  confidence in exactly the place the project has twice decided it will not
+  tolerate it (CIB-278, CIB-316)
+- **Intent:** `markdownlint --ignore-path .markdownlintignore <file>` on a path
+  the ignore file excludes receives an **empty file list**, prints its usage
+  banner, and exits **0**. `.markdownlintignore` excludes `plans/**`
+  ("internal planning content with its own conventions"), so every
+  markdownlint invocation naming only `plans/` files lints nothing and reports
+  success.
+
+  Observed 2026-09-02 while filing CIB-384/385: the command was run against
+  `plans/modules/continuous-improvement-backlog.aps.md` and its exit 0 was
+  read — and reported to the operator — as "markdownlint clean". Nothing had
+  been examined. The banner is the only signal, and it looks like help output
+  rather than a warning.
+
+  This is the same defect class the project has already ruled on twice:
+  **CIB-278** (`docs:check` exit 2 must mean "could not run", never a content
+  pass) and **CIB-316** (ten shell contract tests that nothing invoked — "the
+  strongest form of the unfalsifiable-guard defect"). This is a third
+  instance, reached from a new direction: the guard runs, and examines zero
+  inputs.
+- **Expected Outcome:** a validation command that can legitimately examine
+  nothing states what it examined. Either the repo's lint entry points report
+  a file count (`N files checked` — `aps:active-lint` already does exactly
+  this, and its output is unambiguous as a result), or a wrapper fails when a
+  named input is silently excluded by an ignore file. An operator or agent
+  reading the output can tell "clean" from "did not run".
+- **Non-scope / do not:** do not remove `plans/**` from `.markdownlintignore` —
+  the exclusion is deliberate and APS files have their own conventions and
+  their own canonical lint. Do not make markdownlint fail on an empty file
+  list globally; a directory sweep that legitimately matches nothing is fine.
+  The defect is the *named input* silently dropped.
+- **Files:** `.markdownlintignore`, `package.json` (`lint:md`, `lint:md:fix`),
+  `.lintstagedrc.cjs`, any wrapper introduced for the count assertion
+- **Validation:** naming an ignored file explicitly produces a non-zero exit or
+  an explicit "0 files examined" line; naming a linted file still passes and
+  still fails on a real violation (prove RED on both arms). `pnpm lint:md`
+  over the repo is unchanged.
+- **Identified From:** 2026-09-02 session filing CIB-384/385, where "clean"
+  was reported for a command that examined no files. Found only because the
+  usage banner was noticed and chased.
+- **Coordinates with:** CIB-278 (tooling-vs-content taxonomy — the same
+  "could not run" boundary), CIB-316 (unfalsifiable guards), CIB-295 (an
+  advisory-only surface whose FAIL clause was unsatisfiable), CIB-336
+  (tests derived from the pattern rather than the threat model)
+- **Confidence:** high — reproduced directly, and the ignore rule is one line
+  in `.markdownlintignore`.
+
+### CIB-391: run the suite under a hostile ambient profile so environment-dependent tests fail deterministically
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — three independent instances surfaced in a single day, each
+  initially read as a random flake; the cost is wasted triage and eroded trust
+  in a red suite
+- **Intent:** three tests failed in one day for reasons that had nothing to do
+  with the change under test, and every one of them reads ambient state it does
+  not own:
+
+  1. `commands::audit_chain::tests::*` — `do_not_track_suppresses_the_audit_kindling_row`
+     sets `DO_NOT_TRACK` via `temp_env`, which mutates the **whole process**;
+     sibling emitters that did not pin the same vars observed the opt-out
+     mid-flight and wrote no sidecar. Measured **9 failures in 60 runs** on
+     `main`. Fixed by PR [#4293](https://github.com/eddacraft/anvil-001/pull/4293).
+  2. `tests/intercept_stop.rs::stop_clears_a_stale_pid_file` — the fixture PID
+     file inherits the developer's umask. Under `umask 002` it is
+     group-writable and the stop path **correctly** refuses it as untrusted;
+     under `umask 022` the test passes 5/5. Any developer with a group-writable
+     umask sees a permanent red that CI never shows.
+  3. `commands::doctor::tests::stop_sibling_sockets_clears_a_crash_orphaned_socket`
+     — failed once on CI; passes 15/15 in isolation and 4/4 in the full suite
+     locally, and `main`'s own CI is green. **Still unexplained**, and named
+     here as a symptom rather than a diagnosis.
+
+  Individually each looks like noise. Three in a day is a class: tests whose
+  verdict depends on process-global environment, on the invoking user's umask,
+  or on whether a real daemon happens to be running.
+- **Expected Outcome:** a CI leg (nightly is sufficient — this is not
+  per-PR-blocking work) runs the existing suite under a deliberately hostile
+  ambient profile: a group-writable `umask 002`, privacy opt-out variables
+  set, and a live per-user daemon present. Tests that depend on ambient state
+  they do not own then fail **deterministically**, in a job whose name says
+  why, instead of arriving as intermittent reds on unrelated PRs.
+- **Non-scope / do not:** do not fix the individual tests under this item —
+  #4293 already closed the `temp_env` one, and the remaining two want their
+  own diagnosis. Do not make this a required per-PR gate before it has been
+  green once; a new hostile leg that reds every PR on day one gets disabled
+  rather than fixed. Do not chase the `doctor` socket failure into this item's
+  acceptance — it is listed as motivation, and may well be a fourth,
+  unrelated cause.
+- **Files:** `.github/workflows/ci-nightly.yml` (or the equivalent nightly
+  matrix), `crates/anvil-cli/tests/intercept_stop.rs` (fixture permissions, if
+  the leg proves the umask dependence)
+- **Validation:** the new leg reproduces the `umask 002` `intercept_stop`
+  failure before that test is fixed, and is green after — the leg must be shown
+  to have teeth on a known instance, or it is another unfalsifiable guard
+  (CIB-316).
+- **Identified From:** 2026-09-02 session; three environment-dependent failures
+  encountered across unrelated PRs in one day, two of them costing a full-suite
+  re-run to attribute.
+- **Coordinates with:** CIB-337 (de-flaking a self-documented-racy timing
+  test), CIB-338 (path-detection gate steps must fail open), CIB-316
+  (unfalsifiable guards), CIB-390 (the sibling "the check did not really run"
+  defect)
+- **Confidence:** high on the class and on instances 1 and 2, which were both
+  measured; low on instance 3, which is deliberately recorded as unexplained.
+
+### CIB-392: the MCP pre-write gate flags anvil's own secret-detection fixture
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — the write gate crying wolf on the repository that ships
+  it. No wrong write is permitted, but an agent that honours the gate is
+  interrupted on a file it did not put a secret in
+- **Intent:** `anvil_validate_write` on
+  `crates/anvil-cli/src/commands/start.rs` returns `decision: "interrupt"`
+  with three `error`-severity `aws_key` findings, at lines 791, 2612 and 5172
+  on `main`. None of them is a secret:
+
+  - **791** — prose in the first-run recipe describing the built-in sample
+    (`"the check pipeline did not catch the known secret shape"`);
+  - **2612** — the `rm .anvil-smoke-test.ts when done` cleanup string;
+  - **5172** — the test asserting the recipe's smoke string **does** trigger
+    `pattern_name == "AWS Key"`.
+
+  In other words the scanner is firing on the deliberate AWS-key-shaped
+  fixture that exists so `anvil start`'s first-run recipe can *prove* secret
+  detection works, plus the test that pins it. The findings are pre-existing
+  and unrelated to whatever change is being validated: observed 2026-09-02
+  while validating a two-hunk edit at lines ~449 and ~2265 that touched none
+  of them. `tier.reason` was `patch-not-safelisted`, so the gate fell back
+  from added-lines-only to a whole-file scan.
+- **Expected Outcome:** validating an edit to `start.rs` does not interrupt on
+  findings the edit did not introduce. Either the pre-write path scopes
+  `error`-severity secret findings to the lines the write actually adds (which
+  is already the intent behind the added-lines tier), or the repository's own
+  detection fixtures carry a suppression that the pre-write surface honours the
+  way `anvil check` does.
+- **Non-scope / do not:** do not weaken the whole-file fallback in general —
+  SDT-001/-002 made the secret gate fail closed on unscanned lines deliberately,
+  and that must stand. Do not delete or reshape the smoke fixture to dodge the
+  scanner; it is load-bearing for the first-run recipe's honesty claim, and its
+  test asserts detection fires on it. Do not treat this as reopening CIB-369,
+  which closed the `anvil check --all` corpus half.
+- **Files:** `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
+  `crates/anvil-cli/src/commands/start.rs` (the fixture and its test —
+  reference only), the pre-write tiering that chooses whole-file vs added-lines
+- **Validation:** `anvil_validate_write` on an unrelated hunk of `start.rs`
+  returns `allow`; a write that genuinely adds an AWS-key-shaped literal to the
+  same file still returns a blocking decision (prove both arms, or the fix is a
+  hole).
+- **Identified From:** 2026-09-02 session, building JOURNEY-012. The gate was
+  honoured and the change proceeded only after each finding was read and
+  confirmed pre-existing on untouched lines — which is the cost this item
+  exists to remove.
+- **Coordinates with:** CIB-369 (secret detection must not red anvil-001 for
+  its own corpus — Merged via [#4184](https://github.com/eddacraft/anvil-001/pull/4184);
+  this is the residual on the MCP pre-write surface), CIB-363
+  (camelCase binding discarded by `looks_like_code`), SDT-001/-002 (the
+  fail-closed contract this must not weaken), CIB-373 (generated ids read as
+  high-entropy credentials — same false-positive family)
+- **Confidence:** high — the three findings were read at their line numbers and
+  each is demonstrably fixture or prose.
