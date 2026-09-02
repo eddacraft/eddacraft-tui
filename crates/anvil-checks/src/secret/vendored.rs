@@ -170,8 +170,9 @@ pub static VENDORED_COMPILED_PATTERNS: LazyLock<Vec<CompiledPattern>> = LazyLock
 /// `shpat_`, `NRAK-`, …), recorded on each rule so it is auditable. Every tier-1
 /// pattern contains its prefix literally and none has a top-level alternation,
 /// so a line without the prefix cannot match the rule — which makes the prefix a
-/// sound gate, not a heuristic. `vendored_prefix_gate_invariants` pins both of
-/// those properties so a refresh cannot quietly break the reasoning.
+/// sound gate, not a heuristic. `tests/secret_vendored_prefix_gate.rs` pins both
+/// of those properties, and that the gate returns every rule that would match,
+/// so a refresh cannot quietly break the reasoning.
 ///
 /// This exists because compiling the tier-1 regexes is expensive: measured at
 /// 78 ms for 27 rules against 2 ms for the 21 built-ins — 30x per pattern. The

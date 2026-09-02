@@ -21,21 +21,49 @@ use regex::Regex;
 
 /// `true` when `pattern` has a `|` outside every group, which would let a branch
 /// match without the prefix.
+///
+/// Character classes are skipped: `(`, `)` and `|` are literals inside `[...]`,
+/// and treating them as structure would mis-track the depth — a refresh could
+/// then introduce a real top-level alternation while this check still passed,
+/// silently weakening the gate's safety proof.
 fn has_top_level_alternation(pattern: &str) -> bool {
     let mut depth = 0i32;
+    let mut in_class = false;
     let mut chars = pattern.chars();
     while let Some(c) = chars.next() {
         match c {
             '\\' => {
                 chars.next();
             }
-            '(' => depth += 1,
-            ')' => depth -= 1,
-            '|' if depth == 0 => return true,
+            '[' if !in_class => in_class = true,
+            ']' if in_class => in_class = false,
+            '(' if !in_class => depth += 1,
+            ')' if !in_class => depth -= 1,
+            '|' if !in_class && depth == 0 => return true,
             _ => {}
         }
     }
     false
+}
+
+#[test]
+fn top_level_alternation_scan_understands_groups_classes_and_escapes() {
+    assert!(has_top_level_alternation("a|b"));
+    assert!(has_top_level_alternation("[a]|b"));
+    assert!(has_top_level_alternation("(a)(b)|c"));
+    assert!(!has_top_level_alternation("(a|b)"));
+    assert!(!has_top_level_alternation("x(?:a|b)y"));
+    // `|` and parens are literals inside a class, so neither opens a group nor
+    // counts as an alternation.
+    assert!(!has_top_level_alternation("[(|)]x"));
+    assert!(!has_top_level_alternation("[|]"));
+    // An unbalanced-looking `)` inside a class must not push depth negative and
+    // make a later real `|` look nested.
+    assert!(has_top_level_alternation("[)]a|b"));
+    // Escaped delimiters are literals too.
+    assert!(!has_top_level_alternation("a\\|b"));
+    // An escaped `[` does not open a class, so the `|` here really is top level.
+    assert!(has_top_level_alternation("\\[a|b\\]"));
 }
 
 fn corpus_lines() -> Vec<String> {
