@@ -1,16 +1,19 @@
 name: Editor Coexistence
 
 on:
+  # CI-cost 2026-09: the push-to-main run exists to SEED the release-profile
+  # cache that PR runs restore (see `save-if` below) — as a post-merge
+  # re-run of the harness it only repeated what the PR already proved. The
+  # cache key is derived from the lockfile/manifests/toolchain, so the push
+  # trigger is narrowed to exactly those inputs: a crate-source merge no
+  # longer re-runs the ~8 min harness, and a dependency change still warms
+  # the cache before the next PR needs it.
   push:
     branches: [main]
     paths:
-      - 'crates/anvil-cli/**'
-      - 'crates/anvil-kernel/**'
-      - 'crates/anvil-hook/**'
-      - 'docs/policies/editor-coexistence.md'
-      - 'tools/test-harness/editor-coexistence/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'rust-toolchain.toml'
       - '.github/workflows/editor-coexistence.yml'
   pull_request:
     paths:

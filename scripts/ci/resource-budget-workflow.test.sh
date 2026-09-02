@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Resource-budget workflow tier contract: not on routine PRs; nightly + push +
+# Resource-budget workflow tier contract: not on routine PRs; nightly +
 # readiness (workflow_call) + dispatch.
 
 set -euo pipefail

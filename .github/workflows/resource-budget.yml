@@ -4,8 +4,12 @@ name: Resource Budget
 #
 # Tiering (see `.github/workflows/README.md`):
 # - PR: does not run (keeps routine crates PRs free of ~18m release-profile work)
-# - Integration push: path-filtered tip-of-main measurement after merge
-# - Assurance: nightly schedule on main tip
+# - Integration push: does not run. CI-cost 2026-09: the path-filtered
+#   tip-of-main run fired on every `crates/**` merge (7 runs / 22 min each in a
+#   39h sample) and duplicated the nightly measurement a few hours later; it
+#   gated nothing. Attribute a nightly regression to a merge with `git bisect`
+#   + `workflow_dispatch`, which runs the same job on any ref.
+# - Assurance: nightly schedule on main tip (also seeds the release cache)
 # - Release candidate: `workflow_call` from release-readiness on an exact SHA
 # - Manual: workflow_dispatch (also enables the heavier concurrent job)
 #
@@ -15,16 +19,6 @@ name: Resource Budget
 # release-readiness even though they no longer block every PR merge.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'crates/anvil-bench/**'
-      - 'crates/**'
-      - 'docs/policies/resource-budget.md'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - '.github/workflows/resource-budget.yml'
   schedule:
     # Daily 17:15 UTC — offset from ci-nightly @ 17:00 so both share warm
     # caches without stampeding the same minute. Moved with ci-nightly when
@@ -70,14 +64,13 @@ jobs:
           # CI-cost 2026-07: this job builds RELEASE-profile artefacts (the
           # anvil binary + benches below) but used to restore the debug
           # `rust-ci` cache — which never contains release deps — so every
-          # run cold-built the release dependency graph. Own key, saved on
-          # merges to `main` and nightly so later runs restore a warm
-          # release cache. Cache contents only affect compile time, not the
-          # measured budgets — the benches run the built binary.
+          # run cold-built the release dependency graph. Own key, saved by the
+          # nightly run on `main` (the push trigger that also saved it was
+          # retired 2026-09) so later runs restore a warm release cache. Cache
+          # contents only affect compile time, not the measured budgets — the
+          # benches run the built binary.
           shared-key: rust-release-budget
-          save-if:
-            ${{ (github.event_name == 'push' || github.event_name == 'schedule') && github.ref ==
-            'refs/heads/main' }}
+          save-if: ${{ github.event_name == 'schedule' && github.ref == 'refs/heads/main' }}
       # The watch bench needs inotify headroom; surface the limits in the log so
       # an exhausted-watches failure is one glance to diagnose, not a mystery.
       - name: Report inotify limits
