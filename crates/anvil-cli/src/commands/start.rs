@@ -449,11 +449,16 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     } else {
         // JOURNEY-012: decided once and shared by both compositions below, so
         // the pre- and post-consent renders cannot disagree, and the progress
-        // file is read at most once per run.
-        let offer_tutorial =
-            should_offer_tutorial_pointer(read_only, start_is_interactive(), || {
-                crate::commands::tutorial::any_path_completed()
-            });
+        // file is read at most once per run — or not at all. `repeat_collapsed`
+        // is passed in because that renderer never prints the pointer, and
+        // reading the progress file for it would be exactly the home-directory
+        // IO this decision exists to avoid.
+        let offer_tutorial = should_offer_tutorial_pointer(
+            read_only,
+            start_is_interactive(),
+            repeat_collapsed,
+            crate::commands::tutorial::any_path_completed,
+        );
         let human_output = if repeat_collapsed {
             // CIB-190: one bounded local value receipt, pre-rendered here
             // in the command layer (where the wall clock lives) and
@@ -2260,14 +2265,17 @@ fn render_start_human_output(
 /// - Read-only runs are excluded: `--verify` / `--json` carry byte-stable
 ///   single-document contracts (ADR-103) and must not gain a line.
 /// - Non-interactive runs are excluded: a pointer in a CI log helps nobody.
-/// - `any_completed` is taken lazily so the progress file is never read on a
-///   run that could not show the pointer anyway.
+/// - The collapsed repeat output (CIB-190) is excluded: that renderer never
+///   prints the pointer, so a run taking it must not pay for the state read.
+/// - `any_completed` is taken lazily and evaluated last, so the progress file
+///   is never read on a run that could not show the pointer anyway.
 fn should_offer_tutorial_pointer(
     read_only: bool,
     interactive: bool,
+    collapsed: bool,
     any_completed: impl FnOnce() -> bool,
 ) -> bool {
-    !read_only && interactive && !any_completed()
+    !read_only && interactive && !collapsed && !any_completed()
 }
 
 /// Whether the caller explicitly forced the plain path through the activation
@@ -5688,20 +5696,24 @@ mod tests {
     #[test]
     fn tutorial_pointer_is_offered_only_to_an_unfinished_interactive_user() {
         assert!(
-            should_offer_tutorial_pointer(false, true, || false),
+            should_offer_tutorial_pointer(false, true, false, || false),
             "interactive, not read-only, nothing completed — the whole point",
         );
         assert!(
-            !should_offer_tutorial_pointer(false, true, || true),
+            !should_offer_tutorial_pointer(false, true, false, || true),
             "a user who has finished a path must stop seeing it",
         );
         assert!(
-            !should_offer_tutorial_pointer(false, false, || false),
+            !should_offer_tutorial_pointer(false, false, false, || false),
             "a non-interactive run must not gain a pointer",
         );
         assert!(
-            !should_offer_tutorial_pointer(true, true, || false),
+            !should_offer_tutorial_pointer(true, true, false, || false),
             "read-only runs carry byte-stable contracts (ADR-103)",
+        );
+        assert!(
+            !should_offer_tutorial_pointer(false, true, true, || false),
+            "the collapsed repeat renderer never prints the pointer",
         );
     }
 
@@ -5718,7 +5730,7 @@ mod tests {
             false
         };
 
-        assert!(!should_offer_tutorial_pointer(true, true, probe));
+        assert!(!should_offer_tutorial_pointer(true, true, false, probe));
         assert_eq!(
             reads.get(),
             0,
@@ -5730,11 +5742,28 @@ mod tests {
             reads.set(reads.get() + 1);
             false
         };
-        assert!(!should_offer_tutorial_pointer(false, false, probe));
+        assert!(!should_offer_tutorial_pointer(false, false, false, probe));
         assert_eq!(
             reads.get(),
             0,
             "non-interactive must short-circuit before the read",
+        );
+
+        // The collapsed repeat renderer never prints the pointer, so a run
+        // taking that path must not pay for the state read either. This arm is
+        // the one review caught missing: the flag was computed before the
+        // `repeat_collapsed` branch, so the progress file was read for a
+        // renderer that could never use the answer.
+        let reads = Cell::new(0_u32);
+        let probe = || {
+            reads.set(reads.get() + 1);
+            false
+        };
+        assert!(!should_offer_tutorial_pointer(false, true, true, probe));
+        assert_eq!(
+            reads.get(),
+            0,
+            "collapsed repeat output must short-circuit before the read",
         );
     }
 
