@@ -133,6 +133,8 @@ jobs:
         run: |
           set -uo pipefail
           started_at=$(date +%s)
+          # GHA bash is -e; set -uo pipefail does not disable it.
+          set +e
           case "$PILOT_SURFACE" in
             check) cargo check --workspace --all-targets ;;
             test-build) cargo test --workspace --no-run ;;
@@ -142,6 +144,7 @@ jobs:
               ;;
           esac
           compile_status=$?
+          set -e
           elapsed_seconds=$(($(date +%s) - started_at))
           {
             echo "backend=$PILOT_BACKEND"
@@ -165,11 +168,16 @@ jobs:
       - name: Capture sccache statistics
         if: always() && inputs.cache_backend == 'r2'
         run: |
+          set +e
           sccache --show-stats | tee "${RUNNER_TEMP}/r2-sccache-stats.txt"
           {
             echo
             echo '```text'
-            cat "${RUNNER_TEMP}/r2-sccache-stats.txt"
+            if [ -s "${RUNNER_TEMP}/r2-sccache-stats.txt" ]; then
+              cat "${RUNNER_TEMP}/r2-sccache-stats.txt"
+            else
+              echo 'sccache stats unavailable'
+            fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

@@ -113,12 +113,21 @@ if [ -f "${r2_pilot}" ]; then
     printf '%s\n' "${declared_triggers}" >&2
     exit 1
   fi
+  permission_keys=$(awk '/^permissions:$/{p=1; next} p && /^[a-z]/{exit} p' "${r2_pilot}" | grep -E '^  [^[:space:]#]' || true)
+  if [ "${permission_keys}" != '  contents: read' ]; then
+    echo 'r2-sccache-pilot.yml must keep top-level permissions limited to contents: read' >&2
+    printf '%s\n' "${permission_keys}" >&2
+    exit 1
+  fi
   for contract in \
     "    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'" \
     '    environment: r2-sccache' \
     '    runs-on: ubuntu-24.04' \
     '          echo "SCCACHE_SERVER_UDS=${RUNNER_TEMP}/anvil-r2-sccache-${GITHUB_RUN_ID}.sock" >> "$GITHUB_ENV"' \
-    '          persist-credentials: false'; do
+    '          persist-credentials: false' \
+    'permissions:' \
+    '  contents: read' \
+    '          set +e'; do
     if ! grep -Fxq -- "${contract}" "${r2_pilot}"; then
       echo "r2-sccache-pilot.yml is missing trust-boundary contract: ${contract}" >&2
       exit 1
