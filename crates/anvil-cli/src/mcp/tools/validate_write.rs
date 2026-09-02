@@ -288,7 +288,8 @@ fn call_with_validation_client(
         .flatten();
 
     let mut diagnostics = normalise_response_diagnostics(&diagnostics, backend);
-    diagnostics = apply_cib392_secret_scope(diagnostics, &request, materialised_original.as_deref());
+    diagnostics =
+        apply_cib392_secret_scope(diagnostics, &request, materialised_original.as_deref());
 
     // POLRESET-006 / OPAE-007: additive pre-write policy evaluation, run AFTER
     // the intercept-rules scan and never replacing it (see
