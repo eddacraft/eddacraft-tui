@@ -1,8 +1,8 @@
 # Editor Surface Coexistence
 
-| Type  | Authority     | Owner                                                                                                            | Status | Freshness                                                                                                                                                                                                             |
-| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | ADOPT ([`plans/archive/modules/adoption-friction.aps.md`](../../plans/archive/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-08-20 against `tools/test-harness/editor-coexistence/` and `.github/workflows/editor-coexistence.yml` (setup-python pin 6.3.0 → 7.0.0; this workflow does not use the removed `pip-install` input) |
+| Type  | Authority     | Owner                                                                                                            | Status | Freshness                                                                                                                                                                                                                 |
+| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | ADOPT ([`plans/archive/modules/adoption-friction.aps.md`](../../plans/archive/modules/adoption-friction.aps.md)) | Live   | Last reviewed 2026-09-02 against `tools/test-harness/editor-coexistence/` and `.github/workflows/editor-coexistence.yml` (CI-cost 2026-09: push-to-`main` trigger narrowed to cache-key inputs; the PR gate is unchanged) |
 
 | Upstream                                                                                                                                    | Downstream                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -208,7 +208,12 @@ feasible, and document an exclusion where not.
 ## Cross-references
 
 - Coexistence harness — `tools/test-harness/editor-coexistence/`
-- CI gate — `.github/workflows/editor-coexistence.yml`
+- CI gate — `.github/workflows/editor-coexistence.yml`. Runs on every PR that
+  touches the harness, the policy, or the anvil-cli/kernel/hook crates. The
+  push-to-`main` run fires only when a cache-key input changes (`Cargo.toml`,
+  `Cargo.lock`, `rust-toolchain.toml`, the workflow file): it exists to seed the
+  `rust-release-editor` cache PR runs restore, not to re-prove a merge the PR
+  gate already verified.
 - Ignore-policy source of truth — `crates/anvil-kernel/src/watcher/filter.rs`
 - Hook-manager coexistence — `crates/anvil-hook/src/coexistence.rs`
 - APS — `plans/archive/modules/adoption-friction.aps.md` (ADOPT-006)
