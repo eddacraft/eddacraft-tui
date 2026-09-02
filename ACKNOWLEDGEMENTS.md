@@ -7177,7 +7177,7 @@ SOFTWARE.
 
 Used by:
 
-- `demand` 2.0.5
+- `demand` 2.1.0
 
 <details>
 <summary>Licence text</summary>
@@ -9738,7 +9738,7 @@ the following restrictions:
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
 | `matchit` | 0.8.4 | MIT License | https://github.com/ibraheemdev/matchit |
 | `outref` | 0.5.2 | MIT License | https://github.com/Nugine/outref |
-| `demand` | 2.0.5 | MIT License | https://github.com/jdx/demand |
+| `demand` | 2.1.0 | MIT License | https://github.com/jdx/demand |
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
 | `line-clipping` | 0.3.8 | MIT License | https://github.com/ratatui/line-clipping |
 | `fluent-uri` | 0.4.1 | MIT License | https://github.com/yescallop/fluent-uri-rs |
