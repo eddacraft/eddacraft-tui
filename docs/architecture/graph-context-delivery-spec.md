@@ -285,11 +285,16 @@ the graph being off.
 
 - **Session-pinned root.** Every GCTX call is scoped to a single, session-pinned
   workspace root, validated at session init against the MCP server's launch root
-  (reuse the `shared.rs` `validate_workspace_root` pattern). Cross-worktree
-  queries are rejected. Until GV2-020 provides per-graph isolation, GCTX **fails
-  closed** if the registry is absent or returns multiple candidates for a root
-  (defeats a shared `ANVIL_HOME` / multi-graph daemon crossing worktree
-  boundaries — Project A's assistant learning Project B's structure).
+  (reuse the `shared.rs` `validate_workspace_root` pattern). Graph tools
+  additionally require that root to be the server cwd or a registered worktree
+  root **exactly** — a nested directory is refused (CIB-398, ADR-125 amendment;
+  `shared::validate_gctx_workspace_root`), because the daemon keys its graph on
+  the root it is handed and a nested root would rebase root-relative file
+  identities past the CE-3 deny-list. Cross-worktree queries are rejected. Until
+  GV2-020 provides per-graph isolation, GCTX **fails closed** if the registry is
+  absent or returns multiple candidates for a root (defeats a shared
+  `ANVIL_HOME` / multi-graph daemon crossing worktree boundaries — Project A's
+  assistant learning Project B's structure).
 - **Stdio-only.** GCTX tools/resources are authorised over the **local stdio
   transport only** (`AnvilEntry::Stdio`, `anvil mcp serve --stdio`). Any RMCPF
   transport that crosses a network or cross-uid boundary (`RemoteSse`,

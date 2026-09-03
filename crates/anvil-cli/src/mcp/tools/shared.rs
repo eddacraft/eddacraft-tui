@@ -24,6 +24,12 @@ pub const MAX_FILE_ENTRIES: usize = 10_000;
 /// (ADR-125).
 pub const WORKSPACE_ROOT_NOT_ADMITTED: &str = "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository";
 
+/// Caller-facing refusal when a daemon-keyed graph-context tool receives a
+/// `workspaceRoot` that ADR-125 admits but that is not itself a graph root
+/// (CIB-398): the server cwd or a registered worktree root, never a nested
+/// directory.
+pub const GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT: &str = "workspaceRoot for graph-context tools must be the MCP server root itself or a registered git worktree root of the same repository, not a nested directory";
+
 /// Whether a GCTX `NotReady` recovery hint still warrants an on-demand re-warm.
 ///
 /// A platform with no symbol parser cannot populate the graph (CIB-385).
@@ -60,6 +66,44 @@ pub fn validate_workspace_root(
         return Err(WORKSPACE_ROOT_NOT_ADMITTED.to_string());
     }
     Ok((server_root, workspace_root))
+}
+
+/// Validate that `workspace_root` is a daemon-keyed **graph root** for a
+/// graph-context tool (`anvil_search_symbols`, `anvil_find_callers`,
+/// `anvil_find_dependents`, `anvil_impact_of_change`, `anvil_affected_tests`,
+/// `anvil_symbol_context`). Returns the canonicalised
+/// `(server_root, workspace_root)` pair on success.
+///
+/// Admission is [`validate_workspace_root`] (ADR-125) **and then** exact
+/// identity with the server cwd or a registered worktree root of the same
+/// repository. A nested directory is admitted as an MCP workspace for the
+/// check / gate / status / write tools but refused here (CIB-398): the daemon
+/// keys its graph on the root it is handed and every file identity it projects
+/// is root-relative, so `<repo>/secrets` as the root rebases
+/// `secrets/token.ts` to `token.ts` and the CE-3 sensitive-path deny-list
+/// (`is_sensitive_egress_path`) never sees the denied segment. Refusing the
+/// root client-side also keeps the on-demand warm-up from following an
+/// attacker-chosen nested root. The check runs on the canonical path, so a
+/// symlink alias of a nested directory is the same nested root.
+pub fn validate_gctx_workspace_root(
+    workspace_root: &Path,
+    server_root: &Path,
+) -> Result<(PathBuf, PathBuf), String> {
+    let (server_root, workspace_root) = validate_workspace_root(workspace_root, server_root)?;
+    if !workspace_root_is_graph_root(&workspace_root, &server_root) {
+        return Err(GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT.to_string());
+    }
+    Ok((server_root, workspace_root))
+}
+
+/// Whether a canonical, already-admitted `workspace_root` is a graph root for
+/// this server cwd (CIB-398): the server cwd itself or exactly a registered
+/// worktree root of the same repository — not a directory inside either.
+pub fn workspace_root_is_graph_root(workspace_root: &Path, server_root: &Path) -> bool {
+    workspace_root == server_root
+        || registered_worktree_roots(server_root)
+            .iter()
+            .any(|root| root == workspace_root)
 }
 
 /// Whether a canonical `workspace_root` may be used as an MCP tool workspace
@@ -1087,5 +1131,86 @@ mod tests {
             ),
             "pkg"
         );
+    }
+
+    // CIB-398: daemon-keyed graph-context tools must not accept a nested
+    // directory as the graph root — file identities are workspace-root-relative,
+    // so `<root>/secrets` as the root rebases `secrets/token.ts` to `token.ts`
+    // and the CE-3 deny-list never sees the denied segment.
+    #[test]
+    fn gctx_refuses_nested_directory_inside_the_server_root() {
+        let cwd = std::env::current_dir().expect("test cwd");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+        let nested = workspace.path().join("secrets");
+        std::fs::create_dir_all(&nested).expect("nested");
+
+        // Still an admitted MCP root under ADR-125 …
+        validate_workspace_root(&nested, workspace.path()).expect("nested under server root");
+        // … but not a graph root.
+        let err = validate_gctx_workspace_root(&nested, workspace.path())
+            .expect_err("nested directory refused as a graph root");
+        assert_eq!(err, GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT);
+    }
+
+    #[test]
+    fn gctx_refuses_nested_directory_inside_a_registered_linked_worktree() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, linked) = linked_worktree_layout(root.path());
+        let nested = linked.join(".aws");
+        std::fs::create_dir_all(&nested).expect("nested dir");
+
+        let err = validate_gctx_workspace_root(&nested, &main)
+            .expect_err("nested directory inside a linked worktree refused as a graph root");
+        assert_eq!(err, GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT);
+    }
+
+    #[test]
+    fn gctx_admits_server_root_and_registered_worktree_roots_exactly() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, linked) = linked_worktree_layout(root.path());
+
+        let (server, workspace) =
+            validate_gctx_workspace_root(&main, &main).expect("server root is a graph root");
+        assert_eq!(server, main);
+        assert_eq!(workspace, main);
+
+        let (_, workspace) = validate_gctx_workspace_root(&linked, &main)
+            .expect("registered linked worktree root is a graph root (ADR-125)");
+        assert_eq!(workspace, linked);
+
+        let (_, workspace) = validate_gctx_workspace_root(&main, &linked)
+            .expect("main checkout is a graph root from a linked-worktree server");
+        assert_eq!(workspace, main);
+    }
+
+    #[test]
+    fn gctx_refuses_unrelated_root_with_the_admission_error() {
+        // Admission (ADR-125) is checked first; the graph-root refusal is only
+        // reached for roots that are admitted but nested.
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, _linked) = linked_worktree_layout(root.path());
+        let other = tempfile::tempdir().expect("other repo");
+
+        let err =
+            validate_gctx_workspace_root(other.path(), &main).expect_err("foreign root refused");
+        assert_eq!(err, WORKSPACE_ROOT_NOT_ADMITTED);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gctx_refuses_symlink_that_resolves_to_a_nested_directory() {
+        // The decision is made on the canonical path: an out-of-tree alias that
+        // resolves to `<root>/secrets` is the same nested root.
+        let cwd = std::env::current_dir().expect("test cwd");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+        let nested = workspace.path().join("secrets");
+        std::fs::create_dir_all(&nested).expect("nested");
+        let outside = tempfile::tempdir().expect("outside");
+        let alias = outside.path().join("alias");
+        std::os::unix::fs::symlink(&nested, &alias).expect("symlink alias");
+
+        let err = validate_gctx_workspace_root(&alias, workspace.path())
+            .expect_err("alias of a nested directory refused as a graph root");
+        assert_eq!(err, GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT);
     }
 }

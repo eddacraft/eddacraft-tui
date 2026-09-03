@@ -107,6 +107,16 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **Graph-context MCP tools no longer accept a nested directory as the workspace
+  root.** `anvil_search_symbols`, `anvil_find_callers`, `anvil_find_dependents`,
+  `anvil_impact_of_change`, `anvil_affected_tests`, and `anvil_symbol_context`
+  now require `workspaceRoot` to be the MCP server root itself or a linked Git
+  worktree root of the same repository. Pointing a graph tool at a subdirectory
+  used to rebuild the graph from that directory, so a sensitive path such as
+  `secrets/token.ts` could surface as `token.ts` past the sensitive-path filter.
+  Check, gate, status, and write-validation tools still accept directories
+  inside the server root.
+
 - **Generated record identifiers are no longer flagged as high-entropy
   secrets.** Content-addressed ids with a lowercase prefix, dashed segments, and
   a hex tail stay quiet. Mixed-case opaque tokens and real credentials still
