@@ -18,7 +18,7 @@ vs `anvil start` reconfigure; ADR-114 / ONSW). Prior 2026-07-30 note: the
 JOURNEY-007 Merged 2026-07-30 via PR #3441 (sandboxed autoplay with WOW-006);
 JOURNEY-008 Merged 2026-07-25 via PR #3408; JOURNEY-009 Proposed on hold;
 JOURNEY-010 Proposed blocked on DASHARCH/DASHOPS view waves; **JOURNEY-011
-Merged #3474**. Progress 9/11 counts Merged items only. Created 2026-07-11 from the operator's release goal and the accepted
+Merged #3474**. Progress 9/13 counts Merged items only (JOURNEY-012 Ready and JOURNEY-013 Proposed raised the total). Created 2026-07-11 from the operator's release goal and the accepted
 [`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md).
 
 ## Purpose
