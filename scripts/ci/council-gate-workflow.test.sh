@@ -98,6 +98,7 @@ assert_contains '[[ "$EVENT_LABEL" == "$GATE_LABEL" ]]'
 assert_contains '[[ "$RUN_ATTEMPT" == "1" ]]'
 assert_contains 'dismiss-stale-review:'
 assert_contains 'pull-requests: write'
+assert_contains 'GH_REPO: ${{ github.repository }}'
 assert_contains "github.event.action == 'edited' && github.event.changes.base != null"
 assert_contains 'council-gate:'
 assert_contains 'pull-requests: read'
@@ -107,6 +108,18 @@ if grep -Fq 'actions/checkout' <<<"$dismiss_job"; then
   echo 'dismiss-stale-review must not checkout or execute PR-controlled files' >&2
   exit 1
 fi
+
+non_git_dir=$(mktemp -d)
+trap 'rm -rf "$non_git_dir"' EXIT
+gh() {
+  [[ "${GH_REPO:-}" == 'eddacraft/anvil' ]] || return 44
+  [[ "$PWD" == "$non_git_dir" ]] || return 45
+  printf 'council:reviewed\n'
+}
+(
+  cd "$non_git_dir"
+  GH_REPO=eddacraft/anvil gh pr view 123 --json labels --jq '.labels[].name'
+) >/dev/null
 
 gate_job=$(sed -n '/^  council-gate:/,$p' "$workflow")
 if grep -Fq 'pull-requests: write' <<<"$gate_job"; then
