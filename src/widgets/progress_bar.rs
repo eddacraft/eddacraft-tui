@@ -68,7 +68,8 @@ impl ProgressBarState {
     /// Returns the current visually-interpolated fraction (smoothed by easing).
     ///
     /// This value transitions smoothly toward [`Self::fraction()`] each time the
-    /// widget is rendered, provided [`animate_tick`] is called in the event loop.
+    /// widget is rendered, provided [`crate::animation::animate_tick`] is called in
+    /// the event loop.
     pub fn display_fraction(&self) -> f64 {
         *self.display_fraction
     }
