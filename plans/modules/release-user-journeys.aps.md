@@ -2,7 +2,7 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 9/11 |
+| JOURNEY | Conductor | Josh | high | In Progress | 9/13 |
 
 **Last reviewed:** 2026-09-01 — onboarding-entry intake: filed **JOURNEY-012**
 Ready (`anvil start` never points at `anvil welcome`, so a first-time user on

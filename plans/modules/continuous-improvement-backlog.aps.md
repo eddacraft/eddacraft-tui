@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 305/384  |
+| CIB | —     | In Progress | 306/396  |
 
 ## Purpose
 
@@ -12970,6 +12970,167 @@ reply.
 - **Confidence:** high on the observation and on the two excluded causes, all
   read directly from source or from the failing job. **Low on the cause** —
   that is the point of the item, and the reason it is scoped to reproduction.
+
+## DeepSec intake (process run 20260902184224, 2026-09-02)
+
+Nine findings from DeepSec process run `20260902184224-6753b67df9c072ab`
+(scan `20260902184151-03759b89c595979c`). Clustered into seven private issues
+#4343–#4349, then promoted here. DeepSec triage marked every security finding
+P1; human triage kept five P1, dropped account-activity to P2, and skipped the
+Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
+
+### CIB-394: Bind council-gate approval to the reviewed head SHA
+
+- **Status:** Proposed
+- **Priority:** P1 — required `Protected surfaces reviewed` check can go green
+  on a stale fork label or a no-PR `workflow_dispatch`
+- **Intent:** The council-gate workflow must only accept a `council:reviewed`
+  label that covers the current protected-path head SHA, and must fail closed
+  when it has no pull-request context.
+- **Expected Outcome:** Fork `synchronize` cannot keep a stale
+  `council:reviewed` label as sufficient proof; no-PR `workflow_dispatch` does
+  not mint a passing required check. Freshness is bound to `head.sha` (review
+  artefact or label-event timestamp), or fork dismissal runs from a safe
+  API-only path.
+- **Files:** `.github/workflows/council-gate.yml`
+- **Validation:** A fixture or workflow dry-run where a fork PR is labelled on
+  SHA A, then pushes SHA B touching a protected path, fails until re-reviewed;
+  a `workflow_dispatch` with empty `BASE_SHA`/`HEAD_SHA` does not conclude
+  success under the required job name.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4347](https://github.com/eddacraft/anvil-001/issues/4347).
+- **Coordinates with:** CIB-149 (the process guard this workflow enforces),
+  CIB-137 (classifier tampering — different required-check bypass).
+- **Confidence:** high — both paths read directly in the current workflow.
+
+### CIB-395: Harden public-reference-regen against tag interpolation and persisted write tokens
+
+- **Status:** Merged 2026-09-03 via PR [#4354](https://github.com/eddacraft/anvil-001/pull/4354)
+- **Priority:** P1 — first `run:` step still interpolates `${{ github.ref }}`
+  into a `contents: write` workflow; later steps already env-map `TAG_NAME`
+- **Intent:** Tag names must reach the regen workflow only through `env:`, and
+  the write-scoped `GITHUB_TOKEN` must not be persisted in git config before
+  `pnpm install`.
+- **Expected Outcome:** No `${{ github.ref }}` / `${{ github.ref_name }}` in
+  `run:` bodies; tag values are env-mapped and validated against a strict
+  release-tag pattern; checkout uses `persist-credentials: false` and the token
+  is injected only on the final push.
+- **Files:** `.github/workflows/public-reference-regen.yml`
+- **Validation:** Static review that every `run:` block references only env or
+  `$GITHUB_*` variables; a crafted `v1$(...)` tag name cannot execute in the
+  gate step; `persist-credentials` is false on the setup checkout.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4349](https://github.com/eddacraft/anvil-001/issues/4349). Implementation
+  landed on `main` via [#4354](https://github.com/eddacraft/anvil-001/pull/4354).
+- **Coordinates with:** CIB-120 (pinned installers), CIB-139 (tag ancestry
+  before signing) — related class, different workflow.
+- **Confidence:** high — the later steps in the same file already document the
+  injection sink; the first step was left unsafely interpolated.
+
+### CIB-396: Force fork PRs off LINUX_RUNNER in secret-calibration
+
+- **Status:** Proposed
+- **Priority:** P1 if `vars.LINUX_RUNNER` is a self-hosted or long-lived org
+  runner (same var `rust-tests.yml` already fork-guards)
+- **Intent:** Fork pull requests must not execute PR-controlled `cargo test` on
+  the configurable Linux runner used by secret-calibration.
+- **Expected Outcome:** Fork PRs run on `ubuntu-latest` (or the workflow is
+  skipped for forks); only trusted refs may use `vars.LINUX_RUNNER`.
+- **Files:** `.github/workflows/secret-calibration.yml`
+- **Validation:** Static review matching the `rust-tests.yml` fork ternary;
+  a fork PR touching secret-calibration paths does not schedule on
+  `vars.LINUX_RUNNER`.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4345](https://github.com/eddacraft/anvil-001/issues/4345).
+- **Coordinates with:** CIB-138 (bench-nightly self-hosted ref guard — sibling,
+  not a duplicate).
+- **Confidence:** high for the missing guard; impact is configuration-conditional.
+
+### CIB-397: Resolve Windows OS utilities to trusted absolute paths in CLI helpers
+
+- **Status:** Proposed
+- **Priority:** P1 — Anvil runs inside arbitrary workspaces; Windows search
+  order can include cwd
+- **Intent:** Production helpers that currently launch bare `cmd`, `git`,
+  `whoami`, and `icacls` must not resolve those names from the current
+  workspace on Windows.
+- **Expected Outcome:** OS utilities resolve to trusted absolute paths
+  (`%SystemRoot%\System32\...`) or Win32 APIs; `git` uses a discovered path
+  that excludes the current workspace from resolution.
+- **Files:** `crates/anvil-cli/src/util.rs`
+- **Validation:** Windows-targeted tests or documented path construction proving
+  `Command::new` for these helpers is not a bare executable name; a planted
+  `git.exe` / `cmd.exe` in cwd is not executed.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4343](https://github.com/eddacraft/anvil-001/issues/4343).
+- **Coordinates with:** CIB-211 (Windows named-pipe/config ACLs), MLP2-028
+  (peer-PID lineage) — related Windows trust, different root cause.
+- **Confidence:** medium — search-order hijack is real; which helpers fire in
+  common operator paths needs confirmation on a Windows host.
+
+### CIB-398: Stop nested GCTX workspace roots from rebasing away sensitive-path prefixes
+
+- **Status:** Proposed
+- **Priority:** P1 — unauthenticated `anvil_symbol_context` admits any directory
+  inside the MCP server root (ADR-125), which can strip CE-3 denied prefixes
+- **Intent:** GCTX symbol-context queries must not treat a nested subdirectory
+  as the workspace root in a way that makes `secrets/token.ts` look like
+  `token.ts` to sensitive-path / gitignore filters.
+- **Expected Outcome:** Either nested directories are rejected as GCTX
+  workspace roots for this tool, or projection preserves the authoritative
+  repo-relative path so CE-3 still sees the denied prefix. Warm-up must not
+  follow an attacker-chosen nested root.
+- **Files:** `crates/anvil-cli/src/mcp/tools/symbol_context.rs`,
+  `crates/anvil-cli/src/mcp/tools/shared.rs`
+- **Validation:** A request with `workspaceRoot` set to a denied/sensitive
+  subdirectory is refused, or returned identities still include the denied
+  prefix; existing ADR-125 linked-worktree admission still works.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4348](https://github.com/eddacraft/anvil-001/issues/4348).
+- **Coordinates with:** ADR-125 (nested-root admission is currently intentional
+  for MCP tools), CIB-148 (path normalisation in `anvil_query_boundary`),
+  GCTX-023 / ADR-084.
+- **Confidence:** high — `validate_workspace_root` admits `starts_with(server_root)`
+  and the tool is `requires_auth: false`.
+
+### CIB-399: Reject suspended accounts on account-activity ingest
+
+- **Status:** Proposed
+- **Priority:** P2 — post-revocation write of allowlisted telemetry until JWT
+  expiry; not licence reminting
+- **Intent:** `POST` account-activity must reload `beta_users` and reject
+  missing or non-active subjects before upserting feature-touches or stamping
+  `last_activity_at`.
+- **Expected Outcome:** A suspended account with an unexpired licence JWT
+  receives 401/403 and no row mutations, matching the active-status gate on
+  `POST /auth/verify`.
+- **Files:** `apps/anvil-api/src/routes/account-activity.ts`
+- **Validation:** API test: mint a licence, suspend the user, POST feature-touch
+  keys, assert rejection and no `account_feature_touches` / activity stamp.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4344](https://github.com/eddacraft/anvil-001/issues/4344).
+- **Coordinates with:** CIB-141 (fail-closed entitlement), SEC-007 (atomic
+  token revocation, GH #1672, shipped) — this route was added later and never
+  got the active-status gate.
+- **Confidence:** high — the route verifies the JWT then trusts `claims.sub`.
+
+### CIB-400: Keep the positional Draw.io path when optional export flags are absent
+
+- **Status:** Proposed
+- **Priority:** P3 — developer-facing argument-parsing bug, not a vulnerability
+- **Intent:** `scripts/docs/export-public-diagram.mjs` must keep argv[0] as the
+  `.drawio` path when `--root` and `--drawio-bin` are omitted.
+- **Expected Outcome:** `pnpm docs:public:diagrams:export -- docs/public/<family>/assets/diagrams/<name>.drawio`
+  (no optional flags) exports instead of exiting with usage.
+- **Files:** `scripts/docs/export-public-diagram.mjs`
+- **Validation:** A regression that invokes the exporter with only the positional
+  `.drawio` path and asserts it is not dropped (`indexOf` of a missing flag is
+  `-1`, so `+1` currently removes argv[0]).
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4346](https://github.com/eddacraft/anvil-001/issues/4346). DeepSec triage
+  skip as security; filed so the bug is not lost.
+- **Coordinates with:** docs public-diagram export contract.
+- **Confidence:** high — `indexOf`/`filter` behaviour is local and deterministic.
 
 ### CIB-401: better-sqlite3 teardown crash fails `Unit Tests` with every suite green
 
