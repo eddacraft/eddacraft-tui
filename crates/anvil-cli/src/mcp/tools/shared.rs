@@ -1036,6 +1036,13 @@ mod tests {
     }
 
     fn linked_worktree_layout(root: &Path) -> (PathBuf, PathBuf) {
+        linked_worktree_layout_at(root, &root.join("linked"))
+    }
+
+    /// [`linked_worktree_layout`] with the linked worktree checked out at
+    /// `linked` — sibling of `main` by default, or inside it (this repository
+    /// keeps linked worktrees under `<main>/.worktrees/`).
+    fn linked_worktree_layout_at(root: &Path, linked: &Path) -> (PathBuf, PathBuf) {
         let main = root.join("main");
         let common = main.join(".git");
         std::fs::create_dir_all(common.join("refs")).expect("git refs dir");
@@ -1047,15 +1054,14 @@ mod tests {
         std::fs::write(admin.join("HEAD"), b"ref: refs/heads/feature\n").expect("linked HEAD");
         std::fs::write(admin.join("commondir"), b"../..\n").expect("commondir");
 
-        let linked = root.join("linked");
-        std::fs::create_dir_all(&linked).expect("linked worktree");
+        std::fs::create_dir_all(linked).expect("linked worktree");
         let git_file = linked.join(".git");
         std::fs::write(&git_file, format!("gitdir: {}\n", admin.display())).expect(".git file");
         std::fs::write(admin.join("gitdir"), format!("{}\n", git_file.display()))
             .expect("gitdir back-pointer");
 
         let main = dunce::canonicalize(&main).expect("main canonicalises");
-        let linked = dunce::canonicalize(&linked).expect("linked canonicalises");
+        let linked = dunce::canonicalize(linked).expect("linked canonicalises");
         (main, linked)
     }
 
@@ -1181,6 +1187,32 @@ mod tests {
         let (_, workspace) = validate_gctx_workspace_root(&main, &linked)
             .expect("main checkout is a graph root from a linked-worktree server");
         assert_eq!(workspace, main);
+    }
+
+    /// A registered linked worktree that lives *inside* the server root (this
+    /// repository keeps them under `<main>/.worktrees/`) is still a graph root:
+    /// the decision is registration, not containment, so a "nested under the
+    /// server root ⇒ refuse" shortcut would be wrong. Its `src/` is still
+    /// refused.
+    #[test]
+    fn gctx_admits_registered_linked_worktree_nested_inside_the_server_root() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let inside = root.path().join("main").join(".worktrees").join("linked");
+        let (main, linked) = linked_worktree_layout_at(root.path(), &inside);
+        assert!(
+            linked.starts_with(&main),
+            "fixture: linked worktree is inside main"
+        );
+
+        let (_, workspace) = validate_gctx_workspace_root(&linked, &main)
+            .expect("registered linked worktree inside the server root is a graph root");
+        assert_eq!(workspace, linked);
+
+        let nested = linked.join("src");
+        std::fs::create_dir_all(&nested).expect("nested dir");
+        let err = validate_gctx_workspace_root(&nested, &main)
+            .expect_err("directory inside that linked worktree is not a graph root");
+        assert_eq!(err, GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT);
     }
 
     #[test]
