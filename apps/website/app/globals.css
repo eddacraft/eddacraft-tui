@@ -5,7 +5,7 @@
   --void: #0d0d0f;
   --structure: #2a2a2e;
   --off-white: #ebebeb;
-  --anvil: #cc5500;
+  --anvil: #d95a00;
   --edda: #2e8b57;
   --ghost-grey: color-mix(in srgb, var(--off-white) 60%, var(--void));
   --brick-red: var(--anvil);

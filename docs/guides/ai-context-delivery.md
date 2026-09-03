@@ -1,8 +1,8 @@
 # AI Context Delivery
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | GCTX  | Live   | Last reviewed 2026-08-31 against the CIB-385 graph-cache ARCHITECTURE honesty re-date; MCP tool surface and diagrams unchanged. Prior review 2026-08-29 against `crates/anvil-graph-cache/ARCHITECTURE.md` and the live MCP tool surface |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                       |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | GCTX  | Live   | Last reviewed 2026-09-03 against the CIB-398 graph-root rule in the GCTX spec (CE-8): the six graph tools refuse a nested `workspaceRoot`. Prior review 2026-08-31 against the CIB-385 graph-cache ARCHITECTURE honesty re-date |
 
 | Upstream                                                                                                                                          | Downstream                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -110,6 +110,13 @@ tools — `anvil_search_symbols`, `anvil_find_dependents`, and
 `anvil_find_callers` — paginate with opaque cursors; `anvil_impact_of_change`,
 `anvil_affected_tests`, and `anvil_symbol_context` instead return a single
 bounded report.
+
+Every tool takes a `workspaceRoot`, and for these six it must be the workspace
+itself: the directory the MCP server was launched in, or a linked Git worktree
+root of the same repository. A subdirectory is refused. The daemon keys its
+graph on that root and reports workspace-relative paths, so a nested root would
+let a sensitive path such as `secrets/token.ts` surface as `token.ts` past the
+sensitive-path filter described below.
 
 - **`anvil_search_symbols`** — find symbols by name (case-insensitive
   substring), kind, file, language, or visibility. The entry point for "where is

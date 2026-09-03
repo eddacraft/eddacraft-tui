@@ -706,21 +706,51 @@ pub fn resolve_pid_file_connect_candidates() -> Result<Vec<PathBuf>, IpcError> {
 /// fall through. Sibling symlinks are skipped.
 #[cfg(unix)]
 pub fn select_live_socket_path(candidates: &[PathBuf]) -> Result<PathBuf, IpcError> {
-    select_live_socket_path_with(candidates, probe_socket_path_for_client)
+    select_live_socket_with(candidates, probe_socket_path_for_client).map(|(path, ())| path)
+}
+
+/// First candidate that accepts an owner-only intercept connection, together
+/// with that connection.
+///
+/// The liveness proof *is* the connection: callers that go on to send a request
+/// reuse the stream instead of connecting a second time, so one rendezvous
+/// costs the daemon one accept and one connection permit. Fall-through rules
+/// match [`select_live_socket_path`].
+///
+/// # Errors
+///
+/// Returns the same errors as [`select_live_socket_path`].
+#[cfg(unix)]
+pub fn connect_live_socket(
+    candidates: &[PathBuf],
+) -> Result<(PathBuf, std::os::unix::net::UnixStream), IpcError> {
+    select_live_socket_with(candidates, connect_socket_path_for_client)
+}
+
+/// [`connect_live_socket`] over [`resolve_socket_connect_candidates`].
+///
+/// # Errors
+///
+/// Returns the candidate-resolution error, or the same errors as
+/// [`select_live_socket_path`].
+#[cfg(unix)]
+pub fn resolve_live_socket_connection()
+-> Result<(PathBuf, std::os::unix::net::UnixStream), IpcError> {
+    connect_live_socket(&resolve_socket_connect_candidates()?)
 }
 
 #[cfg(unix)]
-fn select_live_socket_path_with(
+fn select_live_socket_with<T>(
     candidates: &[PathBuf],
-    validate: impl Fn(&Path) -> Result<(), IpcError>,
-) -> Result<PathBuf, IpcError> {
+    validate: impl Fn(&Path) -> Result<T, IpcError>,
+) -> Result<(PathBuf, T), IpcError> {
     if candidates.is_empty() {
         return Err(IpcError::NoSocketDirCandidate);
     }
     let mut last_absent: Option<IpcError> = None;
     for (index, path) in candidates.iter().enumerate() {
         match validate(path) {
-            Ok(()) => return Ok(path.clone()),
+            Ok(proof) => return Ok((path.clone(), proof)),
             Err(err) if ipc_error_is_absent_endpoint(&err) => {
                 last_absent = Some(err);
             }
@@ -766,9 +796,24 @@ pub fn live_socket_absent(err: &IpcError) -> bool {
 /// I/O error when the endpoint is absent, stale, or cannot be connected.
 #[cfg(unix)]
 pub fn probe_socket_path_for_client(path: &Path) -> Result<(), IpcError> {
+    connect_socket_path_for_client(path).map(drop)
+}
+
+/// Validate a socket path, connect, and prove the listener is the same user.
+/// The returned stream is the proof; request paths send on it directly.
+///
+/// # Errors
+///
+/// Returns an IPC trust error for unsafe metadata or peer credentials, and an
+/// I/O error when the endpoint is absent, stale, or cannot be connected.
+#[cfg(unix)]
+pub fn connect_socket_path_for_client(
+    path: &Path,
+) -> Result<std::os::unix::net::UnixStream, IpcError> {
     validate_socket_path_for_client(path)?;
     let stream = std::os::unix::net::UnixStream::connect(path)?;
-    validate_connected_peer_for_client(&stream)
+    validate_connected_peer_for_client(&stream)?;
+    Ok(stream)
 }
 
 /// Validate the client side of the Unix daemon rendezvous before a peer
@@ -9216,7 +9261,7 @@ mod tests {
     fn select_live_falls_through_not_found_canonical_to_sibling() {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
         let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
-        let chosen = select_live_socket_path_with(&[canonical, sibling.clone()], |path| {
+        let (chosen, ()) = select_live_socket_with(&[canonical, sibling.clone()], |path| {
             if path.ends_with("state/anvil/intercept.sock") {
                 Ok(())
             } else {
@@ -9235,7 +9280,7 @@ mod tests {
     fn select_live_falls_through_refused_canonical_to_sibling() {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
         let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
-        let chosen = select_live_socket_path_with(&[canonical, sibling.clone()], |path| {
+        let (chosen, ()) = select_live_socket_with(&[canonical, sibling.clone()], |path| {
             if path.ends_with("state/anvil/intercept.sock") {
                 Ok(())
             } else {
@@ -9254,7 +9299,7 @@ mod tests {
     fn select_live_does_not_fall_through_canonical_symlink() {
         let canonical = PathBuf::from("/run/user/1000/anvil/intercept.sock");
         let sibling = PathBuf::from("/home/somebody/.local/state/anvil/intercept.sock");
-        let err = select_live_socket_path_with(&[canonical.clone(), sibling], |path| {
+        let err = select_live_socket_with(&[canonical.clone(), sibling], |path| {
             if path == canonical {
                 Err(IpcError::SocketPathIsSymlink(path.to_path_buf()))
             } else {
@@ -9263,6 +9308,61 @@ mod tests {
         })
         .unwrap_err();
         assert!(matches!(err, IpcError::SocketPathIsSymlink(path) if path == canonical));
+    }
+
+    /// Rendezvous costs the daemon exactly one accept: the liveness proof is
+    /// the connection the caller then sends on, not a probe that is dropped
+    /// before a second connect (the LSP mid-edit fake daemon read the dropped
+    /// probe as the scan request and answered the wrong exchange).
+    #[cfg(unix)]
+    #[test]
+    fn connect_live_socket_reuses_the_probe_connection() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::net::UnixListener;
+
+        let dir = tempfile::tempdir().expect("socket dir");
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700))
+            .expect("owner-only dir");
+        let socket = dir.path().join("intercept.sock");
+        let listener = UnixListener::bind(&socket).expect("bind");
+        std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600))
+            .expect("owner-only socket");
+        let accepts = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = std::sync::Arc::clone(&accepts);
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("first accept");
+            counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let mut reader = BufReader::new(stream);
+            let mut line = String::new();
+            reader.read_line(&mut line).expect("read request");
+            writeln!(reader.get_mut(), "pong").expect("write reply");
+            // A second accept must never be needed for one rendezvous.
+            listener
+                .set_nonblocking(true)
+                .expect("nonblocking listener");
+            if listener.accept().is_ok() {
+                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+            line
+        });
+
+        let (chosen, mut stream) =
+            connect_live_socket(std::slice::from_ref(&socket)).expect("live socket");
+        assert_eq!(chosen, socket);
+        writeln!(stream, "ping").expect("send on the proof connection");
+        let mut reply = String::new();
+        BufReader::new(&stream)
+            .read_line(&mut reply)
+            .expect("read reply");
+        assert_eq!(reply, "pong\n");
+        drop(stream);
+        assert_eq!(server.join().expect("server thread"), "ping\n");
+        assert_eq!(
+            accepts.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "one rendezvous must cost the daemon one accept"
+        );
     }
 
     #[cfg(windows)]

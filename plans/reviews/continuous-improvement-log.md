@@ -5571,3 +5571,744 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Friction:** The pending queue understated the backlog by more than 5x — 35 pending notes hid 193 untriaged tracked entries behind a five-week-old watermark, and `ci-log:status` reports only the pending count, so the real size is invisible until `ci-log:since` runs.
 - **Improvement:** Report the since-watermark entry count alongside the pending count in `ci-log:status`, so the triage debt is visible at session start rather than only after harvesting. Fix the named workflow's argument wiring or drop the skill's instruction to invoke it.
 - **Follow-up:** CIB-375 (set-watermark guard), CIB-376 (docs-owed ancestry), CIB-377 (diagram freshness cascade), CIB-378 (ADR number allocation)
+
+### 2026-08-30 — codex
+
+- **Task:** Address reviews and major findings on PR #4215
+- **Outcome:** Repaired five prior majors and validated the rebased branch; final Council blocked publication on three newly discovered majors
+- **Worked:** TDD regressions, latest-main rebase, full CLI and intercept tests, docs checks, independent verification, and five-role Council
+- **Failed:** Repository-wide validate:changed is blocked by pre-existing Nx sync drift also present on untouched main
+- **Friction:** A final-review pass found additional lifecycle, stop-result, and PID-file trust defects after the first repair set
+- **Improvement:** none
+- **Follow-up:** session:council-5f70363b
+
+### 2026-08-30 — other
+
+- **Task:** Draft APGOV-008 bounded Neon HTTP connect retry
+- **Outcome:** Filed Draft item under APGOV; OBS-002 cross-linked as visibility only
+- **Worked:** Existing OBS-002 is deferred visibility; #4238 was SLO-safe ingest not retry
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** Review CHANGELOG.md and ENGINEERING-HISTORY.md Unreleased against diff since v0.9.7-beta
+- **Outcome:** Review only: existing Unreleased changelog bullets match code; engineering history Unreleased is empty; several customer-facing landings (SDT honesty, skipped-vs-zero, DO_NOT_TRACK, conformance CLI, control-examples) are missing from both drafts.
+- **Worked:** Pinned v0.9.7-beta^{commit} 89a6d2050 to origin/main 1e78a7952 (417 commits, 690 files); verified each Unreleased changelog claim in source; classified feat/fix vs customer-facing.
+- **Failed:** none
+- **Friction:** Local main was one commit behind origin/main (CONF-011 reconcile); public changelog is expected to lag until cut so it cannot be used as Unreleased completeness evidence.
+- **Improvement:** Keep CHANGELOG and ENGINEERING-HISTORY Unreleased current as customer-facing and architecture work lands, not only at claim-lock. Emptying engineering-history Unreleased at closeout without a refill path is how 10 days of freight vanish.
+- **Follow-up:** session: draft Unreleased changelog bullets for SDT, CIB-365, CIB-364, conformance, control-examples; refill ENGINEERING-HISTORY Unreleased from the post-0.9.7 ADR and APS landings
+
+### 2026-08-30 — grok
+
+- **Task:** Take over feat/intercept-socket-rendezvous (PR 4215) and land to review-ready
+- **Outcome:** review-ready: rebased onto origin/main, force-with-lease pushed f34b17fd3, PR mergeable but blocked on council:reviewed
+- **Worked:** Transferred expired/competing claim, finished in-progress rebase, combined CONF-011 freshness conflicts, added PID-file identity gate, retained doctor lifecycle locks
+- **Failed:** none
+- **Friction:** Codex still writing in the same worktree during takeover; intercept-stop partial-failure WIP would reopen MF-1 so it was dropped
+- **Improvement:** Isolate exclusive worktree writers before rebase; do not share a dirty worktree across harnesses
+- **Follow-up:** session: run council full on PR 4215 ipc.rs and apply council:reviewed
+
+### 2026-08-30 — other — grok
+
+- **Task:** Complete GTAO-004 via dev-loop-grok in a fresh worktree; rebase-merge on green
+- **Outcome:** Product PR #4252 rebase-merged at 9173299d2; claim #4249; APS status follow-up #4253
+- **Worked:** Worktree from origin/main; follow-up check JSON to one tagged stderr line; sanitise control chars; Copilot threads resolved
+- **Failed:** none
+- **Friction:** ProcessRunner is dead_code in unit tests so emit path needed cfg_attr allow; Copilot required thread resolution
+- **Improvement:** none
+- **Follow-up:** session: #4253 GTAO-004 Merged status; bookkeeping: pnpm aps:index for GTAO 5/10
+
+### 2026-08-30 — other
+
+- **Task:** Address reviews on APGOV-008 draft PR 4251
+- **Outcome:** Docs corpus failure fixed by reviewing observability-triage; CI green; no review threads
+- **Worked:** docs-owed gate named the OBS APS upstream
+- **Failed:** none
+- **Friction:** Rust Tests required check queued ~15m
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — other — grok
+
+- **Task:** Address reviews on PR #4254
+- **Outcome:** Clippy map_unwrap_or and ANVIL_FAIL_ON_WARNINGS env mismatch fixed; thread resolved
+- **Worked:** CI first; Copilot env-name nit was real; map_or for clippy
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-30 — codex
+
+- **Task:** Address reviews on PR #4215
+- **Outcome:** Full Council blocked hosted head f34b17fd3 with three must-fix findings; the reviewed label was withheld and findings were published.
+- **Worked:** CI-first refresh, direct-SHA Worktrunk isolation, five supervised reviewer axes, exact-head Rust test suites, and GraphQL thread verification.
+- **Failed:** The first review checkout resolved an unpublished local PR branch instead of the hosted head; it was detected before reviewer dispatch and abandoned.
+- **Friction:** The Worktrunk pr shortcut preferred a local branch ahead of GitHub, so an explicit hosted SHA was required for exact-head review.
+- **Improvement:** Add an exact-head assertion before Council dispatch whenever a local PR branch may differ from the hosted head.
+- **Follow-up:** theme:exact-head-pr-resolution
+
+### 2026-08-30 — grok
+
+- **Task:** Open PR filling Unreleased changelog and engineering history since v0.9.7-beta
+- **Outcome:** Opened https://github.com/eddacraft/anvil-001/pull/4258 with CHANGELOG and ENGINEERING-HISTORY Unreleased filled from the post-tag diff.
+- **Worked:** Isolated via wt switch --create docs/unreleased-since-0.9.7; cited PRs verified on GitHub; oxfmt and markdownlint green.
+- **Failed:** none
+- **Friction:** GTAO-004 landed on main after the review as #4252; first guess #4246 was wrong and was corrected before commit.
+- **Improvement:** When citing PR numbers in engineering history, verify via gh pr view before commit — guessed ids drift.
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** File tracked .anvil.yaml
+- **Outcome:** Opened PR #4260 replacing legacy .anvilrc with canonical .anvil.yaml
+- **Worked:** Worktrunk isolate; migrate content; classify project-config so unknown fallback does not force typecheck
+- **Failed:** none
+- **Friction:** anvil migrate without an explicit cd rewrote main; nx sync in a fresh worktree dirtied apps/dashboard/tsconfig.json; unclassified root yaml selected the full Node matrix
+- **Improvement:** Classify tracked anvil project-config filenames before filing them so local.sh is not unknown-closed
+- **Follow-up:** none
+
+### 2026-08-30 — grok
+
+- **Task:** Council full on PR 4215 intercept rendezvous (session council-00f3776c, HEAD 2684e815d)
+- **Outcome:** WARN: two in-contract majors on recycle abort and intercept stop non-zero after sibling PID errors (item 9/MF-1). Connect path cleared. Did not implement; did not apply council:reviewed.
+- **Worked:** Five-reviewer pack + supervisor + debate (recycle severity major not critical) + judge
+- **Failed:** none
+- **Friction:** HEAD gained four unpushed partial-stop commits after f34b17fd3 that invert prior MF-1
+- **Improvement:** none
+- **Follow-up:** session: fix must_fix recycle+stop or operator decides to proceed despite WARN
+
+### 2026-08-30 — grok
+
+- **Task:** complete GTAO-006 via /dev-loop-grok in a fresh wt rebase merge on green
+- **Outcome:** integrated
+- **Worked:** Fresh Worktrunk isolation, TDD contract test, ADR-127 two-job template, Council C-001/C-002 repair, rebase onto main after conflict, rebase-merge #4254, ancestor proof, APS Merged bookkeeping #4261
+- **Failed:** none
+- **Friction:** gh pr merge --rebase from a worktree failed because main is already checked out in the primary tree; merging via gh from /tmp used GitHub. First CI watch raced before workflows registered. APS exclusive-module conflict with GTAO-004 on rebase.
+- **Improvement:** When gh pr merge --rebase fails with main-already-used-by-worktree, retry from a non-worktree cwd or GitHub API rather than checking out main.
+- **Follow-up:** none
+
+### 2026-08-30 — codex
+
+- **Task:** Address PR #4215 reviews and fix all major Council findings
+- **Outcome:** Fixed doctor lifecycle locking, partial multi-daemon stop failure reporting, and PID-file trust validation; scoped Council PASS; exact-head CI green; pre-existing auto-merge landed the PR.
+- **Worked:** TDD regressions, full post-rebase Rust suites, strict clippy, docs and diagram checks, exact-head Council and hosted CI reconciliation.
+- **Failed:** pnpm validate:changed stopped at pre-existing Nx TypeScript project-reference sync drift; direct scoped checks and hosted Type Check passed.
+- **Friction:** Nx cache writes required an unsandboxed rerun; main and the PR branch advanced concurrently, so guarded leases and exact-SHA freezes were required.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — grok
+
+- **Task:** Install using-anvil via managed skill installer
+- **Outcome:** Opened PR #4263 (SKPKG-010, Fixes #4262)
+- **Worked:** bundled_skills catalogue; install both skills per client root; doctor evaluates both
+- **Failed:** none
+- **Friction:** nx typecheck out-of-sync in worktrees unless CI=true; cargo-check maps to pnpm typecheck
+- **Improvement:** Classify rust-only PRs so cargo-check does not invoke pnpm typecheck
+- **Follow-up:** none
+
+### 2026-08-31 — other
+
+- **Task:** Land APGOV-008 draft PR 4251
+- **Outcome:** Already merged on main; ancestor proven; item remains Draft
+- **Worked:** PR was already MERGED when land was requested
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — grok
+
+- **Task:** Fix Council WARN must_fix on intercept stop/recycle after #4215 (MF-1)
+- **Outcome:** Implemented and opened PR #4265. Recycle starts after signal; intercept stop exits 0 on sibling PID junk.
+- **Worked:** Inverted tests first (RED), then recycle + mcp_refresh + intercept stop + docs
+- **Failed:** none
+- **Friction:** #4215 merged while the WARN was still open; follow-up PR required
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** Fix three PR 4215 Council issues under CIB-382
+- **Outcome:** Prepared scoped repair; full Council found three remaining in-contract major gaps before commit or publication
+- **Worked:** TDD plus full Rust, clippy, docs, and changed-file validation exposed the repair safely for independent review
+- **Failed:** Initial focused tests did not exercise the writable canonical JSON error path, ancestor-alias coordinator identity, or tainted-record recovery guidance
+- **Friction:** The three requested fixes interact across CLI reporting, filesystem identity, lock coordination, and recovery semantics
+- **Improvement:** For security refusals, regression tests must cover every existing output contract and recovery instruction; coordinator locks must be keyed by stable resource identity
+- **Follow-up:** owned: CIB-382
+
+### 2026-08-31 — other — grok
+
+- **Task:** GTAO-007 honest when-it-runs docs via /dev-loop-grok
+- **Outcome:** integrated: product #4268 afa160d42 and APS #4269 b1e276a9 on origin/main
+- **Worked:** four-layer when-it-runs in evaluation-model, skills, CLI help; rebase-merge on green no admin
+- **Failed:** none after repair
+- **Friction:** pnpm docs:check corpus mode does not run diagram-impact --since, so local green missed CI Docs corpus
+- **Improvement:** before landing public-docs PRs, also run node scripts/docs/check-diagram-impact.mjs --since origin/main
+- **Follow-up:** none
+
+### 2026-08-31 — grok
+
+- **Task:** anvil start installs skills for chosen MCP clients
+- **Outcome:** Pushed SKPKG-011 onto PR #4263 (Fixes #4271)
+- **Worked:** install_for_activation; first-wave MCP path; TUI consent apply
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — other — grok
+
+- **Task:** GTAO-007 follow-up: honesty on save-time and gates public pages
+- **Outcome:** implemented; PR to open
+- **Worked:** save-time-validation.md and gates.md state regex vs AST vs gate; diagram-impact --since green
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — grok
+
+- **Task:** Rebase-merge PR 4265 on green
+- **Outcome:** MERGED via auto rebase-merge 80a2da1106. Docs corpus repaired first (diagram-impact freshness). No admin bypass.
+- **Worked:** Fixed diagram-impact co-change, enabled gh pr merge --rebase --delete-branch --auto, waited for green
+- **Failed:** none
+- **Friction:** First CI failed Docs corpus because intercept ARCHITECTURE.md is a declared upstream
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** Close CONF-011 merged Worktrunk safely
+- **Outcome:** Removed the merged worktree and local branch after preserving unique Council and dev-loop evidence; reclaimed 3.8 GiB.
+- **Worked:** Classified live worktrees, proved integration and no active processes, distinguished inherited ignored snapshots from two task-specific artefacts, copied those artefacts without overwrite, and verified SHA-256 before Worktrunk removal.
+- **Failed:** The conservative cleanup sweep correctly refused the tree because ignored state was outside its cache allowlist.
+- **Friction:** Merged worktrees can contain mostly inherited generated state plus a small amount of unique lifecycle evidence, so a blanket force-remove would lose evidence while a blanket retain leaks gigabytes.
+- **Improvement:** Document or automate evidence migration for known Council and dev-loop artefacts before merged-worktree cleanup; keep the conservative default for unknown ignored state.
+- **Follow-up:** theme: worktree evidence-preserving cleanup
+
+### 2026-08-31 — codex
+
+- **Task:** Triage and file the latest Clawpatch intake, publish CLAW30 evidence, and land by PR
+- **Outcome:** Thirteen selected records calibrated; seven issue clusters filed; one fixed and one accepted-boundary receipt closed; docs-only change ready for PR
+- **Worked:** Complete-store refresh, current-source calibration, duplicate checks, persisted receipts, explicit issue read-back, and refreshed Council review
+- **Failed:** none
+- **Friction:** Two newer completed runs appeared before publication, requiring a bounded refresh and second Council identity
+- **Improvement:** Refresh live Clawpatch run and lock state immediately before publication whenever triage spans a run boundary
+- **Follow-up:** owned: CLAW30-001
+
+### 2026-08-31 — codex
+
+- **Task:** Address PR #4272 review feedback
+- **Outcome:** Pushed commit 2e670cc83, replied to and resolved both review threads, and ran exact-head docs evidence.
+- **Worked:** CI-first triage, GraphQL thread state, anvil pre-write validation, and exact-head local plus hosted verification.
+- **Failed:** Initial sandboxed pnpm lint:md and docs:owed runs hit EROFS; the first manual wrap still differed from oxfmt.
+- **Friction:** The owned sibling Worktrunk worktree was outside the writable sandbox root, so pnpm temporary dependency-state writes needed escalation.
+- **Improvement:** Include the selected owned Worktrunk worktree in the task writable roots.
+- **Follow-up:** theme:worktrunk-writable-root
+
+### 2026-08-31 — other
+
+- **Task:** address-reviews PR 4263 SKPKG-010/011
+- **Outcome:** merged main; fixed doctor incomplete-bundle warn and pluralised remediation; threads resolved
+- **Worked:** base merge of origin/main; per-root incomplete bundle classification; Copilot thread replies
+- **Failed:** none
+- **Friction:** PR was CONFLICTING/DIRTY so CI on the merge candidate was incomplete until the base merge
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — other
+
+- **Task:** Complete APGOV-008 Neon HTTP connect retry and rebase-merge on green
+- **Outcome:** PR #4286 open with rebase auto-merge; wrap preserves NeonQueryPromise identity
+- **Worked:** TDD wrap + deferred then-retry; Copilot nested ETIMEDOUT walk
+- **Failed:** none
+- **Friction:** Awaiting tagged templates at wrap time breaks sql.transaction instanceof NeonQueryPromise; diagram-impact + docs-owed cascade from apps/anvil-api/src through architecture docs and historical api-as-built
+- **Improvement:** Preserve Neon query-descriptor identity when wrapping HTTP clients; treat non-Error nested sourceError.code as connect-class evidence
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** CLAWOPEN-011 Neon concurrency harness slice
+- **Outcome:** Added fail-closed test configuration, credential-free safety gates, and a live Neon OTP concurrency test; hosted proof awaits provisioned test credentials.
+- **Worked:** Direct production query coverage uses a database-observable readiness barrier and asserts attempts 1-3 plus the stored cap.
+- **Failed:** Live Neon execution unavailable because ANVIL_API_TEST_DATABASE_URL and test identity variables are not provisioned; broad API tests also encountered an unrelated stale flag-catalogue build artefact.
+- **Friction:** The shared worktree flag catalogue dist is stale relative to flags/surfaces.json, so the broad API suite cannot currently provide clean slice evidence.
+- **Improvement:** none
+- **Follow-up:** owned: CLAWOPEN-011
+
+### 2026-08-31 — codex
+
+- **Task:** CLAWOPEN-011 hosted Neon integration workflow and operator documentation
+- **Outcome:** Added an expiring test-only Neon branch workflow, workflow contract test, local routing documentation, and operational provisioning and cleanup guidance.
+- **Worked:** Pinned branch creation, strict test-only environment names, direct API cleanup in always(), bounded workflow and docs validation.
+- **Failed:** Live Neon proof unavailable until the dedicated test project secret and variable are provisioned.
+- **Friction:** Credential-dependent validation must fail closed locally while ordinary tests remain credential-free.
+- **Improvement:** none
+- **Follow-up:** owned: CLAWOPEN-011
+
+### 2026-08-31 — grok
+
+- **Task:** Promote GTAO-009/010 then complete via /dev-loop-grok in a fresh wt; rebase merge on green
+- **Outcome:** GTAO-009/010 implemented as PY-011/PY-012 AST companions; #4283 rebase-merged 6c8781a70; APS Merged via #4289 d267e641b; claims #4275/#4276 closed
+- **Worked:** Fresh wt-new from origin/main; TDD then predicates+registry; independent verify-loop pass-with-advisories; Copilot threads resolved as out-of-AC; merge from /tmp when primary holds main
+- **Failed:** none
+- **Friction:** main ruleset required_review_thread_resolution blocked rebase-merge on Copilot nits after required checks were green (CLEAN only after resolveReviewThread)
+- **Improvement:** land-branch: after required checks pass, query unresolved review threads before merge; Copilot comments are a ruleset gate, not optional
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** CIB-382 Council remediation and exact-head publication
+- **Outcome:** All four unique Council actions fixed; six persisted findings resolved; current-main rebase and exact-head verification completed.
+- **Worked:** Preserving canonical versus sibling stop error identity across reporting and recycle made fail-closed behaviour testable without regressing sibling compatibility.
+- **Failed:** Pinned verification became stale after origin/main advanced; the first full exact-head CLI run also hit a transient audit-chain test that passed in isolation and on clean rerun.
+- **Friction:** validate:changed is currently blocked after its Rust and diagram stages by pre-existing Nx TypeScript project-reference drift on origin/main.
+- **Improvement:** Rebind independent verification after every live-main rebase and keep canonical and sibling lifecycle errors structurally distinct through every adapter.
+- **Follow-up:** owned: CIB-382
+
+### 2026-08-31 — other — grok
+
+- **Task:** address-reviews PR #4270 (CIB-383 intake)
+- **Outcome:** review-addressed: Copilot asked to bump CIB N/M; declined per ADR-053; thread replied and resolved; CI green; mergeStateStatus CLEAN
+- **Worked:** GraphQL reviewThreads; policy push-back with ADR-053 and CIB bookkeeping-only edits; no code change
+- **Failed:** none
+- **Friction:** CIB Standing Module Policy still says update done/total as items are added, which Copilot cited against ADR-053 and the same file's bookkeeping-only section
+- **Improvement:** Clarify the CIB standing-policy progress sentence so it points at pnpm aps:index reconcile rather than per-intake header edits
+- **Follow-up:** promote: CIB
+
+### 2026-08-31 — grok
+
+- **Task:** address-reviews 4278
+- **Outcome:** review comments addressed; waiting on CI
+- **Worked:** GraphQL threads, bash-array CI args, blank --head normalisation with matching summary
+- **Failed:** none
+- **Friction:** Rust Test and Node unit jobs were red on the previous head with unrelated flakes (doctor sibling sockets; vitest worker crash)
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — grok
+
+- **Task:** Drop Claude/Cursor names from TUI tutorial copy
+- **Outcome:** PR #4298 opened
+- **Worked:** Pinned tutorial copy tests then rewrote protection-loop and developer-acceleration steps to generic MCP wording plus anvil mcp install --help
+- **Failed:** none
+- **Friction:** Activation render.rs still has for-example Cursor or Claude Code hints; left out of this tutorial-scoped PR
+- **Improvement:** Tutorial copy tests now forbid named editors so CIB-227 leftovers cannot return in that surface
+- **Follow-up:** session: activation render.rs still uses exclusive-pair examples
+
+### 2026-08-31 — grok
+
+- **Task:** Strip Claude/Cursor names from activation repair hints
+- **Outcome:** Pushed to PR #4298
+- **Worked:** Pinned watching and NeedsAction hint tests then dropped the exclusive-pair parentheticals
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** CLAWOPEN-011 assurance-gap repair
+- **Outcome:** Replaced unsafe branch action with a repo-owned preflight and masking helper, enforced exact Neon test identities and exact-head checkout, and added observable PostgreSQL lock-wait proof.
+- **Worked:** Vertical RED-GREEN tests covered project preflight before POST, mask-before-output ordering, partial-create cleanup, exact database safety, and fail-closed lock contention observation.
+- **Failed:** Live Neon execution remains unavailable until the dedicated project secret and variable are provisioned; the credential-free command fails closed as designed.
+- **Friction:** The graph heuristic did not recognise the MJS helper unit importer, but the explicit node:test suite and workflow contract both cover it.
+- **Improvement:** none
+- **Follow-up:** owned: CLAWOPEN-011
+
+### 2026-08-31 — codex
+
+- **Task:** Address all Council actions on PR #4295 and resolve follow-up review feedback
+- **Outcome:** Four unique Council actions fixed, six persisted findings resolved, follow-up review repaired, and exact-head CI green
+- **Worked:** TDD for stop semantics, focused and full Rust verification, Council convergence, exact-head hosted checks, and review-thread readback
+- **Failed:** One unrelated tracing test flaked once and passed in isolation plus a clean full rerun
+- **Friction:** The one-machine Rust test pool queued the exact-head run for about 31 minutes; the sandbox also prevented updating the local remote-tracking ref after a successful push
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** Recover pricing strategy context from current eddacraft repositories and prior pricing conversations
+- **Outcome:** Recovered four coherent pricing variants, current public-state constraints, and the decisions requiring founder authority; no repository files changed
+- **Worked:** GitHub-hosted source comparison plus prior task retrieval exposed the free-boundary, tier-shape, and price-anchor conflicts clearly
+- **Failed:** none
+- **Friction:** Pricing authority is split across GTM, pitch-pack, investor teaser, and prior conversations with contradictory boundaries
+- **Improvement:** none
+- **Follow-up:** session: founder dictates definitive SKUs and packaging boundaries
+
+### 2026-08-31 — other — grok
+
+- **Task:** rebase-merge #4274 GTAO-007 unlisted pages honesty
+- **Outcome:** integrated on origin/main
+- **Worked:** addressed Copilot wording, rebased over dirty main, oxfmt docs-delivery, rebase-merge on green no admin
+- **Failed:** none after repairs
+- **Friction:** DIRTY vs main; oxfmt miss after conflict; Rust Tests queued ~2h
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** Consolidate the founder-dictated definitive anvil launch pricing strategy
+- **Outcome:** Produced a copy-ready pricing strategy and visual covering Free, Pro, Startup, Team, Enterprise, licensed agent identities, and the Compliance Launch Bundle; no repository files changed
+- **Worked:** Founder-led boundary decisions replaced contradictory earlier pricing variants with one coherent licence and packaging model
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** session: decide publication and repository reconciliation scope
+
+### 2026-08-31 — codex
+
+- **Task:** Create bottom-up TAM SAM SOM model and commercial plan for definitive anvil pricing
+- **Outcome:** Produced source-backed market sizing assumptions, five-year ARR model, launch sequence, ICPs, funnel metrics, and decision gates without changing repository files
+- **Worked:** Used current official adoption data and built SOM directly from agreed SKU prices, seats, company counts, and compliance attach
+- **Failed:** none
+- **Friction:** Enterprise ACV remains a planning assumption until live design-partner evidence exists
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** Refine anvil raise and GTM plan around influencer-led PLG, enterprise compliance sales, and year-two workload expansion
+- **Outcome:** Reframed the commercial plan as developer distribution plus enterprise monetisation plus account-led horizontal expansion
+- **Worked:** Used current 300-400-seat customer evidence to distinguish acquisition, monetisation, and expansion engines
+- **Failed:** none
+- **Friction:** Exact use-of-funds allocation remains dependent on raise size and runway
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — grok
+
+- **Task:** Process Dave inbox pack-12 (B34 re-fire, B39-B42, graph opportunity)
+- **Outcome:** triaged; filed CIB-386..389 on docs/cib-pack-12-dave (#4300); B34 closed; B40/B41 mapped to CIB-385 (#4291); Dave reply at tmp/anvil-beta/processed/2026-08-31-response-to-dave-pack-12.md
+- **Worked:** Deduped Drive re-download and pack-11 zip; confirmed B39 cwd git-toplevel, find_callers ordinal schema, architecture ! glob, B42 fail-open already on main
+- **Failed:** none
+- **Friction:** CIB-384/385 already claimed on #4291 so pack-12 skipped those ids; aps:index also wanted to bump GTAO 8/10 to 10/10 — reverted
+- **Improvement:** Before allocating CIB-NNN, grep sibling worktrees and open PRs, not only origin/main
+- **Follow-up:** none
+
+### 2026-08-31 — codex
+
+- **Task:** Export weighted commercial pipeline model and final anvil pricing strategy
+- **Outcome:** Created validated XLSX pipeline workbook with editable assumptions and calculations plus Markdown, DOCX, and PDF pricing documents
+- **Worked:** Separated confidential unweighted opportunity from conservative probability-weighted forecast and cached workbook formula values for portable previews
+- **Failed:** Direct HTML-to-DOCX conversion was unsupported; converted through ODT successfully
+- **Friction:** Deal stages remain unknown, so pipeline probabilities are explicit placeholders
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — other
+
+- **Task:** address-reviews PR 4263 keep base current
+- **Outcome:** merged origin/main; docs-delivery freshness resolved; review threads already resolved
+- **Worked:** base merge of origin/main; combined SKPKG and GTAO-007 follow-up freshness
+- **Failed:** none
+- **Friction:** PR was CONFLICTING after main moved
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — grok
+
+- **Task:** Address reviews on PR #4298
+- **Outcome:** review-addressed; PR MERGEABLE CLEAN
+- **Worked:** Included verify_hint in tutorial copy scanner; merged origin/main; reran flaky doctor sibling-socket Test job which then passed
+- **Failed:** First Test job: stop_sibling_sockets_clears_a_crash_orphaned_socket; local rerun passed; CI rerun passed
+- **Friction:** Flake appeared only after merging intercept sibling-cleanup from main; not caused by the copy change
+- **Improvement:** none
+- **Follow-up:** session: doctor stop_sibling_sockets_clears_a_crash_orphaned_socket flaked once on CI after drop(UnixListener)
+
+### 2026-08-31 — codex
+
+- **Task:** Address reviews on PR #4291
+- **Outcome:** Resolved the main conflict, pushed exact head e51e84b, and verified clean hosted CI with zero review threads.
+- **Worked:** Merged current main without rewriting history; preserved concurrent CIB-384 through CIB-389 entries; validated documentation and APS boundaries before push.
+- **Failed:** An initial diagram-impact invocation raced docs-meta generation; the isolated rerun passed after the prerequisite completed.
+- **Friction:** The self-hosted Rust check queued behind earlier runs but completed successfully on its documentation-only path.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — other — grok
+
+- **Task:** address-reviews PR 4292 (CIB-384 mixed stale-live vs durable membership)
+- **Outcome:** review-addressed; CI green; MERGEABLE CLEAN
+- **Worked:** Pushed back on Copilot veto of leftover stale live leases; pinned mixed-case fixture; replied+resolved thread
+- **Failed:** none
+- **Friction:** Rust Tests workflow queued ~23 min before starting
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-08-31 — grok
+
+- **Task:** Dave pack-12 CIB-385..389 via PR 4307
+- **Outcome:** implementation landed; waiting CI rebase-merge on #4307 @ 50f7dc285
+- **Worked:** TDD pack-12 honesty; Council must_fix overlay NoParser on validate_paths and graph:// re-warm skip; docs-owed freshness cascade
+- **Failed:** first Council BLOCK on CrossFile overwrite and resource re-warm; leftover B6 assertion; docs-owed after ARCHITECTURE touch
+- **Friction:** diagram-impact then docs-owed cascade from touching intercept/CLI ARCHITECTURE; Council pack SHA must match final save_time.rs commit
+- **Improvement:** When changing save-time stale reasons, grep sibling B6/CrossFile assertions in the same test module before push
+- **Follow-up:** later_item: dashboard OpenAPI skipped enum (CIB-389)
+
+### 2026-09-01 — other
+
+- **Task:** rebase PR 4263 onto main with lease
+- **Outcome:** rebased 5 unique commits onto origin/main; resolved docs-delivery freshness; force-pushed with lease
+- **Worked:** git rebase origin/main; combined SKPKG and GTAO-007 freshness
+- **Failed:** none
+- **Friction:** docs-delivery freshness conflicted on two rebase steps
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-01 — other
+
+- **Task:** address-reviews PR 4306 docs/document-redate-owed conflicting base
+- **Outcome:** merged origin/main, resolved two freshness conflicts, dated cascade to 2026-09-01, local-time redate stamp, extra owed round; threads already resolved
+- **Worked:** merge-tree preview then Worktrunk isolate from published head; combined CIB-385 with docs:redate note; cherry-picked unpublished date/local-time/cascade commits without force-push
+- **Failed:** none
+- **Friction:** existing local worktree had rebased unpublished follow-ups; left it untouched and repaired from origin/docs/document-redate-owed
+- **Improvement:** docs:redate UTC vs local calendar is easy to miss west of midnight UTC; the tool should default to local date
+- **Follow-up:** none
+
+### 2026-09-01 — grok
+
+- **Task:** address-reviews PR 4294 merge conflicts; rebase onto main; rebase-merge when green
+- **Outcome:** Merged #4294 via rebase-merge; origin/main is b3b47b4a8
+- **Worked:** Reused existing worktree; rebased onto Ember/Brick WCAG retune; combined snapshots (new Ember + selected-description contrast); force-with-lease; CI green; rebase-merge
+- **Failed:** none
+- **Friction:** gh pr merge --delete-branch could not delete the local branch because this worktree still has it checked out
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-01 — codex
+
+- **Task:** Address review feedback on PR #4297
+- **Outcome:** Preserved registry-backed MCP offer ordering, added regression coverage, resolved the review thread, and verified the exact-head change
+- **Worked:** CI-first triage, test-first reproduction, bounded row-position replacement, full Rust validation, and exact-head hosted verification
+- **Failed:** none
+- **Friction:** After syncing current main, the diagram-impact gate could not load the locally linked anvil-docs-meta package until that package was built
+- **Improvement:** Have the diagram-impact gate ensure its local docs-meta prerequisite is built or emit the exact recovery command
+- **Follow-up:** theme:docs-tooling-prerequisite
+
+### 2026-09-01 — other
+
+- **Task:** Rebase PR 4263 onto current origin/main and rebase-merge
+- **Outcome:** Rebased cleanly onto b3b47b4a8, lease-pushed b97b40d13, enabled rebase auto-merge
+- **Worked:** No overlapping files with TUI select-contrast; merge-tree clean; oxfmt docs-delivery still padded
+- **Failed:** none
+- **Friction:** GitHub reported conflicts because main moved; no conflict markers on disk
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-01 — codex
+
+- **Task:** Address reviews and rebase-merge PR #4291
+- **Outcome:** Resolved CIB APS conflicts, rebased onto live main, passed exact-head checks, and rebase-merged PR #4291
+- **Worked:** SHA-pinned force-with-lease plus protected auto-merge preserved concurrent main changes and avoided policy bypass
+- **Failed:** Parallel pnpm validation in the read-only isolated worktree caused sandbox EROFS noise and was rerun sequentially with filesystem authority
+- **Friction:** The required Rust Test used a single-machine organisation runner pool and queued behind Rust-changing runs
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-01 — other
+
+- **Task:** land-branch rebase-merge PR 4306
+- **Outcome:** already rebase-merged onto main by joshuaboys at 2026-09-01T13:53:55Z; head branch deleted; content proven on origin/main
+- **Worked:** live mergeability query showed MERGED; ancestor/content probe on 01bd20c18 and documentation-governance freshness
+- **Failed:** none
+- **Friction:** user asked rebase merge after it had already landed
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-01 — codex
+
+- **Task:** Rebase merge PR #4297
+- **Outcome:** Blocked before merge by the required Rust Tests check after two exact-head failures
+- **Worked:** Refreshed current main, republished exact head 6645b0268e, held the protected merge, and classified the failing job from both hosted logs
+- **Failed:** Unchanged-head failed-job rerun repeated commands::doctor::tests::stop_sibling_sockets_clears_a_crash_orphaned_socket while the PR does not change doctor.rs
+- **Friction:** The base-owned crash-orphan socket test passed 10/10 locally but failed twice under the hosted full suite, leaving the unrelated PR blocked
+- **Improvement:** Stabilise the crash-orphan socket test under parallel hosted execution or isolate its process and socket state
+- **Follow-up:** theme:rust-ci-flake
+
+### 2026-09-01 — codex
+
+- **Task:** Address reviews and protected rebase merge PR #4297; repair the blocking base CI flake via PR #4310
+- **Outcome:** PR #4310 and PR #4297 protected rebase-merged; exact-head checks green and integration ancestry proven
+- **Worked:** CI-first triage, repeated reproduction, isolated test-fixture repair, Council and independent verification, then exact-head hosted revalidation
+- **Failed:** Initial PR #4297 Rust Tests attempts failed on an unrelated stale Unix-socket fixture race; gh pr merge completed hosted merges but reported local cleanup errors because main was open in another worktree
+- **Friction:** CIB-382 remains Ready in the shared APS backlog despite the repair shipping; reconcile only on a dedicated bookkeeping branch
+- **Improvement:** Make hosted merge closeout treat remote PR state as authoritative before attempting local branch cleanup
+- **Follow-up:** owned: CIB-382
+
+### 2026-09-02 — codex
+
+- **Task:** Read-only CIB backlog prioritisation
+- **Outcome:** Ranked live actionable items and identified completed-but-unreconciled CIB statuses
+- **Worked:** Refresh origin/main; compare Ready and Proposed entries against source, Git history, merged PRs, and open claims
+- **Failed:** Initial sandboxed git fetch and bare ci-log append were blocked by environment and required arguments respectively
+- **Friction:** CIB-383 and CIB-386 through CIB-389 remain open in APS despite their fixes already being on main
+- **Improvement:** Reconcile completed CIB statuses promptly so backlog selection does not schedule duplicate work
+- **Follow-up:** promote: CIB
+
+### 2026-09-02 — grok
+
+- **Task:** implement CIB-382 via /dev-loop-grok in a fresh wt, rebase merge on green
+- **Outcome:** stopped: already integrated; no new worktree or PR
+- **Worked:** APS truth validation against main found the three CIB-382 outcomes already shipped: descriptor-level PID refusal, physical-identity rendezvous repair lock, and complete canonical-refusal reporting. PR #4295 merge 9c900dd66 and follow-up #4310 merge 0dfac834f are ancestors of origin/main; claim issue #4266 is closed; refs/claims/CIB-382 is absent.
+- **Failed:** none
+- **Friction:** shared CIB module still lists Status Ready after merge because feature PRs must not edit the multi-writer backlog; APS expected-outcome 1 still says exit non-zero on any unresolved candidate, which PR #4295 deferred to bookkeeping against MF-1 sibling-skip behaviour
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-382 → Merged via PR #4295 and #4310
+
+### 2026-09-02 — codex
+
+- **Task:** Reconcile merged CIB field items
+- **Outcome:** Filed PR #4315 and enabled protected rebase auto-merge; all exact-head checks are green except required Rust Test remains queued.
+- **Worked:** Verified implementation PRs against live main, reconciled the dedicated CIB bookkeeping branch, and addressed the docs-governance and reviewer feedback before arming auto-merge.
+- **Failed:** The initial hosted Docs corpus run exposed an owed admin CLI freshness update; the default Worktrunk path was unavailable under the filesystem boundary.
+- **Friction:** Required Rust Test runner capacity can remain queued after every other exact-head check completes.
+- **Improvement:** Consider avoiding required Rust execution for documentation-only APS status reconciliation when protected-path classification proves no Rust surface changed.
+- **Follow-up:** Confirm PR #4315 merges after the queued Rust Test passes.
+
+### 2026-09-02 — grok
+
+- **Task:** complete CIB-375 via /dev-loop-grok rebase merge on green
+- **Outcome:** integrated via PR #4318 rebase-merge 1a5240ff9 on origin/main
+- **Worked:** Guard set-watermark against unharvested pending notes and origin/main drift; --force override; preconditions under tracked-log lock after Copilot/verify F1. Independent verify-loop pass-with-advisories.
+- **Failed:** none
+- **Friction:** gh pr merge --rebase tried to checkout local main already used by the primary worktree; GitHub API rebase merge succeeded. Shared CIB APS file left unedited.
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-375 → Merged via PR #4318
+
+### 2026-09-02 — grok
+
+- **Task:** complete CIB-320 via /dev-loop-grok in a fresh wt and rebase merge on green
+- **Outcome:** integrated
+- **Worked:** Always-on Nx Graph CI job with cold-cache script; RED/GREEN proven; Copilot threads resolved; browserslist override for Trivy HIGH; docs redate; rebase-merged #4319; added Nx Graph to main ruleset after land.
+- **Failed:** First CI: Docs corpus owed cascade and Trivy browserslist CVE-2026-73088/73089 blocking Security Summary.
+- **Friction:** pnpm 11 ignores package.json pnpm.overrides; must use pnpm-workspace.yaml. docs:redate via pnpm docs:redate -- --since treats extra -- as end-of-options.
+- **Improvement:** When adding a new required GitHub check, land the job on main first, then update the ruleset; do not list it as already enforced in docs before that.
+- **Follow-up:** bookkeeping: mark CIB-320 Merged; update branching-strategy.md now that the main ruleset requires Nx Graph
+
+### 2026-09-02 — grok
+
+- **Task:** CIB-373 complete via dev-loop-grok; address-reviews; rebase-merge #4320
+- **Outcome:** integrated: PR #4320 rebase-merged as d432e7bed, ancestor of origin/main; issue #4314 closed
+- **Worked:** shape-anchored (?-i) allowlist; SDT-002 21/21 34/41 held; docs:redate settled ARCHITECTURE.md; Copilot thread replied with entropy evidence; linearised after GitHub rejected rebase of merge commits
+- **Failed:** none
+- **Friction:** GitHub rebase-merge cannot replay merge commits from base-sync; Docs corpus fails until docs:redate after crates/anvil-checks/src/**; org Test runner pool is one machine
+- **Improvement:** When rebase-merge is required, linearise before merge instead of merging main into the feature branch; run pnpm docs:redate after any anvil-checks/src change
+- **Follow-up:** bookkeeping: mark CIB-373 Merged on the shared CIB module
+
+### 2026-09-02 — codex
+
+- **Task:** Address reviews on PR #4315
+- **Outcome:** Confirmed PR #4315 rebase-merged after exact-head CI passed; zero unresolved review threads and integration proven on origin/main.
+- **Worked:** Refreshed hosted CI and GraphQL review state, then verified the merged commit and reconciled CIB statuses on fresh origin/main.
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** Offer cleanup of the retained dedicated worktree.
+
+### 2026-09-02 — other
+
+- **Task:** address-reviews PR 4323 R2 sccache pilot
+- **Outcome:** review-addressed: compile -e capture, permissions contract, stats resilience; threads resolved; merged origin/main; pushed 7c1ddfd42
+- **Worked:** set +e around cargo; exclusive contents: read fixture; stats step no longer fails the job
+- **Failed:** none
+- **Friction:** Copilot line 167 mapped to a suppressed stats comment; GHA default -e is easy to miss
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-02 — claude — CI cost review 2026-09 (PR #4325)
+
+- **Task:** Apply the nine CI cost/perf levers from the 2026-09-02 review: nextest on PRs, node_modules cache, background disk reclaim, rust.yml job slimming, resource-budget/editor-coexistence push triggers, nightly dedupe + weekday cron, CodeQL Rust build removal, GitHub Code Quality off.
+- **Outcome:** PR #4325 open, all levers landed. Measured on the PR: Test 8-13min -> ~4min, Format 270s -> 23s, setup-workspace 90-156s -> 45s on hit, Hakari 75s -> 41s.
+- **Worked:** Measuring first (jobs API per-job durations x runner multiplier; /timing reports billable=0 for larger runners). Pushing a no-op commit to exercise the cache HIT path caught two bugs the miss run could not: puppeteer's browser lives outside node_modules, and a cache-path change needs a key bump.
+- **Failed:** Running the same nextest gate on PRs exposed main's flake rate: changing_a_document_cancels_the_active_daemon_exchange (lsp_diagnostics.rs:471, 4 of last 5 red push runs) and graph_base_trigger::tests::trigger_skips_spawn_when_matching_base_already_present (anvil-intercept, failed once in the ci.yml Node job). First got a 2-retry nextest override; both races still owed a real fix.
+- **Friction:** A root-input change (.config/nextest.toml, .github/actions/**) makes nx affected pull the ENTIRE Rust test surface into ci.yml's Node 'Unit Tests' job (16m36s, duplicating Rust Tests). Also: RUST_TEST_RUNNER is a one-machine pool gating the required Test check — nothing else can move there.
+- **Improvement:** Exclude Rust nx projects from ci.yml Unit Tests when rust-tests.yml already covers them (RUST_EXCLUDES is partial). Fix the two timing races properly. Consider a merge queue: push-to-main re-validation was 935 cost-min in a 39h sample.
+- **Follow-up:** promote: CIB
+
+### 2026-09-02 — other
+
+- **Task:** land-branch rebase-merge PR 4323
+- **Outcome:** merged via rebase into origin/main e02d77f27; remote head deleted; DEVENV-008 stays In Progress (pilot evidence, not go/no-go ADR)
+- **Worked:** gh pr merge --rebase --delete-branch; integration content probe on r2-sccache-pilot.yml
+- **Failed:** gh local checkout of main failed because main is in another worktree; API merge still succeeded
+- **Friction:** gh pr merge post-step cannot checkout main from a linked worktree
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-02 — codex
+
+- **Task:** Triage and file latest Clawpatch findings
+- **Outcome:** Triaged four findings: two confirmed/open, two false-positive; filed issue #4342.
+- **Worked:** Full-store status, current-source calibration, duplicate search, focused Rust tests, and disposition readback.
+- **Failed:** Initial ci-log commands hit sandbox EROFS during pnpm project registration; rerunning the required closeout with scoped permission restored pnpm state.
+- **Friction:** Clawpatch show exposes current status but not triage receipt history in its JSON projection.
+- **Improvement:** none
+- **Follow-up:** owned: #4342
+
+### 2026-09-02 — grok
+
+- **Task:** File and triage latest DeepSec findings from process run 20260902184224
+- **Outcome:** Triaged 9 new findings; filed 7 private GH issues #4343-#4349. CIB not edited (shared multi-writer).
+- **Worked:** deepsec triage by severity; independent source review; clustered GH issues with spec labels.
+- **Failed:** none
+- **Friction:** deepsec triage --severity is exact, not min; HIGH/MEDIUM/BUG needed three invocations.
+- **Improvement:** Document that deepsec triage --severity is exact-match so agents do not assume min-severity.
+- **Follow-up:** promote: CIB for #4343 #4345 #4347 #4348 #4349; #4344 P2 CIB; #4346 small-fix
+
+### 2026-09-02 — grok
+
+- **Task:** dev-loop complete CIB-390...392
+- **Outcome:** review-ready PR #4353; verify-loop pass
+- **Worked:** wrapper+tests for named markdownlint honesty; pr-required-status helper; hostile-ambient nightly with proven umask teeth; validate_write added-line secret interrupt
+- **Failed:** none
+- **Friction:** first pnpm lint:md wrapper used globby dot:true and scanned .clawpatch; matched markdownlint-cli by setting dot:false
+- **Improvement:** markdownlint-cli defaults dot:false; wrappers that reimplement its glob must copy that or they expand the corpus
+- **Follow-up:** none
+
+### 2026-09-03 — codex
+
+- **Task:** Assess latest DeepSec cycle
+- **Outcome:** Reviewed the nine findings from process run 20260902184224; eight claims survive current-source assessment and one is not currently actionable because LINUX_RUNNER is ubuntu-latest with no self-hosted runners.
+- **Worked:** Pinned scan/process/triage run metadata, checked current source and live GitHub variables/runners, and mapped all findings to issues #4343-#4349.
+- **Failed:** The generated report.json/report.md is stale from June and does not represent the latest cycle; current file records and run metadata were used instead.
+- **Friction:** DeepSec labels its post-process priority passes as revalidate even though these runs only populate triage and leave revalidation null.
+- **Improvement:** Separate triage and source-backed revalidation status clearly in DeepSec run types and regenerate the aggregate report after a new process cycle.
+- **Follow-up:** owned: #4343-#4349
+
+### 2026-09-03 — other — public-reference-regen #4349
+
+- **Task:** Fix GitHub #4349 public-reference-regen tag injection and persist-credentials
+- **Outcome:** review-ready PR #4354
+- **Worked:** Env-mapped refs, strict vX.Y.Z gate, persist-credentials false, GH_TOKEN only on push/issue, fixture wired into CI metadata checks
+- **Failed:** none
+- **Friction:** package.json script addition classifies as lockfile so this security workflow PR also pays dependency-audit
+- **Improvement:** A workflow-hardening fixture that lives only under scripts/ci should not force the lockfile/dependency-audit class
+- **Follow-up:** none
+
+### 2026-09-03 — claude
+
+- **Task:** Fix CI Nightly Cross red (issue #4355): conformance fixtures via Git plumbing, shared run-timeout margin, LSP probe double-connect, graph-base ANVIL_HOME race
+- **Outcome:** Four root causes fixed on fix/nightly-cross-2026-09-03; ipc::connect_live_socket reuses the liveness connection for gctx RPC, symbol_context, and the save-time client
+- **Worked:** —
+- **Failed:** none
+- **Friction:** Since f284a572c every daemon rendezvous probed (connect+drop) then connected again: two accepts and two permits per RPC, and any test that counts accepts on a fake daemon broke intermittently. Nothing tracked the nightly red for three nights; the merge-gate CI does not run the Cross matrix.
+- **Improvement:** Remaining double-connect callers still resolve a path then connect: registration.rs, intercept.rs (status, unblock), mcp/validation.rs, anvil-run/src/ipc.rs. Migrate them to connect_live_socket so one rendezvous costs one accept everywhere.
+- **Follow-up:** promote: CIB
+
+### 2026-09-03 — grok
+
+- **Task:** security-and-quality Dependabot sweep (fast-uri + qs)
+- **Outcome:** two draft PRs: #4356 fast-uri 3.1.7, stacked #4357 qs 6.16.0
+- **Worked:** existing pnpm-workspace.yaml overrides were the right surface; bumping 3.1.5->3.1.7 avoided a 3.1.6-still-vulnerable bounce; stacking avoided package.json/workspace YAML merge conflicts
+- **Failed:** scripts/validate/local.sh --changed on the lockfile branch failed at pnpm typecheck: Nx workspace is out of sync (stale TS project references); inherited, not caused by the pins
+- **Friction:** pnpm minimumReleaseAge blocked fast-uri@3.1.7 until we added it to minimumReleaseAgeExclude; classifier treats lockfile diffs as full typecheck+rust+trivy
+- **Improvement:** when pinning a same-day security release, expect to add minimumReleaseAgeExclude in the same commit as the override
+- **Follow-up:** none
+

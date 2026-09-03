@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Read as _;
 use std::num::NonZeroU32;
@@ -43,7 +44,7 @@ pub(crate) enum ResponseDetail {
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Pre-write validation gate. Call before EVERY file write. Prefer anvil_apply_patch or patch-only payloads for edits; use full proposedContent for creates. Honour block; on allow, decision alone is authoritative (detail=minimal may omit empty fields). preview+contentSha256 is partial validation only. Honour `block` decisions; do not write files the tool refuses.",
+        "description": "Pre-write validation gate. Call before EVERY file write. Prefer anvil_apply_patch or patch-only payloads for edits; use full proposedContent for creates. Honour block; on allow, decision alone is authoritative (detail=minimal may omit empty fields). preview+contentSha256 is partial validation only. Honour `block` decisions; do not write files the tool refuses. Secret errors interrupt only on lines the write adds when a pre-image is known; pre-existing fixture hits on unchanged lines do not.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -287,6 +288,8 @@ fn call_with_validation_client(
         .flatten();
 
     let mut diagnostics = normalise_response_diagnostics(&diagnostics, backend);
+    diagnostics =
+        apply_cib392_secret_scope(diagnostics, &request, materialised_original.as_deref());
 
     // POLRESET-006 / OPAE-007: additive pre-write policy evaluation, run AFTER
     // the intercept-rules scan and never replacing it (see
@@ -1373,11 +1376,13 @@ fn materialise_patch_content(
 /// update matches a safelist entry, the validator serves it embedded —
 /// the daemon round-trip is skipped (that is the speedup). What is
 /// NEVER skipped is coverage: the whole-file secret scan still runs
-/// over the complete post-image, and the remaining rules run scoped to
-/// the touched node (rules whose declared inputs do not overlap the
-/// node are skipped with a recorded reason). The tier taken (`full`
-/// vs `safelist`) is always surfaced in the response `tier` object so
-/// callers can audit the decision.
+/// over the complete post-image so added-line secrets keep real line
+/// numbers. CIB-392 then drops error-severity secret findings on
+/// unchanged lines when a pre-image is known. The remaining rules run
+/// scoped to the touched node (rules whose declared inputs do not
+/// overlap the node are skipped with a recorded reason). The tier
+/// taken (`full` vs `safelist`) is always surfaced in the response
+/// `tier` object so callers can audit the decision.
 ///
 /// # Safelist criteria (initial entries)
 ///
@@ -1616,8 +1621,9 @@ fn tiered_rule_registry() -> anvil_intercept_rules::RuleRegistry {
 /// 1. **Whole-file secret scan** — the same embedded
 ///    `SecretDetectionRule` the full path's enforcement pipeline
 ///    registers (with its shared SCAN-002 line-length guard) runs over
-///    the COMPLETE post-image, so a secret on an untouched line is
-///    caught exactly as on the full path, at its real line.
+///    the COMPLETE post-image so added-line secrets keep their real
+///    line. CIB-392 then omits error-severity hits on unchanged lines
+///    so a pre-existing fixture cannot interrupt an unrelated edit.
 /// 2. **Touched-node-scoped evaluation** — the remaining registry
 ///    rules (the launch reasoning pattern today) run against the
 ///    touched node's content only; rules whose declared inputs do not
@@ -1671,7 +1677,8 @@ fn tiered_validation_payload(
         }
     }
     diagnostics.extend(scoped_diagnostics);
-    let diagnostics = normalise_response_diagnostics(&diagnostics, ValidationBackend::Embedded);
+    let mut diagnostics = normalise_response_diagnostics(&diagnostics, ValidationBackend::Embedded);
+    diagnostics = apply_cib392_secret_scope(diagnostics, request, None);
 
     // The decision still flows through the enforcement-mode policy —
     // a scoped finding warns or blocks exactly as it would on the full
@@ -1701,6 +1708,139 @@ fn tiered_validation_payload(
             .collect::<Vec<_>>(),
     });
     payload
+}
+
+/// CIB-392: error-severity secret findings on lines the write did not
+/// add must not interrupt. Fail closed (keep the finding) when the
+/// added-line set is unknown — preview/partial scans, unreadable
+/// originals, or a patch with no hunks.
+fn added_lines_for_secret_scope(
+    request: &ValidateWriteRequest,
+    materialised_original: Option<&str>,
+) -> Option<HashSet<u32>> {
+    if request.partial_scan {
+        return None;
+    }
+    if matches!(request.operation, Operation::Create) {
+        let content = request.content.as_deref()?;
+        return Some((1..=u32::try_from(split_content_lines(content).len()).ok()?).collect());
+    }
+    if let Some(patch) = request.patch_text.as_deref()
+        && let Some(added) = added_line_numbers_from_unified_diff(patch)
+    {
+        return Some(added);
+    }
+    let original = if let Some(original) = materialised_original {
+        original.to_string()
+    } else if matches!(request.operation, Operation::Update) {
+        fs::read_to_string(request.workspace_root.join(&request.relative_path)).ok()?
+    } else {
+        return None;
+    };
+    let post = request.content.as_deref()?;
+    Some(added_line_numbers_from_pre_post(&original, post))
+}
+
+fn apply_cib392_secret_scope(
+    diagnostics: Vec<Diagnostic>,
+    request: &ValidateWriteRequest,
+    materialised_original: Option<&str>,
+) -> Vec<Diagnostic> {
+    match added_lines_for_secret_scope(request, materialised_original) {
+        Some(added) => filter_unchanged_line_secret_errors(diagnostics, &added),
+        None => diagnostics,
+    }
+}
+
+fn filter_unchanged_line_secret_errors(
+    diagnostics: Vec<Diagnostic>,
+    added_lines: &HashSet<u32>,
+) -> Vec<Diagnostic> {
+    diagnostics
+        .into_iter()
+        .filter(|diagnostic| {
+            if diagnostic.category != Category::Secret || diagnostic.severity != Severity::Error {
+                return true;
+            }
+            match diagnostic.location.line {
+                Some(line) => added_lines.contains(&line),
+                None => true,
+            }
+        })
+        .collect()
+}
+
+fn split_content_lines(text: &str) -> Vec<&str> {
+    if text.is_empty() {
+        return Vec::new();
+    }
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    if text.ends_with('\n') {
+        lines.pop();
+    }
+    lines
+}
+
+fn added_line_numbers_from_unified_diff(patch: &str) -> Option<HashSet<u32>> {
+    let mut added = HashSet::new();
+    let mut new_line: Option<u32> = None;
+    let mut saw_hunk = false;
+    for line in patch.lines() {
+        if line.starts_with("@@") {
+            let plus = line.split('+').nth(1)?;
+            let start_token = plus.split([',', ' ', '@']).next()?;
+            let start: u32 = start_token.parse().ok()?;
+            new_line = Some(start);
+            saw_hunk = true;
+            continue;
+        }
+        if line.starts_with("+++") || line.starts_with("---") || line.starts_with('\\') {
+            continue;
+        }
+        let Some(n) = new_line else {
+            continue;
+        };
+        if line.starts_with('+') {
+            added.insert(n);
+            new_line = Some(n.saturating_add(1));
+        } else if line.starts_with('-') {
+            // Old line only — new-file cursor stays put.
+        } else {
+            new_line = Some(n.saturating_add(1));
+        }
+    }
+    saw_hunk.then_some(added)
+}
+
+fn added_line_numbers_from_pre_post(old: &str, new: &str) -> HashSet<u32> {
+    let a = split_content_lines(old);
+    let b = split_content_lines(new);
+    let mut positions: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (index, line) in a.iter().enumerate() {
+        positions.entry(*line).or_default().push(index);
+    }
+    let mut next_use: HashMap<&str, usize> = HashMap::new();
+    let mut cursor = 0usize;
+    let mut added = HashSet::new();
+    for (new_index, line) in b.iter().enumerate() {
+        let line_number = u32::try_from(new_index + 1).unwrap_or(u32::MAX);
+        let slot = next_use.entry(*line).or_insert(0);
+        let old_index = positions
+            .get(line)
+            .and_then(|hits| hits.get(*slot).copied());
+        if let Some(old_index) = old_index
+            && old_index >= cursor
+        {
+            cursor = old_index + 1;
+            *slot += 1;
+            continue;
+        }
+        added.insert(line_number);
+        if old_index.is_some() {
+            *slot += 1;
+        }
+    }
+    added
 }
 
 /// Minimal unified-diff applier covering the shapes agents commonly
@@ -2677,14 +2817,12 @@ mod tests {
         assert_eq!(payload["correlation"]["daemonStatus"], "not-wired");
     }
 
-    /// CIB-006 adversarial review (coverage narrowing): the safelist
-    /// path must NOT narrow whole-file secret coverage. The full path
-    /// validates the entire reconstructed post-image, so a secret
-    /// sitting on an UNTOUCHED line blocks there — the fast path must
-    /// surface the same diagnostic (at its real line) and block per
-    /// enforcement mode, while still serving the safelist tier.
+    /// CIB-392: a pre-existing secret on an untouched line must not
+    /// interrupt a safelist edit. The whole-file scan still runs (so
+    /// an added-line secret keeps its real line); the interrupt is
+    /// scoped to lines the write actually adds.
     #[test]
-    fn safelist_hit_still_scans_whole_file_for_secrets() {
+    fn safelist_hit_does_not_interrupt_on_untouched_line_secrets() {
         let workspace = tempdir().expect("workspace exists");
         // Pre-existing secret on line 3; the edit touches line 2 only.
         seed_cib006_fixture(
@@ -2708,13 +2846,13 @@ mod tests {
             "the edit shape itself is safelisted, got: {payload}"
         );
         assert_eq!(
-            payload["decision"], "interrupt",
-            "an untouched-line secret must still block on the fast path, got: {payload}"
+            payload["decision"], "allow",
+            "an untouched-line secret must not interrupt, got: {payload}"
         );
-        assert_eq!(payload["diagnostics"][0]["category"], "secret");
         assert_eq!(
-            payload["diagnostics"][0]["location"]["line"], 3,
-            "whole-file diagnostics keep their real line (no touched-node remap)"
+            payload["diagnostics"],
+            json!([]),
+            "pre-existing secret on an unchanged line is not a write finding, got: {payload}"
         );
         assert!(
             !serde_json::to_string(&payload)
@@ -2722,6 +2860,82 @@ mod tests {
                 .contains("ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
             "secret redaction applies on the tiered path too"
         );
+    }
+
+    /// CIB-392: adding a secret on the touched line still interrupts.
+    #[test]
+    fn safelist_hit_still_interrupts_on_added_line_secrets() {
+        let workspace = tempdir().expect("workspace exists");
+        seed_cib006_fixture(
+            workspace.path(),
+            "config.json",
+            "{\n  \"name\": \"old-name\"\n}\n",
+        );
+
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "detail": "full",
+                "path": "config.json",
+                "operation": "update",
+                "patch": "--- a/config.json\n+++ b/config.json\n@@ -2 +2 @@\n-  \"name\": \"old-name\"\n+  \"name\": \"ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n"
+            }),
+        );
+
+        assert_eq!(
+            payload["tier"]["decision"], "safelist",
+            "the edit shape itself is safelisted, got: {payload}"
+        );
+        assert_eq!(
+            payload["decision"], "interrupt",
+            "an added-line secret must still interrupt, got: {payload}"
+        );
+        assert_eq!(payload["diagnostics"][0]["category"], "secret");
+        assert_eq!(payload["diagnostics"][0]["location"]["line"], 2);
+    }
+
+    /// CIB-392: the reported start.rs shape — a non-JSON patch that
+    /// misses the safelist — must allow an unrelated hunk while still
+    /// interrupting when the write adds an AWS-key-shaped literal.
+    #[test]
+    fn full_path_does_not_interrupt_on_preexisting_fixture_secrets() {
+        let workspace = tempdir().expect("workspace exists");
+        let body =
+            "fn demo() {}\nconst CLEAN: &str = \"ok\";\nconst KEY = \"AKIAQRSTUVWXYZ123456\";\n";
+        seed_cib006_fixture(workspace.path(), "src/start.rs", body);
+
+        let allow = call_payload(
+            workspace.path(),
+            &json!({
+                "detail": "full",
+                "path": "src/start.rs",
+                "operation": "update",
+                "patch": "--- a/src/start.rs\n+++ b/src/start.rs\n@@ -1 +1 @@\n-fn demo() {}\n+fn demo_renamed() {}\n"
+            }),
+        );
+        assert_eq!(
+            allow["tier"]["reason"], "patch-not-safelisted",
+            "rust sources are not on the JSON safelist, got: {allow}"
+        );
+        assert_eq!(
+            allow["decision"], "allow",
+            "unrelated hunk must not interrupt on the fixture, got: {allow}"
+        );
+
+        let block = call_payload(
+            workspace.path(),
+            &json!({
+                "detail": "full",
+                "path": "src/start.rs",
+                "operation": "update",
+                "patch": "--- a/src/start.rs\n+++ b/src/start.rs\n@@ -2 +2 @@\n-const CLEAN: &str = \"ok\";\n+const CLEAN: &str = \"AKIAQRSTUVWXYZ999999\";\n"
+            }),
+        );
+        assert_eq!(
+            block["decision"], "interrupt",
+            "a genuinely added AWS-key-shaped literal must still interrupt, got: {block}"
+        );
+        assert_eq!(block["diagnostics"][0]["category"], "secret");
     }
 
     /// CIB-006 adversarial review (registry coupling): the safelist

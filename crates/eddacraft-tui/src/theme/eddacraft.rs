@@ -13,8 +13,8 @@ use super::traits::Theme;
 /// **Contrast:** every colour used as *text* must clear the WCAG AA 4.5:1
 /// floor against The Void, and `contrast_of_every_text_colour_clears_wcag_aa`
 /// pins that. anvil Ember was `#CC5500` and Brick Red `#C94A4A`, which
-/// measured 4.50:1 and 4.22:1 — sitting exactly on the floor and under it
-/// respectively, across ~7,100 rendered cells in 55 of the repo's TUI
+/// measured 4.4998:1 and 4.22:1 — both *below* the floor, the accent only
+/// fractionally so, across ~7,100 rendered cells in 55 of the repo's TUI
 /// snapshots. Both were lightened along their own hue to land near 5.0:1.
 /// Lightening the accent raises `highlighted()` too (The Void *on* Ember), so
 /// one change fixes both directions.
@@ -95,7 +95,7 @@ mod tests {
     /// AA 4.5:1 floor against The Void.
     ///
     /// This is the guard for the measured regression: anvil Ember was
-    /// `#CC5500` (4.50:1 — on the floor, not above it) and Brick Red
+    /// `#CC5500` (4.4998:1 — below the floor, not on it) and Brick Red
     /// `#C94A4A` (4.22:1 — under it), together covering ~7,100 rendered cells
     /// across 55 of the repo's TUI snapshots.
     ///

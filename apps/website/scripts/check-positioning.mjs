@@ -64,7 +64,7 @@ const forbidden = [
   '$ anvil_validate_write',
 ];
 
-const allowedColours = new Set(['#0d0d0f', '#2a2a2e', '#ebebeb', '#cc5500', '#2e8b57']);
+const allowedColours = new Set(['#0d0d0f', '#2a2a2e', '#ebebeb', '#d95a00', '#2e8b57']);
 const offPaletteColours = [...content.matchAll(/#[\da-f]{6}/gi)]
   .map(([colour]) => colour.toLowerCase())
   .filter((colour) => !allowedColours.has(colour));

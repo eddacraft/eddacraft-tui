@@ -1235,6 +1235,10 @@ pub struct GraphBaseTrigger {
     spawner: Arc<dyn ProductionSpawner>,
     signaller: Arc<dyn Signaller>,
     notifier: Option<BaseTriggerNotifier>,
+    /// Base store to check for a reusable artefact before spawning. `None`
+    /// resolves the default store (`<graph-cache>/base`) at spawn time; tests
+    /// pin a directory so they never depend on process-global `ANVIL_HOME`.
+    base_dir: Option<PathBuf>,
 }
 
 impl GraphBaseTrigger {
@@ -1253,6 +1257,22 @@ impl GraphBaseTrigger {
             spawner,
             signaller,
             notifier,
+            base_dir: None,
+        }
+    }
+
+    /// Check `base_dir` for a reusable artefact instead of the default store.
+    #[cfg(test)]
+    #[must_use]
+    fn with_base_dir(mut self, base_dir: PathBuf) -> Self {
+        self.base_dir = Some(base_dir);
+        self
+    }
+
+    fn reusable_base(&self, repo: &Path) -> Option<String> {
+        match &self.base_dir {
+            Some(base_dir) => reusable_base_sha(repo, base_dir),
+            None => reusable_base_for_default_store(repo),
         }
     }
 
@@ -1283,7 +1303,7 @@ impl GraphBaseTrigger {
     }
 
     fn spawn(&self, repo: &Path, spawn_id: u64) {
-        if let Some(sha) = reusable_base_for_default_store(repo) {
+        if let Some(sha) = self.reusable_base(repo) {
             // A matching artefact is already on disk — skip the subprocess
             // (reuse / already-present) instead of serving cold on a spawn
             // failure. Clears the in-flight slot as a clean success would.
@@ -3061,7 +3081,10 @@ mod tests {
         let base_dir = home.path().join("graph-cache").join("base");
         publish_empty_base(&base_dir, &sha);
 
-        temp_env::with_var("ANVIL_HOME", Some(home.path()), || {
+        // Pin the store on the trigger rather than through `ANVIL_HOME`: the
+        // env var is process-global, and sibling tests in this binary set it
+        // concurrently (the nightly saw the artefact vanish and a spawn fire).
+        {
             let git_dir = repo.join(".git");
             let core = Arc::new(Mutex::new(TriggerCore::with_timings(
                 Duration::from_millis(500),
@@ -3078,7 +3101,8 @@ mod tests {
                 Arc::clone(&seams) as Arc<dyn ProductionSpawner>,
                 Arc::clone(&seams) as Arc<dyn Signaller>,
                 None,
-            );
+            )
+            .with_base_dir(base_dir);
 
             let t = t0();
             trigger.on_ref_event(&git_dir, t);
@@ -3093,6 +3117,6 @@ mod tests {
                 !core.lock().unwrap().has_in_flight(&git_dir),
                 "skipped spawn must clear the in-flight slot",
             );
-        });
+        }
     }
 }

@@ -695,9 +695,9 @@ mod tests {
 
         // A valid workspace root so the tool call itself is NOT an error: with no
         // daemon it degrades to a successful `unavailable` outcome (isError:false),
-        // which reaches the egress-charge step.
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+        // which reaches the egress-charge step. The server cwd itself: a graph
+        // tool refuses a nested directory as its root (CIB-398).
+        let workspace = std::env::current_dir().expect("cwd");
 
         // Sanity: a fresh credit serves the GCTX tool call (charged, under budget).
         let ok = handle_message(&json!({
@@ -707,7 +707,7 @@ mod tests {
             "params": {
                 "_meta": modern_meta(),
                 "name": "anvil_search_symbols",
-                "arguments": { "workspaceRoot": workspace.path() }
+                "arguments": { "workspaceRoot": workspace }
             }
         }))
         .expect("request should produce a response");
@@ -727,7 +727,7 @@ mod tests {
             "params": {
                 "_meta": modern_meta(),
                 "name": "anvil_search_symbols",
-                "arguments": { "workspaceRoot": workspace.path() }
+                "arguments": { "workspaceRoot": workspace }
             }
         }))
         .expect("request should produce a response");

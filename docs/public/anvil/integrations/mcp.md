@@ -131,6 +131,12 @@ as `workspaceRoot`. Start `anvil mcp serve` from the primary checkout; pass a
 sibling Worktrunk or harness worktree. Other repositories and unregistered
 directories are still refused.
 
+The graph-context tools (`anvil_search_symbols`, `anvil_find_callers`,
+`anvil_find_dependents`, `anvil_impact_of_change`, `anvil_affected_tests`, and
+`anvil_symbol_context`) need the checkout or worktree root itself as
+`workspaceRoot`; a subdirectory is refused so that workspace-relative paths keep
+their sensitive-path prefix.
+
 ## Security boundary
 
 The MCP server runs locally and validates requests against the current project

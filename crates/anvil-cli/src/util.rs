@@ -154,6 +154,32 @@ pub fn user_home_dir() -> Option<PathBuf> {
         .or_else(dirs::home_dir)
 }
 
+fn windows_system32_executable_from(
+    system_root: Option<&std::ffi::OsStr>,
+    name: &str,
+) -> Result<PathBuf> {
+    let system_root = system_root
+        .filter(|value| !value.is_empty())
+        .context("SystemRoot is missing or empty")?;
+    let system_root = Path::new(system_root);
+    if !system_root.is_absolute() {
+        bail!("SystemRoot is not an absolute path");
+    }
+
+    let executable = system_root.join("System32").join(name);
+    if !executable.is_file() {
+        bail!(
+            "Windows system executable does not exist: {}",
+            executable.display()
+        );
+    }
+    Ok(executable)
+}
+
+fn windows_system32_executable(name: &str) -> Result<PathBuf> {
+    windows_system32_executable_from(std::env::var_os("SystemRoot").as_deref(), name)
+}
+
 /// Hand a URL to the platform's default browser.
 ///
 /// On failure returns the reason so callers can phrase their own line. A failed
@@ -171,7 +197,8 @@ pub fn open_in_browser(url: &str) -> std::result::Result<(), String> {
         command.arg(url);
         command
     } else if cfg!(target_os = "windows") {
-        let mut command = std::process::Command::new("cmd");
+        let cmd = windows_system32_executable("cmd.exe").map_err(|error| error.to_string())?;
+        let mut command = std::process::Command::new(cmd);
         // The empty argument is `start`'s title parameter: without it a URL
         // containing spaces or quotes would be read as the window title.
         command.args(["/C", "start", "", url]);
@@ -195,6 +222,126 @@ pub fn open_in_browser(url: &str) -> std::result::Result<(), String> {
     }
 }
 
+#[cfg(any(windows, test))]
+fn outermost_git_workspace_boundary_with(
+    canonical_cwd: &Path,
+    mut has_git_marker: impl FnMut(&Path) -> bool,
+) -> PathBuf {
+    let mut boundary = canonical_cwd.to_path_buf();
+    for ancestor in canonical_cwd.ancestors() {
+        if has_git_marker(ancestor) {
+            boundary = ancestor.to_path_buf();
+        }
+    }
+    boundary
+}
+
+/// Use the outermost repository marker so an attacker-controlled nested `.git`
+/// cannot shrink the exclusion boundary. Inaccessible markers are treated as
+/// present so resolution fails conservatively.
+#[cfg(any(windows, test))]
+#[cfg_attr(test, allow(dead_code))]
+fn outermost_git_workspace_boundary(canonical_cwd: &Path) -> PathBuf {
+    outermost_git_workspace_boundary_with(
+        canonical_cwd,
+        |ancestor| match std::fs::symlink_metadata(ancestor.join(".git")) {
+            Ok(_) => true,
+            Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+        },
+    )
+}
+
+#[cfg(any(windows, test))]
+fn resolve_windows_git_program_with_boundary(
+    path_entries: impl IntoIterator<Item = PathBuf>,
+    cwd: &Path,
+    excluded_root: &Path,
+    workspace_boundary: &Path,
+) -> Result<PathBuf> {
+    let cwd = crate::display_path::canonicalise(cwd)
+        .context("canonicalising the current directory for git resolution")?;
+    let excluded_root = crate::display_path::canonicalise(excluded_root)
+        .context("canonicalising the excluded workspace root for git resolution")?;
+    let workspace_boundary = crate::display_path::canonicalise(workspace_boundary)
+        .context("canonicalising the current workspace boundary for git resolution")?;
+
+    for entry in path_entries {
+        if entry.as_os_str().is_empty() || !entry.is_absolute() {
+            continue;
+        }
+
+        let candidate = entry.join("git.exe");
+        if !candidate.is_file() {
+            continue;
+        }
+        let Ok(candidate) = crate::display_path::canonicalise(&candidate) else {
+            continue;
+        };
+        if candidate.starts_with(&cwd)
+            || candidate.starts_with(&workspace_boundary)
+            || candidate.starts_with(&excluded_root)
+        {
+            continue;
+        }
+        return Ok(candidate);
+    }
+
+    bail!("no trusted git.exe found on PATH")
+}
+
+#[cfg(any(windows, test))]
+#[cfg_attr(test, allow(dead_code))]
+fn resolve_windows_git_program(
+    path_entries: impl IntoIterator<Item = PathBuf>,
+    cwd: &Path,
+    excluded_root: &Path,
+) -> Result<PathBuf> {
+    let canonical_cwd = crate::display_path::canonicalise(cwd)
+        .context("canonicalising the current directory for workspace discovery")?;
+    let workspace_boundary = outermost_git_workspace_boundary(&canonical_cwd);
+    resolve_windows_git_program_with_boundary(
+        path_entries,
+        &canonical_cwd,
+        excluded_root,
+        &workspace_boundary,
+    )
+}
+
+#[cfg(test)]
+fn resolve_workspace_git_program(
+    path_entries: impl IntoIterator<Item = PathBuf>,
+    cwd: &Path,
+    has_git_marker: impl FnMut(&Path) -> bool,
+) -> Result<PathBuf> {
+    let canonical_cwd =
+        crate::display_path::canonicalise(cwd).context("canonicalising the test workspace")?;
+    let workspace_boundary = outermost_git_workspace_boundary_with(&canonical_cwd, has_git_marker);
+    resolve_windows_git_program_with_boundary(
+        path_entries,
+        &canonical_cwd,
+        &canonical_cwd,
+        &workspace_boundary,
+    )
+}
+
+#[cfg(windows)]
+fn git_program(excluded_root: &Path) -> Result<PathBuf> {
+    let cwd = std::env::current_dir().context("resolving the current directory for git")?;
+    let path = std::env::var_os("PATH")
+        .filter(|value| !value.is_empty())
+        .context("PATH is missing or empty")?;
+    resolve_windows_git_program(std::env::split_paths(&path), &cwd, excluded_root)
+}
+
+#[cfg(not(windows))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the shared signature lets Windows fail closed while Unix keeps bare git"
+)]
+fn git_program(_excluded_root: &Path) -> Result<PathBuf> {
+    Ok(PathBuf::from("git"))
+}
+
 /// Resolve the workspace root via `git rev-parse --show-toplevel`.
 ///
 /// Canonicalises the git result to collapse symlinks. Falls back to
@@ -206,10 +353,12 @@ pub fn open_in_browser(url: &str) -> std::result::Result<(), String> {
 /// NT-extended `\\?\C:\...` root, which both leaks into printed output and
 /// fails to prefix-match the ordinary paths the directory walker yields.
 pub fn workspace_root() -> Result<PathBuf> {
-    let git_failure = match std::process::Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-    {
+    let git_failure = match git_program(Path::new(".")).and_then(|git| {
+        std::process::Command::new(git)
+            .args(["rev-parse", "--show-toplevel"])
+            .output()
+            .map_err(anyhow::Error::from)
+    }) {
         Ok(output) if output.status.success() => {
             if let Ok(stdout) = String::from_utf8(output.stdout) {
                 let root = PathBuf::from(stdout.trim());
@@ -297,7 +446,11 @@ pub(crate) fn git_generated_paths(
         return generated;
     }
 
-    let Ok(mut child) = Command::new("git")
+    let Ok(git) = git_program(root) else {
+        return generated;
+    };
+
+    let Ok(mut child) = Command::new(git)
         .arg("-C")
         .arg(root)
         .args(["check-attr", "--stdin", "-z", "linguist-generated"])
@@ -1053,46 +1206,13 @@ pub fn write_new(path: &Path, data: &[u8]) -> Result<()> {
 
 #[cfg(windows)]
 fn current_user_sid() -> Result<String> {
-    let output = std::process::Command::new("whoami")
-        .args(["/user", "/fo", "csv", "/nh"])
-        .output()
-        .context("failed to run whoami /user")?;
-
-    if !output.status.success() {
-        anyhow::bail!("whoami /user exited with status {}", output.status);
-    }
-
-    let stdout =
-        String::from_utf8(output.stdout).context("whoami /user returned non-UTF-8 output")?;
-
-    let line = stdout
-        .lines()
-        .find(|l| !l.trim().is_empty())
-        .context("whoami returned no user information")?;
-
-    // CSV output: "DOMAIN\User","S-1-5-21-..."
-    let trimmed = line.trim().trim_matches('"');
-    let sid = trimmed
-        .rsplit("\",\"")
-        .next()
-        .context("whoami CSV output missing SID")?;
-
-    let is_valid_sid = sid.starts_with("S-")
-        && sid
-            .as_bytes()
-            .iter()
-            .skip(2)
-            .all(|b| b.is_ascii_digit() || *b == b'-');
-    if !is_valid_sid {
-        anyhow::bail!("whoami returned an invalid SID: {sid}");
-    }
-
-    Ok(sid.to_string())
+    anvil_intercept_win32::current_user_sid()
+        .context("failed to determine current user SID from process token")
 }
 
 /// Restrict a file to the current user only on Windows via `icacls`.
 ///
-/// Uses the current user's SID (via `whoami /user`) instead of the
+/// Uses the current user's SID from the process-token Win32 API instead of the
 /// USERNAME environment variable to avoid granting permissions to
 /// well-known group names like "Everyone" that happen to be
 /// alphanumeric. Best-effort: emits a warning to the `tracing`
@@ -1113,7 +1233,19 @@ fn restrict_windows_permissions(path: &Path) {
         }
     };
 
-    let status = std::process::Command::new("icacls")
+    let icacls = match windows_system32_executable("icacls.exe") {
+        Ok(icacls) => icacls,
+        Err(e) => {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "cannot restrict file permissions: could not resolve icacls",
+            );
+            return;
+        }
+    };
+
+    let status = std::process::Command::new(icacls)
         .arg(path)
         .args(["/inheritance:r", "/grant:r"])
         .arg(format!("*{sid}:(F)"))
@@ -1141,6 +1273,152 @@ mod tests {
     use super::*;
     use anvil_checks::secret::{AllowlistProvenance, Suppression};
     use anvil_kernel::watcher::filter::IGNORE_DIRS;
+
+    #[test]
+    fn windows_system32_executable_requires_an_absolute_existing_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let cwd = temp.path().join("workspace");
+        let planted_cmd = cwd.join("cmd.exe");
+        let system_root = temp.path().join("Windows");
+        let system32 = system_root.join("System32");
+        std::fs::create_dir_all(&system32).unwrap();
+        std::fs::create_dir(&cwd).unwrap();
+        std::fs::write(&planted_cmd, b"").unwrap();
+        let cmd = system32.join("cmd.exe");
+        std::fs::write(&cmd, b"").unwrap();
+
+        assert_eq!(
+            windows_system32_executable_from(Some(system_root.as_os_str()), "cmd.exe").unwrap(),
+            cmd
+        );
+        assert_ne!(
+            cmd, planted_cmd,
+            "the planted cwd cmd.exe must never be selected"
+        );
+        assert!(
+            windows_system32_executable_from(None, "cmd.exe").is_err(),
+            "a missing SystemRoot must not fall back to a bare executable"
+        );
+        assert!(
+            windows_system32_executable_from(Some(std::ffi::OsStr::new("")), "cmd.exe").is_err(),
+            "an empty SystemRoot must not fall back to a bare executable"
+        );
+        assert!(
+            windows_system32_executable_from(
+                Some(std::ffi::OsStr::new("relative-windows")),
+                "cmd.exe"
+            )
+            .is_err(),
+            "a relative SystemRoot must be rejected"
+        );
+        assert!(
+            windows_system32_executable_from(Some(system_root.as_os_str()), "icacls.exe").is_err(),
+            "a missing System32 executable must not fall back to a bare name"
+        );
+    }
+
+    #[test]
+    fn windows_git_resolver_rejects_unsafe_entries_and_selects_external_git() {
+        let temp = tempfile::tempdir().unwrap();
+        let cwd = temp.path().join("workspace/subdir");
+        let excluded_root = temp.path().join("workspace");
+        let cwd_bin = cwd.join("bin");
+        let excluded_bin = excluded_root.join("tools");
+        let external_bin = temp.path().join("trusted-git/bin");
+        for directory in [&cwd_bin, &excluded_bin, &external_bin] {
+            std::fs::create_dir_all(directory).unwrap();
+            std::fs::write(directory.join("git.exe"), b"").unwrap();
+        }
+
+        let unsafe_entries = vec![
+            PathBuf::from("relative-bin"),
+            cwd_bin.clone(),
+            excluded_bin.clone(),
+        ];
+        assert!(
+            resolve_windows_git_program_with_boundary(
+                unsafe_entries.clone(),
+                &cwd,
+                &excluded_root,
+                &excluded_root,
+            )
+            .is_err(),
+            "relative, cwd-contained, and workspace-contained candidates must all be rejected"
+        );
+
+        let mut entries = unsafe_entries;
+        entries.push(external_bin.clone());
+        assert_eq!(
+            resolve_windows_git_program_with_boundary(
+                entries,
+                &cwd,
+                &excluded_root,
+                &excluded_root,
+            )
+            .unwrap(),
+            crate::display_path::canonicalise(&external_bin.join("git.exe")).unwrap(),
+            "the first safe external absolute candidate must be selected"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_git_resolver_accepts_quoted_path_entries() {
+        let temp = tempfile::tempdir().unwrap();
+        let cwd = temp.path().join("workspace");
+        let external_bin = temp.path().join("Program Files/Git/cmd");
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::create_dir_all(&external_bin).unwrap();
+        std::fs::write(external_bin.join("git.exe"), b"").unwrap();
+
+        let mut quoted_path = std::ffi::OsString::from("\"");
+        quoted_path.push(external_bin.as_os_str());
+        quoted_path.push("\"");
+        let path_entries = std::env::split_paths(&quoted_path).collect::<Vec<_>>();
+
+        assert_eq!(
+            path_entries,
+            vec![external_bin.clone()],
+            "Windows split_paths must remove PATH quote delimiters"
+        );
+        assert_eq!(
+            resolve_windows_git_program_with_boundary(path_entries, &cwd, &cwd, &cwd).unwrap(),
+            crate::display_path::canonicalise(&external_bin.join("git.exe")).unwrap(),
+        );
+    }
+
+    #[test]
+    fn workspace_git_resolver_excludes_outermost_repo_from_nested_cwd() {
+        let temp = tempfile::tempdir().unwrap();
+        let repo = temp.path().join("repo");
+        let hostile_nested_repo = repo.join("nested");
+        let cwd = hostile_nested_repo.join("deeper");
+        let planted_bin = repo.join("tools");
+        let external_bin = temp.path().join("trusted-git/bin");
+
+        for directory in [
+            repo.join(".git"),
+            hostile_nested_repo.join(".git"),
+            cwd.clone(),
+            planted_bin.clone(),
+            external_bin.clone(),
+        ] {
+            std::fs::create_dir_all(directory).unwrap();
+        }
+        std::fs::write(planted_bin.join("git.exe"), b"").unwrap();
+        std::fs::write(external_bin.join("git.exe"), b"").unwrap();
+
+        let repo_boundary = crate::display_path::canonicalise(&repo).unwrap();
+        let nested_boundary = crate::display_path::canonicalise(&hostile_nested_repo).unwrap();
+        assert_eq!(
+            resolve_workspace_git_program([planted_bin, external_bin.clone()], &cwd, |ancestor| {
+                ancestor == repo_boundary || ancestor == nested_boundary
+            },)
+            .unwrap(),
+            crate::display_path::canonicalise(&external_bin.join("git.exe")).unwrap(),
+            "a hostile nested .git marker must not shrink the excluded outer workspace"
+        );
+    }
 
     /// SDT-008: this renderer is now shared by `gate`, `audit` and planless
     /// `check`, so its exact shape is a cross-surface contract rather than one

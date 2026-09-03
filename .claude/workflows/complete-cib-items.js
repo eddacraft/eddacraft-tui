@@ -387,9 +387,13 @@ Procedure (from inside the worktree):
 2. \`git fetch origin\` then rebase the branch onto \`origin/main\`. Resolve conflicts (the CIB module + CI log are the
    likely ones — keep BOTH sides on the union CI log; keep your own distinct Status line). Re-run the gates relevant to
    touched files until green. Push with \`--force-with-lease\` (check headRefOid first — a bot may have updated the PR).
-3. Confirm \`gh pr view #${g.pr.prNumber} --json mergeable,mergeStateStatus\` is clean and poll \`gh pr checks ${g.pr.prNumber}\`
-   until all required checks pass (give CI a reasonable window). If a required check fails or stays pending too long,
-   STOP: set merged=false, ciVerified=false, and report — do NOT merge a red/unknown PR.
+3. Confirm readiness with \`node scripts/ci/pr-required-status.mjs --pr ${g.pr.prNumber}\`, re-running it until it
+   exits 0 (give CI a reasonable window). Do NOT eyeball \`gh pr checks\`: it lists the checks that exist, so a
+   required context that has not reported yet looks like nothing at all, and a mid-flight sample reads as a pass
+   (CIB-390). Exit codes: 0 all required contexts reported and passed (and threads resolved where the branch
+   requires it); 2 not finished — it names the contexts that have not reported; 1 a required check failed;
+   3 checks are green but review threads are unresolved, so the PR is still blocked. On 1, 2 or 3 that will not
+   clear, STOP: set merged=false, ciVerified=false, and report — do NOT merge a red/unknown PR.
 4. Only when CI is green: attempt \`gh pr merge ${g.pr.prNumber} --rebase --delete-branch\`. If it succeeds, confirm
    the PR shows MERGED and capture the merge commit. If it is rejected by branch protection (required reviews/checks
    or insufficient permissions), STOP: set merged=false, ciVerified=true, and report the blocker — do NOT bypass it.

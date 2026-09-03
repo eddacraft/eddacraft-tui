@@ -2966,7 +2966,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `uuid` 1.25.0
+- `uuid` 1.26.0
 
 <details>
 <summary>Licence text</summary>
@@ -6493,7 +6493,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `lru` 0.18.2
+- `lru` 0.18.3
 
 <details>
 <summary>Licence text</summary>
@@ -7177,7 +7177,7 @@ SOFTWARE.
 
 Used by:
 
-- `demand` 2.0.5
+- `demand` 2.1.0
 
 <details>
 <summary>Licence text</summary>
@@ -9564,7 +9564,7 @@ the following restrictions:
 | `regex-automata` | 0.4.18 | MIT License | https://github.com/rust-lang/regex |
 | `regex-syntax` | 0.8.11 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.13.1 | MIT License | https://github.com/rust-lang/regex |
-| `uuid` | 1.25.0 | MIT License | https://github.com/uuid-rs/uuid |
+| `uuid` | 1.26.0 | MIT License | https://github.com/uuid-rs/uuid |
 | `libsqlite3-sys` | 0.38.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `rusqlite` | 0.40.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
@@ -9711,7 +9711,7 @@ the following restrictions:
 | `zerocopy-derive` | 0.8.56 | MIT License | https://github.com/google/zerocopy |
 | `zerocopy` | 0.8.56 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
-| `lru` | 0.18.2 | MIT License | https://github.com/jeromefroe/lru-rs.git |
+| `lru` | 0.18.3 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
 | `font8x8` | 0.3.1 | MIT License | https://gitlab.com/saibatizoku/font8x8-rs |
 | `smawk` | 0.3.3 | MIT License | https://github.com/mgeisler/smawk |
@@ -9738,7 +9738,7 @@ the following restrictions:
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
 | `matchit` | 0.8.4 | MIT License | https://github.com/ibraheemdev/matchit |
 | `outref` | 0.5.2 | MIT License | https://github.com/Nugine/outref |
-| `demand` | 2.0.5 | MIT License | https://github.com/jdx/demand |
+| `demand` | 2.1.0 | MIT License | https://github.com/jdx/demand |
 | `homedir` | 0.3.6 | MIT License | https://github.com/ljtpetersen/homedir |
 | `line-clipping` | 0.3.8 | MIT License | https://github.com/ratatui/line-clipping |
 | `fluent-uri` | 0.4.1 | MIT License | https://github.com/yescallop/fluent-uri-rs |

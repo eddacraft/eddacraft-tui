@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 305/384  |
+| CIB | —     | In Progress | 307/397  |
 
 ## Purpose
 
@@ -12798,7 +12798,9 @@ reply.
   3. `commands::doctor::tests::stop_sibling_sockets_clears_a_crash_orphaned_socket`
      — failed once on CI; passes 15/15 in isolation and 4/4 in the full suite
      locally, and `main`'s own CI is green. **Still unexplained**, and named
-     here as a symptom rather than a diagnosis.
+     here as a symptom rather than a diagnosis. Now filed in its own right as
+     **CIB-393**, which records the two causes already excluded and is scoped
+     to reproduction; this leg is its intended vehicle.
 
   Individually each looks like noise. Three in a day is a class: tests whose
   verdict depends on process-global environment, on the invoking user's umask,
@@ -12826,10 +12828,11 @@ reply.
 - **Identified From:** 2026-09-02 session; three environment-dependent failures
   encountered across unrelated PRs in one day, two of them costing a full-suite
   re-run to attribute.
-- **Coordinates with:** CIB-337 (de-flaking a self-documented-racy timing
-  test), CIB-338 (path-detection gate steps must fail open), CIB-316
-  (unfalsifiable guards), CIB-390 (the sibling "the check did not really run"
-  defect)
+- **Coordinates with:** CIB-393 (instance 3, filed separately as a
+  reproduction task — this leg is its intended vehicle), CIB-337 (de-flaking a
+  self-documented-racy timing test), CIB-338 (path-detection gate steps must
+  fail open), CIB-316 (unfalsifiable guards), CIB-390 (the sibling "the check
+  did not really run" defect)
 - **Confidence:** high on the class and on instances 1 and 2, which were both
   measured; low on instance 3, which is deliberately recorded as unexplained.
 
@@ -12888,3 +12891,375 @@ reply.
   high-entropy credentials — same false-positive family)
 - **Confidence:** high — the three findings were read at their line numbers and
   each is demonstrably fixture or prose.
+
+### CIB-393: `stop_sibling_sockets_clears_a_crash_orphaned_socket` fails on CI and cannot be reproduced locally
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P3 — one intermittent red on an unrelated PR. Filed as a
+  **reproduction task**, not a fix: the root cause is genuinely unknown and
+  this entry exists so the next occurrence lands against a record instead of
+  being re-diagnosed from scratch
+- **Intent:** `commands::doctor::tests::stop_sibling_sockets_clears_a_crash_orphaned_socket`
+  failed once on CI (PR [#4297](https://github.com/eddacraft/anvil-001/pull/4297),
+  2026-09-01, job `99909924022`) at `crates/anvil-cli/src/commands/doctor.rs:5317`:
+
+  ```text
+  a proven-dead sibling must not block the fix
+  ```
+
+  That is the `stop_sibling_intercept_sockets(&siblings, false).is_some()`
+  assertion, so the function returned `None` on the runner. The test builds a
+  self-contained fixture: a tempdir runtime dir at `0700`, a Unix socket bound
+  then dropped and set `0600`, and **no PID file** — the shape a SIGKILLed
+  daemon leaves behind.
+
+  **What has been excluded.** Two plausible causes were checked and do not
+  hold:
+
+  - *Cross-test lock contention.* `acquire_daemon_start_lock_for_pid_file`
+    resolves to `<runtime_dir>/intercept.ensure.lock`
+    (`crates/anvil-intercept/src/ensure.rs:398-401`) — it is scoped to the
+    fixture's own tempdir, not per-install or per-user, so a concurrent test
+    cannot contend for it.
+  - *A change under test.* The PR that saw the failure touched only
+    `activation/orchestrator/mod.rs`. `main`'s own CI was green across the
+    surrounding window.
+
+  **What has not been explained.** It passes **15/15** in isolation and
+  **4/4** in the full bin suite locally, so no local run has ever reproduced
+  it. The remaining suspect is the security precondition on the lock:
+  `acquire_ensure_lock` calls `ensure_secure_runtime_dir(parent)` before
+  opening the lock file (`ensure.rs:373-379`), and that is the one step whose
+  verdict can differ between a developer box and a CI runner for an identical
+  fixture — ownership, mode, or ancestor properties of the runner's `TMPDIR`.
+  **This is a hypothesis and is recorded as one.** The sibling failure in
+  `tests/intercept_stop.rs` — where a fixture PID file inherited `umask 002`,
+  became group-writable, and was correctly refused — is the same *family*
+  (permission validation on a temp fixture differing by environment) and is
+  the reason this suspect is named first, not evidence for it.
+- **Expected Outcome:** the failure is reproduced **deterministically**, and
+  only then diagnosed. The most likely vehicle is CIB-391's hostile-ambient
+  leg; if that leg reproduces it, this item becomes a normal defect with a
+  known cause. If it does not, the next occurrence has this record —
+  excluded causes included — to start from rather than repeating the work.
+- **Non-scope / do not:** do not `#[ignore]`, delete, or retry-wrap the test to
+  clear the red — it guards a real repair path (a crash-orphaned socket that
+  `--fix` could not heal), and its own docstring records that reverting the
+  unlink turns it red. Do not "fix" it by relaxing `ensure_secure_runtime_dir`;
+  that check is the trust boundary CIB-382 hardened, and loosening it to make a
+  test pass would trade a red for a security regression. Do not file a cause in
+  this entry that has not been reproduced.
+- **Files:** `crates/anvil-cli/src/commands/doctor.rs` (~L5290-5320, the test),
+  `crates/anvil-cli/src/commands/doctor.rs` (~L2566-2620,
+  `stop_sibling_intercept_sockets` and its `None` paths),
+  `crates/anvil-intercept/src/ensure.rs` (~L373-401, the lock and its
+  `ensure_secure_runtime_dir` precondition)
+- **Validation:** a run that fails the assertion on demand, with the
+  responsible `None` branch identified — the function has four
+  (`no parent`, start-lock error, stop error, pid-still-running), and the
+  entry is not closable until the record says which one fired. Afterwards the
+  test passes on both a developer box and the reproducing environment.
+- **Identified From:** 2026-09-02 session; observed during pre-merge checks on
+  #4297 and deliberately left unfiled at the time because no reproduction
+  existed. Filed at operator request as the third instance motivating CIB-391.
+- **Coordinates with:** CIB-391 (the hostile-ambient leg that is the intended
+  reproduction vehicle — this item is its third listed instance), CIB-382
+  (the PID/socket trust boundary that must not be loosened to make this pass),
+  CIB-337 (de-flaking a racy timing test — same "prove it, do not paper it"
+  posture)
+- **Confidence:** high on the observation and on the two excluded causes, all
+  read directly from source or from the failing job. **Low on the cause** —
+  that is the point of the item, and the reason it is scoped to reproduction.
+
+## DeepSec intake (process run 20260902184224, 2026-09-02)
+
+Nine findings from DeepSec process run `20260902184224-6753b67df9c072ab`
+(scan `20260902184151-03759b89c595979c`). Clustered into seven private issues
+#4343–#4349, then promoted here. DeepSec triage marked every security finding
+P1; human triage kept five P1, dropped account-activity to P2, and skipped the
+Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
+
+### CIB-394: Bind council-gate approval to the reviewed head SHA
+
+- **Status:** Proposed
+- **Priority:** P1 — required `Protected surfaces reviewed` check can go green
+  on a stale fork label or a no-PR `workflow_dispatch`
+- **Intent:** The council-gate workflow must only accept a `council:reviewed`
+  label that covers the current protected-path head SHA, and must fail closed
+  when it has no pull-request context.
+- **Expected Outcome:** Fork `synchronize` cannot keep a stale
+  `council:reviewed` label as sufficient proof; no-PR `workflow_dispatch` does
+  not mint a passing required check. Freshness is bound to `head.sha` (review
+  artefact or label-event timestamp), or fork dismissal runs from a safe
+  API-only path.
+- **Files:** `.github/workflows/council-gate.yml`
+- **Validation:** A fixture or workflow dry-run where a fork PR is labelled on
+  SHA A, then pushes SHA B touching a protected path, fails until re-reviewed;
+  a `workflow_dispatch` with empty `BASE_SHA`/`HEAD_SHA` does not conclude
+  success under the required job name.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4347](https://github.com/eddacraft/anvil-001/issues/4347).
+- **Coordinates with:** CIB-149 (the process guard this workflow enforces),
+  CIB-137 (classifier tampering — different required-check bypass).
+- **Confidence:** high — both paths read directly in the current workflow.
+
+### CIB-395: Harden public-reference-regen against tag interpolation and persisted write tokens
+
+- **Status:** Merged 2026-09-03 via PR [#4354](https://github.com/eddacraft/anvil-001/pull/4354)
+- **Priority:** P1 — first `run:` step still interpolates `${{ github.ref }}`
+  into a `contents: write` workflow; later steps already env-map `TAG_NAME`
+- **Intent:** Tag names must reach the regen workflow only through `env:`, and
+  the write-scoped `GITHUB_TOKEN` must not be persisted in git config before
+  `pnpm install`.
+- **Expected Outcome:** No `${{ github.ref }}` / `${{ github.ref_name }}` in
+  `run:` bodies; tag values are env-mapped and validated against a strict
+  release-tag pattern; checkout uses `persist-credentials: false` and the token
+  is injected only on the final push.
+- **Files:** `.github/workflows/public-reference-regen.yml`
+- **Validation:** Static review that every `run:` block references only env or
+  `$GITHUB_*` variables; a crafted `v1$(...)` tag name cannot execute in the
+  gate step; `persist-credentials` is false on the setup checkout.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4349](https://github.com/eddacraft/anvil-001/issues/4349). Implementation
+  landed on `main` via [#4354](https://github.com/eddacraft/anvil-001/pull/4354).
+- **Coordinates with:** CIB-120 (pinned installers), CIB-139 (tag ancestry
+  before signing) — related class, different workflow.
+- **Confidence:** high — the later steps in the same file already document the
+  injection sink; the first step was left unsafely interpolated.
+
+### CIB-396: Force fork PRs off LINUX_RUNNER in secret-calibration
+
+- **Status:** Proposed
+- **Priority:** P1 if `vars.LINUX_RUNNER` is a self-hosted or long-lived org
+  runner (same var `rust-tests.yml` already fork-guards)
+- **Intent:** Fork pull requests must not execute PR-controlled `cargo test` on
+  the configurable Linux runner used by secret-calibration.
+- **Expected Outcome:** Fork PRs run on `ubuntu-latest` (or the workflow is
+  skipped for forks); only trusted refs may use `vars.LINUX_RUNNER`.
+- **Files:** `.github/workflows/secret-calibration.yml`
+- **Validation:** Static review matching the `rust-tests.yml` fork ternary;
+  a fork PR touching secret-calibration paths does not schedule on
+  `vars.LINUX_RUNNER`.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4345](https://github.com/eddacraft/anvil-001/issues/4345).
+- **Coordinates with:** CIB-138 (bench-nightly self-hosted ref guard — sibling,
+  not a duplicate).
+- **Confidence:** high for the missing guard; impact is configuration-conditional.
+
+### CIB-397: Resolve Windows OS utilities to trusted absolute paths in CLI helpers
+
+- **Status:** Proposed
+- **Priority:** P1 — Anvil runs inside arbitrary workspaces; Windows search
+  order can include cwd
+- **Intent:** Production helpers that currently launch bare `cmd`, `git`,
+  `whoami`, and `icacls` must not resolve those names from the current
+  workspace on Windows.
+- **Expected Outcome:** OS utilities resolve to trusted absolute paths
+  (`%SystemRoot%\System32\...`) or Win32 APIs; `git` uses a discovered path
+  that excludes the current workspace from resolution.
+- **Files:** `crates/anvil-cli/src/util.rs`
+- **Validation:** Windows-targeted tests or documented path construction proving
+  `Command::new` for these helpers is not a bare executable name; a planted
+  `git.exe` / `cmd.exe` in cwd is not executed.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4343](https://github.com/eddacraft/anvil-001/issues/4343).
+- **Coordinates with:** CIB-211 (Windows named-pipe/config ACLs), MLP2-028
+  (peer-PID lineage) — related Windows trust, different root cause.
+- **Confidence:** medium — search-order hijack is real; which helpers fire in
+  common operator paths needs confirmation on a Windows host.
+
+### CIB-398: Stop nested GCTX workspace roots from rebasing away sensitive-path prefixes
+
+- **Status:** Proposed
+- **Priority:** P1 — unauthenticated `anvil_symbol_context` admits any directory
+  inside the MCP server root (ADR-125), which can strip CE-3 denied prefixes
+- **Intent:** GCTX symbol-context queries must not treat a nested subdirectory
+  as the workspace root in a way that makes `secrets/token.ts` look like
+  `token.ts` to sensitive-path / gitignore filters.
+- **Expected Outcome:** Either nested directories are rejected as GCTX
+  workspace roots for this tool, or projection preserves the authoritative
+  repo-relative path so CE-3 still sees the denied prefix. Warm-up must not
+  follow an attacker-chosen nested root.
+- **Files:** `crates/anvil-cli/src/mcp/tools/symbol_context.rs`,
+  `crates/anvil-cli/src/mcp/tools/shared.rs`
+- **Validation:** A request with `workspaceRoot` set to a denied/sensitive
+  subdirectory is refused, or returned identities still include the denied
+  prefix; existing ADR-125 linked-worktree admission still works.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4348](https://github.com/eddacraft/anvil-001/issues/4348).
+- **Coordinates with:** ADR-125 (nested-root admission is currently intentional
+  for MCP tools), CIB-148 (path normalisation in `anvil_query_boundary`),
+  GCTX-023 / ADR-084.
+- **Confidence:** high — `validate_workspace_root` admits `starts_with(server_root)`
+  and the tool is `requires_auth: false`.
+
+### CIB-399: Reject suspended accounts on account-activity ingest
+
+- **Status:** Proposed
+- **Priority:** P2 — post-revocation write of allowlisted telemetry until JWT
+  expiry; not licence reminting
+- **Intent:** `POST` account-activity must reload `beta_users` and reject
+  missing or non-active subjects before upserting feature-touches or stamping
+  `last_activity_at`.
+- **Expected Outcome:** A suspended account with an unexpired licence JWT
+  receives 401/403 and no row mutations, matching the active-status gate on
+  `POST /auth/verify`.
+- **Files:** `apps/anvil-api/src/routes/account-activity.ts`
+- **Validation:** API test: mint a licence, suspend the user, POST feature-touch
+  keys, assert rejection and no `account_feature_touches` / activity stamp.
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4344](https://github.com/eddacraft/anvil-001/issues/4344).
+- **Coordinates with:** CIB-141 (fail-closed entitlement), SEC-007 (atomic
+  token revocation, GH #1672, shipped) — this route was added later and never
+  got the active-status gate.
+- **Confidence:** high — the route verifies the JWT then trusts `claims.sub`.
+
+### CIB-400: Keep the positional Draw.io path when optional export flags are absent
+
+- **Status:** Proposed
+- **Priority:** P3 — developer-facing argument-parsing bug, not a vulnerability
+- **Intent:** `scripts/docs/export-public-diagram.mjs` must keep argv[0] as the
+  `.drawio` path when `--root` and `--drawio-bin` are omitted.
+- **Expected Outcome:** `pnpm docs:public:diagrams:export -- docs/public/<family>/assets/diagrams/<name>.drawio`
+  (no optional flags) exports instead of exiting with usage.
+- **Files:** `scripts/docs/export-public-diagram.mjs`
+- **Validation:** A regression that invokes the exporter with only the positional
+  `.drawio` path and asserts it is not dropped (`indexOf` of a missing flag is
+  `-1`, so `+1` currently removes argv[0]).
+- **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
+  [#4346](https://github.com/eddacraft/anvil-001/issues/4346). DeepSec triage
+  skip as security; filed so the bug is not lost.
+- **Coordinates with:** docs public-diagram export contract.
+- **Confidence:** high — `indexOf`/`filter` behaviour is local and deterministic.
+
+### CIB-401: better-sqlite3 teardown crash fails `Unit Tests` with every suite green
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — it fails a **required** context with no test reporting a
+  failure, on any PR that widens the affected set. Three CI runs were spent on
+  one PR (#4353) to land a change that never touched SQLite
+- **Intent:** `Unit Tests (Node 22.x, ubuntu-latest)` fails with exit 1 while
+  every suite in the log reports `✓`. Buried mid-log, not at the tail:
+
+  ```text
+  node[33092]: void node::RemoveEnvironmentCleanupHook(v8::Isolate*, CleanupHook, void*)
+    at ../src/api/hooks.cc:142
+  #  Assertion failed: (env) != nullptr
+  ----- Native stack trace -----
+   3: Database::~Database() [.../better-sqlite3@12.11.1/.../better_sqlite3.node]
+  ```
+
+  Vitest reports it only as `Error: [vitest-pool]: Worker forks emitted error`
+  / `Worker exited unexpectedly` — 199/200 files and 4218 tests passed on the
+  observed run.
+
+  **Mechanism.** `packages/edda-stack/src/ember/proposal-store.ts:96` is the
+  only `better-sqlite3` consumer in the workspace. Its suites do close
+  correctly — `proposal-store.test.ts` and `decay-service.test.ts` both call
+  `store.close()` in `afterEach`, and the guard on `this.db.open` is
+  `:109` — so this is **not** a leaked handle. The native `Database` wrapper's
+  destructor runs at fork teardown, after the Node environment is gone, and
+  `RemoveEnvironmentCleanupHook` asserts on the null env. It is a process-exit
+  race in a native addon, not a test defect, which is why it is timing
+  dependent.
+
+  **Trigger.** A one-line `scripts` edit to the **root** `package.json`
+  invalidates every nx project, so `nx affected -t test` runs the full set
+  instead of the handful the diff touches. That widened run reaches
+  `edda-stack` and exposes the race. #4353 (which rewired `lint:md` through a
+  wrapper) hit it on two consecutive runs and passed on the third.
+
+  **Why `main` never catches it.** On push to `main` the same job is
+  **skipped** (verified on run `33670961573`, `Unit Tests` conclusion
+  `skipped`). A skipped required context is treated as satisfied, so the wide
+  path is effectively never exercised on the integration branch. `main` being
+  green is therefore **not** evidence this passes — a trap already recorded
+  once and repeated during #4353's triage.
+- **Expected Outcome:** a PR that edits root `package.json` does not spend CI
+  runs on a crash unrelated to its diff. Either the teardown race is removed
+  (an explicit `process.on('exit')` / pool-level disposal so the native handle
+  is destroyed while the environment is still alive, or an `edda-stack`
+  `vitest.config.ts` pool setting that avoids the fork-teardown path), **or**
+  the failure is made self-identifying: the job names the assertion and says it
+  is a known native-addon teardown race rather than presenting as an
+  unexplained exit 1 behind a wall of green.
+- **Non-scope / do not:** do not `#[ignore]`/skip the `edda-stack` suites or
+  drop them from the affected set — they are real coverage for the ember
+  proposal store. Do not "fix" it by narrowing what root `package.json` edits
+  invalidate; nx is correct that a root manifest change can affect everything.
+  Do not add a blanket CI retry: that hides the next genuine `Unit Tests`
+  failure, which is the same non-verdict-as-pass defect CIB-390 exists to stop.
+  Do not treat a green `main` as evidence the fix works — see the skip above.
+- **Files:** `packages/edda-stack/src/ember/proposal-store.ts` (the only
+  `better-sqlite3` consumer), `packages/edda-stack/vitest.config.ts` (currently
+  default pool, no `poolOptions`), `packages/edda-stack/src/ember/*.test.ts`
+  (reference — their teardown is already correct)
+- **Validation:** a reproduction that fails on demand — the honest vehicle is a
+  wide affected run (`nx run-many -t test` across the full project set, or a
+  throwaway root `package.json` touch on a scratch branch), repeated enough to
+  show the rate. After the fix, the same wide run is green across several
+  consecutive attempts; one green run proves nothing, since the observed rate
+  was roughly one pass in three.
+- **Identified From:** 2026-09-03, landing #4353 (CIB-390..392). Two failed
+  runs plus a green third; signature confirmed by grepping the **full** job log
+  — `--log-failed | tail` shows only the vitest wrapper error, not the
+  assertion.
+- **Coordinates with:** CIB-391 (environment-dependent tests failing
+  non-deterministically — same family, different trigger: that leg varies umask
+  and privacy vars, and would **not** catch this), CIB-390 (a non-verdict
+  reading as a pass — the flip side: here a real failure hides behind all-green
+  suites), CIB-393 (the other unreproducible CI-only failure), CIB-338
+  (vitest pool-crash triage, where this was first noted in passing)
+- **Confidence:** high on the mechanism and the trigger — the assertion, the
+  single consumer, the correct `afterEach` teardown, and the `skipped` job on
+  `main` were each read directly. Medium on the remedy, which is why the
+  Expected Outcome allows the honest-failure route if the race proves
+  impractical to remove.
+
+### CIB-402: product surfaces read the stores the Rust CLI writes
+
+- **Status:** Merged 2026-08-28 via PR
+  [#4191](https://github.com/eddacraft/anvil-001/pull/4191); intake recorded
+  2026-09-03 from GH #4186 (the fix landed as a feature PR against the
+  CIB-candidate issue, so this entry is the promotion record, not new work)
+- **Priority:** P1 — a trust defect on the golden path. Surfaces that read a
+  store nothing writes report "no runs" or "no baseline" on a live repo, and
+  one of them (`anvil_query_boundary`) answered `allowed: true` when the
+  snapshot it wanted was absent
+- **Intent:** every product reader binds to the artefact the current Rust CLI
+  actually writes, or says plainly that the surface is uninstrumented. No
+  shipped CLI, TUI, or MCP behaviour depends on a TypeScript-era store.
+- **Expected Outcome:**
+  - `anvil status` Recent Runs and `anvil status --json` `recent_runs`, and
+    `anvil audit` history, come from `.anvil/gate-history.ndjson` (with
+    `.anvil/gates.json` as the latest snapshot), not `.anvil/cache/index.json`.
+    Empty-state copy names `anvil gate`, the command that records a run.
+  - MCP `anvil_status.hasBaseline`, `anvil://baseline`, `anvil_query_boundary`,
+    the dashboard architecture view, `anvil export`, and `anvil drift snapshot`
+    bind to the live architecture definition (`.anvil.yaml` /
+    `.anvil/architecture.yaml`), not `.anvil/architecture.json`. A missing
+    definition is `allowed: false` with a "did not evaluate" message, never a
+    fail-open allow.
+  - Suppressions surfaces (dashboard, `anvil://suppressions`, export) read
+    in-source `@anvil-ignore` and `anvil/exceptions/`, not
+    `.anvil/suppressions.json`.
+  - `anvil edda` / `anvil ember` say honestly that they are list/show-only over
+    stores the Rust CLI does not write.
+- **Validation:**
+  - Dogfood repro 2026-09-03 on this checkout (one `pass` in
+    `.anvil/gate-history.ndjson`, no `.anvil/cache/index.json`):
+    `ANVIL_DEV=1 anvil status --json | jq '.recent_runs | length'` → `1`
+    (was `0` when GH #4186 was filed on 2026-08-27).
+  - `cargo test -p eddacraft-anvil --bin anvil -- query_boundary load_suppressions gather_from_gate typescript_cache historical_scores snapshot_maps returns_no_architecture loads_exception`
+    (29 passed) and
+    `cargo test -p eddacraft-anvil --test mcp_serve_stdio -- query_boundary resources_read_baseline resources_read_suppressions tools_call_status`
+    (6 passed), both re-run on `main` 2026-09-03.
+- **Identified From:** GH #4186 (dogfood, 2026-08-27) and its follow-up audit
+  comment listing the orphaned readers; fixed in PR #4191.
+- **Residual (not this item):** the TypeScript `FileCacheProvider`,
+  `ProvenanceStore`, and watch-orchestrator lock/queue modules remain in-tree
+  as unused libraries (8 files under `packages/`). Nothing shipped reads or
+  writes them; their removal belongs to the JS/TS workspace retirement, not to
+  a product fix.
+- **Confidence:** high — every surface in the issue's split was re-read on
+  `main` after #4191 and the index case was reproduced end to end.

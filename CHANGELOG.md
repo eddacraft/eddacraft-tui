@@ -107,6 +107,16 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **Graph-context MCP tools no longer accept a nested directory as the workspace
+  root.** `anvil_search_symbols`, `anvil_find_callers`, `anvil_find_dependents`,
+  `anvil_impact_of_change`, `anvil_affected_tests`, and `anvil_symbol_context`
+  now require `workspaceRoot` to be the MCP server root itself or a linked Git
+  worktree root of the same repository. Pointing a graph tool at a subdirectory
+  used to rebuild the graph from that directory, so a sensitive path such as
+  `secrets/token.ts` could surface as `token.ts` past the sensitive-path filter.
+  Check, gate, status, and write-validation tools still accept directories
+  inside the server root.
+
 - **Generated record identifiers are no longer flagged as high-entropy
   secrets.** Content-addressed ids with a lowercase prefix, dashed segments, and
   a hex tail stay quiet. Mixed-case opaque tokens and real credentials still
@@ -144,14 +154,16 @@ engineering maintenance are recorded in the
 - **Unix daemon rendezvous now follows live listeners through their full
   lifecycle.** Stale socket inodes no longer hide a live sibling daemon, and a
   long-running `anvil watch` re-resolves the candidate paths after fallback or
-  daemon relocation. Doctor holds the start and PID locks before removing a
-  proven-stale socket. Version recycling waits every daemon it signalled, then
-  starts the current binary at the canonical socket; leftover sibling PID-file
-  metadata does not abort that restart. `anvil intercept stop` reports the
-  deduplicated worktrees losing protection across all stopped daemons, or says
-  the impact is unknown when it cannot query one safely. JSON still lists every
-  candidate, including unresolved sibling PID files, without failing the
-  command.
+  daemon relocation. The liveness check is the connection the request is then
+  sent on: the daemon sees one connection per save-time scan, MCP graph query,
+  or LSP scan, not a dropped probe followed by a second connect. Doctor holds
+  the start and PID locks before removing a proven-stale socket. Version
+  recycling waits every daemon it signalled, then starts the current binary at
+  the canonical socket; leftover sibling PID-file metadata does not abort that
+  restart. `anvil intercept stop` reports the deduplicated worktrees losing
+  protection across all stopped daemons, or says the impact is unknown when it
+  cannot query one safely. JSON still lists every candidate, including
+  unresolved sibling PID files, without failing the command.
 
 - **`anvil policy eval-regression` detects rules that go silent on frozen
   fixtures.** A finding that appears or disappears now reports that the fixture

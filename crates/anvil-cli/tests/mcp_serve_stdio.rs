@@ -734,7 +734,11 @@ fn mcp_serve_stdio_gctx_tools_degrade_to_unavailable_without_daemon() {
     let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
     let runtime_dir = tempfile::tempdir().expect("isolated runtime dir exists");
     let home_dir = tempfile::tempdir().expect("isolated home dir exists");
-    let mut child = spawn_mcp_server_without_daemon(runtime_dir.path(), home_dir.path());
+    let mut child = spawn_mcp_server_without_daemon_in(
+        Some(workspace.path()),
+        runtime_dir.path(),
+        home_dir.path(),
+    );
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
     send_legacy_initialize(&mut child, &stdout_rx, 0);
@@ -782,6 +786,71 @@ fn mcp_serve_stdio_gctx_tools_degrade_to_unavailable_without_daemon() {
         status.success(),
         "mcp server must exit cleanly after GCTX calls; status: {status:?}"
     );
+}
+
+/// CIB-398: every GCTX tool refuses a nested directory as `workspaceRoot`
+/// through the public stdio envelope. The daemon keys its graph on the root it
+/// is handed and projects root-relative file identities, so `<root>/secrets`
+/// as the root would rebase `secrets/token.ts` to `token.ts` past the CE-3
+/// deny-list. The refusal is a tool error (not a sealed degradation) and it
+/// fires before any daemon rendezvous or warm-up.
+#[test]
+fn mcp_serve_stdio_gctx_tools_refuse_nested_workspace_root() {
+    let cwd = std::env::current_dir().expect("cwd");
+    let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+    let nested = workspace.path().join("secrets");
+    std::fs::create_dir_all(&nested).expect("nested directory");
+    let runtime_dir = tempfile::tempdir().expect("isolated runtime dir exists");
+    let home_dir = tempfile::tempdir().expect("isolated home dir exists");
+    let mut child = spawn_mcp_server_without_daemon_in(
+        Some(workspace.path()),
+        runtime_dir.path(),
+        home_dir.path(),
+    );
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+
+    let cases = gctx_tool_cases(&nested);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        for (offset, (name, arguments)) in cases.iter().enumerate() {
+            writeln!(
+                stdin,
+                "{}",
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 40 + offset,
+                    "method": "tools/call",
+                    "params": { "name": name, "arguments": arguments }
+                })
+            )
+            .unwrap_or_else(|err| panic!("failed to send {name} tools/call: {err}"));
+        }
+    }
+    drop(child.stdin.take());
+
+    for (offset, (name, _)) in cases.iter().enumerate() {
+        let line = recv_stdout_line(&mut child, &stdout_rx);
+        let parsed: Value = serde_json::from_str(&line)
+            .unwrap_or_else(|err| panic!("{name} response must be JSON: {err}\n{line}"));
+        assert_eq!(parsed["id"], 40 + offset, "{name}: {parsed}");
+        assert_eq!(parsed["result"]["isError"], true, "{name}: {parsed}");
+        let payload = parse_tool_payload(&parsed);
+        assert_eq!(
+            payload["error"],
+            "workspaceRoot for graph-context tools must be the MCP server root itself or a registered git worktree root of the same repository, not a nested directory",
+            "{name}: {payload}"
+        );
+        assert!(
+            payload.get("outcome").is_none(),
+            "{name}: a refused root must not carry a sealed outcome: {payload}"
+        );
+    }
+
+    let status = wait_for_exit(&mut child);
+    assert!(status.success(), "mcp server exits cleanly: {status:?}");
 }
 
 #[test]
@@ -2272,7 +2341,22 @@ fn spawn_mcp_server() -> Child {
 /// developer daemon (or another test's daemon) through the inherited runtime
 /// environment.
 fn spawn_mcp_server_without_daemon(runtime_dir: &Path, home_dir: &Path) -> Child {
+    spawn_mcp_server_without_daemon_in(None, runtime_dir, home_dir)
+}
+
+/// [`spawn_mcp_server_without_daemon`] with the server cwd pinned to
+/// `workspace` when given. GCTX tools refuse a nested directory as the graph
+/// root (CIB-398), so a test whose workspace is a temp dir under the test cwd
+/// must launch the server there.
+fn spawn_mcp_server_without_daemon_in(
+    workspace: Option<&Path>,
+    runtime_dir: &Path,
+    home_dir: &Path,
+) -> Child {
     let mut cmd = Command::new(ANVIL_BIN);
+    if let Some(workspace) = workspace {
+        cmd.current_dir(workspace);
+    }
     cmd.arg("--no-tui")
         .arg("mcp")
         .arg("serve")
