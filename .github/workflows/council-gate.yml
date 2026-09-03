@@ -11,15 +11,14 @@ name: Council Gate
 # every PR and can be marked a required check without deadlocking PRs that do
 # not touch protected paths. When nothing protected changed, it passes at once.
 #
-# Stale-review safety: the label is dismissed automatically whenever new commits
-# are pushed (`synchronize`), so a recorded review must always cover the final
-# diff — a maintainer cannot label an early, benign revision and let later
-# commits ride in unreviewed.
+# Stale-review safety: same-repository PR labels are dismissed automatically
+# whenever new commits are pushed (`synchronize`). Fork PRs have a read-only
+# token, so their label is accepted only by the matching `labeled` event and
+# only while that event's head is still the live PR head.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -40,6 +39,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+      EVENT_ACTION: ${{ github.event.action }}
+      EVENT_LABEL: ${{ github.event.label.name }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,12 +80,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          # No PR context (e.g. workflow_dispatch) — nothing to gate.
-          if [[ -z "${BASE_SHA:-}" || -z "${HEAD_SHA:-}" ]]; then
-            echo "No pull_request context; nothing to gate."
-            exit 0
-          fi
 
           # Files introduced by the PR (three-dot = changes since the merge base).
           mapfile -t changed < <(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
@@ -132,6 +128,27 @@ jobs:
 
           echo "This PR changes protected auth/confinement surfaces:"
           printf '  - %s\n' "${hits[@]}"
+
+          # Bind approval evidence to the current PR revision. `set -e` makes
+          # an API/query failure fatal; a head pushed concurrently also fails
+          # closed instead of accepting evidence for the stale event payload.
+          LIVE_HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+          if ! [[ "$LIVE_HEAD_SHA" == "$HEAD_SHA" ]]; then
+            echo "::error::PR head changed during Council validation — failing closed."
+            exit 1
+          fi
+
+          # Fork PR workflows cannot remove labels with their read-only token.
+          # Therefore a pre-existing label is insufficient: only the actual
+          # event that added the gate label to this exact head may pass.
+          if [[ "${IS_FORK:-false}" == "true" ]]; then
+            if ! [[ "$EVENT_ACTION" == "labeled" ]] ||
+              ! [[ "$EVENT_LABEL" == "$GATE_LABEL" ]] ||
+              ! [[ "$RUN_ATTEMPT" == "1" ]]; then
+              echo "::error::Fork PR Council evidence must be freshly labelled for this head."
+              exit 1
+            fi
+          fi
 
           # Re-read labels live (the event payload is stale after a dismissal).
           if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
