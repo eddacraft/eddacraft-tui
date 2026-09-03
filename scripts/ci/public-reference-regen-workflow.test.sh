@@ -82,26 +82,49 @@ import re
 import sys
 from pathlib import Path
 
-text = Path(sys.argv[1]).read_text()
 sink = re.compile(r"\$\{\{\s*github\.(ref|ref_name|event_name)\b")
-in_run = False
-run_indent = 0
-hits = []
-for i, line in enumerate(text.splitlines(), 1):
-    stripped = line.lstrip(" ")
-    indent = len(line) - len(stripped)
-    if re.match(r"run:\s*\|\s*$", stripped):
-        in_run = True
-        run_indent = indent
-        continue
-    if in_run:
-        if stripped == "":
+run_block = re.compile(r"run:\s*[|>][+-]?\s*$")
+
+
+def scan(text):
+    in_run = False
+    run_indent = 0
+    hits = []
+    for i, line in enumerate(text.splitlines(), 1):
+        stripped = line.lstrip(" ")
+        indent = len(line) - len(stripped)
+        if run_block.match(stripped):
+            in_run = True
+            run_indent = indent
             continue
-        if indent > run_indent:
+        if re.match(r"run:\s+\S", stripped) and not run_block.match(stripped):
             if sink.search(line):
                 hits.append(i)
-        else:
             in_run = False
+            continue
+        if in_run:
+            if stripped == "":
+                continue
+            if indent > run_indent:
+                if sink.search(line):
+                    hits.append(i)
+            else:
+                in_run = False
+    return hits
+
+
+probes = {
+    "block-pipe": "      - name: x\n        run: |\n          echo ${{ github.ref }}\n",
+    "block-strip": "      - name: x\n        run: |-\n          echo ${{ github.ref_name }}\n",
+    "block-fold": "      - name: x\n        run: >\n          echo ${{ github.event_name }}\n",
+    "single-line": '      - name: x\n        run: echo "${{ github.ref }}"\n',
+}
+for name, body in probes.items():
+    if not scan(body):
+        print(f"scanner missed interpolation in {name}", file=sys.stderr)
+        sys.exit(1)
+
+hits = scan(Path(sys.argv[1]).read_text())
 if hits:
     print(
         "interpolated github.ref/ref_name/event_name in run: bodies at lines:",
