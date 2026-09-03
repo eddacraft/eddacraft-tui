@@ -97,12 +97,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Files introduced by the PR (three-dot = changes since the merge base).
-          mapfile -t changed < <(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
-          if (( ${#changed[@]} == 0 )); then
+          # Files introduced by the PR (three-dot = changes since the merge
+          # base). Command substitution is deliberate: unlike process
+          # substitution, `set -e` propagates a failing git diff here.
+          CHANGED_FILES=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+          if [[ -z "$CHANGED_FILES" ]]; then
             echo "No changed files detected."
             exit 0
           fi
+          mapfile -t changed <<<"$CHANGED_FILES"
 
           # Protected globs = the repo's declared list + the guard's own config
           # and this workflow (so the gate cannot be disabled without a review).

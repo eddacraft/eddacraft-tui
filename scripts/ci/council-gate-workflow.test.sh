@@ -45,6 +45,24 @@ assert_contains 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}'
 assert_not_contains 'workflow_dispatch:'
 assert_not_contains 'No pull_request context; nothing to gate.'
 assert_not_contains 'if [[ -z "${BASE_SHA:-}" || -z "${HEAD_SHA:-}" ]]'
+assert_not_contains 'mapfile -t changed < <(git diff'
+assert_contains 'CHANGED_FILES=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")'
+
+changed_files_query_failure_is_fatal() (
+  git() { return 43; }
+  set -euo pipefail
+  changed_files=$(git diff --name-only base...head)
+  [[ -z "$changed_files" ]]
+)
+
+set +e
+changed_files_query_failure_is_fatal
+diff_status=$?
+set -e
+if [[ "$diff_status" != "43" ]]; then
+  echo "expected git diff failure status 43, got ${diff_status}" >&2
+  exit 1
+fi
 
 # Label API failures must not be interpreted as label absence inside an `if`
 # pipeline. Bind the workflow to fail-fast retrieval before membership tests.
