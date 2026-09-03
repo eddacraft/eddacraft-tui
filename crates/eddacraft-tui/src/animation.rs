@@ -73,7 +73,7 @@ mod tests {
         animate_tick(101);
         let activity = advance(&mut tween);
 
-        assert_eq!(*tween, 1.0);
+        assert!((*tween - 1.0_f32).abs() < f32::EPSILON);
         assert!(activity.finished());
         assert!(!activity.running());
     }
