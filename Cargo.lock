@@ -1237,7 +1237,6 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 name = "eddacraft-anvil"
 version = "0.9.7-beta"
 dependencies = [
- "animate-core",
  "anyhow",
  "axoupdater",
  "chrono",

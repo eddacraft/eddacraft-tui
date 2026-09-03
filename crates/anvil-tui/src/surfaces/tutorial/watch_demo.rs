@@ -1,23 +1,20 @@
 use std::time::{Duration, Instant};
 
-use animate_core::{Animate, Tween, TweenAnim};
+use animate_core::Tween;
 use anvil_kernel_types::EngineEvent;
 use eddacraft_tui::keyboard::Action;
 
 use crate::surfaces::watch::WatchData;
 use crate::surfaces::watch::event_adapter::WatchEventAdapter;
 
-type AnimatedF64 = Tween<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+type AnimatedF64 = Tween<f64>;
 
-const OVERLAY_ANIM_DURATION_MS: f64 = 220.0;
+const OVERLAY_ANIM_DURATION_MS: u64 = 220;
 
 fn animated_f64(initial: f64) -> AnimatedF64 {
-    Tween::new(
-        initial,
-        OVERLAY_ANIM_DURATION_MS,
-        animate_core::easing::quad_out as fn(f64) -> f64,
-        <f64 as TweenAnim>::tween as fn(&f64, &f64, f64) -> f64,
-    )
+    Tween::new(initial)
+        .duration(Duration::from_millis(OVERLAY_ANIM_DURATION_MS))
+        .easing(animate_core::easing::quad_out)
 }
 
 /// Guided overlay phase during the watch demo.
@@ -200,10 +197,10 @@ impl WatchDemoState {
         };
 
         if (target - self.overlay_reveal_target).abs() > f64::EPSILON {
-            self.overlay_reveal.set(target);
+            self.overlay_reveal.to(target);
             self.overlay_reveal_target = target;
         }
-        self.overlay_reveal.update();
+        eddacraft_tui::animation::advance(&mut self.overlay_reveal);
     }
 
     pub fn overlay_text(&self) -> &'static str {

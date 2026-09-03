@@ -3,24 +3,22 @@ pub mod render;
 mod time_display;
 
 use std::collections::VecDeque;
+use std::time::Duration;
 
-use animate_core::{Animate, Tween, TweenAnim};
+use animate_core::Tween;
 use anvil_kernel_types::{Notification, NotificationContext};
 use eddacraft_tui::keyboard::Action;
 
 use crate::surfaces::notifications::NotificationSource;
 
-type AnimatedF64 = Tween<f64, fn(f64) -> f64, fn(&f64, &f64, f64) -> f64>;
+type AnimatedF64 = Tween<f64>;
 
-const ANIM_DURATION_MS: f64 = 250.0;
+const ANIM_DURATION_MS: u64 = 250;
 
 fn animated_f64(initial: f64) -> AnimatedF64 {
-    Tween::new(
-        initial,
-        ANIM_DURATION_MS,
-        animate_core::easing::quad_out as fn(f64) -> f64,
-        <f64 as TweenAnim>::tween as fn(&f64, &f64, f64) -> f64,
-    )
+    Tween::new(initial)
+        .duration(Duration::from_millis(ANIM_DURATION_MS))
+        .easing(animate_core::easing::quad_out)
 }
 
 /// Current watch mode status.
@@ -286,18 +284,18 @@ impl WatchState {
     pub fn sync_animations(&mut self) {
         let pass_rate = self.data.stats.pass_rate;
         if (pass_rate - self.anim_pass_rate_target).abs() > f64::EPSILON {
-            self.anim_pass_rate.set(pass_rate);
+            self.anim_pass_rate.to(pass_rate);
             self.anim_pass_rate_target = pass_rate;
         }
-        self.anim_pass_rate.update();
+        eddacraft_tui::animation::advance(&mut self.anim_pass_rate);
 
         #[allow(clippy::cast_precision_loss)]
         let avg_duration = self.data.stats.avg_duration_ms as f64;
         if (avg_duration - self.anim_avg_duration_target).abs() > f64::EPSILON {
-            self.anim_avg_duration_ms.set(avg_duration);
+            self.anim_avg_duration_ms.to(avg_duration);
             self.anim_avg_duration_target = avg_duration;
         }
-        self.anim_avg_duration_ms.update();
+        eddacraft_tui::animation::advance(&mut self.anim_avg_duration_ms);
     }
 
     fn max_items_in_panel(&self) -> usize {
