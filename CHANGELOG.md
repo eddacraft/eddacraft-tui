@@ -125,14 +125,23 @@ engineering maintenance are recorded in the
 - **Secret scans no longer report clean when they could not read the input.**
   Oversize lines, unreadable files, and scanner panics block a clean pass;
   extension skips stay advisory. `anvil audit` and planless `anvil check` report
-  that coverage gap the same way `anvil gate` already did. Audit exits non-zero
-  when files were unread. Files larger than the old 1 MiB cap stream instead of
-  being skipped.
+  that coverage gap the same way `anvil gate` already did. The two commands draw
+  the failing line differently: `check` exits non-zero on any coverage note,
+  while `audit` exits non-zero only when a _file_ went unread and reports an
+  unscanned oversize _line_ on a passing run — read `coverageNotes` rather than
+  inferring coverage from the exit code. The scan limit rises from 1 MiB to 8
+  MiB and the reader now holds one line at a time instead of the whole file;
+  files at or over the limit are still unscanned, but they are reported as a
+  coverage failure instead of passing silently.
 
-- **Gate and drift no longer treat a skipped architecture check as a clean
-  pass.** Without architecture config, gate JSON sets `skipped` and drift
-  snapshots set `boundary_analysis_skipped` instead of score 100 /
-  `boundary_violations: 0`.
+- **Gate and drift now report when the architecture check did not run.** Without
+  architecture config, gate JSON sets `skipped` and drift snapshots set
+  `boundary_analysis_skipped`. Both are additive flags beside the existing
+  values, not replacements: gate still reports `passed: true` with a score of
+  100 for a check that never ran, and drift still reports
+  `boundary_violations: 0`. A consumer that branches on `passed` or the score
+  alone sees no change, and must read the new field to tell "not measured" from
+  "clean".
 
 - **`DO_NOT_TRACK` now stops save-time and fence usage rows as well as the CLI
   beacon.** Any non-empty value other than `0`/`false` is a hard-off.

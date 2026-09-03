@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmod, cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, delimiter, join, resolve } from 'node:path';
 import test from 'node:test';
 
 import {
@@ -129,6 +129,36 @@ test('export usage documents the supported repository root option', () => {
   );
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /--root <path>/);
+});
+
+test('positional-only export reaches Draw.io handling', async () => {
+  const fakeBinRoot = await mkdtemp(join(tmpdir(), 'anvil-public-diagrams-bin-'));
+  const fakeDrawio = join(fakeBinRoot, 'drawio');
+  try {
+    await writeFile(fakeDrawio, '#!/usr/bin/env node\nprocess.exit(37);\n', 'utf8');
+    await chmod(fakeDrawio, 0o755);
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        resolve(import.meta.dirname, 'export-public-diagram.mjs'),
+        'docs/public/anvil/assets/diagrams/detect-fix-verify.drawio',
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: [fakeBinRoot, process.env.PATH].filter(Boolean).join(delimiter),
+        },
+      }
+    );
+
+    assert.notEqual(result.status, 0);
+    assert.doesNotMatch(result.stderr, /usage:/i);
+    assert.match(result.stderr, /could not run Draw.io Desktop version check/i);
+  } finally {
+    await rm(fakeBinRoot, { recursive: true, force: true });
+  }
 });
 
 async function runChecker(root, contract) {

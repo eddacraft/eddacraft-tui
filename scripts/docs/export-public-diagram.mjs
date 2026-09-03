@@ -14,10 +14,8 @@ const rootIndex = args.indexOf('--root');
 const drawioBinary = binaryIndex >= 0 && args[binaryIndex + 1] ? args[binaryIndex + 1] : 'drawio';
 const positional = args.filter(
   (_, index) =>
-    index !== binaryIndex &&
-    index !== binaryIndex + 1 &&
-    index !== rootIndex &&
-    index !== rootIndex + 1
+    (binaryIndex < 0 || (index !== binaryIndex && index !== binaryIndex + 1)) &&
+    (rootIndex < 0 || (index !== rootIndex && index !== rootIndex + 1))
 );
 if (positional.length !== 1) {
   fail(
