@@ -53,6 +53,35 @@ export function localDate(now = new Date()) {
 }
 
 /**
+ * The generator that owns `content`, or `null` when it is hand-maintained.
+ *
+ * A generated view carries a "do not edit by hand" marker, and re-dating one
+ * desynchronises it from its generator: `docs:catalogue:check` then fails on
+ * drift. Found the hard way — this tool re-dated
+ * `docs/guides/product-feature-catalogue.md` on two separate runs.
+ *
+ * The marker only counts in the header, before the first body heading. A
+ * hand-written document may legitimately quote it while documenting the
+ * convention, and one does: `plans/specs/2026-08-19-anvil-docs-definition-layer.md`
+ * carries the marker at line 1065 of 1412 as an example. That spec is a real
+ * re-date target; treating it as generated would silently stop maintaining it.
+ * Across the corpus every one of the eleven genuinely generated documents has
+ * its marker before the first `## `, and the quoting spec has it far after.
+ */
+export function generatorFor(content) {
+  const lines = content.split(/\r?\n/u);
+  const firstBodyHeading = lines.findIndex((line) => line.startsWith('## '));
+  const limit = firstBodyHeading === -1 ? lines.length : firstBodyHeading;
+  for (let index = 0; index < limit; index += 1) {
+    const marker = /<!--\s*Generated\b.*?\bdo not edit by hand\.?\s*-->/iu.exec(lines[index]);
+    if (!marker) continue;
+    const named = /\bby\s+(\S+?)\s*;/iu.exec(marker[0]);
+    return named ? named[1] : 'its generator';
+  }
+  return null;
+}
+
+/**
  * A `|` that markdown would read as a column break — one not already escaped.
  */
 export function hasUnescapedPipe(value) {
@@ -175,6 +204,8 @@ export async function owedNow({ root, since }) {
 async function applyRedate({ root, docPath, date, note }) {
   const abs = resolve(root, docPath);
   const content = await readFile(abs, 'utf8');
+  const generator = generatorFor(content);
+  if (generator !== null) return { generator };
   const cell = findFreshnessCell(content);
   if (!cell) return false;
   const cells = [...cell.cells];
@@ -209,6 +240,31 @@ async function formatAndCommit({ root, paths, message }) {
   }
   await execFileAsync('git', ['add', '--', ...paths], { cwd: root });
   await execFileAsync('git', ['commit', '--no-verify', '-m', message], { cwd: root });
+}
+
+/**
+ * Say which generated views are still owed, and be honest that this tool cannot
+ * clear them.
+ *
+ * Exits non-zero: the gate is still red, and reporting "settled" would be the
+ * false fixpoint this tool exists to avoid. Deliberately does not promise that
+ * re-running the generator fixes it — when a generator changes without altering
+ * its output, regenerating produces no diff and the finding stands. That case
+ * needs the generator to carry the review forward, or a baseline decision.
+ * Either way it is a human call, not a hand edit to a generated file.
+ */
+function reportGenerated(generated) {
+  for (const [path, generator] of generated) {
+    process.stderr.write(
+      `[${SURFACE}] generated view, not re-dated: ${path} (owned by ${generator})\n`
+    );
+  }
+  process.stderr.write(
+    `[${SURFACE}] a generated view carries its freshness from its generator, so hand-dating it ` +
+      `desynchronises the two and fails that generator's own check. Re-run the generator and ` +
+      `commit any output it produces. If it produces none, the freshness has to come from the ` +
+      `generator itself or from a baseline decision — not from this tool.\n`
+  );
 }
 
 export async function runRedateCli(argv = process.argv.slice(2)) {
@@ -260,6 +316,8 @@ export async function runRedateCli(argv = process.argv.slice(2)) {
 
   const note = values.note?.trim();
   let total = 0;
+  // Generated views seen this run, path -> owning generator.
+  const generated = new Map();
 
   for (let round = 1; round <= maxRounds; round += 1) {
     const owed = await owedNow({ root, since });
@@ -269,6 +327,10 @@ export async function runRedateCli(argv = process.argv.slice(2)) {
           ? `[${SURFACE}] nothing owed against ${since}\n`
           : `[${SURFACE}] settled: ${total} document(s) re-dated to ${date} over ${round - 1} round(s)\n`
       );
+      if (generated.size > 0) {
+        reportGenerated(generated);
+        return 1;
+      }
       return 0;
     }
 
@@ -287,13 +349,21 @@ export async function runRedateCli(argv = process.argv.slice(2)) {
 
     const applied = [];
     for (const doc of owed) {
-      if (await applyRedate({ root, docPath: doc.path, date, note })) {
+      const outcome = await applyRedate({ root, docPath: doc.path, date, note });
+      if (outcome === true) {
         applied.push(doc.path);
+      } else if (outcome && outcome.generator) {
+        // The finding is real, but this is not the tool that clears it.
+        generated.set(doc.path, outcome.generator);
       } else {
         process.stderr.write(`[${SURFACE}] WARN: no metadata table in ${doc.path}; left alone\n`);
       }
     }
     if (applied.length === 0) {
+      if (generated.size > 0) {
+        reportGenerated(generated);
+        return 1;
+      }
       process.stderr.write(`[${SURFACE}] round ${round}: nothing could be re-dated; stopping\n`);
       return 1;
     }
