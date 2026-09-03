@@ -13263,3 +13263,66 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   a product fix.
 - **Confidence:** high — every surface in the issue's split was re-read on
   `main` after #4191 and the index case was reproduced end to end.
+### CIB-403: `.mjs` is outside the repo's file-type allowlists, so it escapes both tooling and search
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — 75 tracked files are outside pre-commit entirely, and the
+  same blind spot cost two defects in one PR that review caught rather than a
+  gate
+- **Intent:** the repository has 75 tracked `.mjs`/`.cjs` files, and the
+  conventional file-type allowlists do not name that extension. It is invisible
+  in two directions.
+
+  **Tooling.** `.lintstagedrc.cjs` has exactly three globs — `*.{js,jsx,ts,tsx}`
+  (`:81`), `*.json` (`:89`) and `*.md` (`:124`). No `mjs` or `cjs`, so a `.mjs`
+  file gets **no** pre-commit formatting or linting. It is caught later by CI's
+  `oxfmt --check .`, which is a slower, more expensive loop than the one every
+  other extension gets. Previously observed on PR #3843 (BACT-012) and never
+  closed.
+
+  **Search.** The same habit shapes hand-written surveys. On 2026-09-03 the
+  brand-accent retune (#4365) surveyed consumers of `#cc5500` with
+  `--include='*.css' --include='*.ts' --include='*.tsx'` — the extensions the
+  *definitions* live in — and so missed two `.mjs` files that pinned the value
+  as an expectation:
+
+  - `apps/dashboard/visual-qa.mjs:89` asserted `anvil: '#cc5500'` against the
+    live computed token;
+  - `apps/website/scripts/check-positioning.mjs:67` listed `#cc5500` in
+    `allowedColours`, and its walk covers `app/**.css` plus
+    `components/**.tsx`, so **every file that change touched** would have been
+    reported off-palette.
+
+  Both were found by review, not by a gate, and both would have failed CI.
+- **Expected Outcome:** `.mjs`/`.cjs` are formatted and linted at pre-commit
+  like every other executable source extension, so the fast loop catches them
+  instead of CI. Whatever the fix, it is proven by staging an unformatted
+  `.mjs` and watching pre-commit correct or reject it — the current state
+  silently accepts it.
+- **Non-scope / do not:** do not rename the 75 files to `.js` to fit the glob —
+  the extension is meaningful (ESM in a CJS-defaulting package) and the glob is
+  the thing that is wrong. Do not treat the search half as fixed by the tooling
+  half; a wider lint-staged glob does nothing for someone grepping by
+  extension, and that half is a habit, not a config. Do not add a
+  "grep all extensions" rule to the agent instructions in place of a gate —
+  the durable fix for a value pinned in several places is that it is pinned
+  once, not that everyone remembers to search harder.
+- **Files:** `.lintstagedrc.cjs` (the three globs), `package.json` (`lint:ox`,
+  `format:check` — reference only, these already cover the tree),
+  `apps/dashboard/visual-qa.mjs` and
+  `apps/website/scripts/check-positioning.mjs` (the two that pinned the hex —
+  already corrected on `main`, reference only)
+- **Validation:** stage a deliberately unformatted `.mjs` and confirm
+  pre-commit acts on it; prove RED by reverting the glob. `pnpm format:check`
+  over the tree stays green, and no `.md`/`.json`/`.tsx` task changes
+  behaviour.
+- **Identified From:** 2026-09-03, the brand-accent retune (#4365). The
+  tooling half was recorded against PR #3843 (BACT-012) and left open; the
+  search half is new and is what actually broke two guards.
+- **Coordinates with:** CIB-390 (a check that did not really examine its input
+  — the same family: a gate that looks like it ran and did not), CIB-299 (a
+  guard unreachable for the PR shape that needed it), CIB-316 (guards nothing
+  invokes)
+- **Confidence:** high on both halves — the three globs and the 75-file count
+  are greps, and the two `.mjs` misses are recorded in #4365's review threads
+  with the corrections merged.
