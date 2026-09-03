@@ -22,8 +22,11 @@ world-writable PID inodes. A refused inode remains tainted even if its mode is
 later tightened, so recovery replaces it through a fresh owner-only daemon
 lifecycle. Clients connect to the first candidate that passes the owner-only
 metadata gate, accepts a connection, and presents a same-user peer, among the
-bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when set), and send
-the request on that same connection (one accept per request). A missing or
+bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when set). The
+save-time client, the GCTX RPC transport, and `anvil_symbol_context` send the
+request on that same connection (one accept per request); registration,
+`intercept status` / unblock, the MCP protection-claim client, and `anvil-run`
+still resolve the path first and connect separately. A missing or
 connection-refused candidate may fall through; unsafe canonical metadata remains
 fatal. Dual-path is a client rendezvous, not a second listener, and it covers
 the intercept socket and PID file only — the save-time driver registry, the

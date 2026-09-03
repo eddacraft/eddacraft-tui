@@ -257,9 +257,24 @@ fn tool_result(payload: &Value) -> Value {
 }
 
 #[cfg_attr(not(unix), allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DaemonRpcError {
     Unavailable,
     Failure,
+}
+
+/// Map a rendezvous failure to the tool outcome. Only an absent endpoint
+/// (missing or refused socket, no candidate directory) degrades to
+/// `Unavailable`; every other failure, including a peer-credential read error,
+/// an unreadable socket path, or a wrong-user listener, is a `Failure` so the
+/// tool never renders a trust refusal as "no daemon".
+#[cfg(unix)]
+fn classify_rendezvous_error(err: &anvil_intercept::ipc::IpcError) -> DaemonRpcError {
+    if anvil_intercept::ipc::live_socket_absent(err) {
+        DaemonRpcError::Unavailable
+    } else {
+        DaemonRpcError::Failure
+    }
 }
 
 #[cfg(unix)]
@@ -279,18 +294,12 @@ fn daemon_symbol_context(
     // One accept per request: the liveness proof is the connection we send on.
     let (_socket_path, mut stream): (_, UnixStream) = match ipc::resolve_live_socket_connection() {
         Ok(connection) => connection,
-        Err(err) if ipc::live_socket_absent(&err) => return Err(DaemonRpcError::Unavailable),
-        Err(err @ ipc::IpcError::SocketPeerPermissions { .. }) => {
-            eprintln!("anvil-mcp: gctx symbol_context peer rejected: {err}");
-            return Err(DaemonRpcError::Failure);
-        }
-        Err(ipc::IpcError::Io(io)) => {
-            eprintln!("anvil-mcp: gctx symbol_context connect failed: {io}");
-            return Err(DaemonRpcError::Unavailable);
-        }
         Err(err) => {
-            eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
-            return Err(DaemonRpcError::Failure);
+            let classified = classify_rendezvous_error(&err);
+            if classified == DaemonRpcError::Failure {
+                eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
+            }
+            return Err(classified);
         }
     };
     stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
@@ -383,6 +392,49 @@ mod tests {
     fn payload_of(result: &Value) -> Value {
         serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
             .expect("payload is JSON")
+    }
+
+    /// Only an absent endpoint degrades to `Unavailable`; a trust or I/O
+    /// failure on the rendezvous must surface as `Failure` (never "no daemon").
+    #[cfg(unix)]
+    #[test]
+    fn rendezvous_errors_keep_the_unavailable_versus_failure_split() {
+        use anvil_intercept::ipc::IpcError;
+        use std::io;
+
+        for kind in [io::ErrorKind::NotFound, io::ErrorKind::ConnectionRefused] {
+            assert_eq!(
+                classify_rendezvous_error(&IpcError::Io(io::Error::new(kind, "absent"))),
+                DaemonRpcError::Unavailable,
+                "{kind:?} is an absent endpoint"
+            );
+        }
+        assert_eq!(
+            classify_rendezvous_error(&IpcError::NoSocketDirCandidate),
+            DaemonRpcError::Unavailable
+        );
+        for kind in [
+            io::ErrorKind::PermissionDenied,
+            io::ErrorKind::Other,
+            io::ErrorKind::InvalidInput,
+        ] {
+            assert_eq!(
+                classify_rendezvous_error(&IpcError::Io(io::Error::new(kind, "not absent"))),
+                DaemonRpcError::Failure,
+                "{kind:?} must fail closed"
+            );
+        }
+        assert_eq!(
+            classify_rendezvous_error(&IpcError::SocketPeerPermissions {
+                peer_uid: 1,
+                current_uid: 2,
+            }),
+            DaemonRpcError::Failure
+        );
+        assert_eq!(
+            classify_rendezvous_error(&IpcError::SocketPathIsSymlink("x".into())),
+            DaemonRpcError::Failure
+        );
     }
 
     #[test]
