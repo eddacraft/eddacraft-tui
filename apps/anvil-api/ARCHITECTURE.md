@@ -110,12 +110,14 @@ operator authority.
   overall `status: ok`.
 - Authenticated account-activity ingest
   ([`account-activity.ts`](src/routes/account-activity.ts)) is fire-and-forget
-  after a valid licence, an active `beta_users` subject, and allowlisted
-  payload. Missing or non-active subjects receive 401 and no row mutations
-  (CIB-399). A user-lookup failure before those writes returns 503. A Neon
-  connect or write failure after a valid payload is logged and still returns
-  202; it must not 500. Auth and payload errors remain 4xx. The Neon client
-  prefers IPv4 DNS results to avoid Happy Eyeballs connect timeouts from Vercel.
+  after a valid licence JWT, an allowlisted JSON payload, and an active
+  `beta_users` subject, in that order. Payload 4xx never touch the database.
+  Missing or non-active subjects then receive 401 and no row mutations
+  (CIB-399). A user-lookup failure after a valid payload returns 503. A Neon
+  connect or write failure after the subject is proven active is logged and
+  still returns 202; it must not 500. Auth and payload errors remain 4xx. The
+  Neon client prefers IPv4 DNS results to avoid Happy Eyeballs connect timeouts
+  from Vercel.
 - Persistence migrations remain governed by the
   [database migration runbook](../../docs/runbooks/db-migrations.md), not this
   component map.

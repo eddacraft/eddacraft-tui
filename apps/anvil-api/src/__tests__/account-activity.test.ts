@@ -102,12 +102,14 @@ describe('POST /account/activity (BACT-005)', () => {
     expect(body.error).toBe('Unknown feature keys');
     expect(body.rejected).toEqual(['rm-rf']);
     expect(body.allowed).toEqual([...ACCOUNT_FEATURE_KEYS]);
+    expect(mocks.findUserById).not.toHaveBeenCalled();
     expect(mocks.upsertAccountFeatureTouch).not.toHaveBeenCalled();
   });
 
   it('rejects empty features and non-json', async () => {
     const empty = await post({ features: [] }, 'Bearer good');
     expect(empty.status).toBe(400);
+    expect(mocks.findUserById).not.toHaveBeenCalled();
 
     const noJson = await app.request('/account/activity', {
       method: 'POST',
@@ -118,6 +120,7 @@ describe('POST /account/activity (BACT-005)', () => {
       body: 'x',
     });
     expect(noJson.status).toBe(400);
+    expect(mocks.findUserById).not.toHaveBeenCalled();
   });
 
   it('dedupes repeated keys in one request', async () => {

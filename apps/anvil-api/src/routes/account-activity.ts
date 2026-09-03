@@ -43,21 +43,6 @@ accountActivity.post('/', async (c) => {
     return c.json({ error: 'Invalid or expired licence' }, 401);
   }
 
-  // CIB-399: reload beta_users after JWT verify. Suspension/ban must stop
-  // allowlisted telemetry writes for the remaining licence lifetime, matching
-  // the active-status gate on POST /auth/verify and /session/refresh.
-  const sql = getClient();
-  let user;
-  try {
-    user = await findUserById(sql, claims.sub);
-  } catch (err) {
-    console.error('account activity user lookup failed:', err);
-    return c.json({ error: 'Service unavailable' }, 503);
-  }
-  if (!user || user.status !== 'active') {
-    return c.json({ error: 'User account is not active' }, 401);
-  }
-
   const contentType = c.req.header('content-type') ?? '';
   if (!contentType.toLowerCase().includes('application/json')) {
     return c.json({ error: 'Content-Type must be application/json' }, 400);
@@ -99,6 +84,23 @@ accountActivity.post('/', async (c) => {
 
   if (accepted.length === 0) {
     return c.json({ error: 'No feature keys provided' }, 400);
+  }
+
+  // CIB-399: reload beta_users after JWT verify and a valid allowlisted
+  // payload. Suspension/ban must stop telemetry writes for the remaining
+  // licence lifetime, matching POST /auth/verify and /session/refresh.
+  // Payload 4xx stay off the database so a Neon outage cannot 503 a
+  // request that would have failed closed as 400.
+  const sql = getClient();
+  let user;
+  try {
+    user = await findUserById(sql, claims.sub);
+  } catch (err) {
+    console.error('account activity user lookup failed:', err);
+    return c.json({ error: 'Service unavailable' }, 503);
+  }
+  if (!user || user.status !== 'active') {
+    return c.json({ error: 'User account is not active' }, 401);
   }
 
   try {
