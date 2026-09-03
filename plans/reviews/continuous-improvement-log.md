@@ -6497,7 +6497,7 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Improvement:** none
 - **Follow-up:** owned: CIB-400
 
-### 2026-09-03 — Codex
+### 2026-09-03 — codex
 
 #### Partial action-family upgrades can make CodeQL fail before analysis
 
@@ -6506,8 +6506,8 @@ to 4.37.9 while `autobuild` and `analyze` remained on 4.37.8. Keep a single
 CodeQL action-family version across every step, and validate the complete
 workflow after Dependabot updates one member of the family.
 
-Improvement: Dependabot PR #4340 already aligns the remaining CodeQL action
-steps; no unrelated fix was added to the CIB-394 feature branch.
+- **Improvement:** Dependabot PR #4340 already aligns the remaining CodeQL
+  action steps; no unrelated fix was added to the CIB-394 feature branch.
 
 ### 2026-09-03 — codex
 
@@ -6539,7 +6539,7 @@ steps; no unrelated fix was added to the CIB-394 feature branch.
 - **Improvement:** none
 - **Follow-up:** none
 
-### 2026-09-03 — Codex
+### 2026-09-03 — codex
 
 #### Address-reviews base refresh correctly exercised the fail-closed Council gate
 
@@ -6548,7 +6548,7 @@ stale `council:reviewed` label and fail the protected-surface gate. After fresh
 exact-head independent verification, applying the label produced a passing
 label-event gate for the new head.
 
-Improvement: none; the CIB-394 behaviour matched its intended lifecycle.
+- **Improvement:** none; the CIB-394 behaviour matched its intended lifecycle.
 
 ### 2026-09-03 — codex
 
