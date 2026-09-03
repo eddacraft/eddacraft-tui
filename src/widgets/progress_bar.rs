@@ -1,11 +1,11 @@
 use std::fmt;
 
-use animate_core::Animate;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, StatefulWidget, Widget};
 
+use crate::animation::advance;
 use crate::theme::Theme;
 use crate::widgets::{AnimatedF64, animated_f64};
 
@@ -68,7 +68,7 @@ impl ProgressBarState {
     /// Returns the current visually-interpolated fraction (smoothed by easing).
     ///
     /// This value transitions smoothly toward [`Self::fraction()`] each time the
-    /// widget is rendered, provided [`animate_core::tick`] is called in the event loop.
+    /// widget is rendered, provided [`animate_tick`] is called in the event loop.
     pub fn display_fraction(&self) -> f64 {
         *self.display_fraction
     }
@@ -110,10 +110,10 @@ impl<T: Theme> StatefulWidget for ProgressBar<'_, T> {
         // Sync animation target when the logical fraction changes.
         let target = state.fraction();
         if (target - state.target_fraction).abs() > f64::EPSILON {
-            state.display_fraction.set(target);
+            state.display_fraction.to(target);
             state.target_fraction = target;
         }
-        state.display_fraction.update();
+        advance(&mut state.display_fraction);
 
         let fraction = (*state.display_fraction).clamp(0.0, 1.0);
         let bar_width = inner.width as usize;
@@ -199,7 +199,7 @@ mod tests {
         // Advance the animate clock past the configured duration and re-render.
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let advance = ANIM_DURATION_MS as usize + 1;
-        animate_core::tick(advance);
+        crate::animation::animate_tick(advance);
         ProgressBar::new(&theme).render(area, &mut buf, &mut state);
 
         let converged = state.display_fraction();
