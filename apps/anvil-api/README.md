@@ -1,12 +1,12 @@
 # anvil API
 
-| Type   | Authority     | Owner | Status | Freshness                                                                         |
-| ------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------- |
-| README | Authoritative | APGOV | Live   | Last reviewed 2026-08-29 against `854be61ec`, `src/**`, and `infra/src/vercel.ts` |
+| Type   | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                               |
+| ------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | APGOV | Live   | Last reviewed 2026-08-31 against `src/__tests__/auth-otp.neon.test.ts`, `vitest.neon.config.ts`, and `.github/workflows/neon-integration.yml`. Previously reviewed 2026-08-29 against `854be61ec`, `src/**`, and `infra/src/vercel.ts`. |
 
-| Upstream                                                                                    | Downstream                                              |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `apps/anvil-api/src/**`, ADR-066, ADR-123, and BAUTH's `docs/architecture/auth-as-built.md` | CLI, docs shell, operator tooling, and API contributors |
+| Upstream                                                                                                                              | Downstream                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `apps/anvil-api/src/**`, `.github/workflows/neon-integration.yml`, ADR-066, ADR-123, and BAUTH's `docs/architecture/auth-as-built.md` | CLI, docs shell, operator tooling, and API contributors |
 
 > **Status:** Beta access system (v1.0)
 
@@ -161,6 +161,32 @@ pnpm -F @eddacraft/anvil-api build
 # Type check
 pnpm -F @eddacraft/anvil-api typecheck
 ```
+
+### Credentialed Neon integration test
+
+The ordinary Vitest command excludes `*.neon.test.ts` and does not need a
+database credential. The live OTP concurrency proof is deliberately opt-in:
+
+```bash
+pnpm --dir apps/anvil-api test:neon
+```
+
+Before running it, provide all three test-only variables through the process
+environment:
+
+| Variable                               | Contract                                                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `ANVIL_API_TEST_DATABASE_URL`          | Direct, non-pooled Neon URL for database `anvil_test` and role `anvil_test_owner`; never substitute production `DATABASE_URL`. |
+| `ANVIL_API_TEST_DATABASE_PROJECT_NAME` | Dedicated non-production project name `anvil-api-test`.                                                                        |
+| `ANVIL_API_TEST_DATABASE_BRANCH_NAME`  | Exact ephemeral CI form `ci-test-clawopen-011-<run>-<attempt>`.                                                                |
+
+The safety gate requires the exact database, role, project, and branch form
+above and rejects a non-Neon host, pooled endpoint, or non-TLS URL. The live
+test holds the OTP row in a transaction and observes more than three production
+UPDATE calls waiting on PostgreSQL locks before release. Do not print the
+connection URL or place it in shell history. For project provisioning,
+credential rotation, and abandoned-branch cleanup, follow the
+[Neon DB operations runbook](../../docs/runbooks/neon-db-operations.md#dedicated-integration-test-project).
 
 ## Database Setup
 

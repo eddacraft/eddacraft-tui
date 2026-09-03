@@ -17,6 +17,7 @@
     "postbuild": "node scripts/check-runtime-cjs.cjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
+    "test:neon": "vitest run --config vitest.neon.config.ts",
     "check:runtime-cjs": "node scripts/check-runtime-cjs.cjs",
     "migrate": "node scripts/migrate.mjs",
     "migrate:dry-run": "node scripts/migrate.mjs --dry-run",

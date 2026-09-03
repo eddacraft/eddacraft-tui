@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+
+import { atomicWriteBatchSync } from './lib/atomic-output-batch.mjs';
 
 const argv = process.argv.slice(2);
 
@@ -19,6 +21,10 @@ const ROOT = flagValue('--root')
 const CHECK = argv.includes('--check');
 const UPDATE_HELP_SNAPSHOTS = argv.includes('--update-help-snapshots');
 const ANVIL_BIN = flagValue('--anvil-bin') ?? 'anvil';
+
+if (CHECK && UPDATE_HELP_SNAPSHOTS) {
+  fail('--check cannot be combined with --update-help-snapshots');
+}
 
 const PLANLESS_CHECK_NAMES = ['secret-detection', 'antipattern-scan'];
 
@@ -153,21 +159,25 @@ const outputs = new Map(
 );
 
 let stale = 0;
-for (const [path, content] of outputs) {
-  if (CHECK) {
+if (CHECK) {
+  for (const [path, content] of outputs) {
     if (!existsSync(path) || readFileSync(path, 'utf8') !== content) {
       process.stderr.write(`[anvil-reference] stale: ${path.slice(ROOT.length + 1)}\n`);
       stale += 1;
     }
-  } else {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, content);
+  }
+} else {
+  const helpSnapshots = UPDATE_HELP_SNAPSHOTS ? captureHelpSnapshots() : [];
+  const batch = [...[...outputs].map(([path, content]) => ({ path, content })), ...helpSnapshots];
+  for (const entry of batch) mkdirSync(dirname(entry.path), { recursive: true });
+  atomicWriteBatchSync(batch);
+
+  for (const [path] of outputs) {
     process.stdout.write(`[anvil-reference] wrote ${path.slice(ROOT.length + 1)}\n`);
   }
-}
-
-if (UPDATE_HELP_SNAPSHOTS) {
-  writeHelpSnapshots();
+  for (const snapshot of helpSnapshots) {
+    process.stdout.write(`[anvil-reference] wrote help snapshot for ${snapshot.command}\n`);
+  }
 }
 
 if (CHECK) {
@@ -604,8 +614,8 @@ function readOptionalProductSource(path) {
   return result.status === 0 ? result.stdout : undefined;
 }
 
-function writeHelpSnapshots() {
-  mkdirSync(HELP_SNAPSHOT_DIR, { recursive: true });
+function captureHelpSnapshots() {
+  const snapshots = [];
   for (const command of HELP_SNAPSHOT_COMMANDS) {
     const result = spawnSync(ANVIL_BIN, [command, '--help'], {
       encoding: 'utf8',
@@ -617,9 +627,9 @@ function writeHelpSnapshots() {
         `could not capture ${ANVIL_BIN} ${command} --help: ${(result.stderr || text).trim() || `exit ${result.status}`}`
       );
     }
-    writeFileSync(helpSnapshotPath(command), text);
-    process.stdout.write(`[anvil-reference] wrote help snapshot for ${command}\n`);
+    snapshots.push({ path: helpSnapshotPath(command), content: text, command });
   }
+  return snapshots;
 }
 
 function checkHelpSnapshots(page) {

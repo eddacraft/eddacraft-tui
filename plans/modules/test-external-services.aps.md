@@ -4,9 +4,10 @@
 | ---- | ---------- | ------ | -------- |
 | TEXT | @eddacraft | Draft  | 0/14     |
 
-**Last reviewed:** 2026-04-26 — TFIX archived Complete (CI infrastructure
-foundation in place). All `apps/anvil-api` and `infra/` paths still current on
-`dev`.
+**Last reviewed:** 2026-08-31 — CLAWOPEN-011 is establishing the first
+credentialed Neon behavioural-test harness: a dedicated non-production project
+with an ephemeral branch per CI run. TEXT-004 and TEXT-005 will reuse that
+boundary rather than create a duplicate. TFIX remains archived Complete.
 
 ## Purpose
 
@@ -73,6 +74,8 @@ validate the recordings are still accurate.
 - Record/replay test pattern (reusable for future service integrations)
 - HTTP fixture library for all integrated services
 - Scheduled CI job for live contract validation
+- Ephemeral Neon branch harness established by CLAWOPEN-011 for real
+  PostgreSQL behavioural tests; TEXT-004 and TEXT-005 extend its coverage
 
 ## Constraints
 
@@ -82,6 +85,8 @@ validate the recordings are still accurate.
   environment variable
 - No production service accounts used in CI — dedicated test/sandbox accounts
   only
+- Neon behavioural tests use synthetic data in a dedicated non-production
+  project and a fresh branch per run; no test may target the production project
 
 ## Risks
 

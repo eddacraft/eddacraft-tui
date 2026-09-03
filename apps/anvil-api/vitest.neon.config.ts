@@ -4,8 +4,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    passWithNoTests: true,
-    include: ['src/**/*.{test,spec}.{js,ts}'],
-    exclude: ['src/**/*.neon.test.ts'],
+    include: ['src/**/*.neon.test.ts'],
+    passWithNoTests: false,
+    hookTimeout: 60_000,
+    testTimeout: 60_000,
   },
 });

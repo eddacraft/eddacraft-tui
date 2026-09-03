@@ -1,0 +1,86 @@
+name: Neon OTP Integration
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/anvil-api/**'
+      - '.github/workflows/neon-integration.yml'
+      - 'scripts/ci/create-neon-test-branch.mjs'
+      - 'scripts/ci/create-neon-test-branch.test.mjs'
+      - 'scripts/ci/neon-integration-workflow.test.sh'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: neon-integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  otp-attempt-cap:
+    name: OTP attempt cap (Neon)
+    if:
+      ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name
+      == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref:
+            ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha ||
+            github.sha }}
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Define ephemeral branch metadata
+        id: branch-metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch_name="ci-test-clawopen-011-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          expires_at=$(date -u --date '+2 hours' +'%Y-%m-%dT%H:%M:%SZ')
+          printf 'branch_name=%s\n' "${branch_name}" >> "${GITHUB_OUTPUT}"
+          printf 'expires_at=%s\n' "${expires_at}" >> "${GITHUB_OUTPUT}"
+
+      - name: Preflight and create expiring Neon test branch
+        id: create-branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH_NAME: ${{ steps.branch-metadata.outputs.branch_name }}
+          NEON_BRANCH_EXPIRES_AT: ${{ steps.branch-metadata.outputs.expires_at }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+
+      - name: Prove the OTP attempt cap against Neon
+        env:
+          ANVIL_API_TEST_DATABASE_URL: ${{ steps.create-branch.outputs.db_url }}
+          ANVIL_API_TEST_DATABASE_PROJECT_NAME: anvil-api-test
+          ANVIL_API_TEST_DATABASE_BRANCH_NAME: ${{ steps.branch-metadata.outputs.branch_name }}
+        run: pnpm --dir apps/anvil-api test:neon
+
+      - name: Delete ephemeral Neon test branch
+        if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH_ID: ${{ steps.create-branch.outputs.branch_id }}
+          NEON_BRANCH_NAME: ${{ steps.create-branch.outputs.branch_name }}
+          NEON_BRANCH_EXPIRES_AT: ${{ steps.create-branch.outputs.expires_at }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete

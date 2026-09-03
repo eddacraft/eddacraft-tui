@@ -10,6 +10,8 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
+import { atomicWriteBatchSync } from './lib/atomic-output-batch.mjs';
+
 const argv = process.argv.slice(2);
 const WRITE = argv.includes('--write');
 const CHECK = !WRITE;
@@ -243,5 +245,5 @@ if (CHECK) {
   process.exit(0);
 }
 
-writeFileSync(OUTPUT, generated);
+atomicWriteBatchSync([{ path: OUTPUT, content: generated }]);
 process.stdout.write(`[product-catalogue] wrote ${OUTPUT}\n`);

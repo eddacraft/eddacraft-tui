@@ -39,6 +39,19 @@ failures=0
 pass() { printf '  ok: %s\n' "$1"; }
 fail() { printf '  FAIL: %s\n' "$1"; failures=$((failures + 1)); }
 
+echo "case 0: generated documentation publishes complete atomic batches"
+set +e
+atomic_out="$(node --test \
+  "${script_dir}/atomic-output-batch.test.mjs" \
+  "${script_dir}/generator-atomic-output.test.mjs" 2>&1)"
+atomic_status=$?
+set -e
+if [[ "${atomic_status}" -eq 0 ]]; then
+  pass "atomic generator unit and CLI fault-injection tests pass"
+else
+  fail "atomic generator tests failed (status ${atomic_status}): $(printf '%s\n' "${atomic_out}" | tail -20)"
+fi
+
 # Case 1: orchestrator surfaces the fourteen expected labels in summary order.
 echo "case 1: orchestrator emits all fourteen surface labels"
 out="$(cd "${repo_root}" && node "${orchestrator}" 2>&1 || true)"

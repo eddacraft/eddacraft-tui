@@ -205,13 +205,16 @@ findings, are repaired.
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** Documentation generation cannot destroy the prior valid outputs.
-- **Expected Outcome:** Both generators prepare unique same-directory temporary
-  files before replacement and preserve prior outputs on injected write or
-  rename failure.
+- **Expected Outcome:** Both generators prepare every requested output in unique
+  same-directory temporary files before replacement and restore the complete
+  prior batch on an injected write or rename failure. Public-reference help
+  snapshots join the same transaction when `--update-help-snapshots` is used;
+  `--check --update-help-snapshots` is rejected without writing.
 - **Files:** `scripts/docs/generate-anvil-public-reference.mjs`,
   `scripts/docs/generate-product-catalogue.mjs`, and focused generator tests
 - **Finding ID:** `fnd_sig-feat-library-49c5c2a728-0640_c321ad6f8f`
-- **Validation:** injected-failure generator tests; `pnpm docs:public:check`;
+- **Validation:** `node --test scripts/docs/atomic-output-batch.test.mjs`;
+  `pnpm test:docs-check`; `pnpm docs:public:check`;
   `pnpm docs:catalogue:check`; `pnpm docs:check`
 - **Decision:** the whole-batch rollback and `--update-help-snapshots` boundary
   design is implemented on #4361; review and merge remain outstanding.
@@ -302,10 +305,20 @@ findings, are repaired.
 - **Risk:** high
 - **Intent:** The OTP attempt cap is verified against the real database
   statement rather than a JavaScript mock that assumes atomic behaviour.
-- **Expected Outcome:** More than the maximum attempts run concurrently against
-  one active OTP; returned claims and stored attempts never exceed the cap.
+- **Expected Outcome:** A dedicated non-production Neon project supplies an
+  ephemeral branch per CI run. Before creating it, the repository-owned
+  control-plane helper resolves the configured project through Neon and
+  requires the exact `anvil-api-test` identity; generated connection
+  credentials are masked before any step output is emitted, and partial
+  creation retains exact cleanup identity. The live proof holds a
+  `FOR UPDATE` lock on one active OTP, starts more than the maximum attempts
+  through the production query, and does not release the barrier until
+  `pg_stat_activity` reports at least four matching OTP updates active and
+  waiting on a lock. Returned claims are exactly attempts 1–3, stored attempts
+  remain exactly three, and cleanup runs even after test failure.
 - **Files:** `apps/anvil-api/src/routes/auth-otp.ts`, its query/schema
-  dependencies, and a PostgreSQL-backed integration test.
+  dependencies, a Neon-backed integration test, the dedicated CI workflow,
+  and the owning test/runbook documentation.
 - **Finding ID:** `fnd_sig-feat-route-c6c95ee31e-9b089f_43160b2454`
 - **Validation:** the repository's PostgreSQL-backed API integration command;
   focused API tests and typecheck
