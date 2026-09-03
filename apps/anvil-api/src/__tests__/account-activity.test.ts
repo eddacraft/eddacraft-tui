@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getClient: vi.fn(),
   sql: vi.fn(),
   verifyLicence: vi.fn(),
+  findUserById: vi.fn(),
   upsertAccountFeatureTouch: vi.fn(),
   stampUserActivity: vi.fn(),
 }));
@@ -20,6 +21,7 @@ vi.mock('../lib/licence.js', () => ({
 }));
 
 vi.mock('../db/queries.js', () => ({
+  findUserById: mocks.findUserById,
   upsertAccountFeatureTouch: mocks.upsertAccountFeatureTouch,
   stampUserActivity: mocks.stampUserActivity,
 }));
@@ -55,6 +57,12 @@ describe('POST /account/activity (BACT-005)', () => {
       scopes: ['beta'],
       seats: 1,
     });
+    mocks.findUserById.mockResolvedValue({
+      id: 'user-1',
+      email: 'alice@example.com',
+      status: 'active',
+      plan: 'beta',
+    });
     mocks.upsertAccountFeatureTouch.mockResolvedValue({
       user_id: 'user-1',
       feature_key: 'watch',
@@ -82,6 +90,7 @@ describe('POST /account/activity (BACT-005)', () => {
     expect(res.status).toBe(202);
     const body = await res.json();
     expect(body).toEqual({ accepted: true, features: ['watch', 'check'] });
+    expect(mocks.findUserById).toHaveBeenCalledWith(mocks.sql, 'user-1');
     expect(mocks.upsertAccountFeatureTouch).toHaveBeenCalledTimes(2);
     expect(mocks.upsertAccountFeatureTouch).toHaveBeenCalledWith(mocks.sql, 'user-1', 'watch');
   });
@@ -173,6 +182,66 @@ describe('POST /account/activity (BACT-005)', () => {
     expect(res.status).toBe(202);
     const body = await res.json();
     expect(body).toEqual({ accepted: true, features: ['watch'] });
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('rejects a suspended account with an unexpired licence and does not mutate rows (CIB-399)', async () => {
+    mocks.findUserById.mockResolvedValue({
+      id: 'user-1',
+      email: 'alice@example.com',
+      status: 'suspended',
+      plan: 'beta',
+    });
+
+    const res = await post({ features: ['watch'] }, 'Bearer still-valid');
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'User account is not active' });
+    expect(mocks.findUserById).toHaveBeenCalledWith(mocks.sql, 'user-1');
+    expect(mocks.upsertAccountFeatureTouch).not.toHaveBeenCalled();
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing licence subject and does not mutate rows (CIB-399)', async () => {
+    mocks.findUserById.mockResolvedValue(null);
+
+    const res = await post({ features: ['watch'] }, 'Bearer still-valid');
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'User account is not active' });
+    expect(mocks.upsertAccountFeatureTouch).not.toHaveBeenCalled();
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
+  });
+
+  it('rejects a pending account with an unexpired licence (CIB-399)', async () => {
+    mocks.findUserById.mockResolvedValue({
+      id: 'user-1',
+      email: 'alice@example.com',
+      status: 'pending',
+      plan: 'beta',
+    });
+
+    const res = await post({ features: ['watch'] }, 'Bearer still-valid');
+
+    expect(res.status).toBe(401);
+    expect(mocks.upsertAccountFeatureTouch).not.toHaveBeenCalled();
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when the active-status lookup fails, without mutating rows (CIB-399)', async () => {
+    mocks.findUserById.mockRejectedValue(
+      new Error('Error connecting to database: TypeError: fetch failed')
+    );
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const res = await post({ features: ['watch'] }, 'Bearer still-valid');
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'Service unavailable' });
+    expect(mocks.upsertAccountFeatureTouch).not.toHaveBeenCalled();
     expect(mocks.stampUserActivity).not.toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalled();
 
