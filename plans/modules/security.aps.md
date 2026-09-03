@@ -11,7 +11,7 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | SEC    | —     | In Progress |
 
-**Last reviewed:** 2026-09-05 — SEC-001..004 reconciled to #2656; SEC-013 shared enforcement and SEC-015 docs logout implemented; validation and integration tracked in the implementing PR. SEC-007 release evidence unchanged.
+**Last reviewed:** 2026-09-05 — SEC-001..004 reconciled to #2656; SEC-013 shared enforcement and SEC-015 docs logout implemented; validation and integration tracked in the implementing PR. SEC-007 release evidence unchanged. SEC-016 September Dependabot sweep In Progress (claim #4374; APS id renumbered because main already used SEC-015 for docs logout).
 
 ## Purpose
 
@@ -84,10 +84,11 @@ security concerns.
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
 | SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |
 | SEC-011 | Remediate repository-wide JavaScript dependency advisories | Merged |
-| SEC-012 | Authoritative, fail-closed entitlement claim | Draft |
+| SEC-012 | Authoritative, fail-closed entitlement claim | Released/Shipped via v0.9.7-beta |
 | SEC-013 | Shared licence-auth status enforcement and route audit | Done |
 | SEC-014 | Remediate the current Dependabot pull-request queue | Complete |
 | SEC-015 | Same-origin POST logout for the docs shell (GH #4230) | Done |
+| SEC-016 | Remediate the September 2026 Dependabot pull-request queue | In Progress |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -814,3 +815,74 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 - **type:** security
 - **text:** Docs sign-out now requires a same-origin POST; following a link
   cannot clear your session.
+### SEC-016: Remediate the September 2026 Dependabot pull-request queue
+
+- **Status:** In Progress — approved 2026-09-03; claim
+  [#4374](https://github.com/eddacraft/anvil-001/issues/4374)
+  (issue title still says SEC-015; APS id is SEC-016 because main already
+  assigned SEC-015 to the docs-shell same-origin logout item).
+- **Intent:** Bring every Dependabot pull request open on 2026-09-03 to a
+  reviewable, current-main, independently verified state without bypassing
+  branch protection or merging on the operator's behalf.
+- **Expected Outcome:** supported dependency targets retain their upstream
+  versions; generated dependency metadata and governed documentation are
+  reconciled; breaking Rust API changes preserve observable TUI and parser
+  behaviour; required checks are green on exact heads; every review
+  conversation is answered and resolved. A generated-only bump is closed only
+  after fresh Hakari output proves that the dependency graph rejects it.
+- **Scope:** Dependabot PRs #4326, #4328, #4330, #4332, #4333, #4335, #4336,
+  #4337, and #4340; their dependency manifests, lockfiles, generated
+  workspace-hack and acknowledgement metadata, action workflows, compiler-led
+  API migration call sites, focused regression tests, and narrowly triggered
+  documentation freshness fields.
+- **Approved strategy (2026-09-03):**
+  - repair the animate-core 0.5 migration against its explicit-time and
+    activity API, preserving observable animation behaviour;
+  - finish the existing tree-sitter API repair and the jsonschema and
+    tree-sitter documentation-governance closeout;
+  - regenerate acknowledgements for the taiki-e/install-action, indexmap,
+    tree-sitter-language, and hyper updates after normal current-main merges;
+  - prove whether the tree-sitter-language performance failure is timing noise
+    with repeated focused runs plus the required Rust suite;
+  - close the num-bigint PR only when a fresh Hakari generation removes its
+    generated-only 0.5 edge; and
+  - keep the already-green, lockstep CodeQL action update unchanged unless
+    refreshed exact-head evidence reveals drift.
+- **Non-scope / do not:** do not merge or enable auto-merge; do not rebase or
+  force-push published Dependabot branches; do not use administrator or policy
+  bypasses; do not broaden dependency versions beyond the approved PR targets;
+  do not dismiss security alerts; do not edit shared CIB bookkeeping.
+- **Dependencies:** current `origin/main`; upstream release and migration
+  notes; hosted required checks; repository Council and documentation gates.
+- **Design source:** this approved strategy plus the upstream migration
+  contracts linked from each Dependabot PR. The animate-core migration is
+  high-risk because 0.5 removes the global timing API; it remains an
+  implementation migration, not authority for an architecture or product
+  behaviour change.
+- **Validation:** `pnpm test:ci-workflow-contracts`;
+  `cargo hakari generate --diff`; `cargo hakari verify`;
+  `pnpm licenses:verify`;
+  `node scripts/docs/check-diagram-impact.mjs --since origin/main`;
+  `pnpm docs:check`; `pnpm format:check`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`;
+  `cargo test -p eddacraft-anvil-dashboard-server`;
+  `cargo test -p eddacraft-anvil-sarif`;
+  `cargo test -p eddacraft-anvil-capsule`; focused animation, parser, and L4
+  performance tests; and `pnpm validate:changed` on every changed branch.
+  Closeout additionally requires Council convergence where protected surfaces
+  changed, terminal hosted checks on each exact head, and zero unresolved
+  GraphQL review conversations.
+- **Evidence baseline (2026-09-03):** zero open Dependabot vulnerability
+  alerts; nine open Dependabot pull requests; eight red exact heads; zero
+  unresolved review conversations. Every PR head was 48 commits behind the
+  then-current `main`, so ordinary merge synchronisation is required before
+  repair attribution.
+- **Confidence:** high for the workflow and generated-metadata repairs;
+  standard for the tree-sitter and jsonschema upgrades; guarded for the
+  animate-core API migration until compiler, behaviour, Council, and hosted
+  evidence converge.
+
+**changeType:** internal
+**releaseIntent:** never
+**releaseScope:** none
+
