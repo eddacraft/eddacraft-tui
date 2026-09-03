@@ -12970,3 +12970,87 @@ reply.
 - **Confidence:** high on the observation and on the two excluded causes, all
   read directly from source or from the failing job. **Low on the cause** —
   that is the point of the item, and the reason it is scoped to reproduction.
+
+### CIB-401: better-sqlite3 teardown crash fails `Unit Tests` with every suite green
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — it fails a **required** context with no test reporting a
+  failure, on any PR that widens the affected set. Three CI runs were spent on
+  one PR (#4353) to land a change that never touched SQLite
+- **Intent:** `Unit Tests (Node 22.x, ubuntu-latest)` fails with exit 1 while
+  every suite in the log reports `✓`. Buried mid-log, not at the tail:
+
+  ```text
+  node[33092]: void node::RemoveEnvironmentCleanupHook(v8::Isolate*, CleanupHook, void*)
+    at ../src/api/hooks.cc:142
+  #  Assertion failed: (env) != nullptr
+  ----- Native stack trace -----
+   3: Database::~Database() [.../better-sqlite3@12.11.1/.../better_sqlite3.node]
+  ```
+
+  Vitest reports it only as `Error: [vitest-pool]: Worker forks emitted error`
+  / `Worker exited unexpectedly` — 199/200 files and 4218 tests passed on the
+  observed run.
+
+  **Mechanism.** `packages/edda-stack/src/ember/proposal-store.ts:96` is the
+  only `better-sqlite3` consumer in the workspace. Its suites do close
+  correctly — `proposal-store.test.ts` and `decay-service.test.ts` both call
+  `store.close()` in `afterEach`, and `close()` guards on `this.db.open`
+  (`:108`) — so this is **not** a leaked handle. The native `Database` wrapper's
+  destructor runs at fork teardown, after the Node environment is gone, and
+  `RemoveEnvironmentCleanupHook` asserts on the null env. It is a process-exit
+  race in a native addon, not a test defect, which is why it is timing
+  dependent.
+
+  **Trigger.** A one-line `scripts` edit to the **root** `package.json`
+  invalidates every nx project, so `nx affected -t test` runs the full set
+  instead of the handful the diff touches. That widened run reaches
+  `edda-stack` and exposes the race. #4353 (which rewired `lint:md` through a
+  wrapper) hit it on two consecutive runs and passed on the third.
+
+  **Why `main` never catches it.** On push to `main` the same job is
+  **skipped** (verified on run `33670961573`, `Unit Tests` conclusion
+  `skipped`). A skipped required context is treated as satisfied, so the wide
+  path is effectively never exercised on the integration branch. `main` being
+  green is therefore **not** evidence this passes — a trap already recorded
+  once and repeated during #4353's triage.
+- **Expected Outcome:** a PR that edits root `package.json` does not spend CI
+  runs on a crash unrelated to its diff. Either the teardown race is removed
+  (an explicit `process.on('exit')` / pool-level disposal so the native handle
+  is destroyed while the environment is still alive, or an `edda-stack`
+  `vitest.config.ts` pool setting that avoids the fork-teardown path), **or**
+  the failure is made self-identifying: the job names the assertion and says it
+  is a known native-addon teardown race rather than presenting as an
+  unexplained exit 1 behind a wall of green.
+- **Non-scope / do not:** do not `#[ignore]`/skip the `edda-stack` suites or
+  drop them from the affected set — they are real coverage for the ember
+  proposal store. Do not "fix" it by narrowing what root `package.json` edits
+  invalidate; nx is correct that a root manifest change can affect everything.
+  Do not add a blanket CI retry: that hides the next genuine `Unit Tests`
+  failure, which is the same non-verdict-as-pass defect CIB-390 exists to stop.
+  Do not treat a green `main` as evidence the fix works — see the skip above.
+- **Files:** `packages/edda-stack/src/ember/proposal-store.ts` (the only
+  `better-sqlite3` consumer), `packages/edda-stack/vitest.config.ts` (currently
+  default pool, no `poolOptions`), `packages/edda-stack/src/ember/*.test.ts`
+  (reference — their teardown is already correct)
+- **Validation:** a reproduction that fails on demand — the honest vehicle is a
+  wide affected run (`nx run-many -t test` across the full project set, or a
+  throwaway root `package.json` touch on a scratch branch), repeated enough to
+  show the rate. After the fix, the same wide run is green across several
+  consecutive attempts; one green run proves nothing, since the observed rate
+  was roughly one pass in three.
+- **Identified From:** 2026-09-03, landing #4353 (CIB-390..392). Two failed
+  runs plus a green third; signature confirmed by grepping the **full** job log
+  — `--log-failed | tail` shows only the vitest wrapper error, not the
+  assertion.
+- **Coordinates with:** CIB-391 (environment-dependent tests failing
+  non-deterministically — same family, different trigger: that leg varies umask
+  and privacy vars, and would **not** catch this), CIB-390 (a non-verdict
+  reading as a pass — the flip side: here a real failure hides behind all-green
+  suites), CIB-393 (the other unreproducible CI-only failure), CIB-338
+  (vitest pool-crash triage, where this was first noted in passing)
+- **Confidence:** high on the mechanism and the trigger — the assertion, the
+  single consumer, the correct `afterEach` teardown, and the `skipped` job on
+  `main` were each read directly. Medium on the remedy, which is why the
+  Expected Outcome allows the honest-failure route if the race proves
+  impractical to remove.
