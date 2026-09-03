@@ -6,7 +6,11 @@
   --ec-surface: #141416;
   --ec-text-primary: #ebebeb;
   --ec-text-muted: #85858a;
-  --ec-anvil-accent: #cc5500;
+  /* Ember is theme-specific: no single value clears the WCAG AA 4.5:1 floor
+     on both #fafafa and --ec-void. The dim tone is the hover, and in each
+     theme it moves *away* from the background, so hover is always at least as
+     readable as rest. */
+  --ec-anvil-accent: #b34a00;
   --ec-anvil-accent-dim: #a34400;
 
   --ifm-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
@@ -26,6 +30,8 @@
 }
 
 [data-theme='dark'] {
+  --ec-anvil-accent: #d95a00;
+  --ec-anvil-accent-dim: #e56a00;
   --ifm-color-primary: var(--ec-text-primary);
   --ifm-background-color: var(--ec-void);
   --ifm-background-surface-color: var(--ec-surface);

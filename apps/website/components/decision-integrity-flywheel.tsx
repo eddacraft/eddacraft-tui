@@ -71,7 +71,7 @@ export function DecisionIntegrityFlywheel() {
                 refY="4"
                 orient="auto"
               >
-                <path d="M0 0L8 4L0 8Z" fill="#CC5500" />
+                <path d="M0 0L8 4L0 8Z" fill="#D95A00" />
               </marker>
               <marker
                 id="arrow-future"
@@ -87,14 +87,14 @@ export function DecisionIntegrityFlywheel() {
             <path
               d="M350 78 C520 78 600 150 610 244"
               fill="none"
-              stroke="#CC5500"
+              stroke="#D95A00"
               strokeWidth="2"
               markerEnd="url(#arrow-current)"
             />
             <path
               d="M610 270 C600 390 520 430 366 430"
               fill="none"
-              stroke="#CC5500"
+              stroke="#D95A00"
               strokeWidth="2"
               markerEnd="url(#arrow-current)"
             />
