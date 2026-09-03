@@ -6,11 +6,20 @@ set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 workflow="${repo_root}/.github/workflows/council-gate.yml"
+ci_workflow="${repo_root}/.github/workflows/ci.yml"
+local_validator="${repo_root}/scripts/validate/local.sh"
 
 if [ ! -f "${workflow}" ]; then
   echo "expected ${workflow} to exist" >&2
   exit 1
 fi
+
+for runner in "$ci_workflow" "$local_validator"; do
+  if ! grep -Fq 'pnpm test:ci-council-gate-workflow' "$runner"; then
+    echo "expected ${runner} to run the Council gate fixture" >&2
+    exit 1
+  fi
+done
 
 assert_contains() {
   local expected="$1"
@@ -30,6 +39,7 @@ assert_not_contains() {
 
 # A required PR gate must not expose a no-PR success run.
 assert_contains 'pull_request:'
+assert_contains 'types: [opened, synchronize, reopened, edited, labeled, unlabeled]'
 assert_contains 'BASE_SHA: ${{ github.event.pull_request.base.sha }}'
 assert_contains 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}'
 assert_not_contains 'workflow_dispatch:'
@@ -68,6 +78,23 @@ assert_contains '[[ "$LIVE_HEAD_SHA" == "$HEAD_SHA" ]]'
 assert_contains '[[ "$EVENT_ACTION" == "labeled" ]]'
 assert_contains '[[ "$EVENT_LABEL" == "$GATE_LABEL" ]]'
 assert_contains '[[ "$RUN_ATTEMPT" == "1" ]]'
+assert_contains 'dismiss-stale-review:'
+assert_contains 'pull-requests: write'
+assert_contains "github.event.action == 'edited' && github.event.changes.base != null"
+assert_contains 'council-gate:'
+assert_contains 'pull-requests: read'
+
+dismiss_job=$(sed -n '/^  dismiss-stale-review:/,/^  council-gate:/p' "$workflow")
+if grep -Fq 'actions/checkout' <<<"$dismiss_job"; then
+  echo 'dismiss-stale-review must not checkout or execute PR-controlled files' >&2
+  exit 1
+fi
+
+gate_job=$(sed -n '/^  council-gate:/,$p' "$workflow")
+if grep -Fq 'pull-requests: write' <<<"$gate_job"; then
+  echo 'council-gate must remain read-only' >&2
+  exit 1
+fi
 
 # Exercise the exact fork acceptance predicate as a truth table. This keeps the
 # policy legible while the string assertions above bind the model's inputs and
@@ -100,5 +127,6 @@ assert_rejects reopened council:reviewed head-2 head-2 1
 assert_rejects labeled unrelated head-2 head-2 1
 assert_rejects labeled council:reviewed head-1 head-2 1
 assert_rejects labeled council:reviewed head-2 head-2 2
+assert_rejects edited council:reviewed head-2 head-2 1
 
 printf 'council-gate-workflow.test.sh: ok\n'

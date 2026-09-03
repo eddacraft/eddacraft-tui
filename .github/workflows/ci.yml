@@ -504,6 +504,7 @@ jobs:
           pnpm test:ci-matrix-targeting
           pnpm test:ci-drift-integration
           pnpm test:ci-workflow-contracts
+          pnpm test:ci-council-gate-workflow
           # CIB-338: pins the fail-open contract on rust-tests.yml's
           # paths-filter gate (the required `Test` check).
           pnpm test:ci-rust-tests-fail-open
