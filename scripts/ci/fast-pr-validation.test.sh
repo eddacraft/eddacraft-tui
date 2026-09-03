@@ -140,8 +140,8 @@ assert_contains "${ci_workflow}" 'bash -n scripts/release/*.sh'
 assert_contains "${ci_workflow}" 'pnpm --filter @eddacraft/anvil-checks-native build:debug'
 assert_contains "${ci_workflow}" "needs.detect-changes.result != 'success'"
 assert_contains "${ci_workflow}" "needs.detect-changes.outputs.lint-required != 'true'"
-assert_contains "${ci_workflow}" 'pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"'
-assert_contains "${ci_workflow}" 'pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"'
+assert_contains "${ci_workflow}" 'pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native --exclude=@eddacraft/anvil-source "${RUST_EXCLUDES[@]}"'
+assert_contains "${ci_workflow}" 'pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native --exclude=@eddacraft/anvil-source "${RUST_EXCLUDES[@]}"'
 assert_count_at_least "${rust_test_workflow}" "- 'flags/surfaces.json'" 2
 assert_count_at_least "${rust_test_workflow}" "- 'flags/manifest.json'" 2
 assert_contains "${api_project}" '"{workspaceRoot}/flags/surfaces.json"'

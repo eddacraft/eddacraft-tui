@@ -530,13 +530,12 @@ Not every red X is the diff's fault. Known infrastructure failure classes
   redding the job with every step skipped. A red `Test` therefore means real
   work failed, not that detection died. The contract is pinned by
   `scripts/ci/rust-tests-fail-open.test.sh`.
-- **Vitest pool crash — watch-only.** Signature:
-  `[vitest-pool]: Worker forks emitted error … Worker exited unexpectedly` in
-  the `anvil-source:test` task with all test files passing (first seen in run
-  31782134751). Not yet reproduced; no worker or memory stabiliser is applied —
-  the root `vitest.config.ts` sets no `poolOptions` and no repo convention caps
-  `maxForks`, so any tuning would be a guess. If it recurs, capture the run id
-  and runner memory context before changing pool settings.
+- **Root `anvil-source:test` is excluded from CI unit tests.** The workspace
+  `vitest.config.ts` infers a duplicate suite over `packages/**`, anvil-api, and
+  website. Local `pnpm test:js` already excluded it; `ci.yml` and
+  `ci-nightly.yml` now match. A prior watch-only worker-exit flake lived on that
+  task (run 31782134751). Do not re-add the target without a pool/memory
+  investigation.
 
 ---
 

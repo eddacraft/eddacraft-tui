@@ -169,7 +169,7 @@ jobs:
             --exclude=anvil-bench
             --exclude=anvil-spike
           )
-          pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}" \
+          pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native --exclude=@eddacraft/anvil-source "${RUST_EXCLUDES[@]}" \
             -- --run --coverage --coverage.reporter=json-summary --coverage.reporter=text
 
       - name: TypeScript coverage summary
