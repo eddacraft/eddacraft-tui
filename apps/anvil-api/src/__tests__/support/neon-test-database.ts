@@ -40,7 +40,7 @@ export function requireSafeNeonTestDatabase(environment: TestEnvironment = proce
     throw new Error(`Neon test database role must equal ${EXPECTED_ROLE_NAME}`);
   }
   if (databaseName !== EXPECTED_DATABASE_NAME) {
-    throw new Error(`Neon test database database must equal ${EXPECTED_DATABASE_NAME}`);
+    throw new Error(`Neon test database name must equal ${EXPECTED_DATABASE_NAME}`);
   }
 
   const sslMode = databaseUrl.searchParams.get('sslmode');

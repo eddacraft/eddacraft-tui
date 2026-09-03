@@ -71,7 +71,7 @@ describe('Neon integration-test safety gate', () => {
         ANVIL_API_TEST_DATABASE_URL:
           'postgresql://anvil_test_owner:test-password@ep-anvil-test-123.ap-southeast-2.aws.neon.tech/anvil_test_archive?sslmode=require',
       }),
-      message: 'database must equal anvil_test',
+      message: 'database name must equal anvil_test',
     },
     {
       name: 'unencrypted connection option',
