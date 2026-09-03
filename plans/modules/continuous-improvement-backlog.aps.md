@@ -12995,8 +12995,8 @@ reply.
   **Mechanism.** `packages/edda-stack/src/ember/proposal-store.ts:96` is the
   only `better-sqlite3` consumer in the workspace. Its suites do close
   correctly — `proposal-store.test.ts` and `decay-service.test.ts` both call
-  `store.close()` in `afterEach`, and `close()` guards on `this.db.open`
-  (`:108`) — so this is **not** a leaked handle. The native `Database` wrapper's
+  `store.close()` in `afterEach`, and the guard on `this.db.open` is
+  `:109` — so this is **not** a leaked handle. The native `Database` wrapper's
   destructor runs at fork teardown, after the Node environment is gone, and
   `RemoveEnvironmentCleanupHook` asserts on the null env. It is a process-exit
   race in a native addon, not a test defect, which is why it is timing
