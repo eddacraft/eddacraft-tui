@@ -508,7 +508,9 @@ jobs:
           # paths-filter gate (the required `Test` check).
           pnpm test:ci-rust-tests-fail-open
           pnpm test:ci-mirror-hardening
-          pnpm test:ci-public-reference-regen
+          # Direct bash so a new fixture does not retouch package.json
+          # (lockfile class + docs-owed upstream of architecture-diagrams/testing).
+          bash scripts/ci/public-reference-regen-workflow.test.sh
           pnpm test:ci-infra-preview-strip
           pnpm test:ci-security-summary-gate
           pnpm test:aps-index
