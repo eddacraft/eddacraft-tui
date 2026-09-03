@@ -3,7 +3,7 @@
 //
 // anvil Ember is used as text on both a near-white and a near-black ground, and
 // no single value clears the WCAG AA 4.5:1 floor on both: #cc5500 measured
-// 4.13:1 on #fafafa and 4.50:1 on #0d0d0f, and the dim hover tone (#a34400)
+// 4.13:1 on #fafafa and 4.4998:1 on #0d0d0f — below the floor, not on it — and the dim hover tone (#a34400)
 // measured 3.13:1 in dark mode — worse than the value it was meant to improve.
 // So the accent is theme-specific, and this asserts every pairing rather than
 // trusting that a hex "looks brand-correct".
@@ -66,7 +66,10 @@ for (const [site, file] of [
   );
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Compare resolved paths rather than string-building a file:// URL: the
+// concatenation happens to match for plain paths, but not for one needing URL
+// encoding (a space or non-ASCII character in the checkout path).
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const failures = [];
   for (const [label, fg, bg] of PAIRS) {
     const ratio = contrastRatio(fg, bg);
