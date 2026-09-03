@@ -1,8 +1,8 @@
 # Product feature catalogue
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                    |
-| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------ |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-30 against `flags/surfaces.json`, `flags/manifest.json`, and ADR-137 listed-implies-on |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                                                                                                                                                                                                |
+| ----- | --------- | ------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-09-03 for CLAWOPEN-011's Neon integration harness and CLAWOPEN-007's generator atomic-output change; `apps/anvil-api` gained test files only and no production route, contract, or topology moved, so the diagrams stand. Prior review 2026-08-30 against `flags/surfaces.json`, `flags/manifest.json`, and ADR-137 listed-implies-on |
 
 | Upstream                                                                                    | Downstream                            |
 | ------------------------------------------------------------------------------------------- | ------------------------------------- |
