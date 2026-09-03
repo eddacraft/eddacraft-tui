@@ -6312,3 +6312,271 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Improvement:** when pinning a same-day security release, expect to add minimumReleaseAgeExclude in the same commit as the override
 - **Follow-up:** none
 
+### 2026-09-03 — grok
+
+- **Task:** Promote DeepSec #4343-#4349 to CIB-394..400
+- **Outcome:** Filed CIB-394..400 Proposed on bookkeeping branch; PR opened; issues relabelled tracked:promoted-to-aps.
+- **Worked:** Worktree isolate; aps:index 305/395; harvest 74 pending notes; issue comments.
+- **Failed:** First aps:index ran on main by mistake; restored those files before continuing.
+- **Friction:** deepsec triage --severity is exact-match; pnpm without --dir hits the harness cwd not the worktree.
+- **Improvement:** Always pass the worktree path to pnpm/git when isolate created a sibling checkout.
+- **Follow-up:** none
+
+### 2026-09-03 — codex
+
+- **Task:** Revalidate latest DeepSec findings
+- **Outcome:** DeepSec Codex pass recorded nine uncertain verdicts due sandbox namespace failures; Claude retry stalled with empty stats and was interrupted. Direct current-source validation found eight reportable findings and one currently non-actionable configuration contingency.
+- **Worked:** Used an exact seven-file manifest, refreshed origin/main, reproduced the Draw.io parser bug, inspected live organisation runner configuration and the enforced main ruleset, and traced each source/control/sink.
+- **Failed:** DeepSec run 20260903044801 could not read source; run 20260903045327 stalled in running state with no stats or file updates for about ten minutes.
+- **Friction:** DeepSec backend sandbox and stalled-run handling prevented durable machine verdicts despite local source being readable.
+- **Improvement:** Expose backend read failures immediately and mark interrupted empty-stat revalidation runs aborted rather than leaving phase running.
+- **Follow-up:** owned: #4343-#4349
+
+### 2026-09-03 — codex
+
+- **Task:** Reconcile latest DeepSec findings with proposed CIB intake
+- **Outcome:** Recommended five CIB items: retain CIB-394, CIB-395, CIB-397, CIB-398, and CIB-399; omit CIB-396 as currently non-applicable and CIB-400 as an authorised small fix. No additional item is missing.
+- **Worked:** Compared PR #4359, live issue labels, current CIB source, DeepSec revalidation evidence, organisation runner configuration, and active implementation PR #4354.
+- **Failed:** none
+- **Friction:** PR #4359 promoted all candidates before source-backed revalidation completed, causing one configuration-contingent false current risk and one small-fix exemption to enter CIB.
+- **Improvement:** Gate scanner-to-CIB promotion on completed source-backed revalidation and preserve small-fix authority instead of automatically promoting every filed issue.
+- **Follow-up:** session: revise PR #4359 if authorised
+
+### 2026-09-03 — grok
+
+- **Task:** Address reviews on PR 4359
+- **Outcome:** Docs corpus/lint green; Copilot GTAO/JOURNEY threads resolved; merged origin/main without force-push.
+- **Worked:** Redated admin-cli; GTAO Done 10/10; JOURNEY 9/13 narrative.
+- **Failed:** First rebased onto main then reset and merged to avoid force-push.
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-03 — other
+
+- **Task:** Check whether CIB-390's markdownlint wrapper shipped a fresh-worktree crash that reads as a pass
+- **Outcome:** Confirmed: yes. Fresh worktree without node_modules crashes on import globby (ERR_MODULE_NOT_FOUND, exit 1, no could-not-run line). Piped without pipefail is exit 0. Partial install prints 'N files checked' then throws on markdownlint-cli resolve. Separate invoked-guard is silent exit 0 via symlink. Tests cover neither.
+- **Worked:** Reproduced in a temp tree and against PR #4360's recorded observation; read run-markdownlint.mjs and its tests.
+- **Failed:** none
+- **Friction:** Wrapper claims CIB-278 tooling-exit 2 but uncaught load/resolve errors never reach it.
+- **Improvement:** Fail closed before any pass-shaped line: catch missing globby/markdownlint-cli, exit 2 with [markdownlint] could not run; drop the argv/import.meta equality guard or realpath both sides; add a no-node_modules test.
+- **Follow-up:** promote: CIB
+
+### 2026-09-03 — grok
+
+- **Task:** mark 4356/4357 ready and rebase-merge on green
+- **Outcome:** 4356 rebase-merged to main (e92ec2b99); both fast-uri 3.1.7 and qs 6.16.0 on origin/main
+- **Worked:** excluded duplicate anvil-source vitest from ci.yml to match pnpm test:js; auto-merge waited through runner queue then unit tests
+- **Failed:** first unit-test job failed on inferred root vitest; 4357 rebase-merged into stack base not main (recovered because qs commit rode 4356)
+- **Friction:** CI job sat queued ~20min; CodeQL still fails on main (action version mismatch, not required)
+- **Improvement:** CI unit tests should exclude @eddacraft/anvil-source; stacked PRs targeting unprotected feature branches can merge without main ruleset
+- **Follow-up:** none
+
+### 2026-09-03 — other — 4354 rebase-merge
+
+- **Task:** Rebase-merge #4354 on green after base-sync and Copilot thread
+- **Outcome:** integrated 4d859e344 on origin/main; #4349 closed
+- **Worked:** Rebased onto origin/main, oxfmt testing.md, scanner covers all run: YAML forms, auto-merge rebase
+- **Failed:** none
+- **Friction:** GitHub reported CONFLICTING until rebase; Copilot thread blocked merge after checks were green (exit 3)
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-03 — other
+
+- **Task:** Fail-close CIB-390 markdownlint wrapper on missing deps and symlink invoke
+- **Outcome:** Wrapper now prints [markdownlint] could not run and exits 2 before any files-checked line when globby or markdownlint-cli is missing; dropped the argv/import.meta guard so symlink invoke runs. 10 tests green. Fresh-tree repro exit 2.
+- **Worked:** TDD in worktree fix/markdownlint-wrapper-fail-closed; claim #4362
+- **Failed:** none
+- **Friction:** Piped invocation without pipefail still reports the last command's exit 0; honesty now lives on stderr.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-03 — claude
+
+- **Task:** Nightly 'Hostile ambient (umask 002, privacy opt-out, live daemon)' leg is red on its first dispatched run (33720434342, branch of #4358)
+- **Outcome:** Attributed to the profile, not the PR: usage::tests::{daemon_emitter_emits_are_non_blocking,daemon_selection_wires_an_emitter,default_unset_still_wires_an_emitter}, tests/usage_observation.rs (8 tests), tests/intercept_stop.rs::stop_clears_a_stale_pid_file fail under DO_NOT_TRACK=1 / umask 002 / live daemon; none of those files are touched by #4358 and default_unset_still_wires_an_emitter reproduces locally with DO_NOT_TRACK=1 alone.
+- **Worked:** —
+- **Failed:** none
+- **Friction:** The leg landed on main in f8ccc08b4 (CIB-391) today and has no green run on main or any branch yet; a nightly consumer sees it as a red matrix without knowing it is the intended hostile-ambient discovery.
+- **Improvement:** Either pin the leg's expected-red set (allowlist with linked ids) until the usage/intercept_stop tests are made profile-aware, or mark it continue-on-error with a summary annotation so the Cross matrix verdict stays readable.
+- **Follow-up:** owned: CIB-391
+
+### 2026-09-03 — grok
+
+- **Task:** rebase-merge PR #4359 (DeepSec CIB-394..400 intake) on green
+- **Outcome:** Landed. GitHub auto rebase-merge completed 2026-09-03T06:30:05Z at 5cda7ec80 on origin/main. No --admin. Rewritten SHAs e3a4e8e6b d0d8b7244 7e79a8471 5cda7ec80 are ancestors of origin/main. CIB-394 and CIB-396..400 remain Proposed; CIB-395 Merged via #4354; CIB-401 remains Ready. Remote head branch deleted.
+- **Worked:** Flattened merge-commit history so GitHub could rebase-merge; auto-merge re-armed; required CI green on linearized head 74ef8fae8; content probe on CIB after SHA rewrite.
+- **Failed:** none
+- **Friction:** GitHub cannot rebase-merge a history that contains merge commits (This branch can't be rebased); first auto-merge drop was that, not a failed Test. origin/main moved twice during land (CIB-401) so the earlier merge-into-head path produced unrebaseable merge commits.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-03 — codex
+
+- **Task:** CIB-394
+- **Outcome:** implemented
+- **Worked:** TDD contract fixture exposed and locked PR-only current-head Council evidence for forks.
+- **Failed:** Initial formatting check found the workflow README table needed repository formatting.
+- **Friction:** Anvil developer functions and actionlint were unavailable in this harness.
+- **Improvement:** Model fork approval provenance as a compact truth table, including rerun and concurrent-head rejection.
+- **Follow-up:** none
+
+### 2026-09-03 — other — grok
+
+- **Task:** CIB-396 force fork PRs off LINUX_RUNNER in secret-calibration via /dev-loop-grok
+- **Outcome:** review-ready PR #4363; verify-loop pass-with-advisories; CIB module not edited (shared multi-writer)
+- **Worked:** Worktrunk isolate, rust-tests/codeql fork ternary, dedicated bash fixture invoked from ci.yml, independent verifier
+- **Failed:** none
+- **Friction:** anvil_validate_write gateUnavailable (authentication-required) so write-gate degraded to content-mode; verify-loop took ~10 minutes on a 3-file YAML change
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-03 — other
+
+- **Task:** Land #4364 rebase-merge of markdownlint fail-closed wrapper
+- **Outcome:** Merged https://github.com/eddacraft/anvil-001/pull/4364 via rebase to 38708189b on origin/main. Claim #4362 auto-closes. CIB APS left for bookkeeping.
+- **Worked:** Required contexts green (10); Copilot commented with 0 threads; CodeQL JS red is non-required and already failing on main (action 4.37.9 vs 4.37.8).
+- **Failed:** none
+- **Friction:** gh pr merge --rebase cannot checkout main because another worktree owns it; used GitHub API rebase merge instead.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-03 — grok
+
+- **Task:** Complete CIB-399 via /dev-loop-grok (reject suspended account-activity ingest)
+- **Outcome:** review-ready: PR #4366 opened; independent verify pass-with-advisories; mini council no must_fix
+- **Worked:** Worktree isolate, TDD red-then-green on findUserById active-status gate, component ARCHITECTURE invariant update, verify-loop + mini council
+- **Failed:** none
+- **Friction:** anvil_validate_write gateUnavailable (authentication-required) in worktree; git-ref claim push-on-renew needs force for blob refs
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-03 — codex
+
+- Task: CIB-394
+- Improvement: Verification should include a no-checkout GitHub CLI repository-resolution probe whenever an Actions job deliberately omits checkout. Council found that `gh pr view` needs `GH_REPO` or `--repo` in such a job; this appeared only after the three-repair budget was exhausted, so the run correctly escalated instead of opening a known-broken PR.
+
+### 2026-09-03 — codex
+
+- **Task:** CIB-397
+- **Outcome:** Implementation reached independent verification; repair is paused for Council finding disposition.
+- **Worked:** Pinned-head Rust tests, Windows GNU cross-target Clippy, independent verifier, and standard Council exposed production-input gaps before PR publication.
+- **Failed:** Initial validate:changed was blocked by pre-existing Nx TypeScript sync drift; first ci-log invocation used the full-entry flag incorrectly.
+- **Friction:** Native Windows runtime execution is unavailable locally, and current main advanced after branch creation.
+- **Improvement:** Exercise production caller inputs and use production canonicalisation helpers in security-sensitive Windows path tests before first verification.
+- **Follow-up:** session:01a0663a-413e-7312-98cd-ac694f6b89b0
+
+### 2026-09-03 — other — grok
+
+- **Task:** Rebase-merge CIB-396 PR #4363 when green
+- **Outcome:** integrated: #4363 rebase-merged as aeda4dd on origin/main; issue #4345 closed; claim released
+- **Worked:** Live pre-merge probe CLEAN/MERGEABLE, required checks SUCCESS, Copilot approval-recommended, no unresolved threads; API rebase-merge with SHA lock after gh pr merge failed on local main worktree occupancy
+- **Failed:** none
+- **Friction:** gh pr merge --rebase --auto tried to checkout local main which is already used by the primary worktree
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-396 → Merged via PR #4363; promote: CIB
+
+### 2026-09-03 — codex
+
+- **Task:** CIB-400
+- **Outcome:** Review-ready in PR #4367 at a4b7d07; all required hosted checks green.
+- **Worked:** Focused regression 86/86; docs check 15/15; independent verify-loop pass; Council approve; Copilot approval recommendation; zero review threads.
+- **Failed:** pnpm validate:changed is locally blocked by inherited Nx project-reference drift; optional CodeQL JavaScript autobuild failed twice from a runner action-version mismatch also affecting current main and neighbouring PRs.
+- **Friction:** Anvil pre-write validation was unavailable because MCP authentication was not wired, so its documented allow-with-warning fallback was used.
+- **Improvement:** none
+- **Follow-up:** owned: CIB-400
+
+### 2026-09-03 — codex
+
+- **Task:** CIB-400
+- **Outcome:** Refreshed final head 07ab632; all required hosted checks are green.
+- **Worked:** Final independent verifier and Council refresh passed with zero findings.
+- **Failed:** Optional CodeQL remained failed from the inherited runner configuration version mismatch.
+- **Friction:** Main advanced during the first CI cycle, requiring a normal merge and exact-head rerun.
+- **Improvement:** none
+- **Follow-up:** owned: CIB-400
+
+### 2026-09-03 — codex
+
+#### Partial action-family upgrades can make CodeQL fail before analysis
+
+The hosted CodeQL workflow failed because `github/codeql-action/init` was pinned
+to 4.37.9 while `autobuild` and `analyze` remained on 4.37.8. Keep a single
+CodeQL action-family version across every step, and validate the complete
+workflow after Dependabot updates one member of the family.
+
+- **Improvement:** Dependabot PR #4340 already aligns the remaining CodeQL
+  action steps; no unrelated fix was added to the CIB-394 feature branch.
+
+### 2026-09-03 — codex
+
+- **Task:** CIB-397
+- **Outcome:** PR #4370 is review-ready at exact head 142d0c2b154921588516d5ec2d97b777552c0e85; all Council and hosted review findings are fixed; not merged under interactive policy.
+- **Worked:** Bounded single-file hardening, adversarial Council review, exact-head local and hosted verification, and reply-before-resolve review handling.
+- **Failed:** pnpm validate:changed initially encountered pre-existing Nx TypeScript sync drift on the earlier base; the same drift reproduced on clean primary main and the incorporated main plus hosted Nx and Type Check gates are green.
+- **Friction:** The native Windows runtime test was unavailable locally; Windows GNU cross-compilation, independent source inspection, and hosted Windows MSVC Clippy covered the platform-specific code and regression test.
+- **Improvement:** none
+- **Follow-up:** session:01a0663a-413e-7312-98cd-ac694f6b89b0
+
+### 2026-09-03 — codex
+
+- **Task:** CIB-397
+- **Outcome:** Integrated via rebase merge in PR #4370 at main revision 89a5d4b096ba9ff0d25c559c2512aa2bd98e7b57; issue #4343 closed; advisory claim and remote branch released.
+- **Worked:** Final live refresh caught the external merge, then proved integration ancestry and byte-identical util.rs content against the fully verified PR head.
+- **Failed:** none
+- **Friction:** The merge occurred externally between the review-ready audit and final closeout, requiring a final source-truth refresh and checkpoint correction.
+- **Improvement:** none
+- **Follow-up:** session:01a0663a-413e-7312-98cd-ac694f6b89b0
+
+### 2026-09-03 — codex
+
+- **Task:** Review commit 89a5d4b
+- **Outcome:** Identified one test-boundary coverage gap
+- **Worked:** Pinned commit and inspected resolver composition, APS acceptance criteria, and Windows CI coverage
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-03 — codex
+
+#### Address-reviews base refresh correctly exercised the fail-closed Council gate
+
+Merging a moved `main` into PR #4369 caused the synchronize event to remove the
+stale `council:reviewed` label and fail the protected-surface gate. After fresh
+exact-head independent verification, applying the label produced a passing
+label-event gate for the new head.
+
+- **Improvement:** none; the CIB-394 behaviour matched its intended lifecycle.
+
+### 2026-09-03 — codex
+
+- **Task:** Dependabot red-CI and Copilot assessment
+- **Outcome:** Approval-gated remediation plan prepared; no PR or repository changes made
+- **Worked:** Resolved live repository identity, pinned nine PR heads, checked CI and GraphQL review threads, and classified each failure
+- **Failed:** Initial closeout invocation used --body as a field; corrected to structured options
+- **Friction:** All dependency heads are 48 commits behind current main, so stale generated artefacts obscure dependency-specific failures
+- **Improvement:** Resolve the live repository slug before querying Dependabot APIs, then pin every assessment to the exact PR head
+- **Follow-up:** session: execute only the dependency groups the operator approves
+
+### 2026-09-03 — codex
+
+- **Task:** CIB-400 address-reviews
+- **Outcome:** Synced PR #4367 with current main via normal merges; exact head a75ccb18a has all required checks green and zero unresolved review threads.
+- **Worked:** CI-first triage, GraphQL reviewThreads, current-main ancestry proof, focused tests, diagram-impact validation, and exact-head hosted checks.
+- **Failed:** Optional CodeQL JavaScript analysis retained the inherited runner configuration version mismatch.
+- **Friction:** Two rapid main advances required two current-base merge cycles; the exact-head CI run then queued behind the superseded docs tooling workflow.
+- **Improvement:** none
+- **Follow-up:** owned: CIB-400
+
+### 2026-09-03 — codex
+
+- **Task:** CIB-400 rebase merge
+- **Outcome:** PR #4367 rebase-merged at a14cfa12b926d16faedd88282e27f327c9194ab0
+- **Worked:** Exact-head CI, zero review threads, live base probe, integration tree and ancestry proof
+- **Failed:** Merge command local cleanup attempted to switch to main already checked out elsewhere; hosted merge still succeeded
+- **Friction:** Main advanced during the initial final probe, requiring another sync and exact-head CI cycle
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-400 -> Merged via PR #4367
+

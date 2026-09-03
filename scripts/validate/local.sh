@@ -156,10 +156,11 @@ if [[ "${mode}" == 'full' ]]; then
   add_command 'pnpm lint:check'
   add_command 'pnpm typecheck'
   add_command 'pnpm test'
-  add_command "$(shell_syntax_command scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh scripts/ci/cost-report.sh scripts/ci/cost-report.test.sh scripts/ci/fast-pr-validation.test.sh scripts/validate/local.sh scripts/validate/local.test.sh)"
+  add_command "$(shell_syntax_command scripts/ci/classify-changes.sh scripts/ci/classify-changes.test.sh scripts/ci/cost-report.sh scripts/ci/cost-report.test.sh scripts/ci/fast-pr-validation.test.sh scripts/ci/council-gate-workflow.test.sh scripts/validate/local.sh scripts/validate/local.test.sh)"
   add_command 'pnpm test:ci-classify'
   add_command 'pnpm test:ci-cost'
   add_command 'pnpm test:ci-fast-pr'
+  add_command 'pnpm test:ci-council-gate-workflow'
   add_command 'pnpm test:validate-local'
   add_command 'cargo test --workspace'
   add_command 'opa test --verbose policies/fixtures/'
@@ -178,8 +179,12 @@ else
       format | cargo-fmt)
         add_command 'pnpm format:check'
         ;;
-      lint | workflow-lint)
+      lint)
         add_command 'pnpm lint:check'
+        ;;
+      workflow-lint)
+        add_command 'pnpm lint:check'
+        add_command 'pnpm test:ci-council-gate-workflow'
         ;;
       typecheck | cargo-check)
         add_command 'pnpm typecheck'
@@ -204,6 +209,7 @@ else
         add_command 'pnpm test:ci-classify'
         add_command 'pnpm test:ci-cost'
         add_command 'pnpm test:ci-fast-pr'
+        add_command 'pnpm test:ci-council-gate-workflow'
         add_command 'pnpm test:validate-local'
         ;;
       cargo-test)

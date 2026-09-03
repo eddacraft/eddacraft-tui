@@ -11,50 +11,48 @@ name: Council Gate
 # every PR and can be marked a required check without deadlocking PRs that do
 # not touch protected paths. When nothing protected changed, it passes at once.
 #
-# Stale-review safety: the label is dismissed automatically whenever new commits
-# are pushed (`synchronize`), so a recorded review must always cover the final
-# diff — a maintainer cannot label an early, benign revision and let later
-# commits ride in unreviewed.
+# Stale-review safety: same-repository PR labels are dismissed by an API-only
+# job whenever commits are pushed or the PR base changes. The required gate is
+# read-only and accepts the label only from its first matching `labeled` event
+# while that event's head is still the live PR head.
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
-  workflow_dispatch: {}
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
-  # PR label management (read + dismiss stale label) requires pull-requests: write.
-  pull-requests: write
 
 concurrency:
   group: council-gate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  council-gate:
-    name: Protected surfaces reviewed
+  dismiss-stale-review:
+    name: Dismiss stale Council review
+    if: >-
+      github.event.pull_request.head.repo.fork == false && (github.event.action == 'synchronize' ||
+      (github.event.action == 'edited' && github.event.changes.base != null))
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 10
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
     env:
       GATE_LABEL: council:reviewed
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
-      IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0 # need the base commit to diff the PR range
-
-      - name: Dismiss stale review label on new commits
-        if:
-          github.event.action == 'synchronize' && github.event.pull_request.head.repo.fork == false
+      - name: Dismiss stale review label
         shell: bash
         run: |
           set -euo pipefail
-          # Fail CLOSED: if the label is present and we cannot prove it was
-          # removed, block the PR rather than let a stale review ride in.
-          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
-            echo "New commits pushed — dismissing stale '$GATE_LABEL' label; a fresh review is required."
+          # This job deliberately uses only the GitHub API. It neither checks
+          # out nor executes code controlled by the pull request.
+          CURRENT_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
+          if grep -Fxq "$GATE_LABEL" <<<"$CURRENT_LABELS"; then
+            echo "PR commits or base changed — dismissing stale '$GATE_LABEL' label."
             # A 404 ("Label does not exist") means it is already gone (fine);
             # any other failure is fatal so we never silently keep the label.
             if ! gh api -X DELETE "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/${GATE_LABEL}" >/dev/null 2>err.txt; then
@@ -64,12 +62,33 @@ jobs:
                 exit 1
               fi
             fi
-            # Confirm removal; if it somehow remains, fail closed.
-            if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
+            UPDATED_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
+            if grep -Fxq "$GATE_LABEL" <<<"$UPDATED_LABELS"; then
               echo "::error::'$GATE_LABEL' still present after dismissal — failing closed."
               exit 1
             fi
           fi
+
+  council-gate:
+    name: Protected surfaces reviewed
+    needs: dismiss-stale-review
+    if: always()
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      GATE_LABEL: council:reviewed
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      EVENT_ACTION: ${{ github.event.action }}
+      EVENT_LABEL: ${{ github.event.label.name }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # need the base commit to diff the PR range
 
       - name: Gate protected-path changes on Council review
         env:
@@ -79,18 +98,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # No PR context (e.g. workflow_dispatch) — nothing to gate.
-          if [[ -z "${BASE_SHA:-}" || -z "${HEAD_SHA:-}" ]]; then
-            echo "No pull_request context; nothing to gate."
-            exit 0
-          fi
-
-          # Files introduced by the PR (three-dot = changes since the merge base).
-          mapfile -t changed < <(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
-          if (( ${#changed[@]} == 0 )); then
+          # Files introduced by the PR (three-dot = changes since the merge
+          # base). Command substitution is deliberate: unlike process
+          # substitution, `set -e` propagates a failing git diff here.
+          CHANGED_FILES=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+          if [[ -z "$CHANGED_FILES" ]]; then
             echo "No changed files detected."
             exit 0
           fi
+          mapfile -t changed <<<"$CHANGED_FILES"
 
           # Protected globs = the repo's declared list + the guard's own config
           # and this workflow (so the gate cannot be disabled without a review).
@@ -133,8 +149,27 @@ jobs:
           echo "This PR changes protected auth/confinement surfaces:"
           printf '  - %s\n' "${hits[@]}"
 
+          # Bind approval evidence to the current PR revision. `set -e` makes
+          # an API/query failure fatal; a head pushed concurrently also fails
+          # closed instead of accepting evidence for the stale event payload.
+          LIVE_HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+          if ! [[ "$LIVE_HEAD_SHA" == "$HEAD_SHA" ]]; then
+            echo "::error::PR head changed during Council validation — failing closed."
+            exit 1
+          fi
+
+          # A pre-existing label is insufficient. Only the actual first event
+          # that added the gate label to this exact head may pass.
+          if ! [[ "$EVENT_ACTION" == "labeled" ]] ||
+            ! [[ "$EVENT_LABEL" == "$GATE_LABEL" ]] ||
+            ! [[ "$RUN_ATTEMPT" == "1" ]]; then
+            echo "::error::Council evidence must be freshly labelled for this head."
+            exit 1
+          fi
+
           # Re-read labels live (the event payload is stale after a dismissal).
-          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
+          CURRENT_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
+          if grep -Fxq "$GATE_LABEL" <<<"$CURRENT_LABELS"; then
             echo ""
             echo "✅ '$GATE_LABEL' label present — Council review recorded for this diff."
             exit 0
@@ -146,8 +181,4 @@ jobs:
           echo "   Run a full Council review (\`/council full $PR_NUMBER\`) and have a"
           echo "   maintainer apply the '$GATE_LABEL' label. The label is dismissed"
           echo "   automatically on new commits, so the review must cover the final diff."
-          if [[ "${IS_FORK:-false}" == "true" ]]; then
-            echo "   (Fork PR: the stale-label auto-dismiss step is skipped — a"
-            echo "    maintainer must confirm the label matches the final diff.)"
-          fi
           exit 1

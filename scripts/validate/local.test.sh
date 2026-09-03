@@ -40,6 +40,7 @@ jq -e '.commands | index("pnpm test")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("pnpm test:ci-classify")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("pnpm test:ci-cost")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("pnpm test:ci-fast-pr")' >/dev/null <<<"${plan}"
+jq -e '.commands | index("pnpm test:ci-council-gate-workflow")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("pnpm test:validate-local")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("pnpm -s -F @eddacraft/anvil-docs-meta build")' >/dev/null <<<"${plan}"
 jq -e '.commands[] | select(startswith("node scripts/docs/check-diagram-impact.mjs --paths-file "))' >/dev/null <<<"${plan}"
@@ -58,6 +59,11 @@ printf '%s\n' 'pnpm-lock.yaml' >"${dependency_paths}"
 dependency_plan=$(bash "${validator}" --changed --paths-file "${dependency_paths}" --dry-run --json)
 jq -e '.commands[] | select(contains("trivy is required"))' >/dev/null <<<"${dependency_plan}"
 
+workflow_paths="${tmp_dir}/workflow.paths"
+printf '%s\n' '.github/workflows/council-gate.yml' >"${workflow_paths}"
+workflow_plan=$(bash "${validator}" --changed --paths-file "${workflow_paths}" --dry-run --json)
+jq -e '.commands | index("pnpm test:ci-council-gate-workflow")' >/dev/null <<<"${workflow_plan}"
+
 release_paths="${tmp_dir}/release.paths"
 printf '%s\n' 'scripts/release/tag.sh' >"${release_paths}"
 release_plan=$(bash "${validator}" --changed --paths-file "${release_paths}" --dry-run --json)
@@ -72,6 +78,7 @@ jq -e '.commands | index("pnpm test")' >/dev/null <<<"${full}"
 jq -e '.commands | index("pnpm test:ci-classify")' >/dev/null <<<"${full}"
 jq -e '.commands | index("pnpm test:ci-cost")' >/dev/null <<<"${full}"
 jq -e '.commands | index("pnpm test:ci-fast-pr")' >/dev/null <<<"${full}"
+jq -e '.commands | index("pnpm test:ci-council-gate-workflow")' >/dev/null <<<"${full}"
 jq -e '.commands | index("pnpm test:validate-local")' >/dev/null <<<"${full}"
 jq -e '.commands | index("cargo test --workspace")' >/dev/null <<<"${full}"
 jq -e '.commands | index("opa test --verbose policies/fixtures/")' >/dev/null <<<"${full}"
