@@ -8674,7 +8674,7 @@ SOFTWARE.
 
 Used by:
 
-- `tree-sitter-language` 0.1.7
+- `tree-sitter-language` 0.1.8
 - `tree-sitter` 0.26.13
 
 <details>
@@ -9865,7 +9865,7 @@ the following restrictions:
 | `winapi-util` | 0.1.11 | MIT License | https://github.com/BurntSushi/winapi-util |
 | `console` | 0.16.4 | MIT License | https://github.com/console-rs/console |
 | `tree-sitter-rust` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-rust |
-| `tree-sitter-language` | 0.1.7 | MIT License | https://github.com/tree-sitter/tree-sitter |
+| `tree-sitter-language` | 0.1.8 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `tree-sitter` | 0.26.13 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `bstr` | 1.13.1 | MIT License | https://github.com/BurntSushi/bstr |
 | `fuzzy-matcher` | 0.3.7 | MIT License | https://github.com/lotabout/fuzzy-matcher |
