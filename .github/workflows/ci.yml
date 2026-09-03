@@ -511,6 +511,8 @@ jobs:
           # Direct bash so a new fixture does not retouch package.json
           # (lockfile class + docs-owed upstream of architecture-diagrams/testing).
           bash scripts/ci/public-reference-regen-workflow.test.sh
+          # CIB-396: fork PRs must not run secret-calibration on vars.LINUX_RUNNER.
+          bash scripts/ci/secret-calibration-workflow.test.sh
           pnpm test:ci-infra-preview-strip
           pnpm test:ci-security-summary-gate
           pnpm test:aps-index
