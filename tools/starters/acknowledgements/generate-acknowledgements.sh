@@ -775,15 +775,13 @@ while IFS= read -r block_json; do
     exit 1
   fi
 
-  # Normalise CRLF to LF in driver output. Reproduced licence texts are
-  # copied verbatim from upstream packages, and some ship CRLF licence
-  # files, so a generated block can carry mixed line endings. A repo whose
-  # .gitattributes normalises the target to LF (the usual case for `*.md`)
-  # then sees the checked-out file and the freshly generated block differ
-  # on every run, leaving the `--check` freshness gate permanently red over
-  # a difference nobody can commit away. Line endings are not part of a
-  # licence's meaning, so normalising here keeps the gate honest without
-  # altering a single notice.
+  # Canonicalise driver output before splicing it into the target. Reproduced
+  # licence texts are copied verbatim from upstream packages, and some ship
+  # CRLF licence files or equivalent copies that differ only by repeated empty
+  # lines. Either difference can make the freshness gate oscillate between
+  # runs. Line endings and repeated empty lines are not part of a licence's
+  # meaning, so normalising them keeps the gate honest without altering a
+  # single notice.
   #
   # Strip only a trailing CR, never every CR byte: a licence text is
   # reproduced verbatim, so a bare CR inside a line is content and deleting
@@ -792,7 +790,15 @@ while IFS= read -r block_json; do
   # CR byte; BSD sed does not interpret a `\r` escape in the pattern.
   normalised="$(mktemp "$working_dir/.generate-acknowledgements.eol.XXXXXX")"
   splice_temps="$splice_temps $normalised"
-  sed $'s/\r$//' < "$driver_output" > "$normalised"
+  sed $'s/\r$//' < "$driver_output" |
+    awk '
+      $0 == "" {
+        if (!previous_empty) print
+        previous_empty = 1
+        next
+      }
+      { previous_empty = 0; print }
+    ' > "$normalised"
   mv "$normalised" "$driver_output"
 
   # Splice driver_output between the two marker LINES located by the same
