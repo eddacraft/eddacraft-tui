@@ -293,8 +293,8 @@ mod tests {
     /// retune, where a hardcoded threshold would not.
     ///
     /// When this guard landed, `highlighted()` (The Void on anvil Ember) sat
-    /// at 4.50:1, exactly on the AA floor. The later Ember/Brick retune lifted
-    /// that pairing; this widget still does not own the brand palette. The
+    /// at 4.4998:1 — fractionally *below* the AA floor, not on it. The later
+    /// Ember/Brick retune lifted that pairing; this widget still does not own the brand palette. The
     /// hard floor below is well above the broken muted-on-accent state so a
     /// regression cannot pass unnoticed.
     #[test]
