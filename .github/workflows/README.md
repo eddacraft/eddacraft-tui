@@ -501,7 +501,36 @@ pnpm test:ci-security-targeting
 # Lock the classifier and cost-report outputs.
 pnpm test:ci-classify
 pnpm test:ci-cost
+
+# Lock the required-status reader and the hostile-ambient leg.
+pnpm test:pr-required-status
+pnpm test:ci-hostile-ambient
 ```
+
+## Reading PR readiness (CIB-390)
+
+`gh pr checks` lists the checks that **exist**, so a required context that has
+not reported yet looks like nothing at all, and a mid-flight sample reads as a
+pass. Ask the deterministic reader instead:
+
+```bash
+node scripts/ci/pr-required-status.mjs --pr <n>
+```
+
+It resolves the required contexts from the branch ruleset — not from whatever
+happens to have reported — and exits:
+
+| Code | Meaning                                                                           |
+| ---- | --------------------------------------------------------------------------------- |
+| `0`  | Every required context reported and passed (and threads resolved where required). |
+| `1`  | A required check failed.                                                          |
+| `2`  | Not finished — names the required contexts that have not reported.                |
+| `3`  | Checks are green, but unresolved review threads still block the merge.            |
+
+Exit `3` exists because status checks are not the only merge gate: a ruleset may
+also set `required_review_thread_resolution`, and that state is invisible to
+REST — it needs the GraphQL `reviewThreads` field. A green checks-only reading
+of such a branch will call a still-blocked PR a pass.
 
 ## References
 
