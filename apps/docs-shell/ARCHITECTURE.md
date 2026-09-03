@@ -1,8 +1,8 @@
 # anvil documentation shell architecture
 
 | Type         | Authority | Owner           | Status | Freshness                                                                                                                              |
-| ------------ | --------- | --------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-09-05 for SEC-015 same-origin POST logout and SEC-013 API helper; local sign-out changes no renderer or OAuth edge. |
+| ------------ | --------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-09-05 for SEC-015 same-origin POST logout and SEC-013 API helper; local sign-out changes no renderer or OAuth edge. Prior review 2026-09-03 for CLAWOPEN-011's Neon integration harness and CLAWOPEN-007's generator atomic-output change; `apps/anvil-api` gained test files only and no production route, contract, or topology moved, so the diagrams stand. |
 
 | Upstream                                                                                                                                          | Downstream                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
