@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 307/397  |
+| CIB | —     | In Progress | 308/397  |
 
 ## Purpose
 
@@ -13070,7 +13070,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-398: Stop nested GCTX workspace roots from rebasing away sensitive-path prefixes
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-03 via PR
+  [#4371](https://github.com/eddacraft/anvil-001/pull/4371) (`3c50c5d1c`)
 - **Priority:** P1 — unauthenticated `anvil_symbol_context` admits any directory
   inside the MCP server root (ADR-125), which can strip CE-3 denied prefixes
 - **Intent:** GCTX symbol-context queries must not treat a nested subdirectory
@@ -13087,9 +13088,21 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   prefix; existing ADR-125 linked-worktree admission still works.
 - **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
   [#4348](https://github.com/eddacraft/anvil-001/issues/4348).
-- **Coordinates with:** ADR-125 (nested-root admission is currently intentional
-  for MCP tools), CIB-148 (path normalisation in `anvil_query_boundary`),
-  GCTX-023 / ADR-084.
+  Implementation landed on `main` via
+  [#4371](https://github.com/eddacraft/anvil-001/pull/4371). Delivered wider
+  than filed: the same rebase existed in all six daemon-keyed graph tools
+  (`search_symbols`, `find_callers`, `find_dependents`, `impact_of_change`,
+  `affected_tests`, `symbol_context`), so the fix is one shared validator
+  (`shared::validate_gctx_workspace_root`) requiring the root to be exactly the
+  server cwd or a registered worktree root; check / gate / status / write tools
+  keep ADR-125 nested admission (ADR-125 carries the amendment note).
+  Independent verification left one advisory outside this item: the daemon
+  itself still admits a nested root from a non-MCP socket client in `open`
+  mode (`save_time.rs` `symbol_context` → `authorise_root`); the MCP surface is
+  the unauthenticated one and is closed.
+- **Coordinates with:** ADR-125 (nested-root admission stays for the non-graph
+  tools; amended 2026-09-03 for the graph tools), CIB-148 (path normalisation
+  in `anvil_query_boundary`), GCTX-023 / ADR-084.
 - **Confidence:** high — `validate_workspace_root` admits `starts_with(server_root)`
   and the tool is `requires_auth: false`.
 
