@@ -1157,7 +1157,6 @@ fn delayed_git_wrapper(directory: &Path, delayed_stage: &str) {
     std::fs::set_permissions(path, permissions).expect("make Git wrapper executable");
 }
 
-#[cfg(unix)]
 /// Scripted delay for each of the two Git calls the shared-budget test slows.
 #[cfg(unix)]
 const SHARED_RUN_DELAY: Duration = Duration::from_millis(1500);
@@ -1166,6 +1165,7 @@ const SHARED_RUN_DELAY: Duration = Duration::from_millis(1500);
 #[cfg(unix)]
 const SHARED_RUN_BUDGET: Duration = Duration::from_millis(2500);
 
+#[cfg(unix)]
 fn shared_run_timeout_git_wrapper(directory: &Path) {
     use std::os::unix::fs::PermissionsExt;
 
