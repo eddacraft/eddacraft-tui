@@ -13345,3 +13345,30 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   which silently dropped the two YAML globs because they do not begin with
   `*`. Review caught it. A pattern that excludes what the author did not
   anticipate is the same defect the entry describes, one level up.
+
+### CIB-409: Pin the workspace Rust toolchain to 1.98.1
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P3 — toolchain hygiene; 1.97.1 remains correct, and 1.98.0
+  must not be pinned
+- **Intent:** the workspace `rust-toolchain.toml` pin tracks current stable at
+  the first safe 1.98 point release.
+- **Expected Outcome:** `rust-toolchain.toml` channel is `1.98.1`. Clippy and
+  rustfmt on that toolchain are clean under the workspace `clippy::all = deny`
+  policy. `cargo test -p eddacraft-anvil --no-fail-fast` is green.
+  `eddacraft-tui`'s declared `rust-version = "1.88"` is unchanged (D-TUIR-015).
+- **Non-scope / do not:** do not pin `1.98.0` (vtable miscompilation,
+  rust-lang/rust#161441). Do not raise `eddacraft-tui` MSRV. Do not switch the
+  pin to `stable` (reverted in May 2026; ADR-057 wants an exact pin).
+- **Files:** `rust-toolchain.toml`; clippy/rustfmt fallout wherever 1.98 lints
+  fire
+- **Validation:** `rustc --version` reports `1.98.1` via the workspace pin;
+  `cargo clippy --workspace --all-targets -- -D warnings`; `cargo fmt --check`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`.
+- **Identified From:** 2026-09-03 toolchain review. Pin is 1.97.1 (31 Jul);
+  1.98.0 shipped 20 Aug with a critical vtable UB; 1.98.1 shipped 3 Sep as the
+  fix. Numbered 409 because 404–408 are claimed on open intake
+  [#4379](https://github.com/eddacraft/anvil-001/pull/4379) (and 404 also on
+  [#4378](https://github.com/eddacraft/anvil-001/pull/4378)).
+- **Confidence:** high on the target version and the 1.98.0 exclusion; medium
+  on clippy churn volume (same class as the 1.95.0 → 1.97.1 bump).
