@@ -13345,3 +13345,79 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   which silently dropped the two YAML globs because they do not begin with
   `*`. Review caught it. A pattern that excludes what the author did not
   anticipate is the same defect the entry describes, one level up.
+
+### CIB-404: `pr-required-status` reports a conflicting PR as "not finished", so a poller waits for checks that can never run
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — the wrong answer is *actionable in the opposite direction*:
+  "not finished" says wait, the truth says repair. An automated caller waits
+  until its own timeout on a PR that will never progress
+- **Intent:** `scripts/ci/pr-required-status.mjs` classifies each required
+  context as reported / pending / failed, and reports "not finished" when a
+  context has no check run. It never asks whether the pull request has a
+  **merge candidate at all**. `grep -c 'DIRTY\|CONFLICTING\|mergeable'` over the
+  script on `main` returns **0**.
+
+  When a PR conflicts with its base, GitHub cannot build the merge commit, so
+  **no workflow runs and no required context ever reports**. The tool then
+  emits its pending message naming every required context, which is
+  indistinguishable from a PR whose CI simply has not started.
+
+  Observed 2026-09-03 on PR #4372. The tool said:
+
+  ```text
+  [pr-required-status] not finished: APS Drift Check, Detect Changes, Docs Lint,
+  Lint & Format, Nx Graph, Protected surfaces reviewed, Security Summary, Test,
+  Type Check, Unit Tests (Node 22.x, ubuntu-latest) have not reported
+  ```
+
+  while `gh pr view` reported `mergeable: CONFLICTING`,
+  `mergeStateStatus: DIRTY`, and `gh run list --branch` showed workflow runs
+  only for the *previous* head. The branch had gone stale against a
+  multi-writer hot file (`continuous-improvement-backlog.aps.md`) while a
+  sibling PR landed. Nothing was pending; nothing could ever start.
+
+  The cost is not the misdiagnosis alone. Exit 2 is the code a caller polls on,
+  so a loop written to "wait until it stops saying not-finished" — which is
+  exactly what the session had running — waits for its full budget (70 × 45 s
+  ≈ 52 minutes) on a PR that needed a thirty-second rebase.
+
+  This is the same defect family as CIB-390, one level in: that item stopped a
+  non-verdict being read as a **pass**; this is a non-verdict being reported as
+  the **wrong kind of non-verdict**.
+- **Expected Outcome:** a conflicting or otherwise unbuildable PR is reported as
+  such, with its own exit code, and never as "not finished". The natural shape
+  is a fourth code beside the existing three (`0` pass, `1` failed, `2` not
+  finished, `3` unresolved threads), so a caller can branch on "repair the
+  base" without string-matching the message. The check needs
+  `mergeable` / `mergeStateStatus` from `gh pr view`, which the script already
+  calls — it simply does not request or read those fields.
+- **Non-scope / do not:** do not fold conflicts into exit 2 "for simplicity" —
+  the whole point is that the two demand opposite actions, and merging them
+  reintroduces the defect under a tidier name. Do not have the tool rebase,
+  merge, or otherwise repair the base: it is a reporter, and a status reader
+  that silently mutates a branch is a much worse surprise than a wrong exit
+  code. Do not treat `mergeable: UNKNOWN` as conflicting — GitHub computes it
+  asynchronously and `UNKNOWN` is itself a not-yet-a-verdict state that must be
+  distinguished from both.
+- **Files:** `scripts/ci/pr-required-status.mjs` (the `gh pr view --json` field
+  list and the classification at the end of `main`),
+  `scripts/ci/pr-required-status.test.mjs` (injection already supports
+  `--required-json` / `--checks-json` / `--threads-json`; a conflict fixture
+  wants the same treatment)
+- **Validation:** against a deliberately conflicting PR the tool exits with the
+  new code and names the conflict; against a healthy PR whose checks have
+  genuinely not started it still exits 2 and names the missing contexts. Both
+  arms proven, or the new code is untested in the case that matters.
+  `mergeable: UNKNOWN` covered as its own case.
+- **Identified From:** 2026-09-03, landing CIB-403 (#4372). The conflict was
+  found by reading `mergeStateStatus` directly after the tool's message did not
+  match the elapsed time; nothing in the tool's output pointed at it.
+- **Coordinates with:** CIB-390 (the parent defect — a result that is not a
+  verdict being read as one; this tool is that item's own implementation),
+  CIB-393 / CIB-401 (other cases where a CI signal did not mean what it
+  appeared to mean), and the APS bookkeeping hot-file convention that makes
+  this conflict routine on CIB intake branches
+- **Confidence:** high — the missing field read is a grep, and the misreport was
+  observed end to end on #4372 with `mergeStateStatus`, the run list, and the
+  tool's own output all captured.
