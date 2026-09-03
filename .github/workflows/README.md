@@ -68,7 +68,7 @@ fixture enforces both directions.
 | `council-gate.yml`                     | Auxiliary (review gate)              | `pull_request` (all; passes unless a change touches a protected save-time auth/confinement path) plus `workflow_dispatch` — CIB-149 gate: requires the `council:reviewed` label for changes to paths listed in `.claude/hooks/council-protected-paths`; self-guards the list + this workflow, dismisses the label on new commits                           | CICD         |
 | `bench-nightly.yml`                    | Assurance                            | `workflow_dispatch` only (manual; nightly `schedule` removed while no `bench` runner is online)                                                                                                                                                                                                                                                            | CICD         |
 | `r2-sccache-pilot.yml`                 | Auxiliary (cache experiment)         | `workflow_dispatch` from `main` only — DEVENV-008 R2-backed `sccache` compile experiment; protected by the `r2-sccache` environment and never exposed to pull-request code                                                                                                                                                                                 | DEVENV       |
-| `ci-nightly.yml`                       | Assurance                            | `schedule` (17:00 UTC Sun–Thu = 01:00 Perth Mon–Fri) plus `workflow_dispatch` — coverage (TS + Rust), cross-OS Node suites, cross-compile assurance (native `cargo test` on Linux/macOS/Windows); resource budgets run as a sibling nightly via `resource-budget.yml` @ 17:15                                                                              | CICD         |
+| `ci-nightly.yml`                       | Assurance                            | `schedule` (17:00 UTC Sun–Thu = 01:00 Perth Mon–Fri) plus `workflow_dispatch` — coverage (TS + Rust), cross-OS Node suites, cross-compile assurance (native `cargo test` on Linux/macOS/Windows), hostile-ambient CLI suite (CIB-391: umask 002, `DO_NOT_TRACK`, live daemon); resource budgets run as a sibling nightly via `resource-budget.yml` @ 17:15 | CICD         |
 | `ci-cost-report.yml`                   | Assurance                            | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                                                                                                                                                                                            | CICD         |
 | `release-readiness.yml`                | Release candidate                    | `workflow_dispatch` only — exact `sourceSha` validation, `dist plan` packaging contract, resource-budget gate on that SHA, candidate metadata artefact; no publish credentials                                                                                                                                                                             | RELORCH      |
 | `release.yml`                          | Publish                              | `push: tags: …` only — cargo-dist build, publish, post-publish verification (PR dry-run removed; use release-readiness)                                                                                                                                                                                                                                    | RELORCH      |
@@ -501,7 +501,36 @@ pnpm test:ci-security-targeting
 # Lock the classifier and cost-report outputs.
 pnpm test:ci-classify
 pnpm test:ci-cost
+
+# Lock the required-status reader and the hostile-ambient leg.
+pnpm test:pr-required-status
+pnpm test:ci-hostile-ambient
 ```
+
+## Reading PR readiness (CIB-390)
+
+`gh pr checks` lists the checks that **exist**, so a required context that has
+not reported yet looks like nothing at all, and a mid-flight sample reads as a
+pass. Ask the deterministic reader instead:
+
+```bash
+node scripts/ci/pr-required-status.mjs --pr <n>
+```
+
+It resolves the required contexts from the branch ruleset — not from whatever
+happens to have reported — and exits:
+
+| Code | Meaning                                                                           |
+| ---- | --------------------------------------------------------------------------------- |
+| `0`  | Every required context reported and passed (and threads resolved where required). |
+| `1`  | A required check failed.                                                          |
+| `2`  | Not finished — names the required contexts that have not reported.                |
+| `3`  | Checks are green, but unresolved review threads still block the merge.            |
+
+Exit `3` exists because status checks are not the only merge gate: a ruleset may
+also set `required_review_thread_resolution`, and that state is invisible to
+REST — it needs the GraphQL `reviewThreads` field. A green checks-only reading
+of such a branch will call a still-blocked PR a pass.
 
 ## References
 

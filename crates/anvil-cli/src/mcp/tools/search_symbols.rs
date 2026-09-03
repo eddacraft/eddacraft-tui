@@ -22,7 +22,7 @@ use anvil_intercept_proto::protocol::{
 
 use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
 use crate::mcp::tools::shared::{
-    redact_workspace_root, should_rewarm_not_ready, validate_workspace_root,
+    redact_workspace_root, should_rewarm_not_ready, validate_gctx_workspace_root,
 };
 
 pub const TOOL_NAME: &str = "anvil_search_symbols";
@@ -36,7 +36,7 @@ pub fn descriptor() -> Value {
             "properties": {
                 "workspaceRoot": {
                     "type": "string",
-                    "description": "Absolute path to the project root directory"
+                    "description": "Absolute path to the workspace root: the MCP server root itself or a registered git worktree root of the same repository. A nested directory is refused."
                 },
                 "name": {
                     "type": "string",
@@ -98,7 +98,7 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
         .and_then(Value::as_str)
         .ok_or_else(|| "workspaceRoot is required".to_string())?;
     let (server_root, workspace_path) =
-        validate_workspace_root(Path::new(workspace_root), &server_root)?;
+        validate_gctx_workspace_root(Path::new(workspace_root), &server_root)?;
     let redacted_workspace_root = redact_workspace_root(&workspace_path, &server_root);
 
     let query = parse_query(arguments)?;
@@ -251,10 +251,9 @@ mod tests {
 
     #[test]
     fn rejects_unknown_kind_filter() {
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+        let workspace = std::env::current_dir().expect("cwd");
         let result = call(&json!({
-            "workspaceRoot": workspace.path(),
+            "workspaceRoot": workspace,
             "kind": "NotARealKind"
         }));
         assert_eq!(result["isError"], true);

@@ -1,8 +1,8 @@
 # anvil-cli
 
-| Type   | Authority     | Owner          | Status | Freshness                                                                                                                                      |
-| ------ | ------------- | -------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Authoritative | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-31 against CONF-011 `src/commands/conformance.rs`, its bounded-input and timeout-provenance tests, and `ARCHITECTURE.md` |
+| Type   | Authority     | Owner          | Status | Freshness                                                                                                                                                                                                                                            |
+| ------ | ------------- | -------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-03 against CIB-392 `src/mcp/tools/validate_write.rs` added-line secret interrupt scope; prior 2026-08-31 against CONF-011 `src/commands/conformance.rs`, its bounded-input and timeout-provenance tests, and `ARCHITECTURE.md` |
 
 | Upstream                                                                 | Downstream                                                         |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
@@ -104,12 +104,15 @@ risk-tiered validation (CIB-006): a documented safelist of trivial change shapes
 — initially a single string-value rename inside a JSON file at a stable path —
 is matched against the patch-materialised pre-/post-images (each parsed as JSON)
 before the full pipeline runs. A hit skips the daemon round-trip, never
-coverage: the whole-file secret scan still runs over the complete post-image,
-while the remaining rules run scoped to the touched node (non-overlapping rules
-are skipped with a recorded reason). Out-of-safelist edits run the full pipeline
-unchanged, and every response surfaces the tier taken in its `tier` object. The
-safelist criteria, out-of-safelist behaviour, and growth policy are documented
-on the `RISK_TIER_SAFELIST` definition in that file.
+coverage: the whole-file secret scan still runs over the complete post-image so
+added-line secrets keep real line numbers. CIB-392 then drops error-severity
+secret findings on unchanged lines when a pre-image is known, so a fixture the
+edit did not introduce cannot interrupt. Remaining rules run scoped to the
+touched node (non-overlapping rules are skipped with a recorded reason).
+Out-of-safelist edits run the full pipeline unchanged, and every response
+surfaces the tier taken in its `tier` object. The safelist criteria,
+out-of-safelist behaviour, and growth policy are documented on the
+`RISK_TIER_SAFELIST` definition in that file.
 
 ## Cross-Platform Notes
 

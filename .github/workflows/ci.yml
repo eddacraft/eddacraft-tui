@@ -508,6 +508,11 @@ jobs:
           # paths-filter gate (the required `Test` check).
           pnpm test:ci-rust-tests-fail-open
           pnpm test:ci-mirror-hardening
+          # Direct bash so a new fixture does not retouch package.json
+          # (lockfile class + docs-owed upstream of architecture-diagrams/testing).
+          bash scripts/ci/public-reference-regen-workflow.test.sh
+          # CIB-396: fork PRs must not run secret-calibration on vars.LINUX_RUNNER.
+          bash scripts/ci/secret-calibration-workflow.test.sh
           pnpm test:ci-infra-preview-strip
           pnpm test:ci-security-summary-gate
           pnpm test:aps-index
@@ -1068,10 +1073,14 @@ jobs:
           # test workflow can't run it because the .node binary isn't built
           # here — exclude both the cargo-side project (RUST_EXCLUDES above)
           # and the npm-side workspace package.
+          # Root @eddacraft/anvil-source infers a vitest target from the
+          # workspace vitest.config.ts, which re-runs packages/** plus
+          # anvil-api and website. Local `pnpm test:js` already excludes it;
+          # lockfile-affected PRs otherwise double-run the suite.
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"
+            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native --exclude=@eddacraft/anvil-source "${RUST_EXCLUDES[@]}"
           else
-            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native "${RUST_EXCLUDES[@]}"
+            pnpm exec nx run-many -t test --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native --exclude=@eddacraft/anvil-source "${RUST_EXCLUDES[@]}"
           fi
 
   # NOTE: Cross-platform (macOS/Windows) and Node 22+ tests moved to

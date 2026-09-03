@@ -86,7 +86,7 @@ async function audit(name, contextOptions, screenshotPath) {
     return snapshot;
   });
   assert.deepEqual(brandSnapshot.tokens, {
-    anvil: '#cc5500',
+    anvil: '#d95a00',
     brickRed: '#c94a4a',
     dullAmber: '#d08c38',
     edda: '#2e8b57',

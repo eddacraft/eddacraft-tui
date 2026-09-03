@@ -680,6 +680,7 @@ mod socket {
             }
         }
 
+        #[cfg(test)]
         fn live_socket_path(&self) -> Result<PathBuf, SaveTimeClientError> {
             ipc::select_live_socket_path(&self.socket_candidates)
                 .map_err(|_| SaveTimeClientError::Unavailable)
@@ -693,12 +694,9 @@ mod socket {
         /// Open a validated, peer-checked, timeout-bounded connection. Any
         /// failure maps to `Unavailable` (absent / dead daemon → fallback).
         fn connect(&self) -> Result<UnixStream, SaveTimeClientError> {
-            let socket_path = self.live_socket_path()?;
-            ipc::validate_socket_path_for_client(&socket_path)
-                .map_err(|_| SaveTimeClientError::Unavailable)?;
-            let stream =
-                UnixStream::connect(&socket_path).map_err(|_| SaveTimeClientError::Unavailable)?;
-            ipc::validate_connected_peer_for_client(&stream)
+            // The liveness proof is the connection we send on: one accept
+            // per save, not a dropped probe followed by a second connect.
+            let (_socket_path, stream) = ipc::connect_live_socket(&self.socket_candidates)
                 .map_err(|_| SaveTimeClientError::Unavailable)?;
             stream
                 .set_read_timeout(Some(REQUEST_TIMEOUT))

@@ -21,7 +21,7 @@ use anvil_intercept_proto::protocol::{
 };
 
 use crate::mcp::tools::shared::{
-    redact_workspace_root, should_rewarm_not_ready, validate_workspace_root,
+    redact_workspace_root, should_rewarm_not_ready, validate_gctx_workspace_root,
 };
 
 pub const TOOL_NAME: &str = "anvil_symbol_context";
@@ -35,7 +35,7 @@ pub fn descriptor() -> Value {
             "properties": {
                 "workspaceRoot": {
                     "type": "string",
-                    "description": "Absolute path to the project root directory"
+                    "description": "Absolute path to the workspace root: the MCP server root itself or a registered git worktree root of the same repository. A nested directory is refused."
                 },
                 "target": {
                     "type": "object",
@@ -92,7 +92,7 @@ fn symbol_context_payload(arguments: &Value) -> Result<Value, String> {
         .and_then(Value::as_str)
         .ok_or_else(|| "workspaceRoot is required".to_string())?;
     let (server_root, workspace_path) =
-        validate_workspace_root(Path::new(workspace_root), &server_root)?;
+        validate_gctx_workspace_root(Path::new(workspace_root), &server_root)?;
     let redacted_workspace_root = redact_workspace_root(&workspace_path, &server_root);
 
     let query = parse_query(arguments)?;
@@ -257,9 +257,24 @@ fn tool_result(payload: &Value) -> Value {
 }
 
 #[cfg_attr(not(unix), allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DaemonRpcError {
     Unavailable,
     Failure,
+}
+
+/// Map a rendezvous failure to the tool outcome. Only an absent endpoint
+/// (missing or refused socket, no candidate directory) degrades to
+/// `Unavailable`; every other failure, including a peer-credential read error,
+/// an unreadable socket path, or a wrong-user listener, is a `Failure` so the
+/// tool never renders a trust refusal as "no daemon".
+#[cfg(unix)]
+fn classify_rendezvous_error(err: &anvil_intercept::ipc::IpcError) -> DaemonRpcError {
+    if anvil_intercept::ipc::live_socket_absent(err) {
+        DaemonRpcError::Unavailable
+    } else {
+        DaemonRpcError::Failure
+    }
 }
 
 #[cfg(unix)]
@@ -276,31 +291,17 @@ fn daemon_symbol_context(
     const RESPONSE_LINE_CAP: u64 = 4 << 20;
     const REQUEST_ID: &str = "mcp-gctx-symbol-context";
 
-    let socket_path = match ipc::resolve_live_socket_path() {
-        Ok(path) => path,
-        Err(err) if ipc::live_socket_absent(&err) => return Err(DaemonRpcError::Unavailable),
+    // One accept per request: the liveness proof is the connection we send on.
+    let (_socket_path, mut stream): (_, UnixStream) = match ipc::resolve_live_socket_connection() {
+        Ok(connection) => connection,
         Err(err) => {
-            eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
-            return Err(DaemonRpcError::Failure);
+            let classified = classify_rendezvous_error(&err);
+            if classified == DaemonRpcError::Failure {
+                eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
+            }
+            return Err(classified);
         }
     };
-    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
-        eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
-        return match err {
-            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(DaemonRpcError::Unavailable)
-            }
-            _ => Err(DaemonRpcError::Failure),
-        };
-    }
-    let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        eprintln!("anvil-mcp: gctx symbol_context connect failed: {err}");
-        DaemonRpcError::Unavailable
-    })?;
-    ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        eprintln!("anvil-mcp: gctx symbol_context peer rejected: {err}");
-        DaemonRpcError::Failure
-    })?;
     stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
         eprintln!("anvil-mcp: gctx symbol_context read-timeout setup failed: {err}");
         DaemonRpcError::Failure
@@ -393,6 +394,49 @@ mod tests {
             .expect("payload is JSON")
     }
 
+    /// Only an absent endpoint degrades to `Unavailable`; a trust or I/O
+    /// failure on the rendezvous must surface as `Failure` (never "no daemon").
+    #[cfg(unix)]
+    #[test]
+    fn rendezvous_errors_keep_the_unavailable_versus_failure_split() {
+        use anvil_intercept::ipc::IpcError;
+        use std::io;
+
+        for kind in [io::ErrorKind::NotFound, io::ErrorKind::ConnectionRefused] {
+            assert_eq!(
+                classify_rendezvous_error(&IpcError::Io(io::Error::new(kind, "absent"))),
+                DaemonRpcError::Unavailable,
+                "{kind:?} is an absent endpoint"
+            );
+        }
+        assert_eq!(
+            classify_rendezvous_error(&IpcError::NoSocketDirCandidate),
+            DaemonRpcError::Unavailable
+        );
+        for kind in [
+            io::ErrorKind::PermissionDenied,
+            io::ErrorKind::Other,
+            io::ErrorKind::InvalidInput,
+        ] {
+            assert_eq!(
+                classify_rendezvous_error(&IpcError::Io(io::Error::new(kind, "not absent"))),
+                DaemonRpcError::Failure,
+                "{kind:?} must fail closed"
+            );
+        }
+        assert_eq!(
+            classify_rendezvous_error(&IpcError::SocketPeerPermissions {
+                peer_uid: 1,
+                current_uid: 2,
+            }),
+            DaemonRpcError::Failure
+        );
+        assert_eq!(
+            classify_rendezvous_error(&IpcError::SocketPathIsSymlink("x".into())),
+            DaemonRpcError::Failure
+        );
+    }
+
     #[test]
     fn descriptor_advertises_tool_name() {
         assert_eq!(descriptor()["name"], TOOL_NAME);
@@ -408,9 +452,8 @@ mod tests {
 
     #[test]
     fn rejects_neither_nor_both_seeds() {
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
-        let missing = call(&json!({ "workspaceRoot": workspace.path() }));
+        let workspace = std::env::current_dir().expect("cwd");
+        let missing = call(&json!({ "workspaceRoot": workspace }));
         assert_eq!(missing["isError"], true);
         assert!(
             payload_of(&missing)["error"]
@@ -420,7 +463,7 @@ mod tests {
         );
 
         let both = call(&json!({
-            "workspaceRoot": workspace.path(),
+            "workspaceRoot": workspace,
             "file": "src/a.ts",
             "target": { "file": "src/a.ts", "kind": "Function", "name": "f" }
         }));
@@ -510,10 +553,9 @@ mod tests {
         // discoverable hint naming the enable command (end-to-end through `call`,
         // independent of daemon availability).
         temp_env::with_var_unset("ANVIL_GCTX_EGRESS", || {
-            let cwd = std::env::current_dir().expect("cwd");
-            let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+            let workspace = std::env::current_dir().expect("cwd");
             let result = call(&json!({
-                "workspaceRoot": workspace.path(),
+                "workspaceRoot": workspace,
                 "file": "src/a.ts",
                 "includeSource": true
             }));
@@ -529,10 +571,9 @@ mod tests {
     #[test]
     fn call_omits_hint_when_source_not_requested() {
         temp_env::with_var_unset("ANVIL_GCTX_EGRESS", || {
-            let cwd = std::env::current_dir().expect("cwd");
-            let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+            let workspace = std::env::current_dir().expect("cwd");
             let result = call(&json!({
-                "workspaceRoot": workspace.path(),
+                "workspaceRoot": workspace,
                 "file": "src/a.ts"
             }));
             assert!(payload_of(&result).get("snippetEgressHint").is_none());
@@ -558,5 +599,23 @@ mod tests {
             snippet_egress_hint(true, SnippetEgress::IdentityOnly, EgressSource::Env).unwrap();
         assert!(killed.contains("ANVIL_GCTX_EGRESS=0"));
         assert!(killed.contains("anvil gctx egress enable"));
+    }
+
+    /// CIB-398: a nested directory is refused as the graph root before any
+    /// daemon rendezvous or warm-up — the refusal is the first thing
+    /// `symbol_context_payload` does after reading `workspaceRoot`, so an
+    /// attacker-chosen `<root>/secrets` never reaches the daemon or a rewarm.
+    #[test]
+    fn refuses_nested_workspace_root_as_a_graph_root() {
+        let cwd = std::env::current_dir().expect("cwd");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+        let nested = workspace.path().join("secrets");
+        std::fs::create_dir_all(&nested).expect("nested");
+        let result = call(&json!({ "workspaceRoot": nested, "file": "token.ts" }));
+        assert_eq!(result["isError"], true);
+        assert_eq!(
+            payload_of(&result)["error"],
+            crate::mcp::tools::shared::GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT
+        );
     }
 }

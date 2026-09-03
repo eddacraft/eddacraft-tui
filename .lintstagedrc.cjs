@@ -134,30 +134,29 @@ module.exports = {
     // `/plans` is prettierignored wholesale, so a commit staging only planning
     // markdown hands oxfmt an all-excluded target set and it exits non-zero
     // with "Expected at least one target file", failing the whole pre-commit
-    // hook. markdownlint is safe to hand the same files: it exits 0 when every
-    // input is excluded, so dropping planning docs from the formatter only —
-    // not from the glob — is enough to keep the hook green.
-    //
-    // markdownlint does not lint them either. `.markdownlintignore` excludes
-    // `plans/**` and markdownlint-cli loads that file automatically (the
-    // explicit `--ignore-path` in `pnpm lint:check` is redundant, not the
-    // thing that enables it), and the exclusion still matches the absolute
-    // paths lint-staged passes. Planning docs reaching markdownlint here are
-    // a deliberate no-op, not coverage.
+    // hook. Drop planning docs from the formatter only; markdownlint is handled
+    // below via the CIB-390 wrapper.
     const formatted = kept.filter((f) => !isRootPlansDoc(f) && !isGeneratedMarkdown(f));
     if (formatted.length > 0) {
       tasks.push(`oxfmt --write ${toCommandList(formatted)}`);
     }
-    tasks.push(`markdownlint --fix ${toCommandList(kept)}`);
+    // CIB-390: markdownlint-cli exits 0 when every named input is ignored, so
+    // the wrapper is the only entry point that can tell "checked" from
+    // "examined nothing". `--omit-ignored` drops plans/** and other ignore
+    // hits rather than failing the hook — those files still get conflict-marker
+    // coverage below.
+    tasks.push(
+      `node scripts/docs/run-markdownlint.mjs --fix --omit-ignored ${toCommandList(kept)}`
+    );
     // Conflict markers, on EVERY staged Markdown file including `plans/**`.
     //
     // Scope matters here. `.markdownlintignore` excludes `plans/**`, so the
-    // markdownlint task above is a deliberate no-op for planning docs — and a
-    // planning doc, `plans/index.aps.md`, is exactly where a committed diff3
-    // marker reached main (#4187). Hanging this off `kept` rather than
-    // `formatted` is what gives the planning tree its only staged-file
-    // coverage. `docs:check` catches a marker after it is committed; this is
-    // the half that stops it being committed at all.
+    // markdownlint wrapper above omits planning docs — and a planning doc,
+    // `plans/index.aps.md`, is exactly where a committed diff3 marker reached
+    // main (#4187). Hanging this off `kept` rather than `formatted` is what
+    // gives the planning tree its only staged-file coverage. `docs:check`
+    // catches a marker after it is committed; this is the half that stops it
+    // being committed at all.
     tasks.push(`node scripts/docs/check-conflict-markers.mjs ${toCommandList(kept)}`);
     return tasks;
   },

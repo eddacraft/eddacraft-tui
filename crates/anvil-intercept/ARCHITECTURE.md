@@ -22,22 +22,25 @@ world-writable PID inodes. A refused inode remains tainted even if its mode is
 later tightened, so recovery replaces it through a fresh owner-only daemon
 lifecycle. Clients connect to the first candidate that passes the owner-only
 metadata gate, accepts a connection, and presents a same-user peer, among the
-bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when set). A
-missing or connection-refused candidate may fall through; unsafe canonical
-metadata remains fatal. Dual-path is a client rendezvous, not a second listener,
-and it covers the intercept socket and PID file only — the save-time driver
-registry, the watch driver log, the graph cache, and egress consent remain
-single-path. Unix clients validate the connected daemon UID before sending
-proposed content, while the Linux listener also obtains the peer PID used by
-optional lineage checks. Windows uses an owner-only named-pipe DACL and the
-server explicitly compares the connected peer's SID with the pipe owner's SID.
-Save-time `validate_paths` requests then pass workspace admission before guarded
-reads and validation. `scan_buffer` is the caller-buffer lane for both MidEdit
-and PreWrite requests and has a separate, platform-dependent cross-check. A
-fence is a separate durable safety state triggered by spoof detection, an
-interrupt that cannot safely complete, or an unattributed or unregistered
-change. Cascade engages only after repeated fence events; degraded assurance
-alone does not fence a worktree.
+bind path and the XDG/state-home sibling (`ANVIL_HOME` alone when set). The
+save-time client, the GCTX RPC transport, and `anvil_symbol_context` send the
+request on that same connection (one accept per request); registration,
+`intercept status` / unblock, the MCP protection-claim client, and `anvil-run`
+still resolve the path first and connect separately. A missing or
+connection-refused candidate may fall through; unsafe canonical metadata remains
+fatal. Dual-path is a client rendezvous, not a second listener, and it covers
+the intercept socket and PID file only — the save-time driver registry, the
+watch driver log, the graph cache, and egress consent remain single-path. Unix
+clients validate the connected daemon UID before sending proposed content, while
+the Linux listener also obtains the peer PID used by optional lineage checks.
+Windows uses an owner-only named-pipe DACL and the server explicitly compares
+the connected peer's SID with the pipe owner's SID. Save-time `validate_paths`
+requests then pass workspace admission before guarded reads and validation.
+`scan_buffer` is the caller-buffer lane for both MidEdit and PreWrite requests
+and has a separate, platform-dependent cross-check. A fence is a separate
+durable safety state triggered by spoof detection, an interrupt that cannot
+safely complete, or an unattributed or unregistered change. Cascade engages only
+after repeated fence events; degraded assurance alone does not fence a worktree.
 
 ## Save, validation, and fence flow
 

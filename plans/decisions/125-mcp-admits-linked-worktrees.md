@@ -31,6 +31,17 @@ against that tree. Save-time daemon admission is unchanged.
 
 ## Decision
 
+> **Amended (2026-09-03, CIB-398).** The daemon-keyed graph-context tools
+> (`anvil_search_symbols`, `anvil_find_callers`, `anvil_find_dependents`,
+> `anvil_impact_of_change`, `anvil_affected_tests`, `anvil_symbol_context`)
+> require `workspaceRoot` to be **exactly** the server cwd or a registered
+> worktree root — not a directory inside either. The daemon keys its graph on
+> the root it is handed and projects root-relative file identities, so a nested
+> root rebases `secrets/token.ts` to `token.ts` past the CE-3 deny-list and
+> lets the on-demand warm-up follow an attacker-chosen directory
+> (`shared::validate_gctx_workspace_root`). Rules 1–2 below are unchanged for
+> check, gate, status, fix, suppress, and the write-validation tools.
+
 MCP tools admit a caller `workspaceRoot` when its canonical path is:
 
 1. The MCP server cwd, or a directory inside it (the historical rule), or

@@ -329,33 +329,26 @@ where
     // response cap, sized above any honest reply.
     const RESPONSE_LINE_CAP: u64 = 4 << 20;
 
-    let socket_path = match ipc::resolve_live_socket_path() {
-        Ok(path) => path,
-        Err(err) if ipc::live_socket_absent(&err) => return Err(DaemonRpcError::Unavailable),
+    // The liveness proof is the request connection: one accept per RPC, so a
+    // fake or real daemon never sees a dropped probe ahead of the request.
+    let (_socket_path, mut stream): (_, UnixStream) = match ipc::resolve_live_socket_connection() {
+        Ok(connection) => connection,
+        Err(err) if ipc::live_socket_absent(&err) => {
+            return Err(DaemonRpcError::Unavailable);
+        }
+        Err(ipc::IpcError::SocketPeerPermissions { .. }) => {
+            emit_daemon_rpc_line(noise, method, "peer rejected: socket peer is not this user");
+            return Err(classify_peer_validation_failure(PEER_CREDENTIAL_PLATFORM));
+        }
+        Err(ipc::IpcError::Io(io)) => {
+            emit_daemon_rpc_line(noise, method, &format!("connect failed: {io}"));
+            return Err(classify_connect_error(method, io.kind()));
+        }
         Err(err) => {
             emit_daemon_rpc_line(noise, method, &format!("socket unavailable: {err}"));
             return Err(DaemonRpcError::Failure);
         }
     };
-    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
-        return match err {
-            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(DaemonRpcError::Unavailable)
-            }
-            _ => {
-                emit_daemon_rpc_line(noise, method, &format!("socket unavailable: {err}"));
-                Err(DaemonRpcError::Failure)
-            }
-        };
-    }
-    let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        emit_daemon_rpc_line(noise, method, &format!("connect failed: {err}"));
-        classify_connect_error(method, err.kind())
-    })?;
-    ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        emit_daemon_rpc_line(noise, method, &format!("peer rejected: {err}"));
-        classify_peer_validation_failure(PEER_CREDENTIAL_PLATFORM)
-    })?;
     let deadline = std::time::Instant::now() + TIMEOUT;
     stream.set_read_timeout(Some(POLL)).map_err(|err| {
         emit_daemon_rpc_line(noise, method, &format!("read-timeout setup failed: {err}"));

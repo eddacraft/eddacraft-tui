@@ -26,7 +26,7 @@ export function SocialCard() {
       >
         <div style={{ display: 'flex', gap: 30 }}>
           <span style={{ color: '#EBEBEB' }}>eddacraft</span>
-          <span style={{ color: '#CC5500' }}>anvil</span>
+          <span style={{ color: '#D95A00' }}>anvil</span>
         </div>
         <span style={{ color: '#EBEBEB' }}>{ANVIL_VERSION}</span>
       </div>
@@ -35,7 +35,7 @@ export function SocialCard() {
         <div style={{ width: '48%', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', flexDirection: 'column', fontSize: 52, lineHeight: 1.08 }}>
             <span>TRUST THE CODE</span>
-            <span style={{ color: '#CC5500' }}>YOUR AI WRITES.</span>
+            <span style={{ color: '#D95A00' }}>YOUR AI WRITES.</span>
           </div>
           <div style={{ marginTop: 30, color: '#EBEBEB', fontSize: 20, lineHeight: 1.45 }}>
             Independent, deterministic control for AI-assisted software engineering.
@@ -54,9 +54,9 @@ export function SocialCard() {
             lineHeight: 1.65,
           }}
         >
-          <div style={{ color: '#CC5500' }}>MCP REQUEST :: anvil_validate_write</div>
+          <div style={{ color: '#D95A00' }}>MCP REQUEST :: anvil_validate_write</div>
           <div>target :: src/secret.ts</div>
-          <div style={{ marginTop: 22, color: '#CC5500' }}>[ = ] PRE_WRITE_VALIDATION</div>
+          <div style={{ marginTop: 22, color: '#D95A00' }}>[ = ] PRE_WRITE_VALIDATION</div>
           <div style={{ marginTop: 16 }}>[ ERR ] secret-detection</div>
           <div style={{ color: '#EBEBEB' }}>credential-like token in proposed content</div>
           <div
@@ -69,7 +69,7 @@ export function SocialCard() {
             }}
           >
             <span>decision</span>
-            <span style={{ color: '#CC5500' }}>interrupt</span>
+            <span style={{ color: '#D95A00' }}>interrupt</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <span>safe_default</span>

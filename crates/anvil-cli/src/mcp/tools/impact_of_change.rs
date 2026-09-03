@@ -25,7 +25,7 @@ use anvil_intercept_proto::protocol::{
 
 use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
 use crate::mcp::tools::shared::{
-    redact_workspace_root, should_rewarm_not_ready, validate_workspace_root,
+    redact_workspace_root, should_rewarm_not_ready, validate_gctx_workspace_root,
 };
 
 pub const TOOL_NAME: &str = "anvil_impact_of_change";
@@ -39,7 +39,7 @@ pub fn descriptor() -> Value {
             "properties": {
                 "workspaceRoot": {
                     "type": "string",
-                    "description": "Absolute path to the project root directory"
+                    "description": "Absolute path to the workspace root: the MCP server root itself or a registered git worktree root of the same repository. A nested directory is refused."
                 },
                 "changedFiles": {
                     "type": "array",
@@ -82,7 +82,7 @@ fn impact_payload(arguments: &Value) -> Result<Value, String> {
     let changed_files = parse_changed_files(arguments)?;
 
     let (server_root, workspace_path) =
-        validate_workspace_root(Path::new(workspace_root), &server_root)?;
+        validate_gctx_workspace_root(Path::new(workspace_root), &server_root)?;
     let redacted_workspace_root = redact_workspace_root(&workspace_path, &server_root);
 
     let request = GctxImpactOfChangeRequest {
@@ -214,9 +214,8 @@ mod tests {
 
     #[test]
     fn rejects_missing_changed_files() {
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
-        let result = call(&json!({ "workspaceRoot": workspace.path() }));
+        let workspace = std::env::current_dir().expect("cwd");
+        let result = call(&json!({ "workspaceRoot": workspace }));
         assert_eq!(result["isError"], true);
         assert_eq!(
             payload_of(&result)["error"],
@@ -226,9 +225,8 @@ mod tests {
 
     #[test]
     fn rejects_empty_changed_files() {
-        let cwd = std::env::current_dir().expect("cwd");
-        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
-        let result = call(&json!({ "workspaceRoot": workspace.path(), "changedFiles": [] }));
+        let workspace = std::env::current_dir().expect("cwd");
+        let result = call(&json!({ "workspaceRoot": workspace, "changedFiles": [] }));
         assert_eq!(result["isError"], true);
         assert_eq!(
             payload_of(&result)["error"],
