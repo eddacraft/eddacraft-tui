@@ -4,12 +4,14 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
-
-import globby from 'globby';
 
 const MD_GLOB = '**/*.{md,markdown}';
 const TOOLING_EXIT = 2;
+
+function couldNotRun(reason) {
+  process.stderr.write(`[markdownlint] could not run: ${reason}\n`);
+  process.exit(TOOLING_EXIT);
+}
 
 function usage() {
   process.stderr.write(
@@ -29,10 +31,31 @@ function toPosix(rel) {
   return rel.split(sep).join('/');
 }
 
+function loadGlobby() {
+  try {
+    const require = createRequire(import.meta.url);
+    const globby = require('globby');
+    if (typeof globby?.sync !== 'function') {
+      couldNotRun('globby.sync is not available');
+    }
+    return globby;
+  } catch (err) {
+    couldNotRun(`cannot load globby (${err.code || err.message})`);
+  }
+}
+
 function markdownlintBin() {
-  const require = createRequire(import.meta.url);
-  const pkg = require.resolve('markdownlint-cli/package.json');
-  return join(dirname(pkg), 'markdownlint.js');
+  try {
+    const require = createRequire(import.meta.url);
+    const pkg = require.resolve('markdownlint-cli/package.json');
+    const bin = join(dirname(pkg), 'markdownlint.js');
+    if (!existsSync(bin)) {
+      couldNotRun(`markdownlint-cli entry is missing (${bin})`);
+    }
+    return bin;
+  } catch (err) {
+    couldNotRun(`cannot resolve markdownlint-cli (${err.code || err.message})`);
+  }
 }
 
 function parseArgs(argv) {
@@ -100,7 +123,7 @@ function classify(cwd, inputPath) {
   return { kind: 'file', abs, rel, inputPath };
 }
 
-function globFiles(cwd, patterns, ignoreLines) {
+function globFiles(globby, cwd, patterns, ignoreLines) {
   return globby
     .sync(patterns, {
       cwd,
@@ -115,8 +138,9 @@ function globFiles(cwd, patterns, ignoreLines) {
     .map(toPosix);
 }
 
-function main() {
+function run() {
   const args = parseArgs(process.argv.slice(2));
+  const globby = loadGlobby();
   const ignoreFile = isAbsolute(args.ignorePath)
     ? args.ignorePath
     : resolve(args.cwd, args.ignorePath);
@@ -134,12 +158,12 @@ function main() {
     if (classified.kind === 'directory') {
       const pattern =
         classified.rel === '.' ? MD_GLOB : `${classified.rel.replace(/\/+$/u, '')}/${MD_GLOB}`;
-      for (const file of globFiles(args.cwd, [pattern], ignoreLines)) {
+      for (const file of globFiles(globby, args.cwd, [pattern], ignoreLines)) {
         toLint.add(file);
       }
       continue;
     }
-    const kept = globFiles(args.cwd, [classified.rel], ignoreLines);
+    const kept = globFiles(globby, args.cwd, [classified.rel], ignoreLines);
     if (kept.length === 0) {
       if (!args.omitIgnored) namedExcluded.push(classified.rel);
       continue;
@@ -165,6 +189,8 @@ function main() {
     process.exit(0);
   }
 
+  const bin = files.length > 0 ? markdownlintBin() : null;
+
   process.stdout.write(`[markdownlint] ${files.length} files checked\n`);
   if (files.length === 0) {
     process.exit(0);
@@ -172,16 +198,23 @@ function main() {
 
   const result = spawnSync(
     process.execPath,
-    [markdownlintBin(), '--ignore-path', ignoreFile, ...(args.fix ? ['--fix'] : []), ...files],
+    [bin, '--ignore-path', ignoreFile, ...(args.fix ? ['--fix'] : []), ...files],
     { cwd: args.cwd, encoding: 'utf8' }
   );
+  if (result.error) {
+    couldNotRun(result.error.message);
+  }
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
-  const status = result.status;
-  process.exit(status === null ? TOOLING_EXIT : status);
+  process.exit(result.status === null ? TOOLING_EXIT : result.status);
 }
 
-const invoked = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
-if (invoked) {
-  main();
+function main() {
+  try {
+    run();
+  } catch (err) {
+    couldNotRun(err && err.message ? err.message : String(err));
+  }
 }
+
+main();
