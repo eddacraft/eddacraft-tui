@@ -48,16 +48,40 @@ impl GitFixture {
         self.head = rev_parse(self.dir.path(), "HEAD");
     }
 
+    /// Commit a path Git cannot decode as UTF-8 without touching the working
+    /// tree: APFS refuses to create such a name (`EILSEQ`), so the entry goes
+    /// straight into the index by object id and is committed from there.
     #[cfg(unix)]
     fn add_invalid_utf8_path_commit(&mut self, suffix: u8) -> String {
         use std::os::unix::ffi::OsStringExt as _;
 
-        let mut relative = b"docs/invalid-".to_vec();
-        relative.push(suffix);
-        relative.extend_from_slice(b".md");
-        let path = self.dir.path().join(std::ffi::OsString::from_vec(relative));
-        std::fs::write(path, "invalid path fixture\n").expect("write invalid UTF-8 path");
-        commit_all(self.dir.path(), "Add path Git cannot decode");
+        let blob = String::from_utf8(
+            git_with_stdin(
+                self.dir.path(),
+                &["hash-object", "-w", "--stdin"],
+                b"invalid path fixture\n",
+            )
+            .stdout,
+        )
+        .expect("blob id")
+        .trim()
+        .to_owned();
+        let mut cacheinfo = format!("100644,{blob},docs/invalid-").into_bytes();
+        cacheinfo.push(suffix);
+        cacheinfo.extend_from_slice(b".md");
+        git_os(
+            self.dir.path(),
+            &[
+                std::ffi::OsString::from("update-index"),
+                std::ffi::OsString::from("--add"),
+                std::ffi::OsString::from("--cacheinfo"),
+                std::ffi::OsString::from_vec(cacheinfo),
+            ],
+        );
+        git(
+            self.dir.path(),
+            &["commit", "--quiet", "-m", "Add path Git cannot decode"],
+        );
         self.head = rev_parse(self.dir.path(), "HEAD");
         self.head.clone()
     }
@@ -83,6 +107,47 @@ fn git(root: &Path, args: &[&str]) -> Output {
         .current_dir(root)
         .output()
         .expect("run git");
+    assert!(
+        output.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
+}
+
+/// `git` with raw `OsString` arguments, for paths that are not valid UTF-8.
+#[cfg(unix)]
+fn git_os(root: &Path, args: &[std::ffi::OsString]) -> Output {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .expect("run git");
+    assert!(
+        output.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
+}
+
+#[cfg(unix)]
+fn git_with_stdin(root: &Path, args: &[&str], input: &[u8]) -> Output {
+    let mut child = Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn git");
+    child
+        .stdin
+        .take()
+        .expect("piped git stdin")
+        .write_all(input)
+        .expect("write git stdin");
+    let output = child.wait_with_output().expect("wait for git");
     assert!(
         output.status.success(),
         "git {args:?} failed: {}",

@@ -276,31 +276,23 @@ fn daemon_symbol_context(
     const RESPONSE_LINE_CAP: u64 = 4 << 20;
     const REQUEST_ID: &str = "mcp-gctx-symbol-context";
 
-    let socket_path = match ipc::resolve_live_socket_path() {
-        Ok(path) => path,
+    // One accept per request: the liveness proof is the connection we send on.
+    let (_socket_path, mut stream): (_, UnixStream) = match ipc::resolve_live_socket_connection() {
+        Ok(connection) => connection,
         Err(err) if ipc::live_socket_absent(&err) => return Err(DaemonRpcError::Unavailable),
+        Err(err @ ipc::IpcError::SocketPeerPermissions { .. }) => {
+            eprintln!("anvil-mcp: gctx symbol_context peer rejected: {err}");
+            return Err(DaemonRpcError::Failure);
+        }
+        Err(ipc::IpcError::Io(io)) => {
+            eprintln!("anvil-mcp: gctx symbol_context connect failed: {io}");
+            return Err(DaemonRpcError::Unavailable);
+        }
         Err(err) => {
             eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
             return Err(DaemonRpcError::Failure);
         }
     };
-    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
-        eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
-        return match err {
-            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(DaemonRpcError::Unavailable)
-            }
-            _ => Err(DaemonRpcError::Failure),
-        };
-    }
-    let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        eprintln!("anvil-mcp: gctx symbol_context connect failed: {err}");
-        DaemonRpcError::Unavailable
-    })?;
-    ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        eprintln!("anvil-mcp: gctx symbol_context peer rejected: {err}");
-        DaemonRpcError::Failure
-    })?;
     stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
         eprintln!("anvil-mcp: gctx symbol_context read-timeout setup failed: {err}");
         DaemonRpcError::Failure

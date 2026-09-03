@@ -1158,16 +1158,28 @@ fn delayed_git_wrapper(directory: &Path, delayed_stage: &str) {
 }
 
 #[cfg(unix)]
+/// Scripted delay for each of the two Git calls the shared-budget test slows.
+#[cfg(unix)]
+const SHARED_RUN_DELAY: Duration = Duration::from_millis(1500);
+/// Run budget for the shared-budget child: one delay fits with a second of
+/// spawn headroom, two delays do not.
+#[cfg(unix)]
+const SHARED_RUN_BUDGET: Duration = Duration::from_millis(2500);
+
 fn shared_run_timeout_git_wrapper(directory: &Path) {
     use std::os::unix::fs::PermissionsExt;
 
     let real_git = real_git_program();
     let marker = directory.join("identity-delayed");
+    // Each scripted delay is `SHARED_RUN_DELAY`; the child's run budget sits
+    // between one delay and two, with room for the real Git spawns around each
+    // (a macOS runner spent ~0.2 s on the identity stage's own Git calls).
     let script = format!(
-        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --path-format=absolute --show-toplevel '*)\n    if [ ! -e '{}' ]; then : > '{}'; /bin/sleep 0.4; fi\n    ;;\n  *' rev-parse --verify --end-of-options '*) /bin/sleep 0.4 ;;\nesac\nexec '{}' \"$@\"\n",
+        "#!/bin/sh\ncase \" $* \" in\n  *' rev-parse --path-format=absolute --show-toplevel '*)\n    if [ ! -e '{}' ]; then : > '{}'; /bin/sleep {delay}; fi\n    ;;\n  *' rev-parse --verify --end-of-options '*) /bin/sleep {delay} ;;\nesac\nexec '{}' \"$@\"\n",
         marker.display(),
         marker.display(),
-        real_git.display()
+        real_git.display(),
+        delay = SHARED_RUN_DELAY.as_secs_f64(),
     );
     let path = directory.join("git");
     std::fs::write(&path, script).expect("write shared timeout Git wrapper");
@@ -1699,8 +1711,8 @@ fn shared_run_timeout_child() {
         return;
     };
     let extractor = GitExtractor::with_limits(GitExtractionLimits {
-        git_timeout: Duration::from_secs(2),
-        run_timeout: Duration::from_millis(600),
+        git_timeout: SHARED_RUN_BUDGET * 2,
+        run_timeout: SHARED_RUN_BUDGET,
         ..GitExtractionLimits::default()
     });
     let identity = extractor
