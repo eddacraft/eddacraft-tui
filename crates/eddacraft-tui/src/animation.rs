@@ -37,7 +37,7 @@ where
         Duration::from_millis(ELAPSED_MS.load(Ordering::Relaxed)),
         Duration::from_millis(LAST_DELTA_MS.load(Ordering::Relaxed)),
     ));
-    if activity.running() {
+    if activity.any() {
         ANIMATED_THIS_FRAME.store(true, Ordering::Relaxed);
     }
     activity
@@ -52,9 +52,24 @@ pub fn is_animating() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
+
+    static CLOCK_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn isolated_clock() -> MutexGuard<'static, ()> {
+        let guard = CLOCK_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        ELAPSED_MS.store(0, Ordering::Relaxed);
+        LAST_DELTA_MS.store(0, Ordering::Relaxed);
+        ANIMATED_PREVIOUS_FRAME.store(false, Ordering::Relaxed);
+        ANIMATED_THIS_FRAME.store(false, Ordering::Relaxed);
+        guard
+    }
 
     #[test]
     fn running_tween_keeps_frame_scheduler_active() {
+        let _guard = isolated_clock();
         let mut tween = Tween::new(0.0).duration(Duration::from_millis(100));
         tween.to(1.0);
         advance(&mut tween);
@@ -66,6 +81,7 @@ mod tests {
 
     #[test]
     fn tween_converges_on_shared_clock() {
+        let _guard = isolated_clock();
         let mut tween = Tween::new(0.0).duration(Duration::from_millis(100));
         tween.to(1.0);
         advance(&mut tween);
@@ -76,5 +92,42 @@ mod tests {
         assert!((*tween - 1.0_f32).abs() < f32::EPSILON);
         assert!(activity.finished());
         assert!(!activity.running());
+    }
+
+    #[test]
+    fn terminal_activity_keeps_one_final_frame_scheduled() {
+        let _guard = isolated_clock();
+        let mut tween = Tween::new(0.0).duration(Duration::from_millis(100));
+        tween.to(1.0);
+        advance(&mut tween);
+
+        animate_tick(101);
+        let activity = advance(&mut tween);
+        assert!(activity.finished());
+
+        animate_tick(1);
+        assert!(is_animating());
+
+        animate_tick(1);
+        assert!(!is_animating());
+    }
+
+    #[test]
+    fn running_tween_keeps_multiple_tween_frame_active() {
+        let _guard = isolated_clock();
+        let mut short = Tween::new(0.0).duration(Duration::from_millis(100));
+        let mut long = Tween::new(0.0).duration(Duration::from_millis(200));
+        short.to(1.0);
+        long.to(1.0);
+        advance(&mut short);
+        advance(&mut long);
+
+        animate_tick(101);
+        assert!(advance(&mut short).finished());
+        assert!(advance(&mut long).running());
+        assert!(is_animating());
+
+        animate_tick(16);
+        assert!(is_animating());
     }
 }
