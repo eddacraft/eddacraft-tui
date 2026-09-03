@@ -7592,6 +7592,7 @@ Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
 Copyright (c) 2017 Frommi
 Copyright (c) 2017-2024 oyvindln
 
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -9930,6 +9931,7 @@ section above; this block focuses on the build-time runtime surface.
 | @jridgewell/sourcemap-codec | 1.5.5 | MIT | https://github.com/jridgewell/sourcemaps |
 | @napi-rs/wasm-runtime | 0.2.4 | MIT | https://github.com/napi-rs/napi-rs |
 | @nx/nx-linux-x64-gnu | 22.7.8 | MIT | https://github.com/nrwl/nx |
+| @nx/nx-linux-x64-musl | 22.7.5 | MIT | https://github.com/nrwl/nx |
 | @oxc-project/types | 0.133.0 | MIT | https://github.com/oxc-project/oxc |
 | @oxfmt/binding-linux-x64-gnu | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
 | @oxfmt/binding-linux-x64-musl | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
@@ -10079,6 +10081,7 @@ section above; this block focuses on the build-time runtime surface.
 | lightningcss-linux-x64-musl | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | lightningcss | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | lines-and-columns | 2.0.3 | MIT | https://github.com/eventualbuddha/lines-and-columns |
+| linkify-it | 5.0.1 | MIT | https://github.com/markdown-it/linkify-it |
 | linkify-it | 5.0.2 | MIT | https://github.com/markdown-it/linkify-it |
 | log-symbols | 4.1.0 | MIT | https://github.com/sindresorhus/log-symbols |
 | magic-string | 0.30.21 | MIT | https://github.com/Rich-Harris/magic-string |
