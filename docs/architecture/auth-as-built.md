@@ -1,8 +1,8 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                 |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-08-31 against APGOV-008 bounded Neon HTTP connect retry in `apps/anvil-api/src/db/client.ts`; authentication diagram unchanged. Prior: 2026-08-30 CLAWOPEN-002/003 and account-activity 202-on-timeout |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                             |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-09-03 for the CIB-399 ingest active-status gate; auth, overview, and trust diagrams are unaffected (no new node or edge). Prior review 2026-08-31 against APGOV-008 bounded Neon HTTP connect retry in `apps/anvil-api/src/db/client.ts`; authentication diagram unchanged. Prior: 2026-08-30 CLAWOPEN-002/003 and account-activity 202-on-timeout |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |
