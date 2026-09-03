@@ -1,7 +1,6 @@
 use std::fmt;
 use std::time::{Duration, Instant};
 
-use animate_core::Animate;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
@@ -9,6 +8,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, StatefulWidget, Widget};
 use unicode_width::UnicodeWidthChar;
 
+use crate::animation::advance;
 use crate::theme::Theme;
 use crate::widgets::spinner::SpinnerPreset;
 use crate::widgets::{AnimatedU8, animated_u8};
@@ -276,10 +276,10 @@ impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
         if self.show_overall {
             let raw_overall = calculate_overall_progress(&state.checks);
             if raw_overall != state.anim_overall_target {
-                state.anim_overall.set(raw_overall);
+                state.anim_overall.to(raw_overall);
                 state.anim_overall_target = raw_overall;
             }
-            state.anim_overall.update();
+            advance(&mut state.anim_overall);
             let overall = *state.anim_overall;
 
             let line = format!(
@@ -504,7 +504,7 @@ mod tests {
         // Advance past the configured animation duration and re-render.
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let advance = ANIM_DURATION_MS as usize + 1;
-        animate_core::tick(advance);
+        crate::animation::animate_tick(advance);
         ParallelProgress::new(&theme).render(area, &mut buf, &mut state);
 
         assert_eq!(
