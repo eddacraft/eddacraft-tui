@@ -36,6 +36,28 @@ assert_not_contains 'workflow_dispatch:'
 assert_not_contains 'No pull_request context; nothing to gate.'
 assert_not_contains 'if [[ -z "${BASE_SHA:-}" || -z "${HEAD_SHA:-}" ]]'
 
+# Label API failures must not be interpreted as label absence inside an `if`
+# pipeline. Bind the workflow to fail-fast retrieval before membership tests.
+assert_not_contains 'if gh pr view "$PR_NUMBER" --json labels'
+assert_contains 'CURRENT_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '\''.labels[].name'\'')'
+assert_contains 'UPDATED_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '\''.labels[].name'\'')'
+
+label_query_failure_is_fatal() (
+  gh() { return 42; }
+  set -euo pipefail
+  labels=$(gh pr view 123 --json labels --jq '.labels[].name')
+  grep -Fxq council:reviewed <<<"$labels"
+)
+
+set +e
+label_query_failure_is_fatal
+query_status=$?
+set -e
+if [[ "$query_status" != "42" ]]; then
+  echo "expected label query failure status 42, got ${query_status}" >&2
+  exit 1
+fi
+
 # Forks cannot dismiss labels with the read-only token, so only the actual
 # council:reviewed label event for the current head can count as evidence.
 assert_contains 'EVENT_ACTION: ${{ github.event.action }}'

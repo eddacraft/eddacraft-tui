@@ -55,7 +55,8 @@ jobs:
           set -euo pipefail
           # Fail CLOSED: if the label is present and we cannot prove it was
           # removed, block the PR rather than let a stale review ride in.
-          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
+          CURRENT_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
+          if grep -Fxq "$GATE_LABEL" <<<"$CURRENT_LABELS"; then
             echo "New commits pushed — dismissing stale '$GATE_LABEL' label; a fresh review is required."
             # A 404 ("Label does not exist") means it is already gone (fine);
             # any other failure is fatal so we never silently keep the label.
@@ -67,7 +68,8 @@ jobs:
               fi
             fi
             # Confirm removal; if it somehow remains, fail closed.
-            if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
+            UPDATED_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
+            if grep -Fxq "$GATE_LABEL" <<<"$UPDATED_LABELS"; then
               echo "::error::'$GATE_LABEL' still present after dismissal — failing closed."
               exit 1
             fi
@@ -151,7 +153,8 @@ jobs:
           fi
 
           # Re-read labels live (the event payload is stale after a dismissal).
-          if gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name' | grep -Fxq "$GATE_LABEL"; then
+          CURRENT_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
+          if grep -Fxq "$GATE_LABEL" <<<"$CURRENT_LABELS"; then
             echo ""
             echo "✅ '$GATE_LABEL' label present — Council review recorded for this diff."
             exit 0
