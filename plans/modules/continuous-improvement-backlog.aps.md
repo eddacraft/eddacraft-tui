@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 306/396  |
+| CIB | —     | In Progress | 307/397  |
 
 ## Purpose
 
@@ -13215,3 +13215,51 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `main` were each read directly. Medium on the remedy, which is why the
   Expected Outcome allows the honest-failure route if the race proves
   impractical to remove.
+
+### CIB-402: product surfaces read the stores the Rust CLI writes
+
+- **Status:** Merged 2026-08-28 via PR
+  [#4191](https://github.com/eddacraft/anvil-001/pull/4191); intake recorded
+  2026-09-03 from GH #4186 (the fix landed as a feature PR against the
+  CIB-candidate issue, so this entry is the promotion record, not new work)
+- **Priority:** P1 — a trust defect on the golden path. Surfaces that read a
+  store nothing writes report "no runs" or "no baseline" on a live repo, and
+  one of them (`anvil_query_boundary`) answered `allowed: true` when the
+  snapshot it wanted was absent
+- **Intent:** every product reader binds to the artefact the current Rust CLI
+  actually writes, or says plainly that the surface is uninstrumented. No
+  shipped CLI, TUI, or MCP behaviour depends on a TypeScript-era store.
+- **Expected Outcome:**
+  - `anvil status` Recent Runs and `anvil status --json` `recent_runs`, and
+    `anvil audit` history, come from `.anvil/gate-history.ndjson` (with
+    `.anvil/gates.json` as the latest snapshot), not `.anvil/cache/index.json`.
+    Empty-state copy names `anvil gate`, the command that records a run.
+  - MCP `anvil_status.hasBaseline`, `anvil://baseline`, `anvil_query_boundary`,
+    the dashboard architecture view, `anvil export`, and `anvil drift snapshot`
+    bind to the live architecture definition (`.anvil.yaml` /
+    `.anvil/architecture.yaml`), not `.anvil/architecture.json`. A missing
+    definition is `allowed: false` with a "did not evaluate" message, never a
+    fail-open allow.
+  - Suppressions surfaces (dashboard, `anvil://suppressions`, export) read
+    in-source `@anvil-ignore` and `anvil/exceptions/`, not
+    `.anvil/suppressions.json`.
+  - `anvil edda` / `anvil ember` say honestly that they are list/show-only over
+    stores the Rust CLI does not write.
+- **Validation:**
+  - Dogfood repro 2026-09-03 on this checkout (one `pass` in
+    `.anvil/gate-history.ndjson`, no `.anvil/cache/index.json`):
+    `ANVIL_DEV=1 anvil status --json | jq '.recent_runs | length'` → `1`
+    (was `0` when GH #4186 was filed on 2026-08-27).
+  - `cargo test -p eddacraft-anvil --bin anvil -- query_boundary load_suppressions gather_from_gate typescript_cache historical_scores snapshot_maps returns_no_architecture loads_exception`
+    (29 passed) and
+    `cargo test -p eddacraft-anvil --test mcp_serve_stdio -- query_boundary resources_read_baseline resources_read_suppressions tools_call_status`
+    (6 passed), both re-run on `main` 2026-09-03.
+- **Identified From:** GH #4186 (dogfood, 2026-08-27) and its follow-up audit
+  comment listing the orphaned readers; fixed in PR #4191.
+- **Residual (not this item):** the TypeScript `FileCacheProvider`,
+  `ProvenanceStore`, and watch-orchestrator lock/queue modules remain in-tree
+  as unused libraries (8 files under `packages/`). Nothing shipped reads or
+  writes them; their removal belongs to the JS/TS workspace retirement, not to
+  a product fix.
+- **Confidence:** high — every surface in the issue's split was re-read on
+  `main` after #4191 and the index case was reproduced end to end.
