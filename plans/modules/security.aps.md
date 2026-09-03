@@ -11,7 +11,7 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | SEC    | —     | In Progress |
 
-**Last reviewed:** 2026-09-05 — SEC-001..004 reconciled to #2656; SEC-013 shared enforcement and SEC-015 docs logout implemented; validation and integration tracked in the implementing PR. SEC-007 release evidence unchanged. SEC-016 September Dependabot sweep In Progress (claim #4374; APS id renumbered because main already used SEC-015 for docs logout).
+**Last reviewed:** 2026-09-06 — SEC-016 September Dependabot sweep closed Complete (claim #4374; APS id SEC-016 after main assigned SEC-015 to docs logout); SEC-012 summary row reconciled to section Released/Shipped via v0.9.7-beta. Prior review 2026-09-05 — SEC-001..004 reconciled to #2656; SEC-013 shared enforcement and SEC-015 docs logout implemented; validation and integration tracked in the implementing PR; SEC-007 release evidence unchanged. Earlier: 2026-07-30.
 
 ## Purpose
 
@@ -88,7 +88,7 @@ security concerns.
 | SEC-013 | Shared licence-auth status enforcement and route audit | Done |
 | SEC-014 | Remediate the current Dependabot pull-request queue | Complete |
 | SEC-015 | Same-origin POST logout for the docs shell (GH #4230) | Done |
-| SEC-016 | Remediate the September 2026 Dependabot pull-request queue | In Progress |
+| SEC-016 | Remediate the September 2026 Dependabot pull-request queue | Complete |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -817,7 +817,7 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
   cannot clear your session.
 ### SEC-016: Remediate the September 2026 Dependabot pull-request queue
 
-- **Status:** In Progress — approved 2026-09-03; claim
+- **Status:** Complete — approved and closed 2026-09-03; claim
   [#4374](https://github.com/eddacraft/anvil-001/issues/4374)
   (issue title still says SEC-015; APS id is SEC-016 because main already
   assigned SEC-015 to the docs-shell same-origin logout item).
@@ -881,6 +881,28 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
   standard for the tree-sitter and jsonschema upgrades; guarded for the
   animate-core API migration until compiler, behaviour, Council, and hosted
   evidence converge.
+- **Closeout evidence (2026-09-03):**
+  - the seven retained pull requests are open, mergeable, and terminal green
+    on their exact heads: #4326, #4328, #4330, #4332, #4333, #4335, and #4337;
+  - #4336 is closed as unsupported after fresh Hakari output rejected the
+    generated-only num-bigint 0.5 edge; #4340 merged externally while the sweep
+    was in progress and remained terminal green;
+  - zero Dependabot vulnerability alerts and zero unresolved review
+    conversations remain across all nine pull requests;
+  - #4328 fixes cargo-about licence-file selection nondeterminism by
+    canonicalising consecutive empty driver lines, with a red-then-green
+    regression, 18 available starter-kit tests, two freshness passes, and
+    fresh hosted kit/freshness gates;
+  - animate-core 0.5 behaviour and concurrency repairs converged in Council
+    session `council-042e02d2` and passed repeated focused, strict rustdoc, TUI,
+    clippy, full CLI, and exact-head hosted checks;
+  - #4326's load-sensitive one-second L4 timing assertion passed a normal
+    failed-job rerun and ten focused local repetitions; its hard wall-clock
+    threshold is recorded for separate hardening rather than patched into the
+    dependency update; and
+  - each retained branch incorporated material current-main policy through
+    `3d84ade21`. Later main movement through `deb7b2c83` touched only shared CIB
+    bookkeeping, which this feature sweep is forbidden to edit.
 
 **changeType:** internal
 **releaseIntent:** never
