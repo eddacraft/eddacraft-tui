@@ -13266,16 +13266,18 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 ### CIB-403: `.mjs` is outside the repo's file-type allowlists, so it escapes both tooling and search
 
 - **Status:** Ready by operator authorisation
-- **Priority:** P2 — 75 tracked files are outside pre-commit entirely, and the
+- **Priority:** P2 — 77 tracked files are outside pre-commit entirely, and the
   same blind spot cost two defects in one PR that review caught rather than a
   gate
-- **Intent:** the repository has 75 tracked `.mjs`/`.cjs` files, and the
+- **Intent:** the repository has 77 tracked `.mjs`/`.cjs` files (74 `.mjs`,
+  3 `.cjs`), and the
   conventional file-type allowlists do not name that extension. It is invisible
   in two directions.
 
-  **Tooling.** `.lintstagedrc.cjs` has exactly three globs — `*.{js,jsx,ts,tsx}`
-  (`:81`), `*.json` (`:89`) and `*.md` (`:124`). No `mjs` or `cjs`, so a `.mjs`
-  file gets **no** pre-commit formatting or linting. It is caught later by CI's
+  **Tooling.** `.lintstagedrc.cjs` has five globs — `*.{js,jsx,ts,tsx}` (`:81`),
+  `*.json` (`:89`), `!(pnpm-lock|temper).{yml,yaml}` (`:109`),
+  `temper.{yml,yaml}` (`:119`) and `*.md` (`:124`). None matches `mjs` or
+  `cjs`, so a `.mjs` file gets **no** pre-commit formatting or linting. It is caught later by CI's
   `oxfmt --check .`, which is a slower, more expensive loop than the one every
   other extension gets. Previously observed on PR #3843 (BACT-012) and never
   closed.
@@ -13299,7 +13301,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   instead of CI. Whatever the fix, it is proven by staging an unformatted
   `.mjs` and watching pre-commit correct or reject it — the current state
   silently accepts it.
-- **Non-scope / do not:** do not rename the 75 files to `.js` to fit the glob —
+- **Non-scope / do not:** do not rename the 77 files to `.js` to fit the glob —
   the extension is meaningful (ESM in a CJS-defaulting package) and the glob is
   the thing that is wrong. Do not treat the search half as fixed by the tooling
   half; a wider lint-staged glob does nothing for someone grepping by
@@ -13307,7 +13309,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   "grep all extensions" rule to the agent instructions in place of a gate —
   the durable fix for a value pinned in several places is that it is pinned
   once, not that everyone remembers to search harder.
-- **Files:** `.lintstagedrc.cjs` (the three globs), `package.json` (`lint:ox`,
+- **Files:** `.lintstagedrc.cjs` (the five globs), `package.json` (`lint:ox`,
   `format:check` — reference only, these already cover the tree),
   `apps/dashboard/visual-qa.mjs` and
   `apps/website/scripts/check-positioning.mjs` (the two that pinned the hex —
@@ -13323,6 +13325,10 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   — the same family: a gate that looks like it ran and did not), CIB-299 (a
   guard unreachable for the PR shape that needed it), CIB-316 (guards nothing
   invokes)
-- **Confidence:** high on both halves — the three globs and the 75-file count
-  are greps, and the two `.mjs` misses are recorded in #4365's review threads
-  with the corrections merged.
+- **Confidence:** high on both halves — the glob set and the file count are
+  greps, and the two `.mjs` misses are recorded in #4365's review threads
+  with the corrections merged. Worth recording that this entry's own first
+  draft said "exactly three globs": it was written from `grep "^\s*'\*"`,
+  which silently dropped the two YAML globs because they do not begin with
+  `*`. Review caught it. A pattern that excludes what the author did not
+  anticipate is the same defect the entry describes, one level up.
