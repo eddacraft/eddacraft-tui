@@ -85,7 +85,7 @@ overrides:
   'svgo@<4.0.2': '^4.0.2'
   'axios@<1.18.0': '^1.18.0'
   # Security refresh (astro PR / trivy HIGH+CRITICAL)
-  'ajv>fast-uri': '3.1.5'
+  'ajv>fast-uri': '3.1.7'
   'socket.io>socket.io-parser': '4.2.7'
   'socks>ip-address': '10.4.0'
   'next@>=16.0.0 <16.2.11': '16.2.11'
@@ -181,3 +181,4 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - '@astrojs/starlight@0.41.6'
+  - fast-uri@3.1.7
