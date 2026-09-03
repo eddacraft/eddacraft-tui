@@ -1361,6 +1361,32 @@ mod tests {
         );
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn windows_git_resolver_accepts_quoted_path_entries() {
+        let temp = tempfile::tempdir().unwrap();
+        let cwd = temp.path().join("workspace");
+        let external_bin = temp.path().join("Program Files/Git/cmd");
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::create_dir_all(&external_bin).unwrap();
+        std::fs::write(external_bin.join("git.exe"), b"").unwrap();
+
+        let mut quoted_path = std::ffi::OsString::from("\"");
+        quoted_path.push(external_bin.as_os_str());
+        quoted_path.push("\"");
+        let path_entries = std::env::split_paths(&quoted_path).collect::<Vec<_>>();
+
+        assert_eq!(
+            path_entries,
+            vec![external_bin.clone()],
+            "Windows split_paths must remove PATH quote delimiters"
+        );
+        assert_eq!(
+            resolve_windows_git_program_with_boundary(path_entries, &cwd, &cwd, &cwd).unwrap(),
+            crate::display_path::canonicalise(&external_bin.join("git.exe")).unwrap(),
+        );
+    }
+
     #[test]
     fn workspace_git_resolver_excludes_outermost_repo_from_nested_cwd() {
         let temp = tempfile::tempdir().unwrap();
