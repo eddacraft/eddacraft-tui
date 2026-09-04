@@ -177,7 +177,7 @@ jobs:
       # one process on all cores. Failure here MUST fail the workflow.
       - name: Install cargo-nextest
         if: steps.gate.outputs.run == 'true'
-        uses: taiki-e/install-action@6cd13508893c0e7eab5f273c2575d3859bd7229a # v2.86.6
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
       - name: Run tests (nextest)

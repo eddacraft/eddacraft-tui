@@ -1789,7 +1789,6 @@ AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
      
 
-
       "License" shall mean the terms and conditions for use, reproduction, and
 distribution as defined by Sections 1 through 9 of this document.
 
@@ -1815,7 +1814,6 @@ beneficial ownership of such entity.
 an individual or Legal Entity exercising permissions granted by this License.
 
   
-
 
       "Source" form shall mean the preferred form for making modifications,
 including but not limited to software source code, documentation source, and
@@ -2903,7 +2901,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-
 ```
 
 </details>
@@ -3082,7 +3079,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `hyper` 1.11.0
+- `hyper` 1.11.1
 
 <details>
 <summary>Licence text</summary>
@@ -3549,7 +3546,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-
 ```
 
 </details>
@@ -3914,7 +3910,7 @@ SOFTWARE.
 
 Used by:
 
-- `indexmap` 2.14.0
+- `indexmap` 2.14.1
 
 <details>
 <summary>Licence text</summary>
@@ -4099,7 +4095,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
 
 ```
 
@@ -4728,7 +4723,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-
 ```
 
 </details>
@@ -4798,7 +4792,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
 
 ```
 
@@ -6443,7 +6436,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
-
 
 ```
 
@@ -8267,7 +8259,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-
 ```
 
 </details>
@@ -8638,7 +8629,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
 
 ```
 
@@ -9490,7 +9480,6 @@ the following restrictions:
 
 </details>
 
-
 ---
 
 ## Crate inventory
@@ -9567,7 +9556,7 @@ the following restrictions:
 | `libsqlite3-sys` | 0.38.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `rusqlite` | 0.40.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
-| `hyper` | 1.11.0 | MIT License | https://github.com/hyperium/hyper |
+| `hyper` | 1.11.1 | MIT License | https://github.com/hyperium/hyper |
 | `either` | 1.18.0 | MIT License | https://github.com/rayon-rs/either |
 | `itertools` | 0.14.0 | MIT License | https://github.com/rust-itertools/itertools |
 | `itertools` | 0.15.0 | MIT License | https://github.com/rust-itertools/itertools |
@@ -9611,7 +9600,7 @@ the following restrictions:
 | `parking_lot_core` | 0.9.12 | MIT License | https://github.com/Amanieu/parking_lot |
 | `thread_local` | 1.1.10 | MIT License | https://github.com/Amanieu/thread_local-rs |
 | `fallible-streaming-iterator` | 0.1.9 | MIT License | https://github.com/sfackler/fallible-streaming-iterator |
-| `indexmap` | 2.14.0 | MIT License | https://github.com/indexmap-rs/indexmap |
+| `indexmap` | 2.14.1 | MIT License | https://github.com/indexmap-rs/indexmap |
 | `equivalent` | 1.0.2 | MIT License | https://github.com/indexmap-rs/equivalent |
 | `addr2line` | 0.25.1 | MIT License | https://github.com/gimli-rs/addr2line |
 | `scopeguard` | 1.2.0 | MIT License | https://github.com/bluss/scopeguard |
