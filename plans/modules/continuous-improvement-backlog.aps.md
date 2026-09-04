@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 316/404  |
+| CIB | —     | In Progress | 316/405  |
 
 ## Purpose
 
@@ -13609,3 +13609,53 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   (set-watermark guard, same tool family)
 - **Confidence:** high — the failing call shape was read in the script and the
   journal
+
+### CIB-410: The intercept daemon still keys a graph on any nested root a socket client hands it
+
+- **Status:** Proposed
+- **Priority:** P2 — the unauthenticated surface (the six MCP graph tools) is
+  closed by CIB-398; what remains is a same-uid local socket client in the
+  default `open` admission mode, which is a narrower attacker than the MCP
+  path but the same rebase
+- **Intent:** `anvil/gctx/*` verbs on the daemon (`save_time.rs`
+  `symbol_context` and its siblings) call `authorise_root` and then key the
+  graph on `WorktreeKey::from_canonical(root)` for whatever root the request
+  carries. In `open` mode `AdmittedRoots::new_open` first-touch-adopts that
+  root, so `<repo>/secrets` becomes its own graph whose file identities are
+  root-relative — `secrets/token.ts` projects as `token.ts` and the CE-3
+  deny-list (`is_sensitive_egress_path`) never sees the denied segment.
+  CIB-398 refused nested roots client-side in the MCP layer only; the daemon
+  itself still accepts them from any client that can reach the socket, and
+  the daemon-side full-scan executor (DSV-045) will warm the nested root on
+  first contact.
+- **Expected Outcome:** the daemon refuses, or re-anchors, a GCTX request whose
+  root is a nested directory of an already-admitted workspace root (exact
+  match against the admitted set, or the same registered-worktree rule the
+  MCP layer now applies), so the sensitive-path prefix survives regardless of
+  which client asks. `allowlist` mode (ADR-097) is unchanged — explicit
+  entries only — and the daemon's answer must not leak the admitted root set
+  to the caller (`NotAdmitted` today already reports only the requested root
+  and the entry count).
+- **Files:** `crates/anvil-intercept/src/save_time.rs` (`authorise_root`, the
+  GCTX verb handlers), `crates/anvil-intercept/src/workspace_admission.rs`
+  (`AdmittedRoots::authorise_within_budget`, `new_open`),
+  `crates/anvil-intercept/src/confinement.rs`
+- **Validation:** an intercept test that admits `<tmp>/repo`, then sends
+  `anvil/gctx/symbol_context` with `workspace_root = <tmp>/repo/secrets`
+  over the socket and asserts a structured refusal (or a projection whose
+  identities still carry `secrets/`), in both `open` and `allowlist` modes;
+  the existing CIB-398 MCP tests keep passing; the per-connection root budget
+  (CIB-154) is not consumed by the refused root.
+- **Identified From:** independent `verify-loop` of CIB-398 (PR
+  [#4371](https://github.com/eddacraft/anvil-001/pull/4371)), advisory A2,
+  recorded on that item as out of scope; DeepSec run
+  `20260902184224-6753b67df9c072ab` finding scope was the MCP tool only.
+- **Coordinates with:** CIB-398 (MCP-side refusal, landed), ADR-097 (daemon
+  allowlist admits explicit entries only — not amended by this item), ADR-125
+  (MCP root admission, amended for graph tools), CIB-154 (single-canonicalise
+  root budget), DSV-045 (daemon full-scan executor that would warm the nested
+  root), GCTX-023 / ADR-084.
+- **Confidence:** high on the mechanism (read in `save_time.rs` and
+  `workspace_admission.rs` during CIB-398); medium on priority — no
+  in-the-wild path has been shown for a non-MCP client that is not already
+  the same uid with filesystem read access to the secrets it would rebase.
