@@ -21,6 +21,13 @@ kit uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 - **patch** — fixes, docs, or determinism work: no change to behaviour that a
   correct configuration could observe.
 
+## [Unreleased]
+
+### Fixed
+
+- Canonicalise consecutive empty lines in driver output so equivalent upstream
+  licence files cannot make the freshness check oscillate between runs.
+
 ## [1.3.0] - 2026-08-22
 
 A vendored copy can report which kit it is. Agent instructions ship in the

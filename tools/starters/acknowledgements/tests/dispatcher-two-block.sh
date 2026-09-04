@@ -12,6 +12,8 @@
 #      other block byte-identical
 #   5. Isolate failures: when one block's driver exits non-zero, the
 #      on-disk target stays untouched (no partial clobber)
+#   6. Canonicalise consecutive empty lines emitted by a driver so
+#      equivalent upstream licence files cannot make freshness oscillate
 #
 # Stub drivers used here are pure shell, deterministic, and live under
 # the test's own fixture tree. The dispatcher locates drivers via the
@@ -53,6 +55,8 @@ name="$(printf '%s' "$config_json" | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*
 cat >"$output_path" <<INNER
 alpha-driver render for block: $name
 - entry-one
+
+
 - entry-two
 INNER
 EOF
@@ -147,6 +151,21 @@ do
     exit 1
   fi
 done
+
+alpha_section="$(awk '
+  /alpha-driver render for block: alpha/ { capture=1 }
+  capture { print }
+  /- entry-two/ { exit }
+' "$scenario1/ACKNOWLEDGEMENTS.md")"
+if printf '%s\n' "$alpha_section" | awk '
+  previous_empty && $0 == "" { found=1 }
+  { previous_empty = ($0 == "") }
+  END { exit found ? 0 : 1 }
+'; then
+  echo "FAIL scenario 1: consecutive empty driver lines were not canonicalised" >&2
+  printf '%s\n' "$alpha_section" >&2
+  exit 1
+fi
 
 # Idempotency: a second run must produce no diff. Snapshot the file
 # via `cp` rather than a checksum tool so the test stays portable

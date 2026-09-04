@@ -461,7 +461,7 @@ fn capture_node<'tree>(
     name: &str,
 ) -> Option<Node<'tree>> {
     let idx = query.capture_index_for_name(name)?;
-    m.captures.iter().find(|c| c.index == idx).map(|c| c.node)
+    m.captures().iter().find(|c| c.index == idx).map(|c| c.node)
 }
 
 // =============================================================================
