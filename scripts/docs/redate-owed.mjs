@@ -53,7 +53,8 @@ export function localDate(now = new Date()) {
 }
 
 /**
- * The generator that owns `content`, or `null` when it is hand-maintained.
+ * The generator path that owns `content`, the placeholder `'its generator'`
+ * when the marker is unnamed, or `null` when the document is hand-maintained.
  *
  * A generated view carries a "do not edit by hand" marker, and re-dating one
  * desynchronises it from its generator: `docs:catalogue:check` then fails on
