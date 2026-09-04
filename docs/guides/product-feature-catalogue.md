@@ -1,8 +1,8 @@
 # Product feature catalogue
 
-| Type  | Authority | Owner   | Status | Freshness                                                                                                    |
-| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------ |
-| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-08-30 against `flags/surfaces.json`, `flags/manifest.json`, and ADR-137 listed-implies-on |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                                                                                                                       |
+| ----- | --------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | FLAGCAT | Live   | Last reviewed 2026-09-04 against `scripts/docs/generate-product-catalogue.mjs` atomic-output batching (CLAWOPEN-007); catalogue contents unchanged. Prior review 2026-08-30 against `flags/surfaces.json`, `flags/manifest.json`, and ADR-137 listed-implies-on |
 
 | Upstream                                                                                    | Downstream                            |
 | ------------------------------------------------------------------------------------------- | ------------------------------------- |
