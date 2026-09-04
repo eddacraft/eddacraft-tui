@@ -1,8 +1,8 @@
 # Clawpatch intake triage — 2026-09-04
 
-| Type  | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                        |
-| ----- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Advisory  | CLAW04 | Live   | Reviewed 2026-09-04 against the complete persisted Clawpatch store, runs `20260831T052858-acdf65`, `20260902T115230-44b5da`, and `20260904T074935-2c02a1`, filed GitHub issues, and current source under `apps/website/scripts/` and `scripts/ci/` at `99a49b5975bd8e7b5a535365c28e4b18b7bc7d16` |
+| Type  | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                                               |
+| ----- | --------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | CLAW04 | Live   | Reviewed 2026-09-04 against the complete persisted Clawpatch store, runs `20260831T052858-acdf65`, `20260902T115230-44b5da`, and `20260904T074935-2c02a1`, filed GitHub issues, and current source under `apps/website/scripts/`, `scripts/ci/`, and `.github/workflows/` at `99a49b5975bd8e7b5a535365c28e4b18b7bc7d16` |
 
 | Upstream                                                                                                                                                            | Downstream                                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -92,7 +92,7 @@ created the profile; it does not own these residuals.
 [`public-reference-regen-workflow.test.sh`](../../scripts/ci/public-reference-regen-workflow.test.sh)
 recognises a multiline `run:` body only when the block-scalar header ends after
 `|` or `>` plus an optional chomping flag. Valid headers such as `run: |2` or
-`run: | # comment` take the single-line path and miss interpolated github
+`run: | # comment` take the single-line path and miss interpolated GitHub
 context on the following shell line. The current workflow still uses bare
 `run: |`, so today's file is covered; the lock is incomplete. #4388 owns the
 residual of CIB-395.
