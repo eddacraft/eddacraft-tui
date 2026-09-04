@@ -1789,7 +1789,6 @@ AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
      
 
-
       "License" shall mean the terms and conditions for use, reproduction, and
 distribution as defined by Sections 1 through 9 of this document.
 
@@ -1815,7 +1814,6 @@ beneficial ownership of such entity.
 an individual or Legal Entity exercising permissions granted by this License.
 
   
-
 
       "Source" form shall mean the preferred form for making modifications,
 including but not limited to software source code, documentation source, and
@@ -2903,7 +2901,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-
 ```
 
 </details>
@@ -3082,7 +3079,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `hyper` 1.11.0
+- `hyper` 1.11.1
 
 <details>
 <summary>Licence text</summary>
@@ -3549,7 +3546,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-
 ```
 
 </details>
@@ -3914,7 +3910,7 @@ SOFTWARE.
 
 Used by:
 
-- `indexmap` 2.14.0
+- `indexmap` 2.14.1
 
 <details>
 <summary>Licence text</summary>
@@ -4099,7 +4095,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
 
 ```
 
@@ -4728,7 +4723,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-
 ```
 
 </details>
@@ -4798,7 +4792,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
 
 ```
 
@@ -6444,7 +6437,6 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-
 ```
 
 </details>
@@ -7427,7 +7419,7 @@ SOFTWARE.
 
 Used by:
 
-- `animate-core` 0.4.1
+- `animate-core` 0.5.0
 - `axoupdater` 0.10.2
 - `backtrace-ext` 0.2.1
 - `block2` 0.6.2
@@ -7591,7 +7583,6 @@ Copyright 2013-2014 RAD Game Tools and Valve Software
 Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
 Copyright (c) 2017 Frommi
 Copyright (c) 2017-2024 oyvindln
-
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -8268,7 +8259,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-
 ```
 
 </details>
@@ -8640,7 +8630,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-
 ```
 
 </details>
@@ -8685,8 +8674,8 @@ SOFTWARE.
 
 Used by:
 
-- `tree-sitter-language` 0.1.7
-- `tree-sitter` 0.26.13
+- `tree-sitter-language` 0.1.8
+- `tree-sitter` 0.27.0
 
 <details>
 <summary>Licence text</summary>
@@ -9491,7 +9480,6 @@ the following restrictions:
 
 </details>
 
-
 ---
 
 ## Crate inventory
@@ -9568,7 +9556,7 @@ the following restrictions:
 | `libsqlite3-sys` | 0.38.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `rusqlite` | 0.40.2 | MIT License | https://github.com/rusqlite/rusqlite |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
-| `hyper` | 1.11.0 | MIT License | https://github.com/hyperium/hyper |
+| `hyper` | 1.11.1 | MIT License | https://github.com/hyperium/hyper |
 | `either` | 1.18.0 | MIT License | https://github.com/rayon-rs/either |
 | `itertools` | 0.14.0 | MIT License | https://github.com/rust-itertools/itertools |
 | `itertools` | 0.15.0 | MIT License | https://github.com/rust-itertools/itertools |
@@ -9612,7 +9600,7 @@ the following restrictions:
 | `parking_lot_core` | 0.9.12 | MIT License | https://github.com/Amanieu/parking_lot |
 | `thread_local` | 1.1.10 | MIT License | https://github.com/Amanieu/thread_local-rs |
 | `fallible-streaming-iterator` | 0.1.9 | MIT License | https://github.com/sfackler/fallible-streaming-iterator |
-| `indexmap` | 2.14.0 | MIT License | https://github.com/indexmap-rs/indexmap |
+| `indexmap` | 2.14.1 | MIT License | https://github.com/indexmap-rs/indexmap |
 | `equivalent` | 1.0.2 | MIT License | https://github.com/indexmap-rs/equivalent |
 | `addr2line` | 0.25.1 | MIT License | https://github.com/gimli-rs/addr2line |
 | `scopeguard` | 1.2.0 | MIT License | https://github.com/bluss/scopeguard |
@@ -9745,7 +9733,7 @@ the following restrictions:
 | `rust-sugiyama` | 0.4.0 | MIT License | https://github.com/paddison/rust-sugiyama |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
 | `tree-sitter-dart` | 0.2.0 | MIT License | https://github.com/nielsenko/tree-sitter-dart |
-| `animate-core` | 0.4.1 | MIT License | https://github.com/vyfor/animate |
+| `animate-core` | 0.5.0 | MIT License | https://github.com/vyfor/animate |
 | `axoupdater` | 0.10.2 | MIT License | https://github.com/axodotdev/axoupdater |
 | `backtrace-ext` | 0.2.1 | MIT License | https://github.com/gankra/backtrace-ext |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
@@ -9877,8 +9865,8 @@ the following restrictions:
 | `winapi-util` | 0.1.11 | MIT License | https://github.com/BurntSushi/winapi-util |
 | `console` | 0.16.4 | MIT License | https://github.com/console-rs/console |
 | `tree-sitter-rust` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-rust |
-| `tree-sitter-language` | 0.1.7 | MIT License | https://github.com/tree-sitter/tree-sitter |
-| `tree-sitter` | 0.26.13 | MIT License | https://github.com/tree-sitter/tree-sitter |
+| `tree-sitter-language` | 0.1.8 | MIT License | https://github.com/tree-sitter/tree-sitter |
+| `tree-sitter` | 0.27.0 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `bstr` | 1.13.1 | MIT License | https://github.com/BurntSushi/bstr |
 | `fuzzy-matcher` | 0.3.7 | MIT License | https://github.com/lotabout/fuzzy-matcher |
 | `crossbeam-deque` | 0.8.7 | MIT License | https://github.com/crossbeam-rs/crossbeam |

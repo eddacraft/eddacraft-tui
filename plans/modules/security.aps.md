@@ -11,7 +11,7 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | SEC    | —     | In Progress |
 
-**Last reviewed:** 2026-07-30
+**Last reviewed:** 2026-09-04 — SEC-007 summary row reconciled to the section's Released/Shipped status (v0.7.0-beta, PR #1806); prior review 2026-07-30
 
 ## Purpose
 
@@ -79,7 +79,7 @@ security concerns.
 | SEC-004 | Supply-chain policy doc (lockfile, registry, cargo-deny) | Ready |
 | SEC-005 | HTTP security headers on `anvil-api` | Proposed — **needs APGOV boundary call** |
 | SEC-006 | SBOM generation for release artefacts | **Deferred to SCA** — do not duplicate |
-| SEC-007 | Atomic token-revocation hardening (GH #1672) | In Progress |
+| SEC-007 | Atomic token-revocation hardening (GH #1672) | Released/Shipped via v0.7.0-beta |
 | SEC-008 | Named-pattern secret detection (GH #1800) | Merged |
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
 | SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |

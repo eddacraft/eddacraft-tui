@@ -125,7 +125,7 @@ fn benchmark_symbol_extraction(parser: &mut tree_sitter::Parser, language: &tree
         let mut capture_count = 0_usize;
         while let Some(m) = matches.next() {
             match_count += 1;
-            capture_count += m.captures.len();
+            capture_count += m.captures().len();
         }
         let elapsed = start.elapsed();
         durations.push(elapsed);

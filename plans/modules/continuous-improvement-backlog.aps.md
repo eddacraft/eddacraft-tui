@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 307/397  |
+| CIB | —     | In Progress | 316/404  |
 
 ## Purpose
 
@@ -9638,8 +9638,8 @@ CIB-251/255 only.
 
 ### CIB-320: No gate sees an Nx project graph that only breaks on Vercel
 
-- **Status:** Ready — filed by operator request 2026-08-11, immediately after
-  the second occurrence of the failure class.
+- **Status:** Merged 2026-09-02 via PR #4319 (was Ready — filed by operator request 2026-08-11, immediately after
+  the second occurrence of the failure class).
 - **Priority:** P1 deploy availability — the failure takes every Nx-built
   Vercel app down on `main` and is invisible to CI
 - **Intent:** Adding a directory anywhere in the repo that contains lintable
@@ -11840,7 +11840,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-373: entropy flags generated record ids as high-entropy strings
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-02 via PR #4320
 - **Priority:** P2 — a measured 96% false-positive rate on the one file class
   that reliably contains them
 - **Intent:** SDT-007 raised the scan size guard, which brought this
@@ -11886,7 +11886,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-375: `ci-log:set-watermark` can advance over an un-harvested queue
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-02 via PR #4318
 - **Priority:** P2 — the watermark is the only record of what has been
   triaged, so a wrong one silently retires evidence rather than producing a
   wrong verdict
@@ -12981,7 +12981,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-394: Bind council-gate approval to the reviewed head SHA
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-03 via PR
+  [#4369](https://github.com/eddacraft/anvil-001/pull/4369) (`e27304b13`)
 - **Priority:** P1 — required `Protected surfaces reviewed` check can go green
   on a stale fork label or a no-PR `workflow_dispatch`
 - **Intent:** The council-gate workflow must only accept a `council:reviewed`
@@ -12999,6 +13000,13 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   success under the required job name.
 - **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
   [#4347](https://github.com/eddacraft/anvil-001/issues/4347).
+- **Landed:** [#4369](https://github.com/eddacraft/anvil-001/pull/4369), rebase
+  merge `e27304b13`, 2026-09-03. Council approval is bound to the current PR
+  head and the first `council:reviewed` label event; reruns, base retargets,
+  stale heads, GitHub API failures, and changed-path diff failures fail closed.
+  Label dismissal runs in a checkout-free API job with hosted and local
+  contract tests (`pnpm test:ci-council-gate-workflow`). Council
+  `council-bded8e77`: zero findings at the reviewed head.
 - **Coordinates with:** CIB-149 (the process guard this workflow enforces),
   CIB-137 (classifier tampering — different required-check bypass).
 - **Confidence:** high — both paths read directly in the current workflow.
@@ -13029,7 +13037,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-396: Force fork PRs off LINUX_RUNNER in secret-calibration
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-03 via PR
+  [#4363](https://github.com/eddacraft/anvil-001/pull/4363) (`aeda4dd66`)
 - **Priority:** P1 if `vars.LINUX_RUNNER` is a self-hosted or long-lived org
   runner (same var `rust-tests.yml` already fork-guards)
 - **Intent:** Fork pull requests must not execute PR-controlled `cargo test` on
@@ -13042,13 +13051,20 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `vars.LINUX_RUNNER`.
 - **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
   [#4345](https://github.com/eddacraft/anvil-001/issues/4345).
+- **Landed:** [#4363](https://github.com/eddacraft/anvil-001/pull/4363), rebase
+  merge `aeda4dd66`, 2026-09-03. Fork PRs are forced off `vars.LINUX_RUNNER` in
+  the advisory secret-calibration job (same ternary as `codeql.yml` /
+  `rust-tests.yml`); trusted `push`, `workflow_dispatch`, and same-repo PRs
+  keep the variable. Guarded by
+  `scripts/ci/secret-calibration-workflow.test.sh` from the CI metadata checks.
 - **Coordinates with:** CIB-138 (bench-nightly self-hosted ref guard — sibling,
   not a duplicate).
 - **Confidence:** high for the missing guard; impact is configuration-conditional.
 
 ### CIB-397: Resolve Windows OS utilities to trusted absolute paths in CLI helpers
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-03 via PR
+  [#4370](https://github.com/eddacraft/anvil-001/pull/4370) (`89a5d4b09`)
 - **Priority:** P1 — Anvil runs inside arbitrary workspaces; Windows search
   order can include cwd
 - **Intent:** Production helpers that currently launch bare `cmd`, `git`,
@@ -13063,6 +13079,15 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `git.exe` / `cmd.exe` in cwd is not executed.
 - **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
   [#4343](https://github.com/eddacraft/anvil-001/issues/4343).
+- **Landed:** [#4370](https://github.com/eddacraft/anvil-001/pull/4370), rebase
+  merge `89a5d4b09`, 2026-09-03. `cmd.exe` and `icacls.exe` resolve through
+  validated absolute `%SystemRoot%\\System32` paths; the user SID comes from
+  the Win32 process-token API instead of spawning `whoami`; `git.exe` resolves
+  only from canonical absolute PATH entries outside the cwd and enclosing
+  workspace. Pure Windows path-resolution regressions cover planted `cmd.exe` /
+  `git.exe`, nested cwds, and hostile nested `.git` markers; cross-checked with
+  `--target x86_64-pc-windows-gnu` clippy. Council `council-5ae1b02c`: 4
+  findings fixed, 0 open.
 - **Coordinates with:** CIB-211 (Windows named-pipe/config ACLs), MLP2-028
   (peer-PID lineage) — related Windows trust, different root cause.
 - **Confidence:** medium — search-order hijack is real; which helpers fire in
@@ -13070,7 +13095,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-398: Stop nested GCTX workspace roots from rebasing away sensitive-path prefixes
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-03 via PR
+  [#4371](https://github.com/eddacraft/anvil-001/pull/4371) (`3c50c5d1c`)
 - **Priority:** P1 — unauthenticated `anvil_symbol_context` admits any directory
   inside the MCP server root (ADR-125), which can strip CE-3 denied prefixes
 - **Intent:** GCTX symbol-context queries must not treat a nested subdirectory
@@ -13087,15 +13113,28 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   prefix; existing ADR-125 linked-worktree admission still works.
 - **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
   [#4348](https://github.com/eddacraft/anvil-001/issues/4348).
-- **Coordinates with:** ADR-125 (nested-root admission is currently intentional
-  for MCP tools), CIB-148 (path normalisation in `anvil_query_boundary`),
-  GCTX-023 / ADR-084.
+- **Landed:** [#4371](https://github.com/eddacraft/anvil-001/pull/4371), rebase
+  merge `3c50c5d1c`, 2026-09-03. Delivered wider than filed: the same rebase
+  existed in all six daemon-keyed graph tools (`search_symbols`,
+  `find_callers`, `find_dependents`, `impact_of_change`, `affected_tests`,
+  `symbol_context`), so the fix is one shared validator
+  (`shared::validate_gctx_workspace_root`) requiring the root to be exactly the
+  server cwd or a registered worktree root; check / gate / status / write tools
+  keep ADR-125 nested admission (ADR-125 carries the amendment note).
+- **Verifier advisory (out of scope here):** the daemon itself still admits a
+  nested root from a non-MCP socket client in `open` mode (`save_time.rs`
+  `symbol_context` → `authorise_root`); the unauthenticated MCP surface is the
+  one closed by this item.
+- **Coordinates with:** ADR-125 (nested-root admission stays for the non-graph
+  tools; amended 2026-09-03 for the graph tools), CIB-148 (path normalisation
+  in `anvil_query_boundary`), GCTX-023 / ADR-084.
 - **Confidence:** high — `validate_workspace_root` admits `starts_with(server_root)`
   and the tool is `requires_auth: false`.
 
 ### CIB-399: Reject suspended accounts on account-activity ingest
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-03 via PR
+  [#4366](https://github.com/eddacraft/anvil-001/pull/4366) (`138039c32`)
 - **Priority:** P2 — post-revocation write of allowlisted telemetry until JWT
   expiry; not licence reminting
 - **Intent:** `POST` account-activity must reload `beta_users` and reject
@@ -13109,6 +13148,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   keys, assert rejection and no `account_feature_touches` / activity stamp.
 - **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
   [#4344](https://github.com/eddacraft/anvil-001/issues/4344).
+- **Landed:** [#4366](https://github.com/eddacraft/anvil-001/pull/4366), rebase
+  merge `138039c32`, 2026-09-03. Account-activity ingest reloads `beta_users`
+  and rejects missing or non-active subjects before any upsert or
+  `last_activity_at` stamp; the payload is checked before the account lookup.
+  Landed with three documentation-governance rounds folded into the same PR.
 - **Coordinates with:** CIB-141 (fail-closed entitlement), SEC-007 (atomic
   token revocation, GH #1672, shipped) — this route was added later and never
   got the active-status gate.
@@ -13116,7 +13160,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-400: Keep the positional Draw.io path when optional export flags are absent
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-03 via PR
+  [#4367](https://github.com/eddacraft/anvil-001/pull/4367) (`a14cfa12b`)
 - **Priority:** P3 — developer-facing argument-parsing bug, not a vulnerability
 - **Intent:** `scripts/docs/export-public-diagram.mjs` must keep argv[0] as the
   `.drawio` path when `--root` and `--drawio-bin` are omitted.
@@ -13129,6 +13174,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Identified From:** DeepSec run `20260902184224-6753b67df9c072ab`; GH
   [#4346](https://github.com/eddacraft/anvil-001/issues/4346). DeepSec triage
   skip as security; filed so the bug is not lost.
+- **Landed:** [#4367](https://github.com/eddacraft/anvil-001/pull/4367), rebase
+  merge `a14cfa12b`, 2026-09-03. The positional `.drawio` path survives when
+  `--root` and `--drawio-bin` are omitted; a regression exercises the
+  documented positional-only invocation and proves it reaches Draw.io handling
+  instead of the usage exit.
 - **Coordinates with:** docs public-diagram export contract.
 - **Confidence:** high — `indexOf`/`filter` behaviour is local and deterministic.
 
@@ -13263,3 +13313,299 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   a product fix.
 - **Confidence:** high — every surface in the issue's split was re-read on
   `main` after #4191 and the index case was reproduced end to end.
+### CIB-403: `.mjs` is outside the repo's file-type allowlists, so it escapes both tooling and search
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — 77 tracked files are outside pre-commit entirely, and the
+  same blind spot cost two defects in one PR that review caught rather than a
+  gate
+- **Intent:** the repository has 77 tracked `.mjs`/`.cjs` files (74 `.mjs`,
+  3 `.cjs`), and the
+  conventional file-type allowlists do not name that extension. It is invisible
+  in two directions.
+
+  **Tooling.** `.lintstagedrc.cjs` has five globs — `*.{js,jsx,ts,tsx}` (`:81`),
+  `*.json` (`:89`), `!(pnpm-lock|temper).{yml,yaml}` (`:109`),
+  `temper.{yml,yaml}` (`:119`) and `*.md` (`:124`). None matches `mjs` or
+  `cjs`, so a `.mjs` file gets **no** pre-commit formatting or linting. It is caught later by CI's
+  `oxfmt --check .`, which is a slower, more expensive loop than the one every
+  other extension gets. Previously observed on PR #3843 (BACT-012) and never
+  closed.
+
+  **Search.** The same habit shapes hand-written surveys. On 2026-09-03 the
+  brand-accent retune (#4365) surveyed consumers of `#cc5500` with
+  `--include='*.css' --include='*.ts' --include='*.tsx'` — the extensions the
+  *definitions* live in — and so missed two `.mjs` files that pinned the value
+  as an expectation:
+
+  - `apps/dashboard/visual-qa.mjs:89` asserted `anvil: '#cc5500'` against the
+    live computed token;
+  - `apps/website/scripts/check-positioning.mjs:67` listed `#cc5500` in
+    `allowedColours`, and its walk covers `app/**.css` plus
+    `components/**.tsx`, so **every file that change touched** would have been
+    reported off-palette.
+
+  Both were found by review, not by a gate, and both would have failed CI.
+- **Expected Outcome:** `.mjs`/`.cjs` are formatted and linted at pre-commit
+  like every other executable source extension, so the fast loop catches them
+  instead of CI. Whatever the fix, it is proven by staging an unformatted
+  `.mjs` and watching pre-commit correct or reject it — the current state
+  silently accepts it.
+- **Non-scope / do not:** do not rename the 77 files to `.js` to fit the glob —
+  the extension is meaningful (ESM in a CJS-defaulting package) and the glob is
+  the thing that is wrong. Do not treat the search half as fixed by the tooling
+  half; a wider lint-staged glob does nothing for someone grepping by
+  extension, and that half is a habit, not a config. Do not add a
+  "grep all extensions" rule to the agent instructions in place of a gate —
+  the durable fix for a value pinned in several places is that it is pinned
+  once, not that everyone remembers to search harder.
+- **Files:** `.lintstagedrc.cjs` (the five globs), `package.json` (`lint:ox`,
+  `format:check` — reference only, these already cover the tree),
+  `apps/dashboard/visual-qa.mjs` and
+  `apps/website/scripts/check-positioning.mjs` (the two that pinned the hex —
+  already corrected on `main`, reference only)
+- **Validation:** stage a deliberately unformatted `.mjs` and confirm
+  pre-commit acts on it; prove RED by reverting the glob. `pnpm format:check`
+  over the tree stays green, and no `.md`/`.json`/`.tsx` task changes
+  behaviour.
+- **Identified From:** 2026-09-03, the brand-accent retune (#4365). The
+  tooling half was recorded against PR #3843 (BACT-012) and left open; the
+  search half is new and is what actually broke two guards.
+- **Coordinates with:** CIB-390 (a check that did not really examine its input
+  — the same family: a gate that looks like it ran and did not), CIB-299 (a
+  guard unreachable for the PR shape that needed it), CIB-316 (guards nothing
+  invokes)
+- **Confidence:** high on both halves — the glob set and the file count are
+  greps, and the two `.mjs` misses are recorded in #4365's review threads
+  with the corrections merged. Worth recording that this entry's own first
+  draft said "exactly three globs": it was written from `grep "^\s*'\*"`,
+  which silently dropped the two YAML globs because they do not begin with
+  `*`. Review caught it. A pattern that excludes what the author did not
+  anticipate is the same defect the entry describes, one level up.
+
+### CIB-404: `pr-required-status` reports a conflicting PR as "not finished", so a poller waits for checks that can never run
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P2 — the wrong answer is *actionable in the opposite direction*:
+  "not finished" says wait, the truth says repair. An automated caller waits
+  until its own timeout on a PR that will never progress
+- **Intent:** `scripts/ci/pr-required-status.mjs` classifies each required
+  context as reported / pending / failed, and reports "not finished" when a
+  context has no check run. It never asks whether the pull request has a
+  **merge candidate at all**. `grep -c 'DIRTY\|CONFLICTING\|mergeable'` over the
+  script on `main` returns **0**.
+
+  When a PR conflicts with its base, GitHub cannot build the merge commit, so
+  **no workflow runs and no required context ever reports**. The tool then
+  emits its pending message naming every required context, which is
+  indistinguishable from a PR whose CI simply has not started.
+
+  Observed 2026-09-03 on PR #4372. The tool said:
+
+  ```text
+  [pr-required-status] not finished: APS Drift Check, Detect Changes, Docs Lint,
+  Lint & Format, Nx Graph, Protected surfaces reviewed, Security Summary, Test,
+  Type Check, Unit Tests (Node 22.x, ubuntu-latest) have not reported
+  ```
+
+  while `gh pr view` reported `mergeable: CONFLICTING`,
+  `mergeStateStatus: DIRTY`, and `gh run list --branch` showed workflow runs
+  only for the *previous* head. The branch had gone stale against a
+  multi-writer hot file (`continuous-improvement-backlog.aps.md`) while a
+  sibling PR landed. Nothing was pending; nothing could ever start.
+
+  The cost is not the misdiagnosis alone. Exit 2 is the code a caller polls on,
+  so a loop written to "wait until it stops saying not-finished" — which is
+  exactly what the session had running — waits for its full budget (70 × 45 s
+  ≈ 52 minutes) on a PR that needed a thirty-second rebase.
+
+  This is the same defect family as CIB-390, one level in: that item stopped a
+  non-verdict being read as a **pass**; this is a non-verdict being reported as
+  the **wrong kind of non-verdict**.
+- **Expected Outcome:** a conflicting or otherwise unbuildable PR is reported as
+  such, with its own exit code, and never as "not finished". The natural shape
+  is a fourth code beside the existing three (`0` pass, `1` failed, `2` not
+  finished, `3` unresolved threads), so a caller can branch on "repair the
+  base" without string-matching the message. The check needs
+  `mergeable` / `mergeStateStatus` from `gh pr view`, which the script already
+  calls — it simply does not request or read those fields.
+- **Non-scope / do not:** do not fold conflicts into exit 2 "for simplicity" —
+  the whole point is that the two demand opposite actions, and merging them
+  reintroduces the defect under a tidier name. Do not have the tool rebase,
+  merge, or otherwise repair the base: it is a reporter, and a status reader
+  that silently mutates a branch is a much worse surprise than a wrong exit
+  code. Do not treat `mergeable: UNKNOWN` as conflicting — GitHub computes it
+  asynchronously and `UNKNOWN` is itself a not-yet-a-verdict state that must be
+  distinguished from both.
+- **Files:** `scripts/ci/pr-required-status.mjs` (the `gh pr view --json` field
+  list and the classification at the end of `main`),
+  `scripts/ci/pr-required-status.test.mjs` (injection already supports
+  `--required-json` / `--checks-json` / `--threads-json`; a conflict fixture
+  wants the same treatment)
+- **Validation:** against a deliberately conflicting PR the tool exits with the
+  new code and names the conflict; against a healthy PR whose checks have
+  genuinely not started it still exits 2 and names the missing contexts. Both
+  arms proven, or the new code is untested in the case that matters.
+  `mergeable: UNKNOWN` covered as its own case.
+- **Identified From:** 2026-09-03, landing CIB-403 (#4372). The conflict was
+  found by reading `mergeStateStatus` directly after the tool's message did not
+  match the elapsed time; nothing in the tool's output pointed at it.
+- **Coordinates with:** CIB-390 (the parent defect — a result that is not a
+  verdict being read as one; this tool is that item's own implementation),
+  CIB-393 / CIB-401 (other cases where a CI signal did not mean what it
+  appeared to mean), and the APS bookkeeping hot-file convention that makes
+  this conflict routine on CIB intake branches
+- **Confidence:** high — the missing field read is a grep, and the misreport was
+  observed end to end on #4372 with `mergeStateStatus`, the run list, and the
+  tool's own output all captured.
+
+### CIB-405: remaining daemon clients still probe a socket and then connect again
+
+- **Status:** Proposed
+- **Priority:** P2 — every affected request costs the daemon two accepts and
+  two connection permits, and the probe-then-connect window is the shape that
+  made the LSP mid-edit test flake (#4358)
+- **Intent:** since f284a572c every Unix rendezvous probed a candidate socket
+  (connect, drop) to prove it live, then connected a second time to send.
+  PR #4358 added `ipc::connect_live_socket` / `resolve_live_socket_connection`,
+  which return the liveness connection, and migrated the gctx RPC transport,
+  `anvil_symbol_context`, and the save-time client. Four callers still resolve
+  a path and connect separately: `crates/anvil-cli/src/registration.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs` (status, unblock, unblock
+  worktree), `crates/anvil-cli/src/mcp/validation.rs` (protection-claim
+  client), and `crates/anvil-run/src/ipc.rs`.
+- **Expected Outcome:** one rendezvous costs the daemon one accept for every
+  client. Two Council residuals from #4358 close with it: the
+  `method != "scan_buffer"` ConnectionRefused clause in
+  `classify_connect_error` (`crates/anvil-cli/src/mcp/gctx_client.rs`) is
+  unreachable once absence is classified at the rendezvous layer and should be
+  deleted or re-justified; and the save-time client maps a wrong-user or
+  planted-inode refusal to `Unavailable`, so doctor and watch cannot name a
+  trust refusal — distinguish it from absence in `SaveTimeClientError`.
+- **Validation:** a fake-daemon test per migrated caller that counts accepts
+  (pattern: `ipc::tests::connect_live_socket_reuses_the_probe_connection`);
+  `cargo test -p eddacraft-anvil --bin anvil -- gctx_client symbol_context watch_save_time registration`.
+- **Identified From:** CI-log 2026-09-03 (claude, #4358 closeout) and Council
+  session `council-de3fb935` findings F3 and F9.
+- **Coordinates with:** CIB-382 (the rendezvous lifecycle work that introduced
+  the probe), CIB-393 (doctor socket flake, same family)
+- **Confidence:** high on the call-site list (read on `main` 2026-09-03);
+  medium on the `SaveTimeClientError` shape
+
+### CIB-406: `ci.yml` Unit Tests re-runs Rust crate tests that `rust-tests.yml` already covers
+
+- **Status:** Proposed
+- **Priority:** P2 — a root-input change (`.config/nextest.toml`,
+  `.github/actions/**`, root `package.json`) pulls the whole Rust test surface
+  into the Node job (16m36s on #4325), duplicating the Rust Tests job on the
+  one-machine `RUST_TEST_RUNNER` pool that gates the required `Test` check
+- **Intent:** `RUST_EXCLUDES` in `.github/workflows/ci.yml` names 11 cargo
+  projects, but the workspace has 37; `nx affected -t test` still schedules the
+  other 26 (`eddacraft-anvil-intercept`, `-run`, `-graph-cache`,
+  `-dashboard-server`, `-sarif`, `-witness`, `-hook`, `-l4`, `-policy-engine`,
+  `-rules`, …) through the Node Unit Tests job whenever the affected set widens.
+  The nightly `TypeScript Coverage` job has the same shape: it ran
+  `eddacraft-anvil-intercept:test` on 2026-09-02 and failed the leg on a Rust
+  test the Cross matrix already runs.
+- **Expected Outcome:** the Node test jobs exclude every cargo-side nx project
+  by rule (a generated exclude list or an nx tag), so a root-input change
+  re-runs only JS/TS suites; Rust coverage stays with `rust-tests.yml`,
+  `Cross`, and `Rust Coverage`. Secondary: record the merge-queue question —
+  push-to-main re-validation cost 935 runner-minutes in a 39 h sample (#4325
+  review) — as a decision, not a lever, since `strict_required_status_checks`
+  is off by design.
+- **Validation:** push a no-op change to `.config/nextest.toml` on a branch and
+  confirm `Unit Tests (Node 22.x, ubuntu-latest)` lists no `eddacraft-anvil-*`
+  cargo project; nightly `TypeScript Coverage` log contains no `cargo test`
+  target.
+- **Identified From:** CI-log 2026-09-02 (claude, CI cost review #4325) and
+  2026-09-03 (grok, #4356/#4357 landing); nightly run 33720434342.
+- **Coordinates with:** CIB-401 (the better-sqlite3 teardown crash lives in the
+  same Node job and hides behind all-green suites), CIB-391 (the two nextest
+  timing races #4325 gave a 2-retry override; #4358 fixed both properly)
+- **Confidence:** high — the exclude list and the crate list were compared on
+  `main` 2026-09-03
+
+### CIB-407: the CI path classifier over-triggers on rust-only, docs-only, and `scripts/ci` changes
+
+- **Status:** Proposed
+- **Priority:** P3 — no wrong verdict; the cost is queue time on the required
+  Rust runner and full JS gates on changes that cannot affect them
+- **Intent:** three sessions in the window paid for gates their diff could not
+  move: a rust-only PR ran `pnpm typecheck` because `cargo-check` maps to it
+  (2026-08-31, grok); a plans-only CIB status reconcile waited on the required
+  Rust `Test` runner after every other exact-head check had passed
+  (2026-09-02, codex, #4315); a workflow-hardening fixture under `scripts/ci`
+  plus a `package.json` script line was classed as a lockfile change and paid
+  the dependency audit (2026-09-03, #4349 fix).
+- **Expected Outcome:** `detect-changes` classifies by the surface a path can
+  affect: rust-only → no JS typecheck; `plans/**`-only → no Rust execution;
+  `scripts/ci/**` and `package.json` `scripts` edits without a lockfile or
+  dependency delta → no dependency audit. Each rule carries a fixture in the
+  CI metadata checks so the classifier cannot silently widen again.
+- **Validation:** three fixture PRs (rust-only, plans-only, scripts/ci-only)
+  each show only their surface's jobs in `gh pr checks`.
+- **Identified From:** CI-log 2026-08-31 (grok), 2026-09-02 (codex, #4315),
+  2026-09-03 (other, #4349).
+- **Coordinates with:** CIB-406 (same job family; that item is about the
+  Rust-in-Node duplication, this one about path classification), CIB-299
+  (root `install.sh` unclassified — the inverse failure, a guard that never
+  runs)
+- **Confidence:** medium — the three symptoms are verified; the classifier's
+  rule table has not been re-read for this item
+
+### CIB-408: docs tooling in a fresh worktree dies with `ERR_MODULE_NOT_FOUND` instead of naming its prerequisite
+
+- **Status:** Proposed
+- **Priority:** P3 — recoverable, but it recurs for every `git worktree add`
+  and reads as a crash rather than a missing step
+- **Intent:** `check-docs-owed.mjs`, `redate-owed.mjs`, and the diagram-impact
+  gate import `@eddacraft/anvil-docs-meta`, a workspace package that must be
+  built (`pnpm -F @eddacraft/anvil-docs-meta build`) after `pnpm install`. In a
+  worktree created with plain `git worktree add`, or after a `main` sync that
+  changes the package, the scripts throw a Node module-resolution stack trace
+  with no hint. Hit on 2026-09-01 (codex, #4297) and twice on 2026-09-03
+  (claude, #4358 and #4368).
+- **Expected Outcome:** each docs script checks for the built package before
+  importing it and exits 2 with the exact recovery command
+  (`pnpm install && pnpm -F @eddacraft/anvil-docs-meta build`); the
+  `docs:*` package scripts run that build as a `pre` step or via an nx
+  `dependsOn`, so the manual step disappears on the happy path.
+- **Validation:** in a worktree with `node_modules` present but
+  `packages/docs-meta/dist` absent, `pnpm docs:owed --since origin/main` prints
+  the recovery line and exits 2; after the build it runs.
+- **Identified From:** CI-log 2026-09-01 (codex, theme
+  `docs-tooling-prerequisite`) and 2026-09-03 (claude).
+- **Coordinates with:** CIB-390 (a tooling failure must not read as a pass — a
+  missing prerequisite must not read as a crash either), CIB-032 (fresh
+  worktrees and stale tooling)
+- **Confidence:** high — reproduced three times in one week
+
+### CIB-409: `triage-ci-log` workflow passes an object as the agent prompt, and `ci-log:status` hides the triage debt
+
+- **Status:** Proposed
+- **Priority:** P3 — the workflow fails fast and honestly, so nothing wrong is
+  recorded; the cost is that the skill's documented entry point has never
+  worked and every triage is done by hand
+- **Intent:** `.claude/workflows/triage-ci-log.js` calls `agent({ prompt, … })`
+  with an object; the current Workflow API takes `agent(prompt, opts)`, so the
+  agent receives the literal string `[object]` and returns an error. Observed
+  2026-08-31 ("returned in 5.5s having made zero tool calls") and again
+  2026-09-03 (`wf_67d20b57-c15`). Separately, `pnpm ci-log:status` reports
+  only the pending count; the untriaged tracked backlog (129 entries past a
+  four-day-old watermark today, 193 past a five-week-old one on 2026-08-31)
+  is invisible until `ci-log:since -- --watermark` is run.
+- **Expected Outcome:** the workflow script uses the `agent(prompt, opts)`
+  form and a dry run reaches the Status phase; `ci-log:status` prints
+  `Since watermark: N` next to `Pending:`, so session start shows the triage
+  debt.
+- **Validation:** `Workflow({ name: "triage-ci-log", args: { dryRun: true } })`
+  completes with tool calls in the Status phase; `pnpm ci-log:status` output
+  includes the since-watermark count and matches
+  `pnpm ci-log:since -- --watermark | grep -c '^### '`.
+- **Identified From:** CI-log 2026-08-31 (claude, triage closeout) and
+  2026-09-03 (claude, this triage).
+- **Coordinates with:** CIB-192 (the triage workflow this repairs), CIB-375
+  (set-watermark guard, same tool family)
+- **Confidence:** high — the failing call shape was read in the script and the
+  journal

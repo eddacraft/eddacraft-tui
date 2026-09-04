@@ -5,7 +5,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
-use animate_core::is_animating;
 use anvil_kernel_types::{EngineEvent, EventType};
 use anvil_tui::shell::render_shell;
 use anvil_tui::surface::{PointerSurface, Surface};
@@ -16,6 +15,7 @@ use crossterm::event::{
 };
 use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use eddacraft_tui::animation::{animate_tick, is_animating};
 use eddacraft_tui::keyboard::KeyHandler;
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Terminal;
@@ -928,7 +928,7 @@ where
         // remainder accumulates into the next iteration so animations still
         // progress when individual loop iterations run faster than 1 ms.
         *last_tick += Duration::from_millis(ms as u64);
-        animate_core::tick(ms);
+        animate_tick(ms);
     }
 
     if !already_dirty && is_animating() {
