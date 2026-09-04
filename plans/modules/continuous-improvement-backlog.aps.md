@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 316/405  |
+| CIB | —     | In Progress | 316/404  |
 
 ## Purpose
 
@@ -13610,7 +13610,140 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Confidence:** high — the failing call shape was read in the script and the
   journal
 
-### CIB-410: The intercept daemon still keys a graph on any nested root a socket client hands it
+### CIB-410: Pin the workspace Rust toolchain to 1.98.1
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P3 — toolchain hygiene; 1.97.1 remains correct, and 1.98.0
+  must not be pinned
+- **Intent:** the workspace `rust-toolchain.toml` pin tracks current stable at
+  the first safe 1.98 point release.
+- **Expected Outcome:** `rust-toolchain.toml` channel is `1.98.1`. Clippy and
+  rustfmt on that toolchain are clean under `cargo clippy --workspace
+  --all-targets -- -D warnings`. `cargo test -p eddacraft-anvil --no-fail-fast`
+  is green. `eddacraft-tui`'s declared `rust-version = "1.88"` is unchanged
+  (D-TUIR-015).
+- **Non-scope / do not:** do not pin `1.98.0` (vtable miscompilation,
+  rust-lang/rust#161441). Do not raise `eddacraft-tui` MSRV. Do not switch the
+  pin to `stable` (reverted in May 2026; ADR-057 wants an exact pin).
+- **Files:** `rust-toolchain.toml`; clippy/rustfmt fallout wherever 1.98 lints
+  fire
+- **Validation:** `rustc --version` reports `1.98.1` via the workspace pin;
+  `cargo clippy --workspace --all-targets -- -D warnings`; `cargo fmt --check`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`.
+- **Identified From:** 2026-09-03 toolchain review. Pin is 1.97.1 (31 Jul);
+  1.98.0 shipped 20 Aug with a critical vtable UB; 1.98.1 shipped 3 Sep as the
+  fix. Numbered 410 because **CIB-409** on `main` is the triage-ci-log item
+  from the 2026-09-03 CI-log triage.
+- **Confidence:** high on the target version and the 1.98.0 exclusion; medium
+  on clippy churn volume (same class as the 1.95.0 → 1.97.1 bump).
+
+### CIB-411: diagram-impact enforcement drops repository-rooted `infra/**` upstreams
+
+- **Status:** Ready — triaged 2026-09-04 from GH
+  [#4115](https://github.com/eddacraft/anvil-001/issues/4115) (filed
+  2026-08-24 by the DOCRB-010 clean-room Council; verified still open on
+  `main` today)
+- **Priority:** P1 — a mandatory ADR-123 review gate fails open: a change to a
+  declared infrastructure upstream passes without the owning Mermaid document
+  being reviewed
+- **Intent:** `packages/docs-meta/src/parser/parse-metadata.ts`
+  `PATH_LIKE_ROOTED_PREFIXES` lists `.github/`, `.husky/`, `apps/`,
+  `archive/`, `crates/`, `docs/`, `packages/`, `patterns/`, `plans/`,
+  `policies/`, `scripts/`, `tools/` — not `infra/`. A governed document that
+  declares `infra/src/components/vercel-app.ts` as an exact upstream
+  (`docs/architecture/docs-delivery.md`) therefore never reaches
+  `scripts/docs/check-diagram-impact.mjs`; a modification or deletion of that
+  path renders zero findings and zero fences.
+- **Expected Outcome:** repository-rooted `infra/**` references (exact and
+  directory) are retained by metadata parsing without weakening path
+  confinement; modifying or deleting a declared `infra/**` upstream fails with
+  `diagram-review-owed` unless the owning document changes and renders. Local
+  validation (`scripts/validate/local.sh`) and CI routing
+  (`detect-changes` → `diagram-impact-required`) fail closed for the same
+  paths.
+- **Validation:** parser coverage for exact and directory `infra/**`
+  references; a governed-document modification fixture and a deletion fixture
+  through `check-diagram-impact.test.mjs`;
+  `node scripts/docs/check-diagram-impact.mjs --paths-file <file with infra/src/components/vercel-app.ts> --json`
+  reports the owner; docs-meta, diagram-impact, local-validator,
+  CI-integration, docs-check, format, and lint gates.
+- **Identified From:** GH #4115 (DOCRB-010 residual; ADR-123 mandatory diagram
+  review).
+- **Coordinates with:** CIB-412 (the other diagram-impact fail-open, same
+  collector chain), CIB-377 (freshness cascade through mermaid chains — the
+  cascade behaviour, not this gap), DOCRB (archived
+  `plans/archive/modules/docs-rebaseline.aps.md`) for the gate's origin
+- **Confidence:** high — the prefix list and the declared upstream were read
+  on `main` 2026-09-04
+
+### CIB-412: diagram-impact collectors see only a rename's destination, so a renamed upstream escapes review
+
+- **Status:** Ready — triaged 2026-09-04 from GH
+  [#4116](https://github.com/eddacraft/anvil-001/issues/4116) (filed
+  2026-08-24 by the DOCRB-010 clean-room Council; verified still open on
+  `main` today)
+- **Priority:** P1 — ADR-123 explicitly requires diagram-impact review when a
+  depicted component or surface is renamed, and the gate cannot see the
+  rename's source endpoint
+- **Intent:** every collector feeding diagram-impact uses
+  `git diff --name-only --diff-filter=ACDMR`: the checker itself
+  (`scripts/docs/check-diagram-impact.mjs:397`) and both local collectors in
+  `scripts/validate/local.sh` (`--staged` at :92, `--changed` at :102). When
+  Git detects a rename, name-only output carries the destination and omits the
+  old path, so an owner that declares the old exact path is never matched and
+  the rename passes without owner review. Deletions are covered by
+  regressions; renames are not.
+- **Expected Outcome:** both rename endpoints participate in classification.
+  Collectors use a NUL-safe, fail-closed status format
+  (`git diff --name-status -z`, or `-M` with both endpoints emitted) and the
+  checker treats the old endpoint as a deletion of a declared upstream and the
+  new endpoint as an addition. Modification, deletion, copy, and ordinary
+  rename behaviour is preserved.
+- **Validation:** exact-path rename fixtures for the checker, the staged and
+  changed local collectors, the classifier routing, and the CI-integration
+  contract (`scripts/ci/integration-validation.test.sh`); a renamed exact
+  upstream with an untouched owner fails with `diagram-review-owed`; the
+  existing deletion regressions stay green.
+- **Identified From:** GH #4116 (DOCRB-010 residual; ADR-123 mandatory diagram
+  review).
+- **Coordinates with:** CIB-411 (same collector chain), CIB-377 (cascade
+  behaviour), CIB-290 (as-built line ranges structurally unenforced — the
+  neighbouring honesty gap in the same gate family)
+- **Confidence:** high — the three `name-only` call sites were read on `main`
+  2026-09-04
+
+### CIB-413: ADR-123 still says the deleted `apps/docs-site` host is retained for rollback
+
+- **Status:** Proposed — needs an ADR-process decision (amend in place with a
+  dated context note, or supersede), not a silent prose edit; triaged
+  2026-09-04 from GH
+  [#4114](https://github.com/eddacraft/anvil-001/issues/4114)
+- **Priority:** P2 — an Accepted ADR is the authority readers reach for, and
+  it currently describes a topology that no longer exists
+- **Intent:** `plans/decisions/123-documentation-authority-and-diagram-model.md`
+  (lines 35, 155, 158) says `apps/docs-site` is retained only for rollback and
+  that the DSITE ownership gap remains open. The host was deleted on
+  2026-08-20 (`5759c9b7a`), and `docs/guides/documentation-governance.md`,
+  `docs/architecture/docs-delivery.md`, and
+  `plans/modules/public-docs-site-host.aps.md` already say so. The ADR's
+  decision is still valid; its topology context is stale.
+- **Expected Outcome:** ADR-123 distinguishes its historical decision context
+  from current topology and ownership truth through the ADR process
+  (`docs/guides/adr-process.md`): either an amendment section dated to the
+  deletion, or a superseding ADR, with the decision log entry updated. No
+  DSITE work-item lifecycle changes implicitly.
+- **Validation:** `pnpm docs:check`, `pnpm docs:owed --since <base>`,
+  `pnpm aps:active-lint`, `pnpm aps:drift`; the decision log and ADR remain
+  structurally valid; a reader of ADR-123 is not told the deleted host
+  remains.
+- **Identified From:** GH #4114 (DOCRB-010 residual).
+- **Coordinates with:** DSITE (`plans/modules/public-docs-site-host.aps.md`),
+  CIB-378 (ADR number allocation — if this becomes a superseding ADR, allocate
+  after rebasing onto current `main`)
+- **Confidence:** high on the stale wording; the amend-versus-supersede call
+  is the operator's
+
+### CIB-414: The intercept daemon still keys a graph on any nested root a socket client hands it
 
 - **Status:** Proposed
 - **Priority:** P2 — the unauthenticated surface (the six MCP graph tools) is
@@ -13646,7 +13779,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   identities still carry `secrets/`), in both `open` and `allowlist` modes;
   the existing CIB-398 MCP tests keep passing; the per-connection root budget
   (CIB-154) is not consumed by the refused root.
-- **Identified From:** independent `verify-loop` of CIB-398 (PR
+- **Identified From:** independent `verify-loop` of CIB-398. Numbered 414 because **CIB-410** is the rust 1.98.1 pin and **CIB-411**..**CIB-413** are the diagram-impact intake (PR
   [#4371](https://github.com/eddacraft/anvil-001/pull/4371)), advisory A2,
   recorded on that item as out of scope; DeepSec run
   `20260902184224-6753b67df9c072ab` finding scope was the MCP tool only.
