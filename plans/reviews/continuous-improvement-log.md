@@ -49,7 +49,7 @@ Full operator guide:
 > the same change as adding one. Prefer `pnpm ci-log:append` /
 > `pnpm ci-log:harvest` over hand-editing.
 
-> **Last triaged:** 2026-08-30
+> **Last triaged:** 2026-09-03
 ## Template
 
 ```md
@@ -6579,4 +6579,27 @@ label-event gate for the new head.
 - **Friction:** Main advanced during the initial final probe, requiring another sync and exact-head CI cycle
 - **Improvement:** none
 - **Follow-up:** ready to reconcile: CIB-400 -> Merged via PR #4367
+
+### 2026-09-03 — codex
+
+#### Rebase merge can succeed before gh reports a local worktree collision
+
+`gh pr merge --rebase --delete-branch` completed PR #4369 server-side, then
+returned an error because `main` was already checked out in the primary
+worktree. Querying the PR and remote refs before retrying prevented a duplicate
+merge attempt; the remote head branch was already deleted.
+
+Improvement: when `gh pr merge` reports a post-merge local checkout failure,
+probe hosted PR state and integration ancestry before deciding whether the
+merge itself failed.
+
+### 2026-09-03 — claude
+
+- **Task:** CI-log triage — review 129 entries since the 2026-08-30 watermark, disposition into CIB, advance the watermark
+- **Outcome:** 1 straggler note harvested (561 → 562 entries, pending 0); 129 entries reviewed; CIB-405..409 promoted (daemon clients still probe-then-connect; ci.yml Unit Tests re-runs Rust crates; CI path classifier over-triggers; docs tooling prerequisite in fresh worktrees; triage-ci-log workflow prompt wiring + since-watermark count); CIB-320/373/375/396/400 reconciled to Merged (#4319, #4320, #4318, #4363, #4367); watermark 2026-08-30 → 2026-09-03
+- **Worked:** Compacting each entry to Task / Improvement / Follow-up (638 lines for 129 entries) made clustering tractable; 66 entries carried Follow-up none and 22 were session-scoped, so the real candidate set was the 7 promote: CIB, 7 theme: and the ready-to-reconcile notes. Checking CIB-192/375/377/378/354/391/393/401 before promoting kept absorptions to existing owners.
+- **Failed:** The triage-ci-log workflow failed the same way as on 2026-08-31: its agent received the literal string [object] and made zero tool calls (wf_67d20b57-c15). Triaged by hand again; the wiring bug is now CIB-408 rather than a repeated note.
+- **Friction:** Fix PRs are not discoverable from the CIB item id: gh pr list --search CIB-NNN finds the intake PR, not the fix; the log entries were the only pointer to #4319/#4320/#4318/#4363/#4367.
+- **Improvement:** Put the fix PR number in the CIB item at land time (the dev-loop closeout already knows it) so reconciliation does not depend on the CI-log entry surviving triage.
+- **Follow-up:** none
 

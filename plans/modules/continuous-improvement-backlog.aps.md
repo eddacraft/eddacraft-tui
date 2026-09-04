@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 313/398  |
+| CIB | —     | In Progress | 316/404  |
 
 ## Purpose
 
@@ -9638,8 +9638,8 @@ CIB-251/255 only.
 
 ### CIB-320: No gate sees an Nx project graph that only breaks on Vercel
 
-- **Status:** Ready — filed by operator request 2026-08-11, immediately after
-  the second occurrence of the failure class.
+- **Status:** Merged 2026-09-02 via PR #4319 (was Ready — filed by operator request 2026-08-11, immediately after
+  the second occurrence of the failure class).
 - **Priority:** P1 deploy availability — the failure takes every Nx-built
   Vercel app down on `main` and is invisible to CI
 - **Intent:** Adding a directory anywhere in the repo that contains lintable
@@ -11840,7 +11840,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-373: entropy flags generated record ids as high-entropy strings
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-02 via PR #4320
 - **Priority:** P2 — a measured 96% false-positive rate on the one file class
   that reliably contains them
 - **Intent:** SDT-007 raised the scan size guard, which brought this
@@ -11886,7 +11886,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-375: `ci-log:set-watermark` can advance over an un-harvested queue
 
-- **Status:** Proposed
+- **Status:** Merged 2026-09-02 via PR #4318
 - **Priority:** P2 — the watermark is the only record of what has been
   triaged, so a wrong one silently retires evidence rather than producing a
   wrong verdict
@@ -13458,3 +13458,154 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Confidence:** high — the missing field read is a grep, and the misreport was
   observed end to end on #4372 with `mergeStateStatus`, the run list, and the
   tool's own output all captured.
+
+### CIB-405: remaining daemon clients still probe a socket and then connect again
+
+- **Status:** Proposed
+- **Priority:** P2 — every affected request costs the daemon two accepts and
+  two connection permits, and the probe-then-connect window is the shape that
+  made the LSP mid-edit test flake (#4358)
+- **Intent:** since f284a572c every Unix rendezvous probed a candidate socket
+  (connect, drop) to prove it live, then connected a second time to send.
+  PR #4358 added `ipc::connect_live_socket` / `resolve_live_socket_connection`,
+  which return the liveness connection, and migrated the gctx RPC transport,
+  `anvil_symbol_context`, and the save-time client. Four callers still resolve
+  a path and connect separately: `crates/anvil-cli/src/registration.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs` (status, unblock, unblock
+  worktree), `crates/anvil-cli/src/mcp/validation.rs` (protection-claim
+  client), and `crates/anvil-run/src/ipc.rs`.
+- **Expected Outcome:** one rendezvous costs the daemon one accept for every
+  client. Two Council residuals from #4358 close with it: the
+  `method != "scan_buffer"` ConnectionRefused clause in
+  `classify_connect_error` (`crates/anvil-cli/src/mcp/gctx_client.rs`) is
+  unreachable once absence is classified at the rendezvous layer and should be
+  deleted or re-justified; and the save-time client maps a wrong-user or
+  planted-inode refusal to `Unavailable`, so doctor and watch cannot name a
+  trust refusal — distinguish it from absence in `SaveTimeClientError`.
+- **Validation:** a fake-daemon test per migrated caller that counts accepts
+  (pattern: `ipc::tests::connect_live_socket_reuses_the_probe_connection`);
+  `cargo test -p eddacraft-anvil --bin anvil -- gctx_client symbol_context watch_save_time registration`.
+- **Identified From:** CI-log 2026-09-03 (claude, #4358 closeout) and Council
+  session `council-de3fb935` findings F3 and F9.
+- **Coordinates with:** CIB-382 (the rendezvous lifecycle work that introduced
+  the probe), CIB-393 (doctor socket flake, same family)
+- **Confidence:** high on the call-site list (read on `main` 2026-09-03);
+  medium on the `SaveTimeClientError` shape
+
+### CIB-406: `ci.yml` Unit Tests re-runs Rust crate tests that `rust-tests.yml` already covers
+
+- **Status:** Proposed
+- **Priority:** P2 — a root-input change (`.config/nextest.toml`,
+  `.github/actions/**`, root `package.json`) pulls the whole Rust test surface
+  into the Node job (16m36s on #4325), duplicating the Rust Tests job on the
+  one-machine `RUST_TEST_RUNNER` pool that gates the required `Test` check
+- **Intent:** `RUST_EXCLUDES` in `.github/workflows/ci.yml` names 11 cargo
+  projects, but the workspace has 37; `nx affected -t test` still schedules the
+  other 26 (`eddacraft-anvil-intercept`, `-run`, `-graph-cache`,
+  `-dashboard-server`, `-sarif`, `-witness`, `-hook`, `-l4`, `-policy-engine`,
+  `-rules`, …) through the Node Unit Tests job whenever the affected set widens.
+  The nightly `TypeScript Coverage` job has the same shape: it ran
+  `eddacraft-anvil-intercept:test` on 2026-09-02 and failed the leg on a Rust
+  test the Cross matrix already runs.
+- **Expected Outcome:** the Node test jobs exclude every cargo-side nx project
+  by rule (a generated exclude list or an nx tag), so a root-input change
+  re-runs only JS/TS suites; Rust coverage stays with `rust-tests.yml`,
+  `Cross`, and `Rust Coverage`. Secondary: record the merge-queue question —
+  push-to-main re-validation cost 935 runner-minutes in a 39 h sample (#4325
+  review) — as a decision, not a lever, since `strict_required_status_checks`
+  is off by design.
+- **Validation:** push a no-op change to `.config/nextest.toml` on a branch and
+  confirm `Unit Tests (Node 22.x, ubuntu-latest)` lists no `eddacraft-anvil-*`
+  cargo project; nightly `TypeScript Coverage` log contains no `cargo test`
+  target.
+- **Identified From:** CI-log 2026-09-02 (claude, CI cost review #4325) and
+  2026-09-03 (grok, #4356/#4357 landing); nightly run 33720434342.
+- **Coordinates with:** CIB-401 (the better-sqlite3 teardown crash lives in the
+  same Node job and hides behind all-green suites), CIB-391 (the two nextest
+  timing races #4325 gave a 2-retry override; #4358 fixed both properly)
+- **Confidence:** high — the exclude list and the crate list were compared on
+  `main` 2026-09-03
+
+### CIB-407: the CI path classifier over-triggers on rust-only, docs-only, and `scripts/ci` changes
+
+- **Status:** Proposed
+- **Priority:** P3 — no wrong verdict; the cost is queue time on the required
+  Rust runner and full JS gates on changes that cannot affect them
+- **Intent:** three sessions in the window paid for gates their diff could not
+  move: a rust-only PR ran `pnpm typecheck` because `cargo-check` maps to it
+  (2026-08-31, grok); a plans-only CIB status reconcile waited on the required
+  Rust `Test` runner after every other exact-head check had passed
+  (2026-09-02, codex, #4315); a workflow-hardening fixture under `scripts/ci`
+  plus a `package.json` script line was classed as a lockfile change and paid
+  the dependency audit (2026-09-03, #4349 fix).
+- **Expected Outcome:** `detect-changes` classifies by the surface a path can
+  affect: rust-only → no JS typecheck; `plans/**`-only → no Rust execution;
+  `scripts/ci/**` and `package.json` `scripts` edits without a lockfile or
+  dependency delta → no dependency audit. Each rule carries a fixture in the
+  CI metadata checks so the classifier cannot silently widen again.
+- **Validation:** three fixture PRs (rust-only, plans-only, scripts/ci-only)
+  each show only their surface's jobs in `gh pr checks`.
+- **Identified From:** CI-log 2026-08-31 (grok), 2026-09-02 (codex, #4315),
+  2026-09-03 (other, #4349).
+- **Coordinates with:** CIB-406 (same job family; that item is about the
+  Rust-in-Node duplication, this one about path classification), CIB-299
+  (root `install.sh` unclassified — the inverse failure, a guard that never
+  runs)
+- **Confidence:** medium — the three symptoms are verified; the classifier's
+  rule table has not been re-read for this item
+
+### CIB-408: docs tooling in a fresh worktree dies with `ERR_MODULE_NOT_FOUND` instead of naming its prerequisite
+
+- **Status:** Proposed
+- **Priority:** P3 — recoverable, but it recurs for every `git worktree add`
+  and reads as a crash rather than a missing step
+- **Intent:** `check-docs-owed.mjs`, `redate-owed.mjs`, and the diagram-impact
+  gate import `@eddacraft/anvil-docs-meta`, a workspace package that must be
+  built (`pnpm -F @eddacraft/anvil-docs-meta build`) after `pnpm install`. In a
+  worktree created with plain `git worktree add`, or after a `main` sync that
+  changes the package, the scripts throw a Node module-resolution stack trace
+  with no hint. Hit on 2026-09-01 (codex, #4297) and twice on 2026-09-03
+  (claude, #4358 and #4368).
+- **Expected Outcome:** each docs script checks for the built package before
+  importing it and exits 2 with the exact recovery command
+  (`pnpm install && pnpm -F @eddacraft/anvil-docs-meta build`); the
+  `docs:*` package scripts run that build as a `pre` step or via an nx
+  `dependsOn`, so the manual step disappears on the happy path.
+- **Validation:** in a worktree with `node_modules` present but
+  `packages/docs-meta/dist` absent, `pnpm docs:owed --since origin/main` prints
+  the recovery line and exits 2; after the build it runs.
+- **Identified From:** CI-log 2026-09-01 (codex, theme
+  `docs-tooling-prerequisite`) and 2026-09-03 (claude).
+- **Coordinates with:** CIB-390 (a tooling failure must not read as a pass — a
+  missing prerequisite must not read as a crash either), CIB-032 (fresh
+  worktrees and stale tooling)
+- **Confidence:** high — reproduced three times in one week
+
+### CIB-409: `triage-ci-log` workflow passes an object as the agent prompt, and `ci-log:status` hides the triage debt
+
+- **Status:** Proposed
+- **Priority:** P3 — the workflow fails fast and honestly, so nothing wrong is
+  recorded; the cost is that the skill's documented entry point has never
+  worked and every triage is done by hand
+- **Intent:** `.claude/workflows/triage-ci-log.js` calls `agent({ prompt, … })`
+  with an object; the current Workflow API takes `agent(prompt, opts)`, so the
+  agent receives the literal string `[object]` and returns an error. Observed
+  2026-08-31 ("returned in 5.5s having made zero tool calls") and again
+  2026-09-03 (`wf_67d20b57-c15`). Separately, `pnpm ci-log:status` reports
+  only the pending count; the untriaged tracked backlog (129 entries past a
+  four-day-old watermark today, 193 past a five-week-old one on 2026-08-31)
+  is invisible until `ci-log:since -- --watermark` is run.
+- **Expected Outcome:** the workflow script uses the `agent(prompt, opts)`
+  form and a dry run reaches the Status phase; `ci-log:status` prints
+  `Since watermark: N` next to `Pending:`, so session start shows the triage
+  debt.
+- **Validation:** `Workflow({ name: "triage-ci-log", args: { dryRun: true } })`
+  completes with tool calls in the Status phase; `pnpm ci-log:status` output
+  includes the since-watermark count and matches
+  `pnpm ci-log:since -- --watermark | grep -c '^### '`.
+- **Identified From:** CI-log 2026-08-31 (claude, triage closeout) and
+  2026-09-03 (claude, this triage).
+- **Coordinates with:** CIB-192 (the triage workflow this repairs), CIB-375
+  (set-watermark guard, same tool family)
+- **Confidence:** high — the failing call shape was read in the script and the
+  journal
