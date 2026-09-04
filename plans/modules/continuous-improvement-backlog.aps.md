@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 316/407  |
+| CIB | —     | In Progress | 316/404  |
 
 ## Purpose
 
@@ -13610,7 +13610,34 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Confidence:** high — the failing call shape was read in the script and the
   journal
 
-### CIB-410: diagram-impact enforcement drops repository-rooted `infra/**` upstreams
+### CIB-410: Pin the workspace Rust toolchain to 1.98.1
+
+- **Status:** Ready by operator authorisation
+- **Priority:** P3 — toolchain hygiene; 1.97.1 remains correct, and 1.98.0
+  must not be pinned
+- **Intent:** the workspace `rust-toolchain.toml` pin tracks current stable at
+  the first safe 1.98 point release.
+- **Expected Outcome:** `rust-toolchain.toml` channel is `1.98.1`. Clippy and
+  rustfmt on that toolchain are clean under `cargo clippy --workspace
+  --all-targets -- -D warnings`. `cargo test -p eddacraft-anvil --no-fail-fast`
+  is green. `eddacraft-tui`'s declared `rust-version = "1.88"` is unchanged
+  (D-TUIR-015).
+- **Non-scope / do not:** do not pin `1.98.0` (vtable miscompilation,
+  rust-lang/rust#161441). Do not raise `eddacraft-tui` MSRV. Do not switch the
+  pin to `stable` (reverted in May 2026; ADR-057 wants an exact pin).
+- **Files:** `rust-toolchain.toml`; clippy/rustfmt fallout wherever 1.98 lints
+  fire
+- **Validation:** `rustc --version` reports `1.98.1` via the workspace pin;
+  `cargo clippy --workspace --all-targets -- -D warnings`; `cargo fmt --check`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`.
+- **Identified From:** 2026-09-03 toolchain review. Pin is 1.97.1 (31 Jul);
+  1.98.0 shipped 20 Aug with a critical vtable UB; 1.98.1 shipped 3 Sep as the
+  fix. Numbered 410 because **CIB-409** on `main` is the triage-ci-log item
+  from the 2026-09-03 CI-log triage.
+- **Confidence:** high on the target version and the 1.98.0 exclusion; medium
+  on clippy churn volume (same class as the 1.95.0 → 1.97.1 bump).
+
+### CIB-411: diagram-impact enforcement drops repository-rooted `infra/**` upstreams
 
 - **Status:** Ready — triaged 2026-09-04 from GH
   [#4115](https://github.com/eddacraft/anvil-001/issues/4115) (filed
@@ -13642,14 +13669,14 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   CI-integration, docs-check, format, and lint gates.
 - **Identified From:** GH #4115 (DOCRB-010 residual; ADR-123 mandatory diagram
   review).
-- **Coordinates with:** CIB-411 (the other diagram-impact fail-open, same
+- **Coordinates with:** CIB-412 (the other diagram-impact fail-open, same
   collector chain), CIB-377 (freshness cascade through mermaid chains — the
   cascade behaviour, not this gap), DOCRB (archived
   `plans/archive/modules/docs-rebaseline.aps.md`) for the gate's origin
 - **Confidence:** high — the prefix list and the declared upstream were read
   on `main` 2026-09-04
 
-### CIB-411: diagram-impact collectors see only a rename's destination, so a renamed upstream escapes review
+### CIB-412: diagram-impact collectors see only a rename's destination, so a renamed upstream escapes review
 
 - **Status:** Ready — triaged 2026-09-04 from GH
   [#4116](https://github.com/eddacraft/anvil-001/issues/4116) (filed
@@ -13679,13 +13706,13 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   existing deletion regressions stay green.
 - **Identified From:** GH #4116 (DOCRB-010 residual; ADR-123 mandatory diagram
   review).
-- **Coordinates with:** CIB-410 (same collector chain), CIB-377 (cascade
+- **Coordinates with:** CIB-411 (same collector chain), CIB-377 (cascade
   behaviour), CIB-290 (as-built line ranges structurally unenforced — the
   neighbouring honesty gap in the same gate family)
 - **Confidence:** high — the three `name-only` call sites were read on `main`
   2026-09-04
 
-### CIB-412: ADR-123 still says the deleted `apps/docs-site` host is retained for rollback
+### CIB-413: ADR-123 still says the deleted `apps/docs-site` host is retained for rollback
 
 - **Status:** Proposed — needs an ADR-process decision (amend in place with a
   dated context note, or supersede), not a silent prose edit; triaged

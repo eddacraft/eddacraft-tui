@@ -7419,7 +7419,7 @@ SOFTWARE.
 
 Used by:
 
-- `animate-core` 0.4.1
+- `animate-core` 0.5.0
 - `axoupdater` 0.10.2
 - `backtrace-ext` 0.2.1
 - `block2` 0.6.2
@@ -8675,7 +8675,7 @@ SOFTWARE.
 Used by:
 
 - `tree-sitter-language` 0.1.8
-- `tree-sitter` 0.26.13
+- `tree-sitter` 0.27.0
 
 <details>
 <summary>Licence text</summary>
@@ -9733,7 +9733,7 @@ the following restrictions:
 | `rust-sugiyama` | 0.4.0 | MIT License | https://github.com/paddison/rust-sugiyama |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
 | `tree-sitter-dart` | 0.2.0 | MIT License | https://github.com/nielsenko/tree-sitter-dart |
-| `animate-core` | 0.4.1 | MIT License | https://github.com/vyfor/animate |
+| `animate-core` | 0.5.0 | MIT License | https://github.com/vyfor/animate |
 | `axoupdater` | 0.10.2 | MIT License | https://github.com/axodotdev/axoupdater |
 | `backtrace-ext` | 0.2.1 | MIT License | https://github.com/gankra/backtrace-ext |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
@@ -9866,7 +9866,7 @@ the following restrictions:
 | `console` | 0.16.4 | MIT License | https://github.com/console-rs/console |
 | `tree-sitter-rust` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-rust |
 | `tree-sitter-language` | 0.1.8 | MIT License | https://github.com/tree-sitter/tree-sitter |
-| `tree-sitter` | 0.26.13 | MIT License | https://github.com/tree-sitter/tree-sitter |
+| `tree-sitter` | 0.27.0 | MIT License | https://github.com/tree-sitter/tree-sitter |
 | `bstr` | 1.13.1 | MIT License | https://github.com/BurntSushi/bstr |
 | `fuzzy-matcher` | 0.3.7 | MIT License | https://github.com/lotabout/fuzzy-matcher |
 | `crossbeam-deque` | 0.8.7 | MIT License | https://github.com/crossbeam-rs/crossbeam |

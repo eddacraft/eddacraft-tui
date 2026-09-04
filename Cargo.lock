@@ -72,9 +72,9 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "animate-core"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c6b4d5159fc2e08e600c35ed338946f2d08b2665f10b81d48f9d487204be233"
+checksum = "9df8c530ac3063fe9360cebb3e483d941b6b4ae98215e72f5bb4c447190c6e09"
 
 [[package]]
 name = "anstream"
@@ -1237,7 +1237,6 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 name = "eddacraft-anvil"
 version = "0.9.7-beta"
 dependencies = [
- "animate-core",
  "anyhow",
  "axoupdater",
  "chrono",
@@ -5684,13 +5683,12 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.26.13"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17ebdd3a5a7e28a1890b876fdbd0c3c0fe0a6336cffaa104f11b9f720c9daa29"
+checksum = "2038684e0058edba0d17302619f62eabce4a8e11c6ac59506996a8d79848851d"
 dependencies = [
  "cc",
  "regex",
- "regex-syntax",
  "serde_json",
  "streaming-iterator",
  "tree-sitter-language",
