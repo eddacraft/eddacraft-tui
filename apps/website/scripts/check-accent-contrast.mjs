@@ -1,5 +1,12 @@
 #!/usr/bin/env node
-// CIB-390-adjacent honesty guard for the brand accent.
+// CIB-390-adjacent honesty guard for the brand's text colours.
+//
+// Covers the accent and the two signal colours. The signal colours are here
+// because they shipped unguarded and wrong: the website aliased both to
+// --anvil, so an error, a warning and a decorative highlight rendered in one
+// orange, and the dashboard's brick red sat at 4.22:1 while the terminal's had
+// already been retuned. A guard that only knew about the accent could not see
+// either.
 //
 // anvil Ember is used as text on both a near-white and a near-black ground, and
 // no single value clears the WCAG AA 4.5:1 floor on both: #cc5500 measured
@@ -35,7 +42,18 @@ function token(file, name, { scope } = {}) {
     ? (css.split(scope)[1] ?? '').split('}')[0]
     : css.split("[data-theme='dark']")[0];
   const match = body.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`));
-  if (!match) throw new Error(`${file}: ${name} not found${scope ? ` in ${scope}` : ''}`);
+  if (!match) {
+    // Name the aliasing case explicitly. It is the defect this guard was
+    // extended for, and "not found" would read as a typo in the token name.
+    const alias = body.match(new RegExp(`${name}:\\s*(var\\([^)]+\\))`));
+    if (alias) {
+      throw new Error(
+        `${file}: ${name} is aliased to ${alias[1]}, so it has no contrast of its own. ` +
+          'Signal colours must be literal values distinct from the accent.'
+      );
+    }
+    throw new Error(`${file}: ${name} not found${scope ? ` in ${scope}` : ''}`);
+  }
   return match[1];
 }
 
@@ -49,6 +67,19 @@ export const PAIRS = [
   ['docs-shell --anvil on --void', token('apps/docs-shell/app/globals.css', '--anvil'), VOID],
   ['dashboard --anvil on --void', token('apps/dashboard/src/styles.css', '--anvil'), VOID],
 ];
+
+// Signal colours, on every surface that defines them. `token` reads a literal
+// hex, so a surface that aliases one back to another token (the defect this
+// covers) fails to parse rather than silently reporting the accent's ratio.
+for (const [site, file] of [
+  ['website', 'apps/website/app/globals.css'],
+  ['dashboard', 'apps/dashboard/src/styles.css'],
+]) {
+  PAIRS.push(
+    [`${site} --brick-red on --void`, token(file, '--brick-red'), VOID],
+    [`${site} --dull-amber on --void`, token(file, '--dull-amber'), VOID]
+  );
+}
 
 for (const [site, file] of [
   ['docs-public', 'apps/docs-public/src/css/custom.css'],

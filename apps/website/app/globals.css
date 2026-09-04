@@ -8,8 +8,12 @@
   --anvil: #d95a00;
   --edda: #2e8b57;
   --ghost-grey: color-mix(in srgb, var(--off-white) 60%, var(--void));
-  --brick-red: var(--anvil);
-  --dull-amber: var(--anvil);
+  /* Signal colours are distinct from the accent: aliasing them to --anvil
+     rendered errors, warnings and decorative highlights in one orange, so an
+     error and the warning beside it were indistinguishable. Values match the
+     terminal palette (eddacraft-tui) — one brand, one ground (--void). */
+  --brick-red: #cf5e5e;
+  --dull-amber: #d08c38;
   --surface: var(--void);
   --border-strong: var(--structure);
 
