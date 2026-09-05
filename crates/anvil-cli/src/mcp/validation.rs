@@ -455,9 +455,15 @@ struct DeadlineStream {
 #[cfg(unix)]
 impl DeadlineStream {
     fn remaining(&self) -> std::io::Result<Duration> {
-        self.deadline.checked_duration_since(std::time::Instant::now())
+        self.deadline
+            .checked_duration_since(std::time::Instant::now())
             .filter(|remaining| !remaining.is_zero())
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::TimedOut, "daemon exchange deadline exceeded"))
+            .ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "daemon exchange deadline exceeded",
+                )
+            })
     }
 }
 
@@ -698,12 +704,15 @@ mod tests {
         let started = Instant::now();
         let writer = std::thread::spawn(move || {
             for _ in 0..100 {
-                if peer.write_all(b" ").is_err() { break; }
+                if peer.write_all(b" ").is_err() {
+                    break;
+                }
                 std::thread::sleep(Duration::from_millis(10));
             }
         });
         let mut reader = std::io::BufReader::new(super::DeadlineStream {
-            stream: client, deadline: started + Duration::from_millis(200),
+            stream: client,
+            deadline: started + Duration::from_millis(200),
         });
         assert!(super::read_capped_response_line(&mut reader).is_err());
         assert!(started.elapsed() < Duration::from_millis(800));
@@ -719,7 +728,8 @@ mod tests {
         let (client, _peer) = std::os::unix::net::UnixStream::pair().unwrap();
         let started = Instant::now();
         let mut stream = super::DeadlineStream {
-            stream: client, deadline: started + Duration::from_millis(100),
+            stream: client,
+            deadline: started + Duration::from_millis(100),
         };
         assert!(stream.write_all(&vec![0; 8 * 1024 * 1024]).is_err());
         assert!(started.elapsed() < Duration::from_secs(1));

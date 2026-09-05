@@ -330,7 +330,10 @@ fn read_blobs_batch(
 }
 
 fn batch_error(detail: &str) -> BaseGraphError {
-    BaseGraphError::Git { op: "cat-file batch".to_string(), detail: detail.to_string() }
+    BaseGraphError::Git {
+        op: "cat-file batch".to_string(),
+        detail: detail.to_string(),
+    }
 }
 
 fn read_blobs_batch_with_budget(
@@ -355,20 +358,30 @@ fn read_blobs_batch_with_budget(
         }
         Ok(output.stdout)
     };
-    let queries = oids.iter().map(|oid| format!("{oid}\n")).collect::<String>().into_bytes();
+    let queries = oids
+        .iter()
+        .map(|oid| format!("{oid}\n"))
+        .collect::<String>()
+        .into_bytes();
     let metadata = run("--batch-check", queries, MAX_BATCH_METADATA_BYTES)?;
     let selected = select_blob_queries(&metadata, oids, budget)
         .ok_or_else(|| batch_error("invalid size metadata"))?;
     let skipped = oids.len() - selected.len();
     if skipped != 0 {
-        tracing::debug!(skipped, "Base graph skipped missing, non-blob or over-budget objects");
+        tracing::debug!(
+            skipped,
+            "Base graph skipped missing, non-blob or over-budget objects"
+        );
     }
     let mut bodies = vec![None; oids.len()];
     if selected.is_empty() {
         return Ok(bodies);
     }
-    let queries = selected.iter().map(|(index, _)| format!("{}\n", oids[*index]))
-        .collect::<String>().into_bytes();
+    let queries = selected
+        .iter()
+        .map(|(index, _)| format!("{}\n", oids[*index]))
+        .collect::<String>()
+        .into_bytes();
     let total: usize = selected.iter().map(|(_, size)| size).sum();
     let transcript = run("--batch", queries, total + MAX_BATCH_METADATA_BYTES)?;
     let selected_oids: Vec<&str> = selected.iter().map(|(index, _)| oids[*index]).collect();
@@ -376,7 +389,9 @@ fn read_blobs_batch_with_budget(
         .ok_or_else(|| batch_error("invalid content framing"))?;
     for ((index, expected_size), body) in selected.into_iter().zip(parsed) {
         if body.as_ref().map(Vec::len) != Some(expected_size) {
-            return Err(batch_error("content disagrees with immutable size metadata"));
+            return Err(batch_error(
+                "content disagrees with immutable size metadata",
+            ));
         }
         bodies[index] = body;
     }
@@ -386,17 +401,29 @@ fn read_blobs_batch_with_budget(
 /// Size headers are bounded before this parser is called. Selection follows
 /// deterministic caller order, skipping an object that cannot fit while still
 /// admitting a later small object. No object body is present in this phase.
-fn select_blob_queries(metadata: &[u8], oids: &[&str], budget: usize) -> Option<Vec<(usize, usize)>> {
+fn select_blob_queries(
+    metadata: &[u8],
+    oids: &[&str],
+    budget: usize,
+) -> Option<Vec<(usize, usize)>> {
     let text = std::str::from_utf8(metadata).ok()?;
-    if !text.ends_with('\n') { return None; }
+    if !text.ends_with('\n') {
+        return None;
+    }
     let mut lines = text.lines();
     let mut remaining = budget.min(MAX_BATCH_BODY_BYTES);
     let mut selected = Vec::new();
     for (index, oid) in oids.iter().enumerate() {
         let fields: Vec<_> = lines.next()?.split(' ').collect();
-        if !fields.first()?.eq_ignore_ascii_case(oid) { return None; }
-        if fields.len() == 2 && matches!(fields[1], "missing" | "ambiguous") { continue; }
-        if fields.len() != 3 { return None; }
+        if !fields.first()?.eq_ignore_ascii_case(oid) {
+            return None;
+        }
+        if fields.len() == 2 && matches!(fields[1], "missing" | "ambiguous") {
+            continue;
+        }
+        if fields.len() != 3 {
+            return None;
+        }
         let size = fields[2].parse::<u64>().ok()?;
         if fields[1] == "blob" && size <= MAX_BLOB_BYTES && size <= remaining as u64 {
             let size = usize::try_from(size).ok()?;
@@ -404,7 +431,9 @@ fn select_blob_queries(metadata: &[u8], oids: &[&str], budget: usize) -> Option<
             remaining -= size;
         }
     }
-    if lines.next().is_some() { return None; }
+    if lines.next().is_some() {
+        return None;
+    }
     Some(selected)
 }
 
@@ -425,7 +454,11 @@ fn parse_batch_stdout(stdout: &[u8], oids: &[&str]) -> Option<Vec<Option<Vec<u8>
         let header = &stdout[cursor..cursor + rel];
         cursor += rel + 1;
         let header_str = std::str::from_utf8(header).ok()?;
-        if !header_str.split(' ').next()?.eq_ignore_ascii_case(oids[out.len()]) {
+        if !header_str
+            .split(' ')
+            .next()?
+            .eq_ignore_ascii_case(oids[out.len()])
+        {
             return None;
         }
         if header_str.ends_with(" missing") || header_str.ends_with(" ambiguous") {
@@ -715,21 +748,30 @@ mod tests {
     fn content_parser_rejects_malformed_or_mismatched_frames() {
         for bytes in [
             b"a blob 2\nx".as_slice(),
-            b"a blob 2\nxx", // no terminator
+            b"a blob 2\nxx",                     // no terminator
             b"a blob 18446744073709551616\nx\n", // size overflow
-            b"a blob 1\nx\nb blob 1\ny\n", // trailing frame
-            b"b blob 1\nx\n", // wrong object, same body size
+            b"a blob 1\nx\nb blob 1\ny\n",       // trailing frame
+            b"b blob 1\nx\n",                    // wrong object, same body size
         ] {
             assert!(super::parse_batch_stdout(bytes, &["a"]).is_none());
         }
-        assert_eq!(super::parse_batch_stdout(b"a blob 1\nx\n", &["a"]), Some(vec![Some(vec![b'x'])]));
+        assert_eq!(
+            super::parse_batch_stdout(b"a blob 1\nx\n", &["a"]),
+            Some(vec![Some(vec![b'x'])])
+        );
     }
 
     #[test]
     fn size_selection_skips_large_and_aggregate_overflow_but_keeps_neighbours() {
         let oids = ["a", "b", "c", "d", "e"];
-        let metadata = format!("a blob {}\nb blob 7\nc blob 5\nd blob 3\ne missing\n", super::MAX_BLOB_BYTES + 1);
-        assert_eq!(super::select_blob_queries(metadata.as_bytes(), &oids, 10), Some(vec![(1, 7), (3, 3)]));
+        let metadata = format!(
+            "a blob {}\nb blob 7\nc blob 5\nd blob 3\ne missing\n",
+            super::MAX_BLOB_BYTES + 1
+        );
+        assert_eq!(
+            super::select_blob_queries(metadata.as_bytes(), &oids, 10),
+            Some(vec![(1, 7), (3, 3)])
+        );
         assert!(super::select_blob_queries(b"a blob nope\n", &["a"], 10).is_none());
         assert!(super::select_blob_queries(b"b blob 1\n", &["a"], 10).is_none());
         assert!(super::select_blob_queries(b"a blob 1\nextra\n", &["a"], 10).is_none());
@@ -738,15 +780,25 @@ mod tests {
     #[test]
     fn real_batch_skips_oversized_and_aggregate_heavy_objects() {
         let (_tmp, root) = init_repo();
-        write_file(&root, "a.ts", &vec![b'x'; (super::MAX_BLOB_BYTES + 1) as usize]);
+        write_file(
+            &root,
+            "a.ts",
+            &vec![b'x'; (super::MAX_BLOB_BYTES + 1) as usize],
+        );
         write_file(&root, "b.ts", b"1234567");
         write_file(&root, "c.ts", b"12345");
         write_file(&root, "d.ts", b"ok");
         git(&root, &["add", "."]);
         git(&root, &["commit", "-q", "-m", "bounded blobs"]);
-        let objects: Vec<String> = ["a.ts", "b.ts", "c.ts", "d.ts"].iter().map(|path| {
-            String::from_utf8(git(&root, &["rev-parse", &format!("HEAD:{path}")]).stdout).unwrap().trim().to_string()
-        }).collect();
+        let objects: Vec<String> = ["a.ts", "b.ts", "c.ts", "d.ts"]
+            .iter()
+            .map(|path| {
+                String::from_utf8(git(&root, &["rev-parse", &format!("HEAD:{path}")]).stdout)
+                    .unwrap()
+                    .trim()
+                    .to_string()
+            })
+            .collect();
         let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
         let bodies = super::read_blobs_batch_with_budget(&root, &refs, 10).unwrap();
         assert!(bodies[0].is_none());
@@ -1038,7 +1090,8 @@ mod tests {
         stream.push(b'\n');
         stream.extend_from_slice(b"cafebabe blob 2\nok\n");
 
-        let parsed = parse_batch_stdout(&stream, &["deadbeef", "cafebabe"]).expect("framed correctly");
+        let parsed =
+            parse_batch_stdout(&stream, &["deadbeef", "cafebabe"]).expect("framed correctly");
         assert_eq!(parsed.len(), 2);
         assert!(parsed[0].is_none(), "over-cap blob skipped");
         assert_eq!(parsed[1].as_deref(), Some(b"ok".as_ref()));

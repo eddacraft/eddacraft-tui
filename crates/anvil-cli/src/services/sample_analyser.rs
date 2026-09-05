@@ -286,11 +286,20 @@ fn git_recent_files(
     let deadline = Instant::now() + GIT_RECENT_FILES_TIMEOUT;
     let mut command = Command::new("git");
     command.arg("-C").arg(root).args([
-        "log", &since, "--name-only", "--pretty=format:", "--diff-filter=d",
-        "--no-ext-diff", "--no-textconv",
+        "log",
+        &since,
+        "--name-only",
+        "--pretty=format:",
+        "--diff-filter=d",
+        "--no-ext-diff",
+        "--no-textconv",
     ]);
     let output = match crate::bounded_process::output_until(
-        command, Vec::new(), deadline, GIT_HISTORY_STDOUT_CAP, GIT_HISTORY_STDERR_CAP,
+        command,
+        Vec::new(),
+        deadline,
+        GIT_HISTORY_STDOUT_CAP,
+        GIT_HISTORY_STDERR_CAP,
     ) {
         Ok(output) => output,
         Err(error) => {
@@ -396,18 +405,40 @@ mod tests {
     fn recent_history_larger_than_a_pipe_buffer_still_supplies_sample() {
         let dir = tempfile::tempdir().unwrap();
         let run = |args: &[&str]| {
-            let output = std::process::Command::new("git").arg("-C").arg(dir.path()).args(args).output().unwrap();
+            let output = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args(args)
+                .output()
+                .unwrap();
             assert!(output.status.success(), "git fixture failed");
         };
         run(&["init", "-q"]);
         // Long names produce >128 KiB of log output with a single commit.
         for i in 0..1200 {
-            std::fs::write(dir.path().join(format!("file_{i:04}_{}.ts", "x".repeat(120))), "export const x = 1;").unwrap();
+            std::fs::write(
+                dir.path()
+                    .join(format!("file_{i:04}_{}.ts", "x".repeat(120))),
+                "export const x = 1;",
+            )
+            .unwrap();
         }
         run(&["add", "."]);
-        run(&["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "fixture"]);
+        run(&[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-q",
+            "-m",
+            "fixture",
+        ]);
         let config = super::AntipatternCheckConfig::default();
-        let files = super::git_recent_files(dir.path(), 30, 50, &config).expect("history must not deadlock on a full pipe");
+        let files = super::git_recent_files(dir.path(), 30, 50, &config)
+            .expect("history must not deadlock on a full pipe");
         assert_eq!(files.len(), 50);
     }
 

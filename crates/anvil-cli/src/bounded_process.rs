@@ -31,27 +31,44 @@ pub(crate) fn output_until(
     std::thread::Builder::new()
         .name("anvil-bounded-process".into())
         .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?;
             runtime.block_on(async move {
                 if Instant::now() >= deadline {
-                    return Err(io::Error::new(io::ErrorKind::TimedOut, "subprocess deadline exceeded"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "subprocess deadline exceeded",
+                    ));
                 }
                 let mut command = tokio::process::Command::from(command);
-                let mut child = command.stdin(Stdio::piped()).stdout(Stdio::piped())
-                    .stderr(Stdio::piped()).kill_on_drop(true).spawn()?;
+                let mut child = command
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .kill_on_drop(true)
+                    .spawn()?;
                 let mut stdin = child.stdin.take().expect("piped stdin");
                 let stdout = child.stdout.take().expect("piped stdout");
                 let stderr = child.stderr.take().expect("piped stderr");
                 let result = tokio::time::timeout_at(deadline.into(), async {
                     tokio::try_join!(
-                        async move { stdin.write_all(&input).await?; stdin.shutdown().await },
+                        async move {
+                            stdin.write_all(&input).await?;
+                            stdin.shutdown().await
+                        },
                         read_capped(stdout, stdout_cap),
                         read_capped(stderr, stderr_cap),
                         child.wait(),
                     )
-                }).await;
+                })
+                .await;
                 match result {
-                    Ok(Ok(((), stdout, stderr, status))) => Ok(Output { status, stdout, stderr }),
+                    Ok(Ok(((), stdout, stderr, status))) => Ok(Output {
+                        status,
+                        stdout,
+                        stderr,
+                    }),
                     failure => {
                         // kill() also waits/reaps. If the child already exited,
                         // wait() below is harmless and preserves cleanup on errors.
@@ -59,7 +76,10 @@ pub(crate) fn output_until(
                         let _ = child.wait().await;
                         match failure {
                             Ok(Err(error)) => Err(error),
-                            Err(_) => Err(io::Error::new(io::ErrorKind::TimedOut, "subprocess deadline exceeded")),
+                            Err(_) => Err(io::Error::new(
+                                io::ErrorKind::TimedOut,
+                                "subprocess deadline exceeded",
+                            )),
                             Ok(Ok(_)) => unreachable!(),
                         }
                     }
@@ -83,8 +103,14 @@ mod tests {
 
     #[test]
     fn drains_both_full_pipes_before_waiting() {
-        let output = output_until(shell("head -c 262144 /dev/zero; head -c 262144 /dev/zero >&2"),
-            vec![], Instant::now() + Duration::from_secs(3), 300_000, 300_000).unwrap();
+        let output = output_until(
+            shell("head -c 262144 /dev/zero; head -c 262144 /dev/zero >&2"),
+            vec![],
+            Instant::now() + Duration::from_secs(3),
+            300_000,
+            300_000,
+        )
+        .unwrap();
         assert!(output.status.success());
         assert_eq!(output.stdout.len(), 262144);
         assert_eq!(output.stderr.len(), 262144);
@@ -92,9 +118,19 @@ mod tests {
 
     #[test]
     fn both_stream_caps_fail_without_echoing_contents() {
-        for script in ["printf secret; exec sleep 10", "printf secret >&2; exec sleep 10"] {
+        for script in [
+            "printf secret; exec sleep 10",
+            "printf secret >&2; exec sleep 10",
+        ] {
             let started = Instant::now();
-            let error = output_until(shell(script), vec![], started + Duration::from_secs(3), 4, 4).unwrap_err();
+            let error = output_until(
+                shell(script),
+                vec![],
+                started + Duration::from_secs(3),
+                4,
+                4,
+            )
+            .unwrap_err();
             assert_eq!(error.to_string(), "subprocess output cap exceeded");
             assert!(started.elapsed() < Duration::from_secs(2));
         }
@@ -104,13 +140,27 @@ mod tests {
     fn timeout_reaps_child_even_with_inherited_pipe() {
         let dir = tempfile::tempdir().unwrap();
         let pid_file = dir.path().join("pid");
-        let mut command = shell("echo $$ > \"$1\"; sleep 2 & wait");
+        let mut command = shell("echo $ > \"$1\"; sleep 2 & wait");
         command.arg("fixture").arg(&pid_file);
         let started = Instant::now();
-        let error = output_until(command, vec![], started + Duration::from_millis(300), 1024, 1024).unwrap_err();
+        let error = output_until(
+            command,
+            vec![],
+            started + Duration::from_millis(300),
+            1024,
+            1024,
+        )
+        .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::TimedOut);
         assert!(started.elapsed() < Duration::from_secs(1));
         let pid = std::fs::read_to_string(pid_file).unwrap();
-        assert!(!Command::new("kill").args(["-0", pid.trim()]).stderr(Stdio::null()).status().unwrap().success());
+        assert!(
+            !Command::new("kill")
+                .args(["-0", pid.trim()])
+                .stderr(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        );
     }
 }
