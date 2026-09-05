@@ -20,8 +20,8 @@ Sources:
 ## September decision follow-through
 
 EXP-002 landed in [allomorph PR #8](https://github.com/eddacraft/allomorph/pull/8).
-[ADR-140](../decisions/140-converged-command-event-contract.md) is the accepted (operator approval, 2026-09-05)
-anvil-side ADR-B contract. The [A–J disposition](converged-app/05-decisions-risks-and-open-questions.md#current-decision-disposition)
+[ADR-140](../decisions/140-converged-command-event-contract.md) is the accepted
+anvil-side ADR-B contract (operator approval, 2026-09-05). The [A–J disposition](converged-app/05-decisions-risks-and-open-questions.md#current-decision-disposition)
 reconciles existing authority; [CONV](../modules/converged-app-decisions.aps.md)
 tracks remaining work. Experimental wire compatibility and runtime adoption are
 not approved; the Gate E import rule below is unchanged. Human evaluation was
