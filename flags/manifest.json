@@ -134,7 +134,9 @@
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Default-on (graduated by GBASE-010 after the ADR-105 §11 shared-base graduation gate; see plans/audits/2026-07-12-gbase-graduation-gate.md). Absence of the variable means enabled; explicit opt-out (rollback) via ANVIL_PERSIST_GRAPH=0. The shared write-once base + overlay layout (ADR-105) replaced the O(worktrees) layout that had blocked default-on.",
       "primaryGroup": "daemon",
-      "controlsProductFeatures": ["intercept"]
+      "controlsProductFeatures": [
+        "intercept"
+      ]
     },
     {
       "key": "dashboard.web",
@@ -158,7 +160,9 @@
       "expiryOrReviewDate": "2026-10-31T00:00:00Z",
       "description": "Default-off for the v0.10.0-beta cut after live UX review found the surface foundations-ready but not release-default. Opt in with ANVIL_DASHBOARD_WEB=1 (or ANVIL_DEV=1). Terminal `anvil dashboard` TUI surfaces stay independent of this flag.",
       "primaryGroup": "dashboard",
-      "controlsProductFeatures": ["dashboard.web"]
+      "controlsProductFeatures": [
+        "dashboard.web"
+      ]
     },
     {
       "key": "docs.access",
@@ -185,14 +189,47 @@
             {
               "attribute": "accountTier",
               "operator": "in_set",
-              "value": ["plan-beta", "plan-pro", "plan-enterprise"]
+              "value": [
+                "plan-beta",
+                "plan-pro",
+                "plan-enterprise"
+              ]
             }
           ],
           "variant": "enabled"
         }
       ],
       "primaryGroup": "docs",
-      "controlsProductFeatures": ["anvil-docs", "docs-shell"]
+      "controlsProductFeatures": [
+        "anvil-docs",
+        "docs-shell"
+      ]
+    },
+    {
+      "key": "ember.enabled",
+      "owner": "EMBERRS",
+      "intent": "Keep Ember inactive until its Rust migration is verified",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "EMBERRS-001",
+      "expiryOrReviewDate": "2026-10-05T00:00:00Z",
+      "description": "Explicit ANVIL_EMBER=1 enables only the Rust historical proposal reader. ANVIL_DEV does not enable Ember. Rust generation and lifecycle remain planned.",
+      "primaryGroup": "cli",
+      "controlsProductFeatures": [
+        "ember"
+      ]
     },
     {
       "key": "gctx.egress",
@@ -216,7 +253,9 @@
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
       "description": "Default-off (PV-9 CE-1): identity-only graph context is always on; source-text snippets ride only when this flag is enabled AND the request asserts include_source. Operator opt-in via ANVIL_GCTX_EGRESS=1; ANVIL_GCTX_EGRESS=0 is the kill-switch that disables all GCTX egress.",
       "primaryGroup": "daemon",
-      "controlsProductFeatures": ["gctx.snippets"]
+      "controlsProductFeatures": [
+        "gctx.snippets"
+      ]
     },
     {
       "key": "gv2.reverse-impact-depth",
@@ -239,7 +278,9 @@
       "createdFor": "GV2-026",
       "description": "Runtime lever for the daemon save-time certify reverse-impact depth. Default 1 hop (the ADR-061 §6 certifiability closure); the latency-coverage trade can move 1 to 2 hops without re-coding via the ANVIL_REVERSE_IMPACT_DEPTH env var. Hard-capped at MAX_REVERSE_IMPACT_DEPTH (2): an over-cap value is clamped, not honoured.",
       "primaryGroup": "gv2",
-      "controlsProductFeatures": ["impact"]
+      "controlsProductFeatures": [
+        "impact"
+      ]
     },
     {
       "key": "impact.view",
@@ -263,7 +304,9 @@
       "expiryOrReviewDate": "2026-11-30T00:00:00Z",
       "description": "Default-off after customer-value review found the surface too narrow and unclear for general use. Opt in with ANVIL_IMPACT=1 or ANVIL_DEV=1; ANVIL_IMPACT=0 remains a kill switch during developer sessions.",
       "primaryGroup": "cli",
-      "controlsProductFeatures": ["impact"]
+      "controlsProductFeatures": [
+        "impact"
+      ]
     },
     {
       "key": "kindling.embedded-runtime",
@@ -287,7 +330,9 @@
       "expiryOrReviewDate": "2026-10-31T00:00:00Z",
       "description": "Default-off precursor for KFIT-006. The normal release build excludes the optional kindling-runtime dependency; feature-enabled development builds still require the explicit ANVIL_KINDLING_EMBEDDED_RUNTIME=1 opt-in. Promote only after KFIT-005 publishes the approved runtime version and clean-host lifecycle validation passes.",
       "primaryGroup": "daemon",
-      "controlsProductFeatures": ["kindling"]
+      "controlsProductFeatures": [
+        "kindling"
+      ]
     },
     {
       "key": "track.pack",
@@ -454,31 +499,9 @@
       "createdFor": "CIB-046",
       "description": "Internal-developer access to the terminal APS dashboard; default-disabled, opened via ANVIL_DEV local override or ANVIL_ADMIN_KEY",
       "primaryGroup": "tui-dashboard",
-      "controlsProductFeatures": ["dashboard.aps"]
-    },
-    {
-      "key": "ember.enabled",
-      "owner": "EMBERRS",
-      "intent": "Keep Ember inactive until its Rust migration is verified",
-      "class": "rollout",
-      "valueType": "boolean",
-      "variants": [
-        {
-          "key": "enabled",
-          "value": true
-        },
-        {
-          "key": "disabled",
-          "value": false
-        }
-      ],
-      "defaultVariant": "disabled",
-      "status": "active",
-      "createdFor": "EMBERRS-001",
-      "expiryOrReviewDate": "2026-10-05T00:00:00Z",
-      "description": "Explicit ANVIL_EMBER=1 enables only the Rust historical proposal reader. ANVIL_DEV does not enable Ember. Rust generation and lifecycle remain planned.",
-      "primaryGroup": "cli",
-      "controlsProductFeatures": ["ember"]
+      "controlsProductFeatures": [
+        "dashboard.aps"
+      ]
     }
   ]
 }
