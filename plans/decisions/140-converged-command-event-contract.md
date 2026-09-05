@@ -168,7 +168,7 @@ No serialised allomorph token is accepted as an anvil credential.
 ### Tray-only operation
 
 The tray is a first-class graphical client. Supported operation must include
-the tray with no main desktop window, no running desktop shell and no browser
+the tray with no main desktop window, no running full anvil desktop shell and no browser
 session. The tray distribution must supply or provision its supported runtime
 without requiring installation or launch of the full desktop UI; exact packaging
 is decided by CONV-006.
