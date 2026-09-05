@@ -1,8 +1,8 @@
 # anvil-cli
 
-| Type   | Authority     | Owner          | Status | Freshness                                                                                           |
-| ------ | ------------- | -------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| README | Authoritative | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-05 against RIO-001/002 bounded I/O; component topology and diagrams unchanged |
+| Type   | Authority     | Owner          | Status | Freshness                                                                                                                                                                                                                                            |
+| ------ | ------------- | -------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Authoritative | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-03 against CIB-392 `src/mcp/tools/validate_write.rs` added-line secret interrupt scope; prior 2026-08-31 against CONF-011 `src/commands/conformance.rs`, its bounded-input and timeout-provenance tests, and `ARCHITECTURE.md` |
 
 | Upstream                                                                 | Downstream                                                         |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |

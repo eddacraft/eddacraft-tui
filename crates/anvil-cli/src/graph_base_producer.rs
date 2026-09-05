@@ -354,15 +354,18 @@ fn read_blobs_batch_with_budget(
         let output = crate::bounded_process::output_until(command, input, deadline, cap, 64 * 1024)
             .map_err(|error| batch_error(&format!("subprocess I/O failure: {:?}", error.kind())))?;
         if !output.status.success() {
-            return Err(batch_error(&format!("subprocess exited: {}", output.status)));
+            return Err(batch_error(&format!(
+                "subprocess exited: {}",
+                output.status
+            )));
         }
         Ok(output.stdout)
     };
-    let queries = oids
-        .iter()
-        .map(|oid| format!("{oid}\n"))
-        .collect::<String>()
-        .into_bytes();
+    let mut queries = Vec::new();
+    for oid in oids {
+        queries.extend_from_slice(oid.as_bytes());
+        queries.push(b'\n');
+    }
     let metadata = run("--batch-check", queries, MAX_BATCH_METADATA_BYTES)?;
     let selected = select_blob_queries(&metadata, oids, budget)
         .ok_or_else(|| batch_error("invalid size metadata"))?;
@@ -377,11 +380,11 @@ fn read_blobs_batch_with_budget(
     if selected.is_empty() {
         return Ok(bodies);
     }
-    let queries = selected
-        .iter()
-        .map(|(index, _)| format!("{}\n", oids[*index]))
-        .collect::<String>()
-        .into_bytes();
+    let mut queries = Vec::new();
+    for (index, _) in &selected {
+        queries.extend_from_slice(oids[*index].as_bytes());
+        queries.push(b'\n');
+    }
     let total: usize = selected.iter().map(|(_, size)| size).sum();
     let transcript = run("--batch", queries, total + MAX_BATCH_METADATA_BYTES)?;
     let selected_oids: Vec<&str> = selected.iter().map(|(index, _)| oids[*index]).collect();
@@ -783,7 +786,7 @@ mod tests {
         write_file(
             &root,
             "a.ts",
-            &vec![b'x'; (super::MAX_BLOB_BYTES + 1) as usize],
+            &vec![b'x'; usize::try_from(super::MAX_BLOB_BYTES + 1).unwrap()],
         );
         write_file(&root, "b.ts", b"1234567");
         write_file(&root, "c.ts", b"12345");

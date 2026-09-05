@@ -115,8 +115,8 @@ mod tests {
         )
         .unwrap();
         assert!(output.status.success());
-        assert_eq!(output.stdout.len(), 262144);
-        assert_eq!(output.stderr.len(), 262144);
+        assert_eq!(output.stdout.len(), 262_144);
+        assert_eq!(output.stderr.len(), 262_144);
     }
 
     #[test]

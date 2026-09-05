@@ -444,7 +444,7 @@ fn request_daemon_diagnostics(
 }
 
 /// Each raw read/write receives only the remaining exchange budget. In
-/// particular, BufRead::read_until cannot renew the timeout when a peer keeps
+/// particular, `BufRead::read_until` cannot renew the timeout when a peer keeps
 /// sending partial frames. Socket flush is unbuffered but still checks expiry.
 #[cfg(unix)]
 struct DeadlineStream {

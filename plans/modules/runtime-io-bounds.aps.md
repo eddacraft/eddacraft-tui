@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status |
 | --- | --- | --- | --- |
-| RIO | @joshuaboys | P1 | In Progress |
+| RIO | @joshuaboys | P1 | Done |
 
 **Packages:** eddacraft-anvil
 
@@ -31,7 +31,7 @@ These repair existing bounds; no new architecture or public API is introduced.
 
 ### RIO-001: Bound daemon validation and Git-history exchanges
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Prevent slow peers and full Git pipes from hanging normal CLI use.
 - **Expected Outcome:** Partial socket reads cannot renew the exchange budget;
   incomplete replies fail closed. History output larger than a pipe buffer
@@ -48,7 +48,7 @@ These repair existing bounds; no new architecture or public API is introduced.
 
 ### RIO-002: Bound committed-blob materialisation
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Prevent oversized or aggregate-heavy committed trees exhausting memory.
 - **Expected Outcome:** Size probes precede content reads; neither oversized
   blobs nor an unbounded batch transcript enter memory. Tests cover over-limit
@@ -61,6 +61,14 @@ These repair existing bounds; no new architecture or public API is introduced.
 **changeType:** fix
 **releaseIntent:** candidate
 **releaseScope:** patch
+
+## Verification evidence
+
+The hosted Test job [101240565646](https://github.com/eddacraft/anvil-001/actions/runs/33941784695/job/101240565646)
+passed the full workspace suite, including all nine new regression tests, on
+2026-09-05. Independent mini Council findings were addressed. Integration is
+tracked by [PR #4397](https://github.com/eddacraft/anvil-001/pull/4397), which
+requires green CI on its final head before rebase merge. No release is claimed.
 
 ## Non-scope
 
