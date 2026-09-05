@@ -13,7 +13,7 @@ for the script itself live at `pnpm test:adr-integrity`.
 
 | ADR | Decision | Status |
 | --- | --- | --- |
-| [140](140-converged-command-event-contract.md) | Anvil-owned typed commands and projections informed by EXP-002; preserve daemon scope, evidence pipes and existing exits; durable admission, approval and reconnect require production fixtures | Proposed |
+| [140](140-converged-command-event-contract.md) | Anvil-owned typed commands and projections informed by EXP-002; preserve daemon scope, evidence pipes and existing exits; durable admission, approval and reconnect require production fixtures | Accepted 2026-09-05 (operator) |
 
 ## Core Philosophy
 

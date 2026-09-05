@@ -31,8 +31,9 @@ and [ADR-140](../decisions/140-converged-command-event-contract.md).
 Coordinates with ACTMO/JOURNEY for activation reliability, KFIT for governance
 storage and identity, SETCON for settings, and the owning feature catalogue
 and flag modules. Existing work remains with its owner; CONV adds only app gaps.
-All implementation items below remain Proposed until their scope, owning code,
-numeric bounds and validation commands are made Ready.
+CONV-002 is in discovery and plan-ready selection. Runtime changes may begin only
+once scope, owning code, numeric bounds and validation commands are recorded.
+The other implementation items remain Proposed.
 
 ## Work Items
 
@@ -57,7 +58,10 @@ numeric bounds and validation commands are made Ready.
 
 ### CONV-002: Prove the shared contract against one real anvil command
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Claim:** [#4407](https://github.com/eddacraft/anvil-001/issues/4407)
+- **Evidence:** ADR-140 accepted by @joshuaboys on 2026-09-05. RPC inventory and
+  plan-ready selection underway; acceptance does not claim executable parity.
 - **Intent:** Select a bounded existing command and freeze exact DTO/schema placement.
 - **Expected Outcome:** One handler serves CLI and a second client via generated
   schemas; typed IDs, semantic errors, version negotiation and existing exit-code

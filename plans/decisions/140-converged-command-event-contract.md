@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed. Design contract for incremental implementation; no new runtime,
+Accepted 2026-09-05 by @joshuaboys (operator approval: "approve ADR-140 and continue").
+
+Design contract for incremental implementation; no new runtime,
 wire API, desktop release or allomorph dependency is delivered by this ADR.
 
 ## Date
