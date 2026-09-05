@@ -12,7 +12,10 @@ async fn read_capped(reader: impl AsyncRead + Unpin, cap: usize) -> io::Result<V
     let mut bytes = Vec::new();
     reader.take(cap as u64 + 1).read_to_end(&mut bytes).await?;
     if bytes.len() > cap {
-        return Err(io::Error::other("subprocess output cap exceeded"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "subprocess output cap exceeded",
+        ));
     }
     Ok(bytes)
 }

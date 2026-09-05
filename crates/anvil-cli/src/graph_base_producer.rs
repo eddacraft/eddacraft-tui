@@ -352,9 +352,9 @@ fn read_blobs_batch_with_budget(
         let mut command = Command::new("git");
         command.arg("-C").arg(repo_root).args(["cat-file", mode]);
         let output = crate::bounded_process::output_until(command, input, deadline, cap, 64 * 1024)
-            .map_err(|_| batch_error("subprocess failed or exceeded I/O bounds"))?;
+            .map_err(|error| batch_error(&format!("subprocess I/O failure: {:?}", error.kind())))?;
         if !output.status.success() {
-            return Err(batch_error("subprocess exited unsuccessfully"));
+            return Err(batch_error(&format!("subprocess exited: {}", output.status)));
         }
         Ok(output.stdout)
     };
