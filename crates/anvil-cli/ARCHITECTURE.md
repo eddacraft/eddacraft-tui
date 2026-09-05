@@ -1,7 +1,7 @@
 # anvil CLI architecture
 
-| Type         | Authority | Owner          | Status | Freshness                                                                                           |
-| ------------ | --------- | -------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| Type         | Authority | Owner          | Status | Freshness                                                                                                                                   |
+| ------------ | --------- | -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-05 against CONV-002 shared source-scan service and RIO-001/002 bounded I/O; component topology and diagrams unchanged |
 
 | Upstream                                                                                      | Downstream                                                                                              |
@@ -53,9 +53,9 @@ CLI retains scanner diagnostics and SARIF attribution, and MCP retains its
 legacy projection. Admission, file selection, configuration and rendering remain
 with each adapter. Their supported inputs are not yet one public app contract.
 
-This is an internal application-layer extraction under CONV-002 / ADR-140.
-It does not add a daemon RPC, change permissions or provide durable operations.
-The AST tier stays outside the resident intercept daemon (ADR-064/071).
+This is an internal application-layer extraction under CONV-002 / ADR-140. It
+does not add a daemon RPC, change permissions or provide durable operations. The
+AST tier stays outside the resident intercept daemon (ADR-064/071).
 
 ## Activation orchestration
 
