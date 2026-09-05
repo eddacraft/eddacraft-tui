@@ -194,16 +194,16 @@ partial responses cannot renew it. Transport failure remains fail-closed.
 
 The synchronous `bounded_process` helper uses the existing Tokio dependency on
 an isolated worker thread, so callers inside a runtime are also supported. It
-feeds stdin and drains both output streams concurrently under one deadline,
-then kills and reaps the child on timeout, I/O failure or output overflow.
-Git-history sampling allows three seconds, 4 MiB stdout and 64 KiB stderr,
-then falls back to a repository walk. Captured content is never logged.
+feeds stdin and drains both output streams concurrently under one deadline, then
+kills and reaps the child on timeout, I/O failure or output overflow.
+Git-history sampling allows three seconds, 4 MiB stdout and 64 KiB stderr, then
+falls back to a repository walk. Captured content is never logged.
 
-Base-graph loading probes immutable object sizes before fetching bodies. The
-8 MiB per-object cap is joined by a 64 MiB aggregate body budget, 4 MiB metadata
-cap and 32,768-object query cap. Over-budget objects are skipped in deterministic
-order, with later small objects admitted if space remains and skip counts
-reported at debug level. The size and content phases share a 30-second deadline.
-Malformed or over-limit subprocess output returns the existing non-fatal Git
-error so the caller can serve cold. These limits bound blob loading, not total
-parser or resident-graph memory.
+Base-graph loading probes immutable object sizes before fetching bodies. The 8
+MiB per-object cap is joined by a 64 MiB aggregate body budget, 4 MiB metadata
+cap and 32,768-object query cap. Over-budget objects are skipped in
+deterministic order, with later small objects admitted if space remains and skip
+counts reported at debug level. The size and content phases share a 30-second
+deadline. Malformed or over-limit subprocess output returns the existing
+non-fatal Git error so the caller can serve cold. These limits bound blob
+loading, not total parser or resident-graph memory.
