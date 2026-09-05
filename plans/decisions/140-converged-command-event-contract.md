@@ -165,6 +165,44 @@ TTY presence alone cannot grant approval or turn an agent into a human.
 Durable approval schema/storage and crash-boundary tests belong to CONV-003.
 No serialised allomorph token is accepted as an anvil credential.
 
+### Tray-only operation
+
+The tray is a first-class graphical client. Supported operation must include
+the tray with no main desktop window, no running desktop shell and no browser
+session. The tray distribution must supply or provision its supported runtime
+without requiring installation or launch of the full desktop UI; exact packaging
+is decided by CONV-006.
+
+Tray startup discovers and authenticates to the correct execution-scope daemon
+and uses the existing authorised lifecycle/startup policy when it is absent.
+Login startup is an explicit preference governed by that policy, not an
+unconditional new auto-spawn path. Failure, incompatibility or missing attestation
+produces an honest unavailable/degraded state and an actionable recovery route.
+A visible tray icon alone never means protection is active.
+
+Status, attention counts and approvals come from shared authoritative projections.
+The tray can show a compact details/approval window on demand without creating
+a main application window. That surface must provide the exact action, scope,
+preview, requesting actor and consequences needed for the decision, and use the
+same authenticated commands and durable approval rules. Notification clicks open
+context; they do not grant approval. Dismissing a notification does not settle
+the underlying request.
+
+A tray-only installation must support its essential status, attention, approval
+and recovery journey without a full desktop or browser dependency. When an action
+cannot be safely represented by the compact UI, leave it pending with a clear
+reason and offer an explicit available richer surface; never silently approve,
+lose the request or link only to an unavailable client. Such unsupported actions
+must be declared in the tray capability matrix before claiming tray-only parity.
+The main desktop and web views are optional handoffs, not background authorities.
+
+Closing a compact window or quitting/crashing the tray leaves admitted
+daemon-owned work intact. Quitting the tray, cancelling an operation and stopping
+the daemon are separate actions with explicit labels and existing authorisation.
+After restart, the tray restores status and pending attention from the daemon,
+including recovery/resynchronisation when its cursor is stale. An OS notification
+delivery failure cannot erase durable attention.
+
 ### 6. Existing product authorities remain in force
 
 - [ADR-092](092-mcp-optional-activation-spine.md): MCP remains optional;
@@ -204,6 +242,7 @@ unpublished until the fixtures below pass and the contract is explicitly version
 | Shared command | CLI and a second client exercise the same real handler and typed result; generated schema invokes it without handwritten payload duplication |
 | Identity/auth | Cross-user/scope/root refusal; spoofed actor and surface cannot elevate; IDs survive restart |
 | Idempotency | Concurrent duplicate, lost reply, changed payload, expired key and crash-after-effect cases produce no blind duplicate execution |
+| Tray-only | Start with full desktop UI absent and no browser; connect/recover daemon, inspect status, safely approve/deny and restore attention; closing/quitting/crashing tray leaves work alive; notification loss does not erase attention; optional full UI opens only on explicit request |
 | Lifecycle | Client close leaves work alive; authorised cancel cleans descendants; restart exposes unfinished/indeterminate work honestly |
 | Approval | Changed input/preview/version/policy, expiry, revocation and concurrent/restarted consumption cannot reuse authority |
 | Projection | Atomic snapshot/subscribe boundary, duplicate delivery, cursor expiry, gaps and bounded slow-client recovery |

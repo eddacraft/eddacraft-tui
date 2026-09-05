@@ -78,7 +78,8 @@ numeric bounds and validation commands are made Ready.
   consumption; snapshot/cursor resync; client closure leaves admitted work alive.
   Unknown post-effect outcomes require reconciliation, never blind retry.
 - **Validation:** ADR-140 duplicate/lost-reply/crash/expiry/cancel/reconnect matrix;
-  slow-client and restart tests; existing save-time latency/resource gates.
+  slow-client and restart tests; tray-only startup, tray crash/reconnect and
+  quit-with-live-work cases; existing save-time latency/resource gates.
 - **Dependencies:** CONV-002; existing ADR-036/064/067/116 boundaries.
 - **Confidence:** medium
 
@@ -119,7 +120,10 @@ numeric bounds and validation commands are made Ready.
   Decide native component sharing and browser transport/auth/write expansion
   separately; this work does not revoke the current read-only dashboard boundary.
 - **Validation:** Real interactive tasks and platform matrix, not static mock-ups;
-  framework decision and shared-UI disposition recorded in ADRs.
+  framework decision and shared-UI disposition recorded in ADRs. Include a
+  tray-only installation with full desktop absent: login/startup policy, compact
+  approval/recovery, notification delivery failure and OS tray support/fallback
+  on each supported platform. A hidden main window is not this proof.
 - **Dependencies:** CONV-001; typed fixture from CONV-002 for integration proof.
 - **Confidence:** medium
 
@@ -135,6 +139,24 @@ numeric bounds and validation commands are made Ready.
 - **Validation:** Denied actions through every ingress, redaction failure, capacity
   refusal/gap evidence, expired grants, stale settings attestation and absent MCP.
   First vertical slice must survive client closure and preserve standalone APS parity
-  before explicit default-on UX/release review.
+  before explicit default-on UX/release review. Verify the essential tray-only
+  journey without desktop/browser dependencies and publish its supported action
+  matrix; optional richer-surface handoffs cannot conceal unsupported actions.
 - **Dependencies:** CONV-002; CONV-003 for durable guarantees; CONV-006 for shell exposure.
 - **Confidence:** medium
+
+### CONV-008: Make tray-only operation explicit in the design
+
+- **Status:** Done
+- **Intent:** Require the tray to operate as the only graphical client.
+- **Expected Outcome:** ADR-140 and the surface spec require independent tray
+  startup, compact approvals/recovery, daemon-owned lifecycle and optional full-UI
+  handoffs; CONV-003/006/007 own executable proofs.
+- **Validation:** `pnpm adr:check`, `pnpm docs:check`, `pnpm aps:active-lint`;
+  focused Council review and required PR checks.
+- **Dependencies:** CONV-001.
+- **Confidence:** high
+- **Claim:** [#4404](https://github.com/eddacraft/anvil-001/issues/4404)
+- **Evidence:** Operator clarification on 2026-09-05. Done means the specification
+  amendment is prepared, not that tray-only behaviour is implemented or released.
+- **Release:** changeType docs; releaseIntent never; releaseScope none.

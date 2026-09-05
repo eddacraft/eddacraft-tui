@@ -1,5 +1,14 @@
 # Surface and Experience Architecture
 
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Spec | Advisory | CONV | Proposed | Reviewed 2026-09-05 against ADR-140 and the tray-only requirement |
+
+| Upstream | Downstream |
+| --- | --- |
+| ADR-140; existing daemon and dashboard authorities | CONV-003/006/007; native and tray implementation |
+
+
 ## Purpose
 
 This document defines how the converged APS and anvil product should divide responsibilities across native desktop, web, tray, CLI, TUI, and agent-facing surfaces.
@@ -360,6 +369,26 @@ Full workspace terminal and split-pane experiences may remain desktop-first. Nar
 
 The tray is an ambient control and attention surface, not a second navigation system.
 
+## 7.1.1 Tray-only mode
+
+Tray-only is a supported operating mode, including when the full desktop UI is
+not installed or running. It is not merely a main window minimised to the tray.
+The [ADR-140 tray-only contract](../../decisions/140-converged-command-event-contract.md#tray-only-operation)
+owns lifecycle, authority and recovery semantics.
+
+The tray provides ambient status, pending attention and compact details/approval
+or recovery windows without starting the full shell or requiring a browser.
+Essential operations must be usable in this mode. Full desktop/web handoffs are
+optional and shown only when available; unsupported actions remain visibly
+pending with an explanation. A compact view may open on explicit user action,
+so tray-only does not mean forbidding all transient windows.
+
+Startup/login integration follows the existing authorised daemon lifecycle policy.
+No main-window process owns daemon work or notification subscriptions. Tray exit,
+operation cancellation and daemon shutdown are separate actions. The framework
+spike must prove this installation/lifecycle mode on each supported platform,
+including truthful handling of unavailable OS tray or notification facilities.
+
 ## 7.2 Recommended menu
 
 ```text
@@ -375,11 +404,14 @@ Resume new agent actions
 
 System status
 Check for updates
-Quit desktop client
+Quit tray client
 Stop daemon…
 ```
 
 Stopping the daemon should be separated and require explicit confirmation.
+The menu above illustrates available actions; Open anvil/Inbox are optional
+full-UI handoffs. In tray-only mode, pending items open their compact details
+view. Hide unavailable handoffs and retain a usable status/recovery route.
 
 ## 7.3 Quick-status window
 
@@ -552,7 +584,8 @@ The final URI scheme is an implementation decision.
 ## 11.2 Handoff examples
 
 - CLI command prints a deep link to open evidence in the native app.
-- Tray notification opens an approval in the existing desktop window.
+- Tray notification opens compact approval details in tray-only mode, or an
+  available desktop view when explicitly selected; both target the same request.
 - Web review page links to the corresponding native workspace when installed.
 - TUI can print or copy the remote web URL for a team reviewer.
 
