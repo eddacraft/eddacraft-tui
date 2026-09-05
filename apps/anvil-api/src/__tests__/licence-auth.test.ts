@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { authenticateLicence } from '../middleware/licence-auth.js';
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +12,10 @@ vi.mock('../db/queries.js', () => ({ findUserById: mocks.find }));
 vi.mock('../db/client.js', () => ({ getClient: mocks.getClient }));
 
 describe('shared licence authentication (SEC-013)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.getClient.mockReturnValue(mocks.sql);
