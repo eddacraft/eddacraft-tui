@@ -15,7 +15,9 @@ This document captures the decisions that should be made deliberately before or 
 
 ---
 
-## Current decision disposition — 2026-09-05
+## Current decision disposition
+
+Reviewed 2026-09-05.
 
 This is the owning A–J reconciliation, based on anvil main
 `4a8ad6e318f87116d947a87a643f5bb922a50e41` and

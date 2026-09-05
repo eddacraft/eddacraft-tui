@@ -11,7 +11,7 @@
 
 ## Decision follow-through
 
-The [current A–J disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition--2026-09-05)
+The [current A–J disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition)
 reconciles this pack with existing anvil authorities and EXP-002.
 [ADR-140](../../decisions/140-converged-command-event-contract.md) records the
 proposed contract; [CONV](../../modules/converged-app-decisions.aps.md) owns

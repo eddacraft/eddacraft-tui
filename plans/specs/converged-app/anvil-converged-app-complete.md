@@ -10,7 +10,7 @@
 
 This combined document is a historical planning snapshot. Its embedded decision
 inventory and illustrative contracts have not been maintained as a second authority.
-Use the [maintained pack](README.md), [current A–J disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition--2026-09-05)
+Use the [maintained pack](README.md), [current A–J disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition)
 and [ADR-140 proposal](../../decisions/140-converged-command-event-contract.md)
 for the September EXP-002 handoff. The snapshot does not establish runtime readiness.
 

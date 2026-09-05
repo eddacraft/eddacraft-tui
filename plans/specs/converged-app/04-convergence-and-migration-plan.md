@@ -10,7 +10,7 @@
 
 The package tree below is illustrative, not authority to create a second daemon,
 move existing anvil-run responsibilities or import allomorph. Existing ADR-036/064/067
-scope and crate boundaries remain binding. Follow the [current decision disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition--2026-09-05)
+scope and crate boundaries remain binding. Follow the [current decision disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition)
 and [CONV](../../modules/converged-app-decisions.aps.md) before implementation.
 Canonical APS source changes still require ADR-A; this reconciliation moves no source.
 

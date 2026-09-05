@@ -10,7 +10,7 @@
 
 The illustrative types below describe domain intent, not an accepted wire schema.
 [ADR-140](../../decisions/140-converged-command-event-contract.md) proposes the
-production command/event semantics; the [decision disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition--2026-09-05)
+production command/event semantics; the [decision disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition)
 identifies existing authority. In particular, actor/source fields are host-established,
 not caller-granted authority; retriable mutations need durable idempotency, and
 ADR-035/116 retain evidence-pipe and identity ownership. CONV-002 owns exact DTOs.
