@@ -61,9 +61,13 @@ mod tests {
             "{:?}",
             result.ast.init_errors
         );
-        assert!(result.ast.warnings.iter().any(|warning| {
-            warning.id == "RS-001" && warning.location.file == "source.rs"
-        }));
+        assert!(
+            result
+                .ast
+                .warnings
+                .iter()
+                .any(|warning| { warning.id == "RS-001" && warning.location.file == "source.rs" })
+        );
     }
 
     #[test]
