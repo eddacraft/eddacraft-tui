@@ -932,12 +932,12 @@
       "key": "ember",
       "name": "Ember memory tools",
       "groupKey": "tools",
-      "owner": "EDDA",
+      "owner": "EMBERRS",
       "status": "active",
       "requires": [],
       "flagLinkage": {
-        "disposition": "unflagged",
-        "reason": "No operational rollout, entitlement, or kill-switch currently controls this feature."
+        "disposition": "linked",
+        "flagKeys": ["ember.enabled"]
       },
       "planAvailability": {
         "plan-free": "undecided",
@@ -2086,9 +2086,16 @@
     {
       "key": "cli.ember",
       "featureKey": "ember",
-      "locator": { "kind": "cli", "commandPath": ["ember"] },
-      "posture": { "invocation": "user", "mustAlwaysBeOpen": false },
-      "status": "active"
+      "locator": {
+        "kind": "cli",
+        "commandPath": ["ember"]
+      },
+      "posture": {
+        "invocation": "user",
+        "mustAlwaysBeOpen": false
+      },
+      "status": "active",
+      "listed": false
     },
     {
       "key": "cli.exception",

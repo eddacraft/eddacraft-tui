@@ -15,6 +15,13 @@ verified_against: 0.9.4-beta
 Ember is the review capability in the memory system. It sits between raw capture
 and canonical memory to keep quality high.
 
+> **Current development status:** Ember is inactive pending its Rust migration.
+> The JavaScript implementation has been retired. `anvil ember` is hidden and
+> default-off behind `ember.enabled`; explicit `ANVIL_EMBER=1` permits only the
+> existing Rust historical proposal reader. Generation and review/promotion
+> commands are unavailable. Existing databases are preserved. The capability
+> described below is the target design, not an enabled workflow.
+
 ## Why this capability matters
 
 - Prevents raw notes from polluting long-term memory

@@ -1,6 +1,18 @@
 # Edda Stack
 
-> **Status:** Draft — Planning complete for v2.0
+| Type  | Authority | Owner   | Status | Freshness                                    |
+| ----- | --------- | ------- | ------ | -------------------------------------------- |
+| Guide | Derived   | EMBERRS | Live   | Last reviewed 2026-09-05 against EMBERRS-001 |
+
+| Upstream                                                                        | Downstream                              |
+| ------------------------------------------------------------------------------- | --------------------------------------- |
+| `packages/edda-stack/package.json`, `plans/modules/ember-rust-migration.aps.md` | Memory guides and public stack overview |
+
+> **Implementation status:** TypeScript Ember execution is retired. Shared
+> memory contracts and the separate Edda implementation remain; neither starts
+> an Ember pipeline. Ember is default-off pending the
+> [Rust migration](../../plans/modules/ember-rust-migration.aps.md). The
+> architecture below describes the target, not an active end-to-end service.
 
 The Kindling · Ember · Edda Stack — a three-layer architecture that governs how
 activity becomes memory.
@@ -116,13 +128,7 @@ packages/edda-stack/
 │   ├── kindling.port.ts
 │   ├── ember.port.ts
 │   └── edda.port.ts
-├── ember/               # Candidate memory system
-│   ├── candidate-service.ts
-│   ├── proposal-store.ts
-│   ├── aggregator-service.ts
-│   ├── evaluator-service.ts
-│   ├── decay-service.ts
-│   └── rules/
+├── ember/               # Retirement marker only; implementation is in Git history
 ├── edda/                # Canonical memory system
 │   ├── memory-service.ts
 │   ├── memory-store.ts
@@ -169,7 +175,8 @@ See: `packages/kindling-integration/` for observation contracts and query API.
 
 ## Plans
 
-Detailed implementation plans are in `plans/modules/`:
+Historical TypeScript delivery records are in `plans/archive/modules/`: The
+active successor is [EMBERRS](../../plans/modules/ember-rust-migration.aps.md).
 
 - `kindling-integration.aps.md` — Observation layer (19 tasks)
 - `ember.aps.md` — Candidate memory (14 tasks)

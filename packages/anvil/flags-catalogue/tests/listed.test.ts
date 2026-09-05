@@ -18,7 +18,7 @@ describe('FLAGCAT-019 listed implies on', () => {
         .filter((surface) => surface.listed === false)
         .map((surface) => surface.key)
         .sort()
-    ).toEqual(['cli.dashboard-web', 'cli.impact', 'cli.plan-dashboard']);
+    ).toEqual(['cli.dashboard-web', 'cli.ember', 'cli.impact', 'cli.plan-dashboard']);
   });
 
   it('rejects listed CLI surfaces whose invocation is default-off', () => {

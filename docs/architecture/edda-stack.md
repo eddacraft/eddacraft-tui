@@ -1,8 +1,8 @@
 # Edda Stack Architecture
 
-| Type | Authority | Owner | Status | Freshness                                                                                                                            |
-| ---- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Spec | Derived   | EDDA  | Live   | Last reviewed 2026-08-20 at `d9b30b23d` against `packages/edda-stack`, `packages/kindling-integration`, and `docs/public/edda-stack` |
+| Type | Authority | Owner | Status | Freshness                                                                                                                             |
+| ---- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Derived   | EDDA  | Live   | Last reviewed 2026-09-05 for EMBERRS-001 against `packages/edda-stack`, `packages/kindling-integration`, and `docs/public/edda-stack` |
 
 | Upstream                                                    | Downstream                                       |
 | ----------------------------------------------------------- | ------------------------------------------------ |
@@ -10,12 +10,13 @@
 
 > A three-layer architecture that governs how activity becomes memory.
 
-> **Implementation status:** This describes the design contract. The
-> `packages/edda-stack` TypeScript surface is a **partial implementation**
-> (Edda + Ember present; Kindling capture via `packages/kindling-integration`)
-> and is **retiring** as operational memory moves to the Rust Kindling path. The
-> central [overview](overview.md) links this EDDA-owned concern rather than
-> repeating it.
+> **Implementation status (EMBERRS-001, 2026-09-05):** This is the target design
+> contract. TypeScript Ember execution is retired; shared contracts and the
+> separate Edda implementation remain. Ember is default-off. The Rust command
+> currently reads historical proposals only, with no generation pipeline.
+> [EMBERRS](../../plans/modules/ember-rust-migration.aps.md) owns Rust storage,
+> processing, publication and review integration. The diagram below describes
+> the intended flow, not a running end-to-end service.
 
 ## Overview
 
@@ -48,7 +49,7 @@ Edda remembers — memory with restraint
 
 ```mermaid
 flowchart BT
-    Kindling[Kindling: observations] -->|aggregation and evaluation| Ember[Ember: candidate memory]
+    Kindling[Kindling: observations] -->|aggregation and evaluation| Ember["Ember: planned Rust candidate memory; default-off"]
     Ember -->|human promotion decision| Edda[Edda: canonical memory]
 ```
 

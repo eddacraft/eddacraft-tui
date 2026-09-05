@@ -11,6 +11,14 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+### Changed
+
+- **Ember is inactive pending its Rust migration.** The historical
+  `anvil ember list` reader is hidden and default-off behind `ember.enabled`.
+  Explicit `ANVIL_EMBER=1` allows historical reads only; generation remains
+  unavailable. Existing databases are preserved. The unused JavaScript Ember,
+  runtime watch and concurrency entry points have been retired.
+
 ### Added
 
 - **`anvil start` installs managed skills for chosen MCP clients.** Ticking a

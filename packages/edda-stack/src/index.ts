@@ -20,8 +20,7 @@ export * from './contracts/index.js';
 // Re-export stack configuration
 export * from './config.js';
 
-// Re-export Ember service layer
-export * from './ember/index.js';
+// Ember execution is retired (EMBERRS-001); shared contracts remain below.
 
 // Re-export Edda service layer
 export * from './edda/index.js';

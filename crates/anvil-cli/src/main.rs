@@ -267,6 +267,7 @@ enum Commands {
     /// List, show, and trace Edda canonical memories.
     Edda(commands::edda::EddaArgs),
     /// List Ember proposals awaiting promotion to Edda.
+    #[command(hide = true)]
     Ember(commands::ember::EmberArgs),
     /// Grant, revoke, and inspect tracked policy exceptions.
     Exception(commands::exception::ExceptionArgs),

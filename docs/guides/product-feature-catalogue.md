@@ -14,7 +14,7 @@ This page is a generated view of the canonical product catalogue. Edit
 `flags/surfaces.json` and `flags/manifest.json`, then run
 `pnpm docs:catalogue:generate`. Do not maintain a second feature list.
 
-Schema version 2. 80 product features, 190 delivery surfaces, 12 exclusions, 18
+Schema version 2. 80 product features, 190 delivery surfaces, 12 exclusions, 19
 operational flags.
 
 ## Product feature groups
@@ -66,7 +66,7 @@ operational flags.
 | `doctor`                 | anvil doctor                         | Foundational plumbing | RCLI      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `drift`                  | anvil drift                          | Governance engine     | DRIFT     | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `edda`                   | anvil edda                           | Local tools           | EDDA      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
-| `ember`                  | Ember memory tools                   | Local tools           | EDDA      | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
+| `ember`                  | Ember memory tools                   | Local tools           | EMBERRS   | active | ember.enabled (rollout)                                                                                              | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `ensure`                 | anvil bare ensure                    | Setup and onboarding  | ONSW      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `exception`              | Policy exceptions                    | Governance engine     | POLENG    | active | unflagged — No operational rollout, entitlement, or kill-switch currently controls this feature.                     | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
 | `export`                 | anvil export                         | Governance engine     | RCLI      | active | cli.licence-gate (entitlement)                                                                                       | plan-free: undecided; plan-beta: undecided; plan-pro: undecided; plan-enterprise: undecided   |
@@ -173,7 +173,7 @@ operational flags.
 | `cli.doctor`                       | `doctor`                 | cli doctor                            | yes    | active |
 | `cli.drift`                        | `drift`                  | cli drift                             | yes    | active |
 | `cli.edda`                         | `edda`                   | cli edda                              | yes    | active |
-| `cli.ember`                        | `ember`                  | cli ember                             | yes    | active |
+| `cli.ember`                        | `ember`                  | cli ember                             | no     | active |
 | `cli.ensure`                       | `ensure`                 | cli                                   | yes    | active |
 | `cli.exception`                    | `exception`              | cli exception                         | yes    | active |
 | `cli.export`                       | `export`                 | cli export                            | yes    | active |
@@ -321,6 +321,7 @@ as the controlling flag becoming default-on (ADR-137).
 | Key                  | Locator             |
 | -------------------- | ------------------- |
 | `cli.dashboard-web`  | cli dashboard --web |
+| `cli.ember`          | cli ember           |
 | `cli.impact`         | cli impact          |
 | `cli.plan-dashboard` | cli plan dashboard  |
 
@@ -352,6 +353,7 @@ as the controlling flag becoming default-on (ADR-137).
 | `daemon.persist-graph`        | rollout     | intercept                                                                                                                                                                         | active |
 | `dashboard.web`               | rollout     | dashboard.web                                                                                                                                                                     | active |
 | `docs.access`                 | entitlement | anvil-docs, docs-shell                                                                                                                                                            | active |
+| `ember.enabled`               | rollout     | ember                                                                                                                                                                             | active |
 | `gctx.egress`                 | rollout     | gctx.snippets                                                                                                                                                                     | active |
 | `gv2.reverse-impact-depth`    | entitlement | impact                                                                                                                                                                            | active |
 | `impact.view`                 | rollout     | impact                                                                                                                                                                            | active |

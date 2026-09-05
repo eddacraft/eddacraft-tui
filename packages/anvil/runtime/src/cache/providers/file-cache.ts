@@ -11,7 +11,7 @@ import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
-import { atomicWriteText } from '../../concurrency/atomic.js';
+import { atomicWriteText } from '../atomic.js';
 
 const debug = createDebugger('cache');
 

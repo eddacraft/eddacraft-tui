@@ -15,6 +15,15 @@ or product feature groups.
 
 Created for: `FLAGS-009`
 
+## Ember containment (EMBERRS-001)
+
+`ember.enabled` is a default-off rollout flag owned by EMBERRS, with review due
+2026-10-05. `ANVIL_EMBER=1` explicitly enables only the hidden Rust historical
+proposal reader. `ANVIL_DEV` and admin credentials do not enable it. There is no
+TypeScript Ember fallback or active candidate generator. See the
+[availability guide](ember-candidates.md) and
+[Rust migration](../../plans/modules/ember-rust-migration.aps.md).
+
 ## Catalogue Boundaries
 
 | Concern                                                                                                   | Authority                            |

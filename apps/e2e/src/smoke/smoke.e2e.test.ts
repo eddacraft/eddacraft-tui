@@ -195,9 +195,17 @@ describe('Smoke › @eddacraft/anvil-runtime', () => {
     expect(mod).toBeDefined();
   });
 
-  it('exports watch utilities', async () => {
-    const mod = await import('@eddacraft/anvil-runtime/watch');
-    expect(typeof mod.getChangedFiles).toBe('function');
+  it('does not export retired watch or coordination services', async () => {
+    const mod = await import('@eddacraft/anvil-runtime');
+    for (const name of [
+      'getChangedFiles',
+      'GitStatusChecker',
+      'QueueManager',
+      'LockManager',
+      'createConcurrencyContext',
+    ]) {
+      expect(Object.keys(mod)).not.toContain(name);
+    }
   });
 });
 
@@ -243,6 +251,16 @@ describe('Smoke › @eddacraft/anvil-edda-stack', () => {
     const mod = await import('@eddacraft/anvil-edda-stack');
     expect(mod.PACKAGE_NAME).toBe('@eddacraft/anvil-edda-stack');
     expect(mod.PACKAGE_VERSION).toBeDefined();
+    for (const name of [
+      'CandidateService',
+      'ProposalStore',
+      'ObservationHook',
+      'AggregatorService',
+      'EvaluatorService',
+      'DecayService',
+    ]) {
+      expect(Object.keys(mod)).not.toContain(name);
+    }
   });
 
   it('exports contracts', async () => {

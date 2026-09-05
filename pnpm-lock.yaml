@@ -824,9 +824,6 @@ importers:
 
   packages/edda-stack:
     dependencies:
-      better-sqlite3:
-        specifier: ^12.11.1
-        version: 12.11.1
       uuid:
         specifier: ^14.0.1
         version: 14.0.1
@@ -837,9 +834,6 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.13
-        version: 7.6.13
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1

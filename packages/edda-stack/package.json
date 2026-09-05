@@ -2,6 +2,19 @@
   "name": "@eddacraft/anvil-edda-stack",
   "version": "0.9.7-beta",
   "description": "Kindling · Ember · Edda memory stack for Anvil",
+  "keywords": [
+    "anvil",
+    "edda",
+    "ember",
+    "kindling",
+    "memory",
+    "observability"
+  ],
+  "license": "PROPRIETARY",
+  "files": [
+    "dist",
+    "src"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,44 +31,25 @@
       "types": "./dist/contracts/*.d.ts",
       "import": "./dist/contracts/*.js"
     },
-    "./ember": {
-      "types": "./dist/ember/index.d.ts",
-      "import": "./dist/ember/index.js"
-    },
     "./edda": {
       "types": "./dist/edda/index.d.ts",
       "import": "./dist/edda/index.js"
     }
   },
-  "files": [
-    "dist",
-    "src"
-  ],
   "scripts": {
-    "build": "tsc",
+    "build": "node -e \"require('node:fs').rmSync('dist', {recursive:true, force:true})\" && tsc --build --force",
     "test": "vitest",
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "better-sqlite3": "^12.11.1",
     "uuid": "^14.0.1",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.9.1",
     "typescript": "~6.0.3",
     "uuid": "^14.0.1",
     "vitest": "^4.1.8"
-  },
-  "keywords": [
-    "anvil",
-    "edda",
-    "ember",
-    "kindling",
-    "memory",
-    "observability"
-  ],
-  "license": "PROPRIETARY"
+  }
 }

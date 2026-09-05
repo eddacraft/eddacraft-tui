@@ -132,7 +132,7 @@
       "status": "active",
       "createdFor": "GV2-030",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
-      "description": "Default-on (graduated by GBASE-010 after the ADR-105 \u00a711 shared-base graduation gate; see plans/audits/2026-07-12-gbase-graduation-gate.md). Absence of the variable means enabled; explicit opt-out (rollback) via ANVIL_PERSIST_GRAPH=0. The shared write-once base + overlay layout (ADR-105) replaced the O(worktrees) layout that had blocked default-on.",
+      "description": "Default-on (graduated by GBASE-010 after the ADR-105 §11 shared-base graduation gate; see plans/audits/2026-07-12-gbase-graduation-gate.md). Absence of the variable means enabled; explicit opt-out (rollback) via ANVIL_PERSIST_GRAPH=0. The shared write-once base + overlay layout (ADR-105) replaced the O(worktrees) layout that had blocked default-on.",
       "primaryGroup": "daemon",
       "controlsProductFeatures": ["intercept"]
     },
@@ -221,7 +221,7 @@
     {
       "key": "gv2.reverse-impact-depth",
       "owner": "GV2",
-      "intent": "Save-time reverse-impact closure hop depth (env ANVIL_REVERSE_IMPACT_DEPTH): 1 hop by default, hard-capped at 2; an over-cap setting is clamped, not honoured (ADR-063 \u00a73)",
+      "intent": "Save-time reverse-impact closure hop depth (env ANVIL_REVERSE_IMPACT_DEPTH): 1 hop by default, hard-capped at 2; an over-cap setting is clamped, not honoured (ADR-063 §3)",
       "class": "entitlement",
       "valueType": "number",
       "variants": [
@@ -237,7 +237,7 @@
       "defaultVariant": "one-hop",
       "status": "active",
       "createdFor": "GV2-026",
-      "description": "Runtime lever for the daemon save-time certify reverse-impact depth. Default 1 hop (the ADR-061 \u00a76 certifiability closure); the latency-coverage trade can move 1 to 2 hops without re-coding via the ANVIL_REVERSE_IMPACT_DEPTH env var. Hard-capped at MAX_REVERSE_IMPACT_DEPTH (2): an over-cap value is clamped, not honoured.",
+      "description": "Runtime lever for the daemon save-time certify reverse-impact depth. Default 1 hop (the ADR-061 §6 certifiability closure); the latency-coverage trade can move 1 to 2 hops without re-coding via the ANVIL_REVERSE_IMPACT_DEPTH env var. Hard-capped at MAX_REVERSE_IMPACT_DEPTH (2): an over-cap value is clamped, not honoured.",
       "primaryGroup": "gv2",
       "controlsProductFeatures": ["impact"]
     },
@@ -455,6 +455,30 @@
       "description": "Internal-developer access to the terminal APS dashboard; default-disabled, opened via ANVIL_DEV local override or ANVIL_ADMIN_KEY",
       "primaryGroup": "tui-dashboard",
       "controlsProductFeatures": ["dashboard.aps"]
+    },
+    {
+      "key": "ember.enabled",
+      "owner": "EMBERRS",
+      "intent": "Keep Ember inactive until its Rust migration is verified",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        {
+          "key": "enabled",
+          "value": true
+        },
+        {
+          "key": "disabled",
+          "value": false
+        }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "EMBERRS-001",
+      "expiryOrReviewDate": "2026-10-05T00:00:00Z",
+      "description": "Explicit ANVIL_EMBER=1 enables only the Rust historical proposal reader. ANVIL_DEV does not enable Ember. Rust generation and lifecycle remain planned.",
+      "primaryGroup": "cli",
+      "controlsProductFeatures": ["ember"]
     }
   ]
 }

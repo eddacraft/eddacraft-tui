@@ -2,8 +2,8 @@
 //!
 //! Today this implements `anvil ember list` (RCLI3-005). The command reads
 //! Ember proposals from the `.anvil/ember.db` `SQLite` database that the
-//! TypeScript `ProposalStore` (`packages/edda-stack/src/ember/proposal-store.ts`)
-//! writes, applies `--type` / `--status` filters, sorts by `created_at`
+//! retired TypeScript `ProposalStore` wrote, applies `--type` / `--status`
+//! filters, sorts by `created_at`
 //! descending, and renders either a human-readable table or the JSON envelope
 //! existing scripts depend on.
 //!
@@ -14,7 +14,7 @@
 //! envelope matches the Node five-key shape, so consumers keep working.
 //!
 //! Note on enums: the proposal `type` and `status` vocabularies are taken
-//! from the live `ProposalStore` schema, not the older RCLI3-005 draft (which
+//! from the historical `ProposalStore` schema, not the older RCLI3-005 draft (which
 //! listed `observation`/`suggestion` types and a `rejected` status that the
 //! schema never had).
 
@@ -76,6 +76,24 @@ fn parse_limit(raw: &str) -> Result<usize, String> {
 }
 
 pub fn run(args: &EmberArgs, global: &GlobalArgs) -> Result<()> {
+    if !crate::feature_flags::ember_access_allowed() {
+        let EmberCommand::List(list_args) = &args.command;
+        let detail = "Ember is disabled by the ember.enabled feature flag pending its Rust migration. \
+            ANVIL_EMBER=1 opens only the historical proposal reader; candidate generation is unavailable.";
+        if global.json || list_args.json {
+            println!(
+                "{}",
+                json!({
+                    "error": "feature_disabled",
+                    "flag": crate::feature_flags::EMBER_GATE_KEY,
+                    "detail": detail,
+                })
+            );
+        } else {
+            eprintln!("{detail}");
+        }
+        return Err(AlreadyReported.into());
+    }
     match &args.command {
         EmberCommand::List(list_args) => run_list(list_args, global),
     }
@@ -326,7 +344,7 @@ fn run_list(args: &ListArgs, global: &GlobalArgs) -> Result<()> {
             return Err(AlreadyReported.into());
         }
         bail!(
-            "No Ember database found at {}. This CLI lists a TypeScript ProposalStore; it does not create one.",
+            "No Ember database found at {}. This Rust reader lists historical proposals; candidate generation is unavailable.",
             db_path.display()
         );
     }

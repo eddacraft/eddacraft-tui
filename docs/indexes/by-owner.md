@@ -247,6 +247,12 @@
 | [Edda Stack Architecture](../../docs/architecture/edda-stack.md) | `docs/architecture/edda-stack.md`  | Spec | Derived   | EDDA  | Live     |
 | [System Specification](../../docs/architecture/system-spec.md)   | `docs/architecture/system-spec.md` | Spec | Derived   | EDDA  | Proposed |
 
+## EMBERRS
+
+| Document                                                                 | Path                              | Type  | Authority | Owner   | Status |
+| ------------------------------------------------------------------------ | --------------------------------- | ----- | --------- | ------- | ------ |
+| [Ember Candidate Review Workflow](../../docs/guides/ember-candidates.md) | `docs/guides/ember-candidates.md` | Guide | Derived   | EMBERRS | Live   |
+
 ## EXCEPT
 
 | Document                                                    | Path                               | Type  | Authority     | Owner  | Status |
@@ -401,10 +407,9 @@
 
 ## RCLI3
 
-| Document                                                                 | Path                              | Type  | Authority     | Owner | Status |
-| ------------------------------------------------------------------------ | --------------------------------- | ----- | ------------- | ----- | ------ |
-| [Edda Memory Management](../../docs/guides/edda-memory.md)               | `docs/guides/edda-memory.md`      | Guide | Authoritative | RCLI3 | Live   |
-| [Ember Candidate Review Workflow](../../docs/guides/ember-candidates.md) | `docs/guides/ember-candidates.md` | Guide | Authoritative | RCLI3 | Live   |
+| Document                                                   | Path                         | Type  | Authority     | Owner | Status |
+| ---------------------------------------------------------- | ---------------------------- | ----- | ------------- | ----- | ------ |
+| [Edda Memory Management](../../docs/guides/edda-memory.md) | `docs/guides/edda-memory.md` | Guide | Authoritative | RCLI3 | Live   |
 
 ## RELEASE
 

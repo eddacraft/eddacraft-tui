@@ -1,38 +1,37 @@
 # @eddacraft/anvil-runtime
 
-Runtime orchestration and I/O layer for the Anvil system. Handles gate
-execution, file watching, caching, constraint export, and multi-agent
-concurrency coordination -- everything that `@eddacraft/anvil-core` delegates
-for I/O-heavy operations.
+| Type  | Authority | Owner   | Status | Freshness                                    |
+| ----- | --------- | ------- | ------ | -------------------------------------------- |
+| Guide | Derived   | EMBERRS | Live   | Last reviewed 2026-09-05 against EMBERRS-001 |
 
-## Status
+| Upstream                                                                     | Downstream                        |
+| ---------------------------------------------------------------------------- | --------------------------------- |
+| `packages/anvil/runtime/src/index.ts`, `packages/anvil/runtime/package.json` | API/docs consumers, runtime tests |
 
-Winding down -- the Rust CLI and kernel have replaced the primary execution
-paths. This package remains in use by the MCP server and e2e tests.
+This package retains TypeScript cache utilities and feature-flag resolution. The
+API and docs shell use the `/feature-flags` subpath. Rust owns anvil engine
+execution; the JS watch and agent/lock/queue implementations and exports were
+removed under [EMBERRS-001](../../../plans/modules/ember-rust-migration.aps.md).
 
-## API Surface
+## Supported entry points
 
-| Export                           | Description                             |
-| -------------------------------- | --------------------------------------- |
-| `@eddacraft/anvil-runtime`       | Everything below                        |
-| `@eddacraft/anvil-runtime/cache` | Cache providers                         |
-| `@eddacraft/anvil-runtime/watch` | Git status helpers and change debouncer |
+| Export                                   | Purpose                                         |
+| ---------------------------------------- | ----------------------------------------------- |
+| `@eddacraft/anvil-runtime`               | Cache utilities                                 |
+| `@eddacraft/anvil-runtime/cache`         | Cache providers                                 |
+| `@eddacraft/anvil-runtime/feature-flags` | API/docs flag resolver, snapshots and telemetry |
 
-Scanner-era subpaths for gate and export were removed in `0.5.1-beta`; use the
-Rust CLI surfaces for those flows.
+There is no `/watch` or concurrency API. The cache retains a private atomic
+text-write helper; it is not a queue manager or agent coordinator. Builds clean
+old output so removed modules cannot survive in a reused distribution folder.
 
-Also exports the full concurrency module: agent management, lock management,
-queue management, git agent identification, and atomic file operations.
-
-## Consumers
-
-- `@eddacraft/anvil-mcp-server`
-- `@eddacraft/anvil-cli`
-- e2e tests
-
-## Development
+## Validation
 
 ```bash
 pnpm --filter @eddacraft/anvil-runtime build
 pnpm --filter @eddacraft/anvil-runtime test
 ```
+
+The test command checks the retirement boundary before running Vitest.
+Historical implementations remain in Git history, not in shipped source/build
+exports.

@@ -510,9 +510,17 @@ $ anvil edda show mem_abc123
 
 ## anvil ember
 
-**Class:** User-explicit **Purpose:** List Ember proposals awaiting promotion to
-Edda. **When to use:** To inspect proposal backlog items stored in the local
-Ember database before promoting or reconciling them into durable Edda memories.
+**Class:** Hidden, explicit opt-in **Purpose:** List Ember proposals awaiting
+promotion to Edda. **When to use:** To inspect proposal backlog items stored in
+the local Ember database before promoting or reconciling them into durable Edda
+memories.
+
+**Availability:** Default-off under `ember.enabled`. `ANVIL_EMBER=1` opens only
+the historical Rust reader; it does not start candidate generation.
+`ANVIL_DEV=1` and admin credentials do not enable it. Disabled requests return
+exit 1 (`feature_disabled` in JSON) before database access. Existing data is
+preserved. See [Ember availability](../guides/ember-candidates.md) for
+PowerShell examples and the Rust migration boundary.
 
 **Synopsis:** `anvil ember <list>`
 
@@ -536,9 +544,9 @@ Ember database before promoting or reconciling them into durable Edda memories.
 **Examples:**
 
 ```
-$ anvil ember list
-$ anvil ember list --status active --limit 10
-$ anvil ember list --json
+$ ANVIL_EMBER=1 anvil ember list
+$ ANVIL_EMBER=1 anvil ember list --status active --limit 10
+$ ANVIL_EMBER=1 anvil ember list --json
 ```
 
 ---

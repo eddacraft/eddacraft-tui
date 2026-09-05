@@ -7,23 +7,23 @@
 | -------- | ----- | -------- | ----------- | -------- |
 | CLAWOPEN | —     | P1       | In Progress | 9/12     |
 
-**Last reviewed:** 2026-09-05 — open PR #4361 reconciled: CLAWOPEN-007
-is In Progress; CLAWOPEN-011 is Blocked on hosted Neon provisioning.
-Prior: CLAWOPEN-002 and CLAWOPEN-010 merged via
-[#4219](https://github.com/eddacraft/anvil-001/pull/4219) (`6e728c0f7`).
-The bounded first delivery of seven clusters covering 14 of the 24 findings
-that remain after SETCON-012 merged via
-[#4216](https://github.com/eddacraft/anvil-001/pull/4216) (`965a9e7f4`).
-The source set remains the
+**Last reviewed:** 2026-09-05 — open PR #4361 reconciled: CLAWOPEN-007 is In
+Progress; CLAWOPEN-011 is Blocked on hosted Neon provisioning. Prior:
+CLAWOPEN-002 and CLAWOPEN-010 merged via
+[#4219](https://github.com/eddacraft/anvil-001/pull/4219) (`6e728c0f7`). The
+bounded first delivery of seven clusters covering 14 of the 24 findings that
+remain after SETCON-012 merged via
+[#4216](https://github.com/eddacraft/anvil-001/pull/4216) (`965a9e7f4`). The
+source set remains the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
-selected for this repair wave. CLAWOPEN-001, -002, -003, -004, -005, -006,
--008, -010, and -012 are Merged. CLAWOPEN-007 is In Progress on #4361;
-CLAWOPEN-011 is Blocked on its hosted Neon proof; CLAWOPEN-009 remains
-Proposed behind its design checkpoint.
+selected for this repair wave. CLAWOPEN-001, -002, -003, -004, -005, -006, -008,
+-010, and -012 are Merged. CLAWOPEN-007 is In Progress on #4361; CLAWOPEN-011 is
+Blocked on its hosted Neon proof; CLAWOPEN-009 is In Progress under EMBERRS-001
+retirement authority.
 
-> **Exclusive module.** The wave orchestrator is the only plan writer.
-> Parallel executors own isolated code/test workspaces and do not edit this
-> module, the APS index, claims, or publication state.
+> **Exclusive module.** The wave orchestrator is the only plan writer. Parallel
+> executors own isolated code/test workspaces and do not edit this module, the
+> APS index, claims, or publication state.
 
 ## Purpose
 
@@ -48,17 +48,17 @@ shared CIB backlog as feature-branch state.
 
 ## Bounded first delivery
 
-The approved first publication boundary is CLAWOPEN-001, -003, -004, -005,
--006, -008, and -012: 14 CLAWOPEN findings. SETCON-012 independently governs
-four settings findings carried by the same candidate, producing an 18-of-28
-combined delivery without folding those settings repairs into this module.
+The approved first publication boundary is CLAWOPEN-001, -003, -004, -005, -006,
+-008, and -012: 14 CLAWOPEN findings. SETCON-012 independently governs four
+settings findings carried by the same candidate, producing an 18-of-28 combined
+delivery without folding those settings repairs into this module.
 
 CLAWOPEN-002 and CLAWOPEN-010 later merged via
 [#4219](https://github.com/eddacraft/anvil-001/pull/4219). CLAWOPEN-007, -009,
-and -011 remain outside that merged delivery: five findings not yet closed.
-The later #4361 records approved designs for -007/-011 and carries their
-unmerged implementation; -009 still requires design. Their status is not a
-defect in the bounded candidate and the
+and -011 remain outside that merged delivery: five findings not yet closed. The
+later #4361 records approved designs for -007/-011 and carries their unmerged
+implementation; -009 now follows the operator-approved retirement under
+EMBERRS-001. Their status is not a defect in the bounded candidate and the
 candidate must not claim that all 24 CLAWOPEN findings, or all 28 reviewed
 findings, are repaired.
 
@@ -81,12 +81,12 @@ findings, are repaired.
 - **Intent:** Consumers cannot mutate any validated process-wide flag inventory
   or alter later catalogue decisions through import order.
 - **Expected Outcome:** The manifest, group, audience, and environment
-  inventories are recursively frozen before derived maps are constructed;
-  public accessors expose compatible deep-readonly contracts; attempted nested
-  mutation leaves each accessor and `flagByKey` result unchanged.
+  inventories are recursively frozen before derived maps are constructed; public
+  accessors expose compatible deep-readonly contracts; attempted nested mutation
+  leaves each accessor and `flagByKey` result unchanged.
 - **Files:** `packages/anvil/flags-catalogue/src/manifest.ts`,
-  `packages/anvil/flags-catalogue/src/catalogue.ts`,
-  package tests and contract documentation if its public type changes.
+  `packages/anvil/flags-catalogue/src/catalogue.ts`, package tests and contract
+  documentation if its public type changes.
 - **Finding ID:** `fnd_sig-feat-library-4b653635ed-942f_02d471ad28`
 - **Validation:** `pnpm --dir packages/anvil/flags-catalogue test -- --run`;
   `pnpm --dir packages/anvil/flags-catalogue typecheck`;
@@ -99,16 +99,16 @@ findings, are repaired.
   (`6e728c0f7`).
 - **Priority:** P1
 - **Risk:** high
-- **Intent:** An operator can reactivate a previously approved suspended
-  account without weakening first-approval atomicity, scope checks, or audit
-  evidence.
+- **Intent:** An operator can reactivate a previously approved suspended account
+  without weakening first-approval atomicity, scope checks, or audit evidence.
 - **Expected Outcome:** First approval, duplicate active approval, suspended
   reactivation, and concurrent reactivation have distinct deterministic
   outcomes; only a successful transition produces grant side effects.
 - **Files:** `apps/anvil-api/src/routes/admin.ts`,
   `apps/anvil-api/src/__tests__/admin.test.ts`
 - **Finding ID:** `fnd_sig-feat-route-8799ede6c4-dd3891_c05bd63a20`
-- **Validation:** `pnpm --dir apps/anvil-api exec vitest run src/__tests__/admin.test.ts`;
+- **Validation:**
+  `pnpm --dir apps/anvil-api exec vitest run src/__tests__/admin.test.ts`;
   `pnpm --dir apps/anvil-api typecheck`
 - **Decision:** ready
 
@@ -133,8 +133,8 @@ findings, are repaired.
   `apps/anvil-api/src/__tests__/github-user.test.ts`
 - **Finding IDs:** `fnd_sig-feat-route-dad030c9a3-d923ad_09016e1842`,
   `fnd_sig-feat-service-b6b9358432-46e3_bbe96abfba`
-- **Validation:** `pnpm --dir apps/anvil-api exec vitest run
-  src/__tests__/auth-github-device.test.ts src/__tests__/auth-github.test.ts`;
+- **Validation:**
+  `pnpm --dir apps/anvil-api exec vitest run src/__tests__/auth-github-device.test.ts src/__tests__/auth-github.test.ts`;
   `pnpm --dir apps/anvil-api typecheck`
 - **Decision:** ready
 
@@ -151,7 +151,8 @@ findings, are repaired.
 - **Files:** `apps/anvil-api/src/routes/waitlist.ts`,
   `apps/anvil-api/src/__tests__/waitlist.test.ts`
 - **Finding ID:** `fnd_sig-feat-route-19b5dcc053-32bace_ecd0c8bd99`
-- **Validation:** `pnpm --dir apps/anvil-api exec vitest run src/__tests__/waitlist.test.ts`;
+- **Validation:**
+  `pnpm --dir apps/anvil-api exec vitest run src/__tests__/waitlist.test.ts`;
   `pnpm --dir apps/anvil-api typecheck`
 - **Decision:** ready
 
@@ -184,21 +185,22 @@ findings, are repaired.
 - **Expected Outcome:** Epoch conversion accepts finite numbers or non-empty
   numeric strings only; diagram titles and descriptions must remain non-empty
   after trimming.
-- **Files:** `apps/anvil-api/src/lib/account-activity-metrics.ts`,
-  its focused tests, `scripts/docs/lib/public-diagrams.mjs`, and
+- **Files:** `apps/anvil-api/src/lib/account-activity-metrics.ts`, its focused
+  tests, `scripts/docs/lib/public-diagrams.mjs`, and
   `scripts/docs/check-public-diagrams.test.mjs`
 - **Finding IDs:** `fnd_sig-feat-library-83f17ec600-78d2_38bd906098`,
   `fnd_sig-feat-library-5ed95bd031-ebb5_118ed07435`
-- **Validation:** focused API metrics Vitest; `node --test
-  scripts/docs/check-public-diagrams.test.mjs`; `pnpm docs:public:diagrams`
+- **Validation:** focused API metrics Vitest;
+  `node --test scripts/docs/check-public-diagrams.test.mjs`;
+  `pnpm docs:public:diagrams`
 - **Decision:** ready
 
 ### CLAWOPEN-007: Make generated docs durable
 
 - **Status:** In Progress — implementation in open PR #4361
-- **Reconciliation (2026-09-05):** The implementing branch contains whole-batch rollback
-  and help-snapshot boundary work. PR #4361 is non-draft and mergeable at
-  7a650924dd738bacc26920e547792d15098f6d03, but remains unmerged. Its opening
+- **Reconciliation (2026-09-05):** The implementing branch contains whole-batch
+  rollback and help-snapshot boundary work. PR #4361 is non-draft and mergeable
+  at 7a650924dd738bacc26920e547792d15098f6d03, but remains unmerged. Its opening
   description predates that state; no completion claim is made here.
 - **Priority:** P2
 - **Risk:** standard
@@ -211,8 +213,8 @@ findings, are repaired.
 - **Finding ID:** `fnd_sig-feat-library-49c5c2a728-0640_c321ad6f8f`
 - **Validation:** injected-failure generator tests; `pnpm docs:public:check`;
   `pnpm docs:catalogue:check`; `pnpm docs:check`
-- **Decision:** the whole-batch rollback and `--update-help-snapshots`
-  boundary design is implemented on #4361; review and merge remain outstanding.
+- **Decision:** the whole-batch rollback and `--update-help-snapshots` boundary
+  design is implemented on #4361; review and merge remain outstanding.
 
 ### CLAWOPEN-008: Make evaluation evidence non-vacuous
 
@@ -233,31 +235,36 @@ findings, are repaired.
   `fnd_sig-feat-test-suite-77ddfbae71-4_f4106d3c1b`,
   `fnd_sig-feat-test-suite-794320ab38-7_cc53786ee0`,
   `fnd_sig-feat-test-suite-f53827d8bc-e_ddafcd834c`
-- **Validation:** the four focused Rust integration targets; `cargo test -p
-  eddacraft-anvil-checks`; `cargo test -p eddacraft-anvil --no-fail-fast`
-- **Decision:** ready — the owning CONF-004, SDT-002, GTAO-003, and SDT-006
-  pull requests are merged; a fresh branch and worktree check found no live
-  change in the five owned files.
+- **Validation:** the four focused Rust integration targets;
+  `cargo test -p eddacraft-anvil-checks`;
+  `cargo test -p eddacraft-anvil --no-fail-fast`
+- **Decision:** ready — the owning CONF-004, SDT-002, GTAO-003, and SDT-006 pull
+  requests are merged; a fresh branch and worktree check found no live change in
+  the five owned files.
 
-### CLAWOPEN-009: Resolve supported legacy runtime outcomes
+### CLAWOPEN-009: Retire unsupported JS runtime outcomes
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Priority:** P2
 - **Risk:** high
-- **Intent:** Supported legacy runtime paths have explicit selector,
-  persistence/publication, and queued-lock fairness contracts.
-- **Expected Outcome:** `since` combinations are either implemented or
-  rejected explicitly; Ember retry cannot duplicate a proposal after
-  publication failure; queued lock waiters cannot be bypassed.
-- **Files:** `packages/anvil/runtime/src/watch/git-status.ts`,
-  `packages/edda-stack/src/ember/candidate-service.ts`,
-  `packages/anvil/runtime/src/concurrency/queue-manager.ts`, and focused tests
+- **Intent:** Remove unsupported JS execution paths instead of repairing retired
+  implementations.
+- **Expected Outcome:** EMBERRS-001 removes JS watch/queue and TypeScript Ember
+  implementations from source, builds and package exports; the Rust Ember reader
+  is default-off. User data and the live API/docs flag resolver are preserved.
+  The publication-failure regression is carried into EMBERRS-004 as Rust
+  acceptance evidence, not claimed fixed in historical JS.
+- **Files:** `packages/anvil/runtime`, `packages/edda-stack`,
+  `crates/anvil-cli/src/commands/ember.rs`, `flags/manifest.json`
 - **Finding IDs:** `fnd_sig-feat-library-5982411632-4fab_42a7488950`,
   `fnd_sig-feat-library-d492a0dec3-66c5_7f981bd76a`,
   `fnd_sig-feat-library-7c0d8094f1-a367_a4317f40f7`
-- **Validation:** affected runtime and edda-stack test/typecheck commands
-- **Decision:** needs-design — select the combined-selector and Ember
-  publication contracts before implementation
+- **Validation:** `node --test scripts/ci/legacy-runtime-retirement.test.mjs`;
+  `cargo test -p eddacraft-anvil --test ember_gate`; affected package tests.
+- **Decision:** Operator approved retirement and Rust migration planning on
+  2026-09-05. [EMBERRS-001](ember-rust-migration.aps.md) owns this delivery and
+  claim #4398. Close these receipts as retired only after merge/verification;
+  migration planning alone is not a repair or retirement completion claim.
 
 ### CLAWOPEN-010: Pin docs-shell behaviour and caching
 
@@ -271,12 +278,10 @@ findings, are repaired.
   errors, pending recovery links, and root destinations; the production build
   classifies the root route as static or deliberately revalidated.
 - **Files:** `apps/docs-shell/app/auth/error/page.tsx`,
-  `apps/docs-shell/app/auth/pending/page.tsx`,
-  `apps/docs-shell/app/page.tsx`,
+  `apps/docs-shell/app/auth/pending/page.tsx`, `apps/docs-shell/app/page.tsx`,
   `apps/docs-shell/app/auth/error/page.test.ts`,
   `apps/docs-shell/app/auth/pending/page.test.ts`,
-  `apps/docs-shell/app/page.test.ts`,
-  `apps/docs-shell/vitest.config.ts`
+  `apps/docs-shell/app/page.test.ts`, `apps/docs-shell/vitest.config.ts`
 - **Finding IDs:** `fnd_sig-feat-route-9eb65fea2f-a2ad37_77eb4d489d`,
   `fnd_sig-feat-route-ea68cde701-4d56a1_c1562065ab`,
   `fnd_sig-feat-route-f44022f02c-73c870_78633640ed`,
@@ -289,10 +294,10 @@ findings, are repaired.
 
 - **Status:** Blocked — hosted Neon provisioning is not configured
 - **Reconciliation (2026-09-05):** Implementation is in open PR #4361 at
-  7a650924dd738bacc26920e547792d15098f6d03. Hosted run 33893142132 failed before the
-  database proof: NEON_API_KEY is required (NEON_PROJECT_ID was also empty). Configure
-  the dedicated non-production harness and pass the real contention test before
-  closeout; green mock tests are insufficient.
+  7a650924dd738bacc26920e547792d15098f6d03. Hosted run 33893142132 failed before
+  the database proof: NEON_API_KEY is required (NEON_PROJECT_ID was also empty).
+  Configure the dedicated non-production harness and pass the real contention
+  test before closeout; green mock tests are insufficient.
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** The OTP attempt cap is verified against the real database
@@ -304,8 +309,8 @@ findings, are repaired.
 - **Finding ID:** `fnd_sig-feat-route-c6c95ee31e-9b089f_43160b2454`
 - **Validation:** the repository's PostgreSQL-backed API integration command;
   focused API tests and typecheck
-- **Decision:** disposable PostgreSQL harness implementation is on #4361;
-  hosted provisioning and real-database verification remain outstanding.
+- **Decision:** disposable PostgreSQL harness implementation is on #4361; hosted
+  provisioning and real-database verification remain outstanding.
 
 ### CLAWOPEN-012: Complete operational API documentation
 
@@ -319,8 +324,8 @@ findings, are repaired.
   purpose, provider, route ownership, and the fleet endpoint's authentication
   and response purpose without values; the environment example is reconciled
   with that authority.
-- **Files:** `apps/anvil-api/README.md`, `.env.example` if it is confirmed
-  as the matching operator surface
+- **Files:** `apps/anvil-api/README.md`, `.env.example` if it is confirmed as
+  the matching operator surface
 - **Finding IDs:** `fnd_sig-feat-route-24c7d2a330-771f31_1ce2eab8d0`,
   `fnd_sig-feat-route-25b003a83f-6b469c_711e4b12d8`
 - **Validation:** credential-helper and deployment cross-check; admin fleet
@@ -329,14 +334,14 @@ findings, are repaired.
 
 ## Sequencing
 
-1. Run CLAWOPEN-001, -002, and -003 as the first independent executor wave
-   when isolated workspace capacity is available.
+1. Run CLAWOPEN-001, -002, and -003 as the first independent executor wave when
+   isolated workspace capacity is available.
 2. Run CLAWOPEN-004 and -005 next; the API-auth work from -002/-003 must land
    before rebasing any overlapping API test helpers.
 3. Run Ready clusters CLAWOPEN-006, -010, and -012 by owning package.
-4. Complete review and hosted Neon verification for CLAWOPEN-007/-011 on
-   #4361; its branch records design approval on 2026-08-31. Pass CLAWOPEN-009
-   through its remaining design checkpoint before implementation.
+4. Complete review and hosted Neon verification for CLAWOPEN-007/-011 on #4361;
+   its branch records design approval on 2026-08-31. Complete CLAWOPEN-009
+   retirement through EMBERRS-001.
 5. For a bounded publication, re-run the acceptance matrix for every finding
    included in that candidate, independently verify the exact head, and obtain
    Council convergence. Keep excluded clusters and their counts explicit.

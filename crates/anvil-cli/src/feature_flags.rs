@@ -24,7 +24,7 @@ use anvil_kernel::feature_flags::{
 #[cfg(feature = "kindling-embedded-runtime")]
 use anvil_kernel_types::feature_flags_catalogue::kindling_embedded_runtime;
 use anvil_kernel_types::feature_flags_catalogue::{
-    cli_licence_gate, dashboard_web, impact_view, tui_dashboard_aps_dashboard,
+    cli_licence_gate, dashboard_web, ember_enabled, impact_view, tui_dashboard_aps_dashboard,
 };
 use anvil_kernel_types::{
     AudienceContext, EnvironmentContext, EnvironmentName, EvaluationContext, FeatureFlagDefinition,
@@ -567,6 +567,36 @@ fn web_dashboard_access_allowed_with(overrides: &FlagOverrides) -> bool {
 /// The `impact.view` flag key, sourced from the generated catalogue so it
 /// cannot drift from `flags/manifest.json`.
 pub const IMPACT_VIEW_GATE_KEY: &str = impact_view::KEY;
+
+/// EMBERRS-001: Ember is inactive until explicitly opted into for this process.
+pub const EMBER_GATE_KEY: &str = ember_enabled::KEY;
+pub const EMBER_ENV_VAR: &str = "ANVIL_EMBER";
+
+/// Deliberately independent of `ANVIL_DEV` and admin credentials. The current
+/// opt-in opens only the Rust historical reader, never a JS runtime.
+#[must_use]
+pub fn ember_access_allowed() -> bool {
+    let mut overrides = FlagOverrides::default();
+    match std::env::var(EMBER_ENV_VAR).as_deref() {
+        Ok("1") => {
+            overrides
+                .local
+                .insert(EMBER_GATE_KEY.into(), "enabled".into());
+        }
+        Ok("0") => {
+            overrides
+                .local
+                .insert(EMBER_GATE_KEY.into(), "disabled".into());
+        }
+        _ => {}
+    }
+    let definition = ember_enabled::definition();
+    let context = cli_evaluation_context("cli-session", None);
+    let details = resolve_flag(&definition, &context, Some(&overrides));
+    details.error_code.is_none()
+        && details.variant == ember_enabled::variants::ENABLED
+        && details.value == serde_json::Value::Bool(true)
+}
 
 /// Session override for the impact view. `=1` forces `impact.view` to
 /// `"enabled"` and `=0` forces it to `"disabled"` through the shared
