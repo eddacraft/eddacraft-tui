@@ -13,7 +13,7 @@ use serde::Serialize;
 
 use anvil_checks::antipattern::{
     AntipatternCheckConfig, Artifact, ArtifactKind, ScanOptions, Warning, WarningReport,
-    WarningSeverity, WarningSummary, create_warning_result, run_antipattern_check, scan_artifacts,
+    WarningSeverity, WarningSummary, create_warning_result, scan_artifacts,
 };
 use anvil_checks::secret::{SecretFinding, run_secret_check};
 
@@ -21,6 +21,7 @@ use crate::GlobalArgs;
 use crate::commands::check_catalog::canonical_check_name;
 use crate::commands::gate::read_anvilrc_checks;
 use crate::output::{self, OutputMode, sarif};
+use crate::services::antipattern_scan::{SourceScanResult, scan_source_files};
 use crate::util::is_ignored_dir_name;
 
 /// Canonical names of checks the planless `anvil check` path can run.
@@ -347,20 +348,8 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                     .filter(|(_, rel)| !generated.contains(rel.as_str()))
                     .map(|(f, _)| f.as_str())
                     .collect();
-                let result = run_antipattern_check(&file_refs, &config, workspace_root.as_deref());
-                // ADR-071: the gate-time AST tier (Rust unwrap/unsafe/serde/panic
-                // rules the regex scanner can't express). `anvil check` is a
-                // gate-time surface, never the save-time daemon, so running it
-                // here respects ADR-064 — the daemon links neither this crate
-                // nor tree-sitter (the `daemon_dep_boundary` guard verifies).
-                let ast = anvil_checks_ast::scan_paths(
-                    &file_refs,
-                    workspace_root.as_deref(),
-                    &anvil_checks_ast::AstScanOptions {
-                        registry_path: None,
-                        include_opt_in: args.include_opt_in,
-                    },
-                );
+                let SourceScanResult { regex: result, ast } =
+                    scan_source_files(&file_refs, &config, workspace_root.as_deref());
                 // Surface scanner-init failures (malformed ast_query, missing
                 // predicate) to the operator on stderr so a silently-dropped
                 // rule is visible without a tracing subscriber and without

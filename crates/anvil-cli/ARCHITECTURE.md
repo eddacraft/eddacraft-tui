@@ -2,7 +2,7 @@
 
 | Type         | Authority | Owner          | Status | Freshness                                                                                           |
 | ------------ | --------- | -------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-05 against RIO-001/002 bounded I/O; component topology and diagrams unchanged |
+| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-05 against CONV-002 shared source-scan service and RIO-001/002 bounded I/O; component topology and diagrams unchanged |
 
 | Upstream                                                                                      | Downstream                                                                                              |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -43,6 +43,19 @@ remain not evaluated until a separately governed revision-bound evidence adapter
 exists. Structured formats retain top-level Git failures separately from
 per-commit failures, and SARIF run properties carry report metadata even when a
 conformant result list is empty.
+
+## Shared source scan
+
+CLI `anvil check` and MCP `anvil_check` invoke
+[`services/antipattern_scan.rs`](src/services/antipattern_scan.rs) for paired
+regex/AST source scanning. The service returns both existing typed tier results;
+CLI retains scanner diagnostics and SARIF attribution, and MCP retains its
+legacy projection. Admission, file selection, configuration and rendering remain
+with each adapter. Their supported inputs are not yet one public app contract.
+
+This is an internal application-layer extraction under CONV-002 / ADR-140.
+It does not add a daemon RPC, change permissions or provide durable operations.
+The AST tier stays outside the resident intercept daemon (ADR-064/071).
 
 ## Activation orchestration
 

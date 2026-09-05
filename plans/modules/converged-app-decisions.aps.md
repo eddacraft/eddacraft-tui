@@ -31,8 +31,8 @@ and [ADR-140](../decisions/140-converged-command-event-contract.md).
 Coordinates with ACTMO/JOURNEY for activation reliability, KFIT for governance
 storage and identity, SETCON for settings, and the owning feature catalogue
 and flag modules. Existing work remains with its owner; CONV adds only app gaps.
-CONV-002 is in discovery and plan-ready selection. Runtime changes may begin only
-once scope, owning code, numeric bounds and validation commands are recorded.
+CONV-002's first internal extraction is scoped in its execution plan. A new
+application ingress still requires exact schema, bounds and compatibility gates.
 The other implementation items remain Proposed.
 
 ## Work Items
@@ -60,14 +60,19 @@ The other implementation items remain Proposed.
 
 - **Status:** In Progress
 - **Claim:** [#4407](https://github.com/eddacraft/anvil-001/issues/4407)
-- **Evidence:** ADR-140 accepted by @joshuaboys on 2026-09-05. RPC inventory and
-  plan-ready selection underway; acceptance does not claim executable parity.
+- **Evidence:** ADR-140 accepted by @joshuaboys on 2026-09-05. The
+  [execution plan](../execution/CONV-002.actions.md) inventories existing paths
+  and scopes the first CLI/MCP shared source-scan handler increment. Generated
+  application schema, identity and compatibility gates remain outstanding;
+  this item is not complete when the internal extraction merges.
 - **Intent:** Select a bounded existing command and freeze exact DTO/schema placement.
 - **Expected Outcome:** One handler serves CLI and a second client via generated
   schemas; typed IDs, semantic errors, version negotiation and existing exit-code
   mappings have executable fixtures. Inventory existing RPCs before adding types.
-- **Files:** Owning handler, transport DTOs and client adapter selected at plan-ready;
-  do not presume a new crate or move application logic into intercept.
+- **Files:** First increment: `crates/anvil-cli/src/services/antipattern_scan.rs`,
+  its module registration, CLI/MCP check adapters and stdio parity tests.
+  Exact public DTO/schema placement remains gated in the execution plan;
+  no new crate or application logic in intercept.
 - **Validation:** ADR-140 shared-command, identity, compatibility and dependency gates;
   round-trip/generated-client fixtures and unchanged legacy command tests.
 - **Dependencies:** CONV-001 and ADR-140 acceptance.

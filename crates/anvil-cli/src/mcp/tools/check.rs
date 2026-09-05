@@ -3,9 +3,7 @@ use std::time::Instant;
 
 use serde_json::{Value, json};
 
-use anvil_checks::antipattern::{
-    AntipatternCheckConfig, WarningSeverity, count_by_severity, run_antipattern_check,
-};
+use anvil_checks::antipattern::{AntipatternCheckConfig, WarningSeverity, count_by_severity};
 
 use crate::mcp::tools::shared::{
     build_warnings_array, collect_relative_files, has_blocking_warnings,
@@ -13,6 +11,7 @@ use crate::mcp::tools::shared::{
     validate_workspace_root,
 };
 use crate::mcp::validation::DaemonStatus;
+use crate::services::antipattern_scan::{SourceScanResult, scan_source_files};
 
 pub const TOOL_NAME: &str = "anvil_check";
 
@@ -88,12 +87,8 @@ fn check_payload(arguments: &Value) -> Result<Value, String> {
     };
 
     let started = Instant::now();
-    let result = run_antipattern_check(&file_refs, &config, Some(&workspace_str));
-    let ast = anvil_checks_ast::scan_paths(
-        &file_refs,
-        Some(&workspace_str),
-        &anvil_checks_ast::AstScanOptions::default(),
-    );
+    let SourceScanResult { regex: result, ast } =
+        scan_source_files(&file_refs, &config, Some(&workspace_str));
     let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
 
     let merged = merge_regex_and_ast_warnings(&result.warnings.warnings, &ast.warnings);

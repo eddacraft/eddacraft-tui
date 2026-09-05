@@ -3237,3 +3237,101 @@ fn mcp_serve_stdio_legacy_initialize_accepts_sealed_versions() {
         );
     }
 }
+
+#[test]
+fn cli_and_mcp_source_scan_preserve_the_same_findings() {
+    let workspace = tempfile::tempdir().expect("workspace");
+    let root = workspace.path();
+    let state = tempfile::tempdir().expect("isolated state");
+    assert!(
+        Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(root)
+            .status()
+            .expect("git init")
+            .success()
+    );
+    std::fs::write(
+        root.join("source.rs"),
+        "pub fn value(input: Option<u8>) -> u8 { input.unwrap() }\n",
+    )
+    .expect("source");
+
+    let cli = Command::new(ANVIL_BIN)
+        .args(["--no-tui", "--json", "check", "source.rs"])
+        .current_dir(root)
+        .env("ANVIL_HOME", state.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env_remove("ANVIL_TOUCH_PROJECT_STATE")
+        .env_remove("TRACEPARENT")
+        .output()
+        .expect("CLI source scan");
+    assert!(
+        cli.status.success(),
+        "info-only fixture must preserve CLI exit 0: {}",
+        String::from_utf8_lossy(&cli.stderr)
+    );
+    let cli_payload: Value = serde_json::from_slice(&cli.stdout).expect("CLI JSON");
+
+    let mut child = spawn_mcp_server_in(root);
+    let stdout = child.stdout.take().expect("MCP stdout");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    send_legacy_initialize(&mut child, &stdout_rx, 0);
+    writeln!(
+        child.stdin.as_mut().expect("MCP stdin"),
+        "{}",
+        json!({
+            "jsonrpc": "2.0",
+            "id": 140,
+            "method": "tools/call",
+            "params": {
+                "name": "anvil_check",
+                "arguments": { "workspaceRoot": root, "files": ["source.rs"] }
+            }
+        })
+    )
+    .expect("MCP source scan");
+    drop(child.stdin.take());
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    assert!(wait_for_exit(&mut child).success());
+    let response: Value = serde_json::from_str(&line).expect("MCP response");
+    assert_eq!(response["result"]["isError"], false);
+    let mcp_payload = parse_tool_payload(&response);
+
+    // Compare semantic findings, retaining each established transport shape.
+    // Time, transport metadata and CLI's separate secret tier are not parity
+    // claims of this source-scan fixture.
+    let cli_findings: Vec<Value> = cli_payload["warnings"]
+        .as_array()
+        .expect("CLI findings")
+        .iter()
+        .map(|w| json!([w["id"], w["severity"], w["file"], w["line"]]))
+        .collect();
+    let mcp_findings: Vec<Value> = mcp_payload["warnings"]
+        .as_array()
+        .expect("MCP findings")
+        .iter()
+        .map(|w| {
+            json!([
+                w["id"],
+                w["severity"],
+                w["location"]["file"],
+                w["location"]["line"]
+            ])
+        })
+        .collect();
+    assert!(
+        cli_findings
+            .iter()
+            .any(|w| w[0] == "RS-001" && w[1] == "info"),
+        "fixture must exercise the AST tier"
+    );
+    assert_eq!(cli_findings, mcp_findings);
+    assert_eq!(cli_payload["hasBlockingWarnings"], false);
+    assert_eq!(mcp_payload["hasBlockingWarnings"], false);
+    assert_eq!(
+        cli_payload["hasBlockingWarnings"],
+        mcp_payload["hasBlockingWarnings"]
+    );
+}
