@@ -318,11 +318,21 @@ describe('POST /auth/verify — licence JWT credential (CIB-066)', () => {
     expect(body.user).toEqual({ email: 'dev@example.com', plan: 'legacy-claim' });
   });
 
-  it('rejects a licence whose subject is no longer active', async () => {
-    mockedFindUser.mockResolvedValue({ ...activeUser(), status: 'suspended' } as never);
+  it.each(['pending', 'suspended', 'banned', 'unknown'])(
+    'rejects a licence whose subject status is %s',
+    async (status) => {
+      mockedFindUser.mockResolvedValue({ ...activeUser(), status } as never);
+      const res = await post('/auth/verify', { token: await mintLicence() });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ valid: false });
+    }
+  );
+
+  it('returns 503 rather than an authenticated identity when account lookup fails', async () => {
+    mockedFindUser.mockRejectedValueOnce(new Error('database unavailable'));
     const res = await post('/auth/verify', { token: await mintLicence() });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ valid: false });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: 'verification_unavailable' });
   });
 
   it('rejects a licence whose subject no longer exists', async () => {

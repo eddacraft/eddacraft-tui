@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ReactNode } from 'react';
 import HomePage, * as landing from './page';
@@ -29,4 +30,35 @@ describe('docs-shell landing page', () => {
       ])
     );
   });
+});
+
+function formsOf(node: ReactNode): Array<{ action?: string; method?: string }> {
+  if (node == null || typeof node === 'boolean') return [];
+  if (Array.isArray(node)) return node.flatMap(formsOf);
+  if (typeof node === 'object' && 'props' in node) {
+    const element = node as {
+      type?: string;
+      props: { action?: string; method?: string; children?: ReactNode };
+    };
+    const self =
+      element.type === 'form'
+        ? [{ action: element.props.action, method: element.props.method }]
+        : [];
+    return [...self, ...formsOf(element.props.children)];
+  }
+  return [];
+}
+
+it('signs out through a same-origin POST form without requiring JavaScript', () => {
+  expect(formsOf(HomePage())).toContainEqual({ action: '/auth/logout', method: 'post' });
+  expect(hrefsOf(HomePage())).not.toContain('/auth/logout');
+});
+
+it('private docs navigation also submits logout by POST', () => {
+  const config = readFileSync(
+    new URL('../../anvil-docs-private/docusaurus.config.ts', import.meta.url),
+    'utf8'
+  );
+  expect(config).toContain('<form action="/auth/logout" method="post">');
+  expect(config).not.toMatch(/href=["']\/auth\/logout/);
 });

@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { getClient } from '../db/client.js';
-import { findUserById, stampUserActivity, upsertAccountFeatureTouch } from '../db/queries.js';
-import { verifyLicence } from '../lib/licence.js';
+import { stampUserActivity, upsertAccountFeatureTouch } from '../db/queries.js';
+import { authenticateLicence } from '../middleware/licence-auth.js';
 import {
   ACCOUNT_FEATURE_KEYS,
   isAccountFeatureKey,
@@ -32,76 +31,63 @@ accountActivity.post('/', async (c) => {
     return c.json({ error: 'Authentication required' }, 401);
   }
 
-  let claims;
-  try {
-    claims = await verifyLicence(match[1]);
-  } catch (err) {
-    console.error('account activity licence verify misconfigured:', err);
+  const accepted: AccountFeatureKey[] = [];
+  const authentication = await authenticateLicence(match[1], async () => {
+    const contentType = c.req.header('content-type') ?? '';
+    if (!contentType.toLowerCase().includes('application/json')) {
+      return c.json({ error: 'Content-Type must be application/json' }, 400);
+    }
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Invalid JSON payload' }, 400);
+    }
+
+    const parsed = activityBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: 'Invalid activity payload' }, 400);
+    }
+
+    const rejected: string[] = [];
+    for (const key of parsed.data.features) {
+      if (isAccountFeatureKey(key)) {
+        if (!accepted.includes(key)) accepted.push(key);
+      } else {
+        rejected.push(key);
+      }
+    }
+
+    // Unknown keys fail closed (reject request) so clients cannot invent analytics.
+    if (rejected.length > 0) {
+      return c.json(
+        {
+          error: 'Unknown feature keys',
+          rejected,
+          allowed: [...ACCOUNT_FEATURE_KEYS],
+        },
+        400
+      );
+    }
+
+    if (accepted.length === 0) {
+      return c.json({ error: 'No feature keys provided' }, 400);
+    }
+
+    return undefined;
+  });
+  if (authentication.status === 'rejected') return authentication.response;
+  if (authentication.status === 'unavailable') {
     return c.json({ error: 'Service unavailable' }, 503);
   }
-  if (!claims) {
+  if (authentication.status === 'invalid') {
     return c.json({ error: 'Invalid or expired licence' }, 401);
   }
-
-  const contentType = c.req.header('content-type') ?? '';
-  if (!contentType.toLowerCase().includes('application/json')) {
-    return c.json({ error: 'Content-Type must be application/json' }, 400);
-  }
-
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid JSON payload' }, 400);
-  }
-
-  const parsed = activityBodySchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: 'Invalid activity payload' }, 400);
-  }
-
-  const accepted: AccountFeatureKey[] = [];
-  const rejected: string[] = [];
-  for (const key of parsed.data.features) {
-    if (isAccountFeatureKey(key)) {
-      if (!accepted.includes(key)) accepted.push(key);
-    } else {
-      rejected.push(key);
-    }
-  }
-
-  // Unknown keys fail closed (reject request) so clients cannot invent analytics.
-  if (rejected.length > 0) {
-    return c.json(
-      {
-        error: 'Unknown feature keys',
-        rejected,
-        allowed: [...ACCOUNT_FEATURE_KEYS],
-      },
-      400
-    );
-  }
-
-  if (accepted.length === 0) {
-    return c.json({ error: 'No feature keys provided' }, 400);
-  }
-
-  // CIB-399: reload beta_users after JWT verify and a valid allowlisted
-  // payload. Suspension/ban must stop telemetry writes for the remaining
-  // licence lifetime, matching POST /auth/verify and /session/refresh.
-  // Payload 4xx stay off the database so a Neon outage cannot 503 a
-  // request that would have failed closed as 400.
-  const sql = getClient();
-  let user;
-  try {
-    user = await findUserById(sql, claims.sub);
-  } catch (err) {
-    console.error('account activity user lookup failed:', err);
-    return c.json({ error: 'Service unavailable' }, 503);
-  }
-  if (!user || user.status !== 'active') {
+  if (authentication.status === 'inactive') {
     return c.json({ error: 'User account is not active' }, 401);
   }
+  const { claims, sql } = authentication;
 
   try {
     for (const key of accepted) {

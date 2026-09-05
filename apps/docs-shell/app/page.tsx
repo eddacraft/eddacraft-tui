@@ -50,6 +50,11 @@ export default function HomePage() {
           <a href="https://eddacraft.ai" className="header-link">
             eddacraft.ai &rarr;
           </a>
+          <form action="/auth/logout" method="post">
+            <button type="submit" className="header-link header-signout">
+              Sign out
+            </button>
+          </form>
         </nav>
       </header>
 

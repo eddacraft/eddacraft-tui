@@ -2,7 +2,7 @@
 
 | Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------ | --------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-09-03 for the `docs:redate` change that makes it refuse generated views; no authority, trigger, exemption, or metadata rule moved, so the diagrams stand. Prior review 2026-09-03 for the CIB-399 ingest active-status gate; auth, overview, and trust diagrams are unaffected (no new node or edge). Prior review 2026-09-03 for the brand-accent contrast retune; only colour token values changed, so component topology and boundaries are unaffected. Prior review 2026-09-01 for the documentation-governance addition recording that review cascades and naming `pnpm docs:redate`; no authority, trigger, exemption, or metadata rule changed. Prior review 2026-08-31 against APGOV-008 bounded Neon HTTP connect retry in anvil-api; production routing, trust boundaries, failure behaviour, and diagrams remain unchanged. Also reviewed 2026-08-31 against the documentation-governance re-date for the archived-module link repoint and for the `classify-changes.sh` project-config path class; prior review 2026-08-30 against CLAWOPEN-010 and account-activity 202-on-timeout |
+| Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-09-05 for SEC-015 same-origin POST logout and SEC-013 API helper; local sign-out changes no renderer or OAuth edge. |
 
 | Upstream                                                                                                                                          | Downstream                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
@@ -12,6 +12,17 @@
 > DOCRB/DSITE ownership gap or supersede ADR-123, documentation governance, or
 > BAUTH's [auth as-built](../../docs/architecture/auth-as-built.md). DOCRB-005
 > owns central migration, not this pilot.
+
+## Sign-out
+
+The landing page and private docs navbar use plain POST forms to
+[`app/auth/logout/route.ts`](app/auth/logout/route.ts). The handler requires an
+exact same-origin Origin and, when present, same-origin Fetch Metadata before
+expiring the docs session cookie and redirecting home with 303. GET and
+rejected requests never mutate the session. The authoritative
+[request-integrity contract](../../docs/architecture/auth-as-built.md#docs-logout-request-integrity-sec-015)
+owns the full acceptance rule. This local sign-out adds no renderer, OAuth, or
+API edge to the authentication and renderer-routing diagram below.
 
 ## Scope and boundaries
 
@@ -89,3 +100,4 @@ surface. Both renderer responses pass through the same filtered proxy boundary.
 
 Production topology and the unresolved owner remain authoritative in
 [documentation governance](../../docs/guides/documentation-governance.md).
+

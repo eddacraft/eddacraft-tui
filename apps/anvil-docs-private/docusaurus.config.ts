@@ -70,6 +70,12 @@ const config: Config = {
       title: 'anvil',
       items: [
         {
+          type: 'html',
+          position: 'right',
+          value:
+            '<form action="/auth/logout" method="post"><button type="submit" class="button button--secondary button--sm">Sign out</button></form>',
+        },
+        {
           label: 'Docs',
           to: '/',
           position: 'left',

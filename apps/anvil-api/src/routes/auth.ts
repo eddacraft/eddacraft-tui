@@ -2,10 +2,11 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getClient } from '../db/client.js';
-import { findTokenByHash, findActiveScopesForUser, findUserById } from '../db/queries.js';
+import { findTokenByHash, findActiveScopesForUser } from '../db/queries.js';
 import { hashToken, isValidTokenFormat } from '../lib/token.js';
 import { createDebugger } from '../lib/debug.js';
-import { signLicence, verifyLicence } from '../lib/licence.js';
+import { signLicence } from '../lib/licence.js';
+import { authenticateLicence } from '../middleware/licence-auth.js';
 
 const debug = createDebugger('api');
 
@@ -35,7 +36,7 @@ const auth = new Hono();
  * Returns 200 — {valid: false} on any credential failure (no reason
  * leakage), with two exceptions: 400 when the request body fails schema
  * validation (zValidator), and 503 when the verifying key is unavailable
- * (server misconfiguration, not a caller failure). The licence-path
+ * or the live account lookup fails (service failure, not a caller failure). The licence-path
  * response omits `license` and `expiresAt` — those are access-token-path
  * fields (the caller already holds the licence; its expiry is inside the
  * JWT).
@@ -53,29 +54,14 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
       debug('not a valid access token or licence-shaped JWT');
       return c.json({ valid: false });
     }
-    let claims;
-    try {
-      claims = await verifyLicence(token);
-    } catch (err) {
-      // loadVerifyingKey throws when LICENSE_PUBLIC_KEY is missing or
-      // malformed — surface as server misconfiguration, never as
-      // "your credentials are invalid".
-      debug('licence verification unavailable', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+    const authentication = await authenticateLicence(token);
+    if (authentication.status === 'unavailable') {
       return c.json({ error: 'verification_unavailable' }, 503);
     }
-    if (!claims) {
-      debug('not a valid access token or licence');
+    if (authentication.status !== 'active') {
       return c.json({ valid: false });
     }
-
-    const sql = getClient();
-    const user = await findUserById(sql, claims.sub);
-    if (!user || user.status !== 'active') {
-      debug('licence subject not active', { status: user?.status });
-      return c.json({ valid: false });
-    }
+    const { claims, user } = authentication;
 
     debug('licence verified successfully');
     // BACT-013: prefer the freshly-read DB plan over the (possibly stale)

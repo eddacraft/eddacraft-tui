@@ -11,7 +11,7 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | SEC    | —     | In Progress |
 
-**Last reviewed:** 2026-09-05 — SEC-001..004 reconciled to #2656; SEC-013 narrowed to the residual after CIB-399 / #4366. SEC-007 release evidence unchanged.
+**Last reviewed:** 2026-09-05 — SEC-001..004 reconciled to #2656; SEC-013 shared enforcement and SEC-015 docs logout implemented; validation and integration tracked in the implementing PR. SEC-007 release evidence unchanged.
 
 ## Purpose
 
@@ -85,8 +85,9 @@ security concerns.
 | SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |
 | SEC-011 | Remediate repository-wide JavaScript dependency advisories | Merged |
 | SEC-012 | Authoritative, fail-closed entitlement claim | Draft |
-| SEC-013 | Shared licence-auth status enforcement and route audit | Draft — route fix merged via #4366 |
+| SEC-013 | Shared licence-auth status enforcement and route audit | Done |
 | SEC-014 | Remediate the current Dependabot pull-request queue | Complete |
+| SEC-015 | Same-origin POST logout for the docs shell (GH #4230) | Done |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
 >
@@ -338,16 +339,13 @@ grant-level revokes the hashed access token plus the owning user's refresh
 family. Regression coverage lives in `apps/anvil-api/src/__tests__/admin.test.ts`
 (`refreshSessionsRevoked` / `accountSuspended` assertions).
 
-**Known follow-up (out of scope for SEC-007) — restated 2026-08-19:** the
-original wording named `requireAuth()`, a helper that no longer exists, and
-asserted that no licence path consults the database. That is no longer
-accurate: `POST /auth/verify` re-reads the account and rejects any subject
-whose `status` is not `active` (`apps/anvil-api/src/routes/auth.ts`). The
-residual is narrower and now lives in **SEC-013**: licence-authenticated
-routes added after this remediation verify the signature only, so an
-unexpired licence held by a suspended account is still accepted there. The
-broader `jti` deny-list / shorter-TTL question remains out of scope for both
-items until a licensing-stream review opens the surface.
+**Follow-up closeout (2026-09-05):** the route-local account-activity gap
+identified on 2026-08-19 was repaired by CIB-399 / #4366. SEC-013 now
+centralises the live account-status check for API licence consumers and pins
+the route inventory. See its implementation and integration evidence below.
+The broader `jti` deny-list / shorter-TTL question remains out of scope for
+both items until a licensing-stream review opens the surface. Offline docs and
+CLI entitlement checks are explicitly separate in the authentication inventory.
 
 **changeType:** fix
 **releaseIntent:** candidate
@@ -671,12 +669,19 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 
 ### SEC-013: Licence-authenticated routes must re-check account status
 
-- **Status:** Draft — route fix merged; shared-helper and route-inventory residual remain.
+- **Status:** Done
+- **Implementation evidence:** Shared enforcement, route inventory and native
+  POST logout forms are implemented; focused API tests (61) and docs-shell
+  tests (21) pass. Integration and full CI evidence belong to the implementing
+  PR; this records no release inclusion.
+- **Authority (2026-09-05):** Operator authorised completing the shared-helper
+  and route-inventory residual, with rebase merge on green. Claim: #4402.
 - **Reconciliation (2026-09-05):** CIB-399 / PR #4366 (2026-09-03) added the
   active-account lookup and regression tests directly in account-activity.ts. The route
   no longer accepts suspended accounts on signature alone. It did not introduce the
   shared licence-auth helper or prove the route-wide inventory required below, so this
-  item is not marked Merged.
+  item was not marked Merged by that reconciliation; the shared residual is
+  implemented by this SEC-013 change.
 - **Priority:** P2 revocation completeness — bounded by the licence TTL, not
   unbounded.
 - **Intent:** Close the SEC-007 residual at the route layer. `POST /auth/verify`
@@ -772,3 +777,40 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 **changeType:** internal
 **releaseIntent:** never
 **releaseScope:** none
+
+### SEC-015: Same-origin POST logout for the docs shell
+
+- **Status:** Done
+- **Implementation evidence:** Shared enforcement, route inventory and native
+  POST logout forms are implemented; focused API tests (61) and docs-shell
+  tests (21) pass. Integration and full CI evidence belong to the implementing
+  PR; this records no release inclusion.
+- **Authority (2026-09-05):** Operator authorised implementation of #4230 and
+  normal rebase merge on green. Existing issue #4230 is the claim.
+- **Intent:** Stop cross-site navigation from clearing the docs session.
+- **Expected Outcome:** Only POST with an Origin exactly matching the request
+  URL origin may expire the session cookie. Missing, null, malformed, or
+  foreign Origin is denied. If Sec-Fetch-Site is present, it must be
+  same-origin. Forwarded host headers are not origin authority. GET returns
+  405 without cookie mutation; successful POST redirects home with 303.
+  Live UI logout interactions submit a relative same-origin POST form and
+  work without JavaScript. Old bookmarked GET URLs cannot sign the user out.
+- **Scope:** Docs-shell logout handler, docs UI interaction, route tests and
+  authentication documentation. Inventory existing logout links before edits.
+- **Non-scope:** OAuth, licence TTL, account revocation, or upstream topology
+  changes. Logging out clears only the local docs-session cookie.
+- **Validation:** Docs-shell route tests cover methods, exact origin, Fetch
+  Metadata, cookie attributes and redirect; UI coverage pins the POST form.
+  `pnpm nx test docs-shell`; API tests for SEC-013; repository typecheck and
+  documentation gates.
+- **Confidence:** high
+
+**changeType:** fix
+**releaseIntent:** candidate
+**releaseScope:** patch
+**releaseNote:**
+
+- **audience:** user
+- **type:** security
+- **text:** Docs sign-out now requires a same-origin POST; following a link
+  cannot clear your session.

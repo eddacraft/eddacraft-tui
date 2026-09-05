@@ -234,6 +234,17 @@ describe('POST /account/activity (BACT-005)', () => {
     expect(mocks.stampUserActivity).not.toHaveBeenCalled();
   });
 
+  it('returns 503 if database client construction fails, without authenticated effects', async () => {
+    mocks.getClient.mockImplementationOnce(() => {
+      throw new Error('database unconfigured');
+    });
+    const res = await post({ features: ['watch'] }, 'Bearer still-valid');
+    expect(res.status).toBe(503);
+    expect(mocks.findUserById).not.toHaveBeenCalled();
+    expect(mocks.upsertAccountFeatureTouch).not.toHaveBeenCalled();
+    expect(mocks.stampUserActivity).not.toHaveBeenCalled();
+  });
+
   it('returns 503 when the active-status lookup fails, without mutating rows (CIB-399)', async () => {
     mocks.findUserById.mockRejectedValue(
       new Error('Error connecting to database: TypeError: fetch failed')

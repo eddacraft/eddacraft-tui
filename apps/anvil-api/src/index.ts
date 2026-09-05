@@ -21,8 +21,8 @@ import { verifyResendKey } from './lib/resend-credentials.js';
 
 // Cold-start probe: validate both the signing-key PEM (for /device/poll and
 // the OTP / GitHub / session paths) and the verifying-key PEM (for
-// verifyLicence, the licence-verification library surface — no live route
-// consumes it since the #1779 confirm middleware was removed) parse at boot
+// shared licence-auth boundary used by /auth/verify and /account/activity)
+// parse at boot
 // so misconfiguration surfaces at deploy time rather than on first use.
 // Fire-and-forget — /health reports the result; the keys are cached via the
 // module-level promises in lib/licence.ts, so this does not block request

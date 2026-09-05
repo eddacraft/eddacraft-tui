@@ -2,7 +2,7 @@
 
 | Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                          |
 | ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-09-03 against CIB-399: account-activity ingest reloads `beta_users` and rejects missing/non-active subjects before writes; request/persistence diagram still ends at Neon with no new node. Prior: 2026-08-31 APGOV-008 bounded Neon HTTP connect retry in `src/db/client.ts`. Privileged admin trust unchanged |
+| Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-09-05 for SEC-013 shared licence-auth enforcement; authenticated-route boundary and Neon data flow unchanged. |
 
 | Upstream                                                                                    | Downstream                                       |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------ |
@@ -53,6 +53,14 @@ Global middleware traces to [`index.ts`](src/index.ts) and
 prose: every request crosses the shared middleware chain, then a route's public,
 authenticated, operator, or cron boundary. The validated handler calls Neon or
 an external provider and returns a structured result.
+
+The licence branch uses [`middleware/licence-auth.ts`](src/middleware/licence-auth.ts)
+for signature verification and a fresh active-account lookup before returning
+an authenticated identity. [`auth-as-built.md`](../../docs/architecture/auth-as-built.md#online-licence-route-inventory-sec-013)
+owns the route inventory and denial contracts. Activity payload validation
+continues to reject before database access; authenticated persistence remains
+best-effort. The diagram's existing authenticated-route boundary covers this
+shared enforcement without adding a deployment or transport edge.
 
 ## Composition and source map
 
@@ -121,3 +129,4 @@ operator authority.
 - Persistence migrations remain governed by the
   [database migration runbook](../../docs/runbooks/db-migrations.md), not this
   component map.
+

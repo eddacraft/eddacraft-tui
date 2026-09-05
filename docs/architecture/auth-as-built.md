@@ -2,7 +2,7 @@
 
 | Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                             |
 | -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-09-03 for the CIB-399 ingest active-status gate; auth, overview, and trust diagrams are unaffected (no new node or edge). Prior review 2026-08-31 against APGOV-008 bounded Neon HTTP connect retry in `apps/anvil-api/src/db/client.ts`; authentication diagram unchanged. Prior: 2026-08-30 CLAWOPEN-002/003 and account-activity 202-on-timeout |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-09-05 for SEC-013 shared API licence authentication and SEC-015 same-origin POST docs logout; source and route inventory reviewed; the cross-system authentication diagram retains the same nodes and edges. |
 
 | Upstream                                                                         | Downstream                                        |
 | -------------------------------------------------------------------------------- | ------------------------------------------------- |
@@ -44,6 +44,59 @@ flowchart LR
     API --> Data[(Neon Postgres)]
     CLI --> GitHub[github.com/login/device]
 ```
+
+## Online licence route inventory (SEC-013)
+
+The API's shared `authenticateLicence` boundary in
+`apps/anvil-api/src/middleware/licence-auth.ts` verifies the signed credential,
+then reads `beta_users` by the verified subject on every request. Only an
+existing account with exactly `status = active` produces an authenticated
+identity. Pending, suspended, banned, unknown, and missing accounts fail closed;
+verifier configuration or account-store failure is a service error (503).
+Neither the credential nor the account decision is cached by this helper.
+
+| Mounted route (under `/api/v1`) | Credential and enforcement | Denial contract |
+| --- | --- | --- |
+| `POST /auth/verify` (JWT branch) | `authenticateLicence`; current DB plan retained in the response | Invalid/inactive: 200 `{ valid: false }`; unavailable: 503 |
+| `POST /account/activity` | Bearer licence through `authenticateLicence`; payload allowlist validation runs after signature verification, before the account lookup; writes only after active status | Missing/invalid/inactive: 401; invalid payload: 400 without DB access; unavailable: 503 |
+| `POST /auth/verify` (beta-token branch), `POST /auth/license/refresh` | Access-token lookup joins the account; checks revocation, expiry and active status | Existing beta-token response contract |
+| `POST /auth/session/refresh` | Refresh-token checks and live account lookup, then atomic rotation | Existing 401 refresh denial contract |
+| `POST /auth/device/start`, `POST /auth/device/poll`, `POST /auth/otp/request`, `POST /auth/otp/verify` | Bootstrap codes and active-account checks before session issuance; no licence credential accepted | Existing bootstrap anti-enumeration and denial contracts |
+| `POST /auth/github/callback`, `POST /auth/github-device/start`, `POST /auth/github-device/poll` | GitHub bootstrap/provider flow; account status checked before new issuance. Device poll may return its previously minted session within its existing recovery window | Existing provider and recovery contracts |
+| `/admin/*`, `/cron/*` | Separate operator-key and cron-secret boundaries | Not licence-authenticated |
+| `/health`, `/waitlist/*`, `/telemetry` | Existing public ingress, validation and rate limits | Not licence-authenticated |
+
+Route mounts are owned by `apps/anvil-api/src/index.ts`. The executable
+inventory in `apps/anvil-api/src/__tests__/licence-route-inventory.test.ts`
+confines raw licence verification to the library and shared helper, and makes
+new helper consumers require an inventory review. Existing activity regression
+coverage from CIB-399 / #4366 remains intact, including no activity writes on
+account denial and best-effort 202 after an authenticated persistence failure.
+
+The docs-shell `/anvil/*` proxy is a separate signed-cookie entitlement
+consumer (`apps/docs-shell/lib/jwt.ts`, `apps/docs-shell/proxy.ts`); it retains
+its existing offline signature/expiry/plan check and does not query account
+status on each document request. Likewise, local CLI licence validation remains
+offline. This API inventory does not claim immediate revocation for those
+consumers, introduce a JWT deny-list, or change any licence/cookie lifetime.
+
+## Docs logout request integrity (SEC-015)
+
+`apps/docs-shell/app/auth/logout/route.ts` accepts POST only for cookie mutation.
+The Origin header must exactly equal the request URL origin, including scheme
+and port. Missing, null, malformed and foreign origins are denied, as are
+requests whose supplied Sec-Fetch-Site is anything other than same-origin.
+Forwarded-host headers cannot widen the accepted origin. A rejected request
+returns 403 without Set-Cookie or a redirect. GET returns 405 with Allow: POST
+and cannot clear a session (including bookmarked links and prefetch).
+
+The shell landing page and private docs navigation submit a relative
+`/auth/logout` POST form, including without JavaScript. Success expires only
+`anvil-docs-session` at path `/`, retaining HttpOnly, Secure and SameSite=Lax,
+then sends a non-cacheable 303 to `/`. The redirect uses the request origin
+and ignores caller-supplied return destinations. This is local docs sign-out,
+not account or token revocation. Historical DOCSAUTH designs describing GET
+logout are superseded by this contract and SEC-015 / #4230.
 
 ## Token Lifecycle
 
@@ -549,3 +602,4 @@ Track verification count and distinct IPs per token. Alert on anomalies.
 | `apps/anvil-api/src/db/queries.ts`                | All SQL queries + Zod schemas                 |
 | `apps/anvil-api/src/db/schema.sql`                | DDL for all tables                            |
 | `infra/src/vercel.ts`                             | Deployment config + env vars                  |
+
