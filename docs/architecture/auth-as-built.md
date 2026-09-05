@@ -1,11 +1,11 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                       |
-| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+|--------|---------|-----|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | As-built | Derived   | BAUTH | Live   | Last reviewed 2026-09-05 for SEC-013 shared API licence authentication and SEC-015 same-origin POST docs logout; source and route inventory reviewed; the cross-system authentication diagram retains the same nodes and edges. Prior review 2026-09-03 for CLAWOPEN-011's Neon integration harness and CLAWOPEN-007's generator atomic-output change; `apps/anvil-api` gained test files only and no production route, contract, or topology moved, so the diagrams stand. |
 
 | Upstream                                                                         | Downstream                                        |
-| -------------------------------------------------------------------------------- | ------------------------------------------------- |
+|--------------------------------------------------------------------------------|-------------------------------------------------|
 | `apps/anvil-api`, `apps/docs-shell/app/auth`, `apps/docs-shell/lib`, and ADR-018 | anvil CLI and docs-shell authentication consumers |
 
 > **Status:** Live (beta) **Last reviewed:** 2026-08-30 at `269764aee` against
@@ -56,7 +56,7 @@ verifier configuration or account-store failure is a service error (503).
 Neither the credential nor the account decision is cached by this helper.
 
 | Mounted route (under `/api/v1`)                                                                        | Credential and enforcement                                                                                                                                               | Denial contract                                                                         |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+|------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
 | `POST /auth/verify` (JWT branch)                                                                       | `authenticateLicence`; current DB plan retained in the response                                                                                                          | Invalid/inactive: 200 `{ valid: false }`; unavailable: 503                              |
 | `POST /account/activity`                                                                               | Bearer licence through `authenticateLicence`; payload allowlist validation runs after signature verification, before the account lookup; writes only after active status | Missing/invalid/inactive: 401; invalid payload: 400 without DB access; unavailable: 503 |
 | `POST /auth/verify` (beta-token branch), `POST /auth/license/refresh`                                  | Access-token lookup joins the account; checks revocation, expiry and active status                                                                                       | Existing beta-token response contract                                                   |
@@ -293,14 +293,14 @@ Signed with ES256 (ECDSA P-256) using `LICENSE_SIGNING_KEY` (PKCS#8 PEM).
 ### Claims
 
 | Claim      | Source             | Description                          |
-| ---------- | ------------------ | ------------------------------------ |
+|----------|------------------|------------------------------------|
 | `sub`      | `beta_users.id`    | User UUID                            |
 | `email`    | `beta_users.email` | User email                           |
-| `identity` | Per-flow (caller)  | `email` or `github` — see below      |
+| `identity` | Per-flow (caller)  | `email` or `github` — see below    |
 | `org`      | Hardcoded          | `null`                               |
 | `plan`     | `beta_users.plan`  | Entitlement axis, e.g. `"beta"`      |
-| `tier`     | Mirrors `plan`     | Compat alias only — see G-02         |
-| `scopes`   | Active-token union | e.g. `["beta"]` — see below          |
+| `tier`     | Mirrors `plan`     | Compat alias only — see G-02       |
+| `scopes`   | Active-token union | e.g. `["beta"]` — see below        |
 | `seats`    | Hardcoded          | `1`                                  |
 | `rcAfter`  | Computed           | `iat + 7 days` (refresh-check-after) |
 | `iat`      | Auto               | Issued-at timestamp                  |
@@ -370,7 +370,7 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 ## Environment Variables
 
 | Variable                      | Required   | Used by                                      | Description                                                                                                        |
-| ----------------------------- | ---------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+|-----------------------------|----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | `DATABASE_URL`                | Yes        | All routes                                   | Neon Postgres connection string                                                                                    |
 | `ADMIN_KEY`                   | Yes        | `adminAuth` middleware (`/admin/*`)          | Bearer token for admin endpoints; unset fails closed with `500`                                                    |
 | `ADMIN_PER_OPERATOR_KEYS`     | No         | `adminAuth` middleware                       | Enables per-operator admin-key lookup                                                                              |
@@ -579,7 +579,7 @@ Track verification count and distinct IPs per token. Alert on anomalies.
 ## Source Files
 
 | File                                              | Role                                          |
-| ------------------------------------------------- | --------------------------------------------- |
+|-------------------------------------------------|---------------------------------------------|
 | `apps/anvil-api/src/index.ts`                     | App entry, routing, middleware                |
 | `apps/anvil-api/src/routes/auth.ts`               | Verify + refresh endpoints                    |
 | `apps/anvil-api/src/routes/auth-github-device.ts` | CLI GitHub device-flow broker (default login) |

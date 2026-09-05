@@ -1,11 +1,11 @@
 # anvil API architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                        |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                    |
+|------------|-------------|-----|------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-09-05 for SEC-013 shared licence-auth enforcement; authenticated-route boundary and Neon data flow unchanged. Prior review 2026-09-03 for CLAWOPEN-011's Neon integration harness and CLAWOPEN-007's generator atomic-output change; `apps/anvil-api` gained test files only and no production route, contract, or topology moved, so the diagrams stand. |
 
 | Upstream                                                                                    | Downstream                                       |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+|-------------------------------------------------------------------------------------------|------------------------------------------------|
 | `apps/anvil-api/src/**`, ADR-066, ADR-123, and BAUTH's `docs/architecture/auth-as-built.md` | API maintainers, CLI, docs shell, and operations |
 
 This document is the live APGOV component authority. The former central
