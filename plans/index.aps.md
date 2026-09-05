@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 54730)
-Total output lines: 1149
-
 <!-- APS: See https://github.com/eddacraft/anvil-plan-spec for format reference -->
 <!-- This document is non-executable. -->
 
@@ -341,7 +338,124 @@ and gates `/anvil` docs behind it via Vercel Edge.
 > (fail-open scope default), **CIB-143** (docs-shell entitlement check is
 > vacuous), plus **CIB-211**, **CIB-318** and **CIB-147**. DOCSAUTH's
 > `/anvil` gate is present but does not discriminate today — see SEC-009's
-> residual note. Do not read this table as "…4730 tokens truncated… policy regression and useful pack authoring first, then opt-in
+> residual note. Do not read this table as "auth is finished".
+
+**Design specs:**
+
+- `docs/archive/specs/2026-03-15-beta-auth-streamline-design.md` (archived 2026-05-23, DOCGOV-008)
+- `plans/specs/2026-04-03-docs-auth-gating-design.md`
+- `plans/specs/2026-04-16-admin-cli-design.md`
+
+### Tracing Foundation
+
+Cross-cutting runtime tracing baseline across `anvil-intercept` (Rust
+daemon), `anvil-cli` (Rust), `anvil-api` (TS), and the dashboard ops
+surface. Second trial of the cross-cutting module convention promoted to
+APS under [ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md).
+Pre-launch scope is **TRACE-001 + TRACE-004**: subscriber init, W3C
+`traceparent` propagation, namespace registry stub, INTD-014 fixture update,
+call-path instrumentation for the daemon / CLI paths shipped so far, and a
+local hardened file sink. TRACE-002 is partially implemented as of 2026-05-25
+(TS mirror package + `anvil-api` ingress) and blocked on a concrete dashboard
+live-feed consumer for the joined-view smoke test. TRACE-003 has a partial Rust tracing-formatter redaction slice; as of
+2026-06-24 INTD-015 is Complete and ADR-059 has decided the production sink, so
+its redaction-parity slice is actionable while sampled-exporter behaviour still
+waits on EXPORT-001's deferred-by-timing exporter wiring. Kernel-surface breadth
+remains post-launch / EXPORT follow-up scope.
+
+| Module                                                          | Scope  | Status | Progress | Dependencies                                                                                                                                                                                                                  |
+| --------------------------------------------------------------- | ------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | In Progress | 2/4      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views, USAGE; cites ADR-019, ADR-034, ADR-035; TRACE-001 Complete 2026-04-30 (anvil-observability crate, init_tracing in both binaries, traceparent envelope round-trip, INTD-014 conformance assertion); TRACE-004 Complete 2026-05-11 via PR #1435 — call-path instrumentation + `traceparent` correlation fields + local hardened file sink; TRACE-002 partial 2026-05-25 (TS mirror package + `anvil-api` ingress) blocked on concrete dashboard live-feed consumer; TRACE-003 partial 2026-05-25 (Rust tracing-formatter redaction) — 2026-06-24 blocker update: INTD-015 is Complete (PR #1305) so the redaction-parity slice is unblocked, and the sink is decided (ADR-059); the only residual blocker is sampled-exporter behaviour, which waits on EXPORT-001's deferred-by-timing exporter wiring; OTLP/exporter-backed parent propagation and walkthrough deferred to EXPORT |
+| [observability-export](./modules/observability-export.aps.md)   | EXPORT | Draft  | 0/1      | Blocks on TRACE-001/-002/-003; OQ1 (production sink choice — Tempo / Honeycomb / Grafana Cloud / self-hosted Jaeger / OTLP-to-Vercel-OTel) deferred until first paying customer or first production incident                  |
+
+> **Precondition resolved 2026-04-30:** LAUNCH-003's open
+> `Coordinates with: TUIDASH-009` callout was swept per ADR-034 rule 3.
+> LAUNCH-003 shipped first; the conditional "Superseded by" branch did not
+> fire. The named `WatchStats` contract is the inheritance TUIDASH-009 will
+> consume when the dashboard surface lands. TRACE is now **In Progress** (TRACE-001 Complete 2026-04-30).
+
+### Usage Analytics
+
+Cross-cutting durable usage observations on Kindling — command invocations,
+inline flag-context snapshots, dev-investment query views. Third trial of the
+cross-cutting module convention promoted under
+[ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md). Founder
+request 2026-05-10 — answers "who is using what" durably so dev-investment
+decisions are evidence-based. Per
+[ADR-035](./decisions/035-three-pipe-observability-rule.md), usage facts are
+governance-shaped (durable, queryable, source-of-truth) and live on Kindling,
+not on the tracing pipe. USAGE-001 is the launch-blocker candidate (founder
+lean 2026-05-10 → new `command.invoked` Kindling kind, with FLAGS
+cross-clarification resolved by ADR-041); USAGE-002 (flag-context correlation)
+and USAGE-003 (canned dev-investment query views) follow once invocations land.
+
+| Module                                              | Scope | Status | Progress | Dependencies                                                                                                                                                                                                                |
+| --------------------------------------------------- | ----- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [usage-analytics](./archive/modules/usage-analytics.aps.md) | USAGE | Complete | 5/5 | Kindling, TRACE-001 (consumes `TraceContext`); coordinates with TRACE-004 (incoming `traceparent` binding), FLAGCAT-007 / ADR-041 (resolved: inline `flag_set`, manifest `key` join, ADR-019 unchanged), TRACE-003 (shared `SENSITIVE_FIELDS` deny-list), OBS-001 (post-launch). Privacy contract + OQ2 anonymisation (hash + per-deployment salt) confirmed 2026-05-11. USAGE-001 Merged 2026-06-13 via PR #2603 — CLI producer + `command.invoked` kind + privacy contract; OQ1 → new kind; JSON-RPC producer descoped to USAGE-004 (no principal/resolver on the daemon path). USAGE-002 Merged 2026-06-14 via PR #2607 — inline `flag_set` from auth/routing flag resolutions (licence-gate resolved in prod + dev; v1 = observe-only). USAGE-003 Merged 2026-06-14 via PR #2612 — `anvil kindling usage <view>` dev-investment query views (top/unused/flags/principals) + runbook; OQ3 → both CLI surface and docs. USAGE-005 Merged 2026-06-14 via PR #2614 — flag-driven licence-gate enforcement (`check_auth` branches on the resolved `cli.licence-gate` variant; `disabled` skips the local pre-check, `enabled` enforces; default `enabled` so production unchanged). USAGE-004 Merged 2026-06-18 via PR #2744 — JSON-RPC command-invocation producer; principal on the envelope (salted-hash, optional, parity with CLI; absent → anonymous, malformed → rejected), explicit user-initiated method allowlist (5 GCTX query methods + unblock-* verbs; internal scan/save/status excluded), CLI unblock row suppressed for the daemon to be source of truth. Follow-ups #2751 (async sink offload) / #2752 (live-listener test). Released/Shipped via v0.9.0-beta (2026-07-12); archived 2026-07-13. |
+| [kindling-daemon-sink](./archive/modules/kindling-daemon-sink.aps.md) | KDS | Complete | 5/5 | USAGE (the producers), `kindling-client` (crates.io caret `0.3`, `features = ["spool"]` — the upstream Rust-canonical Kindling daemon/client/spool, all one crate; **no** standalone `kindling-spool`), ADR-035 / D-035 (three-pipe rule — this is its write-side realisation), ADR-064 (daemon dep-boundary: the networking client stays in `anvil-cli`, never `anvil-intercept`). Makes the Kindling daemon (SQLite) authoritative for Anvil's observations and demotes the `usage.ndjson` workaround to a transient `SpooledClient` fallback. KDS-001 the `KindlingDaemonSink` over the spooled client · KDS-002 wire it primary + a sink-selection flag · KDS-003 daemon-vs-NDJSON parity (PORT-011 acceptance) · KDS-004 re-source `anvil kindling usage` views from the authoritative store · KDS-005 retire the bespoke `DaemonUsageSink`. KDS-001 + KDS-003 (the PORT-011 `command.invoked` proof) **Merged 2026-06-24 via #2897**; KDS-002 (`ANVIL_KINDLING_SINK` selection) **Merged 2026-06-24 via #2906**; KDS-004 (views read the daemon via `kindling-client` 0.3 `list_observations`, unioned with the sidecar) **Merged 2026-06-26 via #2945**; KDS-005 (delete `DaemonUsageSink`; **default sink flips `ndjson`→`daemon`** — owner-approved; spool now capped via 0.3 `SpoolConfig`; `ANVIL_KINDLING_SINK` = `daemon`(default)\ Released/Shipped via v0.9.0-beta (2026-07-12); archived 2026-07-13. |`off`) **Merged 2026-06-26 via #2949**. **All 5 KDS work items Merged** — module awaits a release tag for Complete + archival. |
+| [daemon-protection-observability](./modules/daemon-protection-observability.aps.md) | DPO | In Progress | 2/6 | USAGE (producer convention + TRACE-003 redaction + privacy default), KFIT-007 (typed sink and durable admission), KFIT-009 (sidecar migration), KFIT-010 (governance query/status foundation), DSV (`validate_paths` save-time call site), intercept `fence.rs` (fence call site), ADR-035 / D-035 (governance facts → Kindling), ADR-031 (save-time admission must remain within the latency gate), ADR-064 (emission stays trait-only in `anvil-intercept`; runtime/sink in `anvil-cli`), [TUIDASH](./archive/modules/tui-dashboard-render.aps.md) / [TDASH](./archive/modules/native-tui-dashboards.aps.md) (ADR-054, dashboard consumers). DPO-001/-002 **Merged 2026-06-20 via #2833** as transport-free save-time and fence producer seams under [ADR-088](./decisions/088-dpo-observation-kind-taxonomy.md); they are not durable-store completion evidence. Archived KDS is the command-only daemon/spool precursor, not an active blocker. DPO-003 is Blocked on KFIT-007/-009/-010; DPO-004/-005 follow DPO-003 and remain DPO-owned dashboard work. |
+| [kindling-product-fit](./modules/kindling-product-fit.aps.md) | KFIT | In Progress | 0/11 | Cross-repository usefulness and fit-for-purpose completion for the standalone Kindling product and Anvil's Kindling-backed governance record. Track A closes truthful capture, cross-session retrieval/explanation, lifecycle visibility, and the published embedded runtime in `eddacraft/kindling`. Track B adopts that runtime in Anvil, routes every declared governance producer through one typed sink, consolidates session/scope identity, migrates and retires parallel NDJSON sidecars, exposes governance queries/status, and reconciles the stale TypeScript package/docs contract. Coordinates with KINTEG/CONV upstream and KDS/USAGE/DPO/MLP2 in Anvil; KFIT owns the storage/query foundation, while DPO retains dashboard-component ownership. Filed 2026-07-18 from the Kindling + Anvil fit review; PR #3489 merged the default-off KFIT-006 consumption seam on 2026-08-03, but KFIT-009 owns fenced local writer cutover and KFIT-011 owns per-profile release-default selection plus package removal after KFIT-001/KFIT-005..010; existing legacy profiles still require an explicit cutover marker, and the precursor is unreleased. |
+| [fleet-telemetry](./archive/modules/fleet-telemetry.aps.md) | FLEET | Complete | 7/7 | [ADR-107](./decisions/107-fleet-telemetry-consent-posture.md) (design gate, Accepted 2026-07-15); LAUNCH-013 `InstallMethod` detection; CIB-197 (local envelope enrichment — the beacon reuses those fields); `apps/anvil-api` (plausible ingest host). Filed 2026-07-14: tightly-controlled **phone-home** fleet visibility (disclosed opt-out per ADR-107) — binary version, install method, and the FLAGS-design feature-usage dimensions (session-start snapshot + one stat per feature used; no PII, enumerated low-risk allowlist). A deliberate posture change vs the USAGE local-only privacy contract; distinct from EXPORT (tracing-pipe sink). **OQ3 resolved 2026-07-15 (operator): needed as investor evidence — no paying-customer gate; Ready waits only on the design gate.** Design gate [ADR-107](./decisions/107-fleet-telemetry-consent-posture.md) **Accepted 2026-07-15 (operator)** — disclosed opt-out beacon, anonymous rotatable install UUID, enumerated dimension allowlist, ≤1 beacon/24h, `anvil telemetry` payload viewer, `apps/anvil-api` ingest (OQ1/OQ2 resolved there). Module **Done** (Ready 2026-07-15; FLEET-001/-002/-005 + CIB-197 merged 2026-07-16 via PR #3351; FLEET-003/-004/-006/-007 merged 2026-07-18 via PR #3362) with FLEET-001 consent/disclosure · 002 install identity · 003 beacon producer · 004 transparency command · 005 ingest route · 006 privacy-contract rewrite (shipped with 003) · 007 operator fleet view. Priority High. **Identity boundary 2026-08-11:** FLEET stays anonymous; named beta CS (“did Elliot use watch?”) is [BACT](./archive/modules/beta-account-activity.aps.md), not a beacon re-id. |
+| [beta-account-activity](./archive/modules/beta-account-activity.aps.md) | BACT | Complete | 12/12 | Phase 1 (BACT-001..006) Done via PR #3782 — login stamps, feature touches, CS filters. **Phase 2 Done 2026-08-13** (BACT-007/-008/-009/-011/-012/-013 merged via PRs #3837/#3838/#3839/#3840/#3842/#3843): [ADR-121](./decisions/121-account-plan-activity-and-flag-entitlements.md) + [spec](./specs/2026-08-12-account-plan-activity-entitlements.md) — account **`plan`** (only `beta` ↔ `plan-beta`), **DAA** via `last_activity_at` (login + refresh + feature-touch), entitlements via feature-flag catalogue (not free-form lists); DAI remains FLEET installs only. BACT-007 docs · 008 schema/stamps · 009 admin activity metrics · 011 daily rollup · 012 optional backfill · 013 evaluation context + JWT plan. Explicit non-goals: FLEET re-id, billing catalogue, table rename. Coordinates with FLAGCAT audiences, FLEET, EMAIL cohorts. Priority High. |
+
+### Infrastructure as Code
+
+Pulumi-managed infrastructure: Vercel projects, Azure DNS, backend migration to
+Azure Blob Storage + KeyVault. EDGE module (Azure Front Door multi-origin edge
+layer) in flight per ADR-032.
+
+| Module                                                                    | Scope | Status   | Progress | Dependencies                                                                                                                                       |
+| ------------------------------------------------------------------------- | ----- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [pulumi-iac](./archive/modules/pulumi-iac.aps.md)                         | IAC   | Complete | 20/20    | —                                                                                                                                                  |
+| [database-consolidation](./archive/modules/database-consolidation.aps.md) | DBCON | Complete | 4/4      | IAC                                                                                                                                                |
+| [edge](./modules/edge.aps.md)                                             | EDGE  | Ready    | 0/24     | IAC; coordinates with OBS (Log Analytics workspace), Vercel origins, and 8-week Azure-hosted origin commit. AFD Standard, Australia East. ADR-032. |
+
+### Web Dashboard
+
+Browser-based interface for exploring Anvil data. Built as dedicated
+`apps/dashboard/` (Vite 8 + React + TanStack Router/Query/Table + shadcn/ui +
+Tailwind v4) backed by `crates/anvil-dashboard-server/` with an OpenAPI ->
+generated TypeScript client -> TanStack Query seam. Dashboard modules are UI
+adapters over kernel capabilities; kernel/server code owns permissions,
+workflow state, audit, evidence, and policy decisions. Four execution waves; 41
+tasks total. See [ADR-104](./decisions/104-dashboard-host-server-module-boundary.md).
+
+| Module                                                                        | Scope    | Status | Progress | Wave | Dependencies                                                             |
+| ----------------------------------------------------------------------------- | -------- | ------ | -------- | ---- | ------------------------------------------------------------------------ |
+| [dashboard-foundation](./archive/modules/dashboard-foundation.aps.md)                 | DASH     | Complete | 12/12 (Wave 1 DASH-001..011 Merged via PR #3261 and PR #3321; DASH-012 delivery slice Merged via PR #3421; Released/Shipped via v0.9.1-beta; archived 2026-08-27) | 1    | apps/dashboard, crates/anvil-dashboard-server, contracts                  |
+| [dashboard-core-views](./archive/modules/dashboard-core-views.aps.md)                 | DASHCORE | Complete | 9/9 (all items Released/Shipped via v0.9.1-beta; archived 2026-08-27) | 2    | dashboard-foundation                                                     |
+| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready  | 0/8      | 2    | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
+| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)                   | DASHOPS  | Ready  | 0/7      | 3    | dashboard-foundation                                                     |
+| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)                 | DASHAI   | Draft  | 0/6      | 4    | dashboard-foundation                                                     |
+
+**Why Dashboard:** The CLI remains the primary developer interface; the
+dashboard serves team leads, platform engineers, and compliance roles who need
+persistent views, historical trends, and graphical visualisations that a
+terminal cannot provide. See [brainstorm](./brainstorms/dashboard-web-ui.md) and
+[json-render approach](./brainstorms/json-render-dashboard.md) for background.
+
+### Policy Governance
+
+Organisational policy governance: multi-level inheritance, lifecycle management,
+compliance reporting, federation, and agent orchestration. Policy governance
+tasks now reference Rust crates (anvil-kernel, anvil-policy, anvil-cli) as the
+implementation targets.
+
+Policy solution validation (2026-06-24): the shipping runtime direction is
+**Rego authored, regorus evaluated**. ADR-040/POLENG make
+`crates/anvil-policy-engine` the product policy runtime and
+`anvil policy eval --json` is frozen at v1 for downstream adapters. The Go OPA
+binary remains useful as a reference/compatibility test runner
+(`opa test policies/fixtures`, `poleng-parity.yml`) and for the legacy
+`.anvil/policies` gate path in `crates/anvil-policy`; it is not the substrate
+new Policy Governance modules should build on. Modules still carrying historical
+"OPA" names should treat that as the Rego/policy-as-code product area, not as
+permission to add a second production OPA runtime.
+
+Policy reset (2026-07-02): the live policy roadmap is now coordinated by
+[`policy-value-enforcement-reset`](./archive/modules/policy-value-enforcement-reset.aps.md)
+(`POLRESET`, conductor — Done 2026-07-05). The reset combines the two policy-value lenses:
+report-only policy regression and useful pack authoring first, then opt-in
 save-time/pre-write enforcement that routes user-authored policy breaches to
 `warn`, `fence`, or `interrupt`. OPAE has been narrowed from a stale broad OPA
 wishlist to first-wave regorus-backed authoring/runtime UX; enterprise hierarchy,
