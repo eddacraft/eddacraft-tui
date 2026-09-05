@@ -392,9 +392,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-5982411632-4fab_42a7488950
 - **Scanner classification:** medium · contract-mismatch
 - **Evidence:**
-  [Git status selection](../../packages/anvil/runtime/src/watch/git-status.ts),
-  [tests](../../packages/anvil/runtime/src/watch/git-status.test.ts), and the
-  [runtime maturity note](../../packages/anvil/runtime/README.md).
+  [Git status selection](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/anvil/runtime/src/watch/git-status.ts),
+  [tests](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/anvil/runtime/src/watch/git-status.test.ts),
+  and the [runtime maturity note](../../packages/anvil/runtime/README.md).
 - **Assessment:** With since set, the implementation always returns the
   ref-based diff and never reads staged or unstaged flags. Callers cannot obtain
   the selection promised by the public options.
@@ -407,9 +407,10 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-d492a0dec3-66c5_7f981bd76a
 - **Scanner classification:** medium · contract-mismatch
 - **Evidence:**
-  [candidate service](../../packages/edda-stack/src/ember/candidate-service.ts),
-  [observation hook](../../packages/edda-stack/src/ember/observation-hook.ts),
-  and [tests](../../packages/edda-stack/src/ember/candidate-service.test.ts).
+  [candidate service](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/edda-stack/src/ember/candidate-service.ts),
+  [observation hook](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/edda-stack/src/ember/observation-hook.ts),
+  and
+  [tests](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/edda-stack/src/ember/candidate-service.test.ts).
 - **Assessment:** The proposal is stored before event publication. If publish
   rejects, the caller sees failure after durable state changed and a natural
   retry can create another proposal. Ember remains a draft surface, which lowers
@@ -511,7 +512,7 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-7c0d8094f1-a367_a4317f40f7
 - **Scanner classification:** medium · confirmed-bug
 - **Evidence:**
-  [queue manager](../../packages/anvil/runtime/src/concurrency/queue-manager.ts)
+  [queue manager](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/anvil/runtime/src/concurrency/queue-manager.ts)
   and the [runtime maturity note](../../packages/anvil/runtime/README.md).
 - **Assessment:** waitForLock attempts direct acquisition before honouring an
   existing queue. A new caller can overtake the queue head at release time. The

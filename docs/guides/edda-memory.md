@@ -1,8 +1,8 @@
 # Edda Memory Management
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                     |
-| ----- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | RCLI3 | Live   | Last reviewed 2026-08-28 against `crates/anvil-cli/src/commands/edda.rs` (`list`/`show` only) |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                               |
+| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | RCLI3 | Live   | Last reviewed 2026-09-05 for EMBERRS-001: Ember retirement does not change Edda list/show; checked against `crates/anvil-cli/src/commands/edda.rs` (`list`/`show` only) |
 
 | Upstream                                                                                                                                                            | Downstream                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
