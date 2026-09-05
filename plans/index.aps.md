@@ -865,6 +865,12 @@ compatibility interface on the same resolver — nothing here deprecates it.
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking — **not** in the Graph Trust Surfaces five-track shortlist; validation commands still need Rust rescope before any execution claim. | Ready |
 | [unified-config-format](./archive/modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces — **Complete 16/16**; secondary claim of `v0.9.5-beta`; archived 2026-08-27 | Complete |
 
+### Converged Application Decisions
+
+| Module | Scope | Status | Dependencies |
+| --- | --- | --- | --- |
+| [converged-app-decisions](./modules/converged-app-decisions.aps.md) | CONV | In Progress | Two-track strategy; ADR-140 proposal; EXP-002 evidence. Decision reconciliation only; runtime and UI follow-through remain Proposed. |
+
 ### Dormant: Not Yet Scheduled
 
 Module families with no active (`Ready` / `In Progress`) work — all `Draft`,
@@ -947,12 +953,6 @@ See `docs/runbooks/branch-reconciliation.md`.
 
 - **Plan/APS execution** — Planless-first; APS is internal
 - **Auto-fix** — Warnings only; don't be too clever
-
-### Converged Application Decisions
-
-| Module | Scope | Status | Dependencies |
-| --- | --- | --- | --- |
-| [converged-app-decisions](./modules/converged-app-decisions.aps.md) | CONV | In Progress | Two-track strategy; ADR-140 proposal; EXP-002 evidence. Decision reconciliation only; runtime and UI follow-through remain Proposed. |
 
 ## Constraints
 
