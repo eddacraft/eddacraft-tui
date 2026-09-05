@@ -1,7 +1,7 @@
 # anvil API architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                          |
-| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                        |
+| ------------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | Architecture | Authoritative | APGOV | Live   | Last reviewed 2026-09-05 for SEC-013 shared licence-auth enforcement; authenticated-route boundary and Neon data flow unchanged. |
 
 | Upstream                                                                                    | Downstream                                       |
@@ -54,9 +54,11 @@ prose: every request crosses the shared middleware chain, then a route's public,
 authenticated, operator, or cron boundary. The validated handler calls Neon or
 an external provider and returns a structured result.
 
-The licence branch uses [`middleware/licence-auth.ts`](src/middleware/licence-auth.ts)
-for signature verification and a fresh active-account lookup before returning
-an authenticated identity. [`auth-as-built.md`](../../docs/architecture/auth-as-built.md#online-licence-route-inventory-sec-013)
+The licence branch uses
+[`middleware/licence-auth.ts`](src/middleware/licence-auth.ts) for signature
+verification and a fresh active-account lookup before returning an authenticated
+identity.
+[`auth-as-built.md`](../../docs/architecture/auth-as-built.md#online-licence-route-inventory-sec-013)
 owns the route inventory and denial contracts. Activity payload validation
 continues to reject before database access; authenticated persistence remains
 best-effort. The diagram's existing authenticated-route boundary covers this
@@ -129,4 +131,3 @@ operator authority.
 - Persistence migrations remain governed by the
   [database migration runbook](../../docs/runbooks/db-migrations.md), not this
   component map.
-

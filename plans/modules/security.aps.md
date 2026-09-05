@@ -672,8 +672,8 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 - **Status:** Done
 - **Implementation evidence:** Shared enforcement, route inventory and native
   POST logout forms are implemented; focused API tests (61) and docs-shell
-  tests (21) pass. Integration and full CI evidence belong to the implementing
-  PR; this records no release inclusion.
+  tests (21) pass. Integration and full CI evidence belong to
+  [PR #4403](https://github.com/eddacraft/anvil-001/pull/4403); this records no release inclusion.
 - **Authority (2026-09-05):** Operator authorised completing the shared-helper
   and route-inventory residual, with rebase merge on green. Claim: #4402.
 - **Reconciliation (2026-09-05):** CIB-399 / PR #4366 (2026-09-03) added the
@@ -783,8 +783,8 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 - **Status:** Done
 - **Implementation evidence:** Shared enforcement, route inventory and native
   POST logout forms are implemented; focused API tests (61) and docs-shell
-  tests (21) pass. Integration and full CI evidence belong to the implementing
-  PR; this records no release inclusion.
+  tests (21) pass. Integration and full CI evidence belong to
+  [PR #4403](https://github.com/eddacraft/anvil-001/pull/4403); this records no release inclusion.
 - **Authority (2026-09-05):** Operator authorised implementation of #4230 and
   normal rebase merge on green. Existing issue #4230 is the claim.
 - **Intent:** Stop cross-site navigation from clearing the docs session.

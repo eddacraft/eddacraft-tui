@@ -1,7 +1,7 @@
 # anvil documentation shell architecture
 
-| Type         | Authority | Owner           | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------ | --------- | --------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Type         | Authority | Owner           | Status | Freshness                                                                                                                              |
+| ------------ | --------- | --------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | Architecture | Derived   | DOCRB/DSITE gap | Live   | Last reviewed 2026-09-05 for SEC-015 same-origin POST logout and SEC-013 API helper; local sign-out changes no renderer or OAuth edge. |
 
 | Upstream                                                                                                                                          | Downstream                                    |
@@ -18,8 +18,8 @@
 The landing page and private docs navbar use plain POST forms to
 [`app/auth/logout/route.ts`](app/auth/logout/route.ts). The handler requires an
 exact same-origin Origin and, when present, same-origin Fetch Metadata before
-expiring the docs session cookie and redirecting home with 303. GET and
-rejected requests never mutate the session. The authoritative
+expiring the docs session cookie and redirecting home with 303. GET and rejected
+requests never mutate the session. The authoritative
 [request-integrity contract](../../docs/architecture/auth-as-built.md#docs-logout-request-integrity-sec-015)
 owns the full acceptance rule. This local sign-out adds no renderer, OAuth, or
 API edge to the authentication and renderer-routing diagram below.
@@ -100,4 +100,3 @@ surface. Both renderer responses pass through the same filtered proxy boundary.
 
 Production topology and the unresolved owner remain authoritative in
 [documentation governance](../../docs/guides/documentation-governance.md).
-
