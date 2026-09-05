@@ -17,7 +17,7 @@ implements. A small set of explicit **auxiliary** workflows (labels, gates,
 observability) sit outside the five contracts.
 
 | #   | Contract              | Authoritative for                                                     |
-|---|---------------------|---------------------------------------------------------------------|
+| --- | --------------------- | --------------------------------------------------------------------- |
 | 1   | **PR validation**     | Proving the proposed change shape (affected lint/typecheck/test).     |
 | 2   | **Integration push**  | Proving the merged integration SHA — full workspace evidence.       |
 | 3   | **Assurance**         | Scheduled full assurance — coverage, expanded matrices, deep scans. |
@@ -30,7 +30,7 @@ Expensive work is deliberately **not** on every PR. Map jobs to the cheapest
 tier that still protects the merge or the ship:
 
 | Tier                    | Typical trigger                              | Owns                                        | Examples                                                                                            |
-|-----------------------|--------------------------------------------|-------------------------------------------|---------------------------------------------------------------------------------------------------|
+| ----------------------- | -------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | **PR**                  | `pull_request` to `main`                     | Required ruleset checks + cheap correctness | `ci.yml` primaries, Rust Check/Clippy/Format/`Test`, Security Summary, Council gate                 |
 | **Integration push**    | `push` to `main`                             | Tip-of-main evidence after merge            | Node Integration Readiness aggregate; path-filtered resource-budget on crates merges                |
 | **Nightly / assurance** | `schedule` + `workflow_dispatch`             | Continuous fleet health                     | `ci-nightly.yml` (coverage, multi-OS, cross); `resource-budget.yml` nightly schedule                |
@@ -51,7 +51,7 @@ correspond to a file on disk. The `scripts/ci/workflow-contracts.test.sh`
 fixture enforces both directions.
 
 | Workflow                               | Contract                             | Trigger surface                                                                                                                                                                                                                                                                                                                                                                                                                    | Owner module |
-|--------------------------------------|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| -------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
 | `ci.yml`                               | PR + Integration                     | `pull_request` to `main` / `push` to `main` — Node/TS lint, typecheck, test, build, e2e, metadata, platform-smoke                                                                                                                                                                                                                                                                                                                | CICD         |
 | `rust.yml`                             | PR + Integration                     | `pull_request` to `main` / `push` to `main`/`rust-*`/`release/*` (path-filtered) plus `workflow_dispatch`                                                                                                                                                                                                                                                                                                                          | CICD         |
 | `rust-tests.yml`                       | PR + Integration                     | `pull_request` to `main` (always emits a `Test` check; heavy Rust work is gated by affected-path detection) / `push` to `main`/`rust-*`/`release/*` (path-filtered) plus `workflow_dispatch`                                                                                                                                                                                                                                       | CICD         |
@@ -201,7 +201,7 @@ expensive — macOS runners cost 10x, Windows 2x. Per
 they run only when platform evidence is required:
 
 | Matrix                            | Runs on                                                                                                                                                                                                                                                                                            | Skipped on                                                                           |
-|---------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `ci.yml` `Release Gate` (Node)    | PR to `main` (release-gate) or push to `main`, **only when `source-changed`**                                                                                                                                                                                                                      | Docs-only release PRs; routine PRs to `dev`; integration push to `dev`               |
 | `rust.yml` `Cross (target)`       | PR to `main`, push to `main`/`release/*`, or `workflow_dispatch` — gated on `rust-changed` (dispatch ignores the rust-changed guard). **Cost note:** one `workflow_dispatch` run bills ~390 weighted runner-minutes (6-target matrix = 2x ubuntu + 2x macOS@10x + 2x windows@2x; use sparingly). | Push to `dev`; routine PRs to `dev`; JS-only diffs that admit the workflow paths     |
 | `napi.yml` `Build`/`Test`         | PR/push touching `crates/anvil-checks-napi/**`, `crates/anvil-checks/src/**`, manifests, toolchain, or tags `napi-v*`                                                                                                                                                                              | Anything outside the napi binding's compile surface                                  |
@@ -525,7 +525,7 @@ It resolves the required contexts from the branch ruleset — not from whatever
 happens to have reported — and exits:
 
 | Code | Meaning                                                                           |
-|----|---------------------------------------------------------------------------------|
+| ---- | --------------------------------------------------------------------------------- |
 | `0`  | Every required context reported and passed (and threads resolved where required). |
 | `1`  | A required check failed.                                                          |
 | `2`  | Not finished — names the required contexts that have not reported.              |
