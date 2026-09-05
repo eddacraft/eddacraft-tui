@@ -2,7 +2,7 @@
 
 | Type         | Authority | Owner       | Status | Freshness                                                                                                                             |
 | ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-08-21: **`v0.9.7-beta` shipped** — closeout. Active window rolled to provisional `v0.9.8-beta` (field intake; claim not frozen). |
+| Release plan | Derived   | APS modules | Live   | 2026-09-05: JOURNEY reliability-first intake linked. `v0.9.7-beta` remains latest; provisional `v0.9.8-beta` claim not frozen. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -58,6 +58,17 @@ changelog + standing bar.
 **Authority:** Field signal + APS Ready/Accepted items after intake. Programme
 work (Graph Trust Surfaces Wave 0, `/settings` SETCON+, live-heal soak) may run
 **beside** this window and is not automatically the cut claim.
+
+### Journey reliability readiness
+
+The operator-authorised [JOURNEY programme](./plans/modules/release-user-journeys.aps.md)
+repairs [JREL reliability](./plans/modules/journey-reliability.aps.md), verifies a
+pinned main build, then executes [JSIMP simplification](./plans/modules/journey-simplification.aps.md).
+This is readiness work, not a frozen version claim. JOURNEY-014/-015 gate any
+reliable-journey claim; JOURNEY-016 additionally gates a simplification claim.
+Use local/CI builds and the existing release process; an internal release
+channel is not a prerequisite. Publication remains a separate authorised cut.
+Simplification may start once JOURNEY-015 passes without waiting for publication.
 
 ### Primary claim
 

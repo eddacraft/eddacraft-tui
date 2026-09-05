@@ -2,15 +2,20 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 10/13 |
+| JOURNEY | Conductor | Josh | high | In Progress | 10/16 |
 
-**Last reviewed:** 2026-09-05 — JOURNEY-012 reconciled to merged PR #4317.
-JOURNEY-013 remains Proposed pending first-user observation of the current
-activation help bar; no release or completion claim is added for that work.
+**Last reviewed:** 2026-09-05 — reliability-first programme authorised; JREL and
+JSIMP intake added. JOURNEY-013 promoted to Ready for current-build observation.
+Historical delivery evidence remains unchanged.
 
 ## Purpose
 
-Coordinate the release around two outcomes: `anvil welcome` gives a new user a
+Coordinate a continuous new- and returning-user journey. The current programme
+repairs reliability, rehearses a pinned main build through the existing release
+process, then simplifies the experience. It does not require an internal release
+mechanism or authorise publication. The original release outcomes remain:
+
+ `anvil welcome` gives a new user a
 repository-specific first win worth sharing, and `anvil start` gives a time-poor
 senior developer trustworthy protection with almost no learning or repeat-run
 friction.
@@ -38,7 +43,7 @@ The release slice is complete when:
 
 ## Scope
 
-### Release Cut
+### Historical v0.9.0 Release Cut
 
 - WOW-005 repository-specific first win.
 - ACTTUI-009, ACTTUI-010, and ACTTUI-012 activation completion and default gate.
@@ -47,7 +52,7 @@ The release slice is complete when:
 - Candidate-binary journey rehearsal on Linux, macOS, and Windows.
 - Outcome evidence and final release decision.
 
-### Post-Cut Expansion
+### Existing Expansion
 
 - WOW-006 sandbox autoplay.
 - ACTTUI-005 celebration treatment and ACTTUI-006/-011 richer diagnostics.
@@ -56,6 +61,18 @@ The release slice is complete when:
 
 These items remain coordinated and visible but do not block the release unless
 the operator explicitly promotes them into the cut.
+
+### Current Reliability and Simplification Programme
+
+[JREL](./journey-reliability.aps.md) owns twelve bounded reliability items.
+[JSIMP](./journey-simplification.aps.md) owns six subsequent simplification items.
+JOURNEY-014..016 own acceptance and handoff, not duplicate implementation.
+JOURNEY-013 owns the first-user navigation observation consumed by JSIMP-001.
+
+No next version or release claim is selected here. The active window remains
+provisional in [RELEASE-PLAN](../../RELEASE-PLAN.md). A reliable-journey claim
+requires JOURNEY-014 and JOURNEY-015 evidence; a broader simplification claim
+also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing process.
 
 ## Constraints
 
@@ -72,6 +89,8 @@ the operator explicitly promotes them into the cut.
 
 | Module | Role | Release posture |
 | ------ | ---- | --------------- |
+| [journey-reliability](./journey-reliability.aps.md) | Daemon/MCP lifecycle, truthful readiness, setup recovery and executable regression coverage | Current reliability gate: JOURNEY-014 |
+| [journey-simplification](./journey-simplification.aps.md) | One command contract, resumable setup, quiet daily use and useful first proof | Starts after JOURNEY-015; acceptance at JOURNEY-016 |
 | [first-run-wow](../archive/modules/first-run-wow.aps.md) | Repository-specific first win and sandbox tutorial | WOW-005 required; WOW-006 expansion |
 | [activation-tui](../archive/modules/activation-tui.aps.md) | Interactive activation, consent, contracts, celebration and diagnostics | ACTTUI-009/-010/-012 required; -005/-006/-011 expansion where not already required by their owner |
 | [activation-mcp-optional](./activation-mcp-optional.aps.md) | Daemon, durable registration, MCP-optional protection, optional local control app | Existing spine required; ACTMO-021 expansion |
@@ -338,7 +357,7 @@ the operator explicitly promotes them into the cut.
 - **Status:** Merged 2026-09-02 via PR #4317
 - **Reconciliation (2026-09-05):** The tutorial pointer is implemented on the
   interactive activation path and suppressed after any tutorial path is completed.
-  JOURNEY-013 first-user observation remains Proposed; no splash is authorised by this
+  JOURNEY-013 first-user observation is now Ready in the reliability-first programme; no splash is authorised by this
   closeout.
 - **Intent:** the tutorial is offered on the post-install banner
   (`install.sh:167-168`, CIB-288) and second of three in first-run onboarding
@@ -382,7 +401,7 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-013: Re-test first-run activation navigation before designing a splash
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** the operator observed a first-time user struggling to move between
   the `anvil start` consent screens and proposed a first-run splash teaching the
   key model. Investigation found the observed build cannot support that
@@ -404,7 +423,7 @@ the operator explicitly promotes them into the cut.
   or a progress indicator before this evidence exists. Do not treat the
   `h`/`j`/`k`/`l` aliases as missing — they have been live throughout, as
   deliberate silent aliases.
-- **Dependencies:** a release (or local build) carrying `e586b6e53`
+- **Dependencies:** JOURNEY-015; the observed pinned build must carry `e586b6e53`
 - **Coordinates with:** ADR-103, ACTTUI (archived), JOURNEY-012
 - **Validation:** a short observation record linked from this item, naming the
   build SHA the session ran.
@@ -412,27 +431,53 @@ the operator explicitly promotes them into the cut.
 - **Confidence:** high on the diagnosis; the item exists precisely because
   confidence in the *remedy* is low until re-measured.
 
+
+### JOURNEY-014: Reliability closure and regression evidence gate
+
+- **Status:** Ready
+- **Intent:** Establish that the complete setup and daily-use spine works before changing the journey contract.
+- **Expected Outcome:** Every JREL item has a linked reproduction and passing regression on its merged implementation, or evidence that the suspected defect was already fixed. No unresolved P0/P1 failure in the required journeys is labelled complete. Existing-owner work from CIB-405 / issue #4231 is reconciled by its owners before JREL-011 closes. Evidence identifies source SHA, platform, command, actual executed scenarios and remaining limitations.
+- **Dependencies:** JREL-001, JREL-002, JREL-003, JREL-004, JREL-005, JREL-006, JREL-007, JREL-008, JREL-009, JREL-010, JREL-011, JREL-012
+- **Coordinates with:** JREL, MCPLH, ACTMO, CIB
+- **Validation:** `pnpm aps:active-lint`; execute the non-skipping command delivered by JREL-012 against the pinned build; check each linked regression result and ensure no missing/skipped required leg is reported as passed.
+- **Confidence:** medium — source review identifies the risks; execution evidence is required.
+
+### JOURNEY-015: Pinned-main journey rehearsal and existing release handoff
+
+- **Status:** Ready
+- **Intent:** Verify what a user will install without building an internal release system.
+- **Expected Outcome:** Build from a recorded main SHA with the repository's supported build/CI process. Record binary version/hash and supported-platform results for fresh signed-out welcome, entitled start, optional/no MCP, one and multiple configured clients, healthy bare anvil, second repository/worktree, interrupted setup and resume, daemon death/restart, save-time child death, MCP restart/update, machine output and upgrade from the previous public build. Include real client calls and an observed save-time finding; config or PID presence is insufficient. Required failures block handoff. Record the release disposition and evidence in the existing release process; claim freeze, changelog, standing release gates and explicit publication authority remain required. Passing this gate permits simplification even if publication is scheduled later.
+- **Dependencies:** JOURNEY-014
+- **Coordinates with:** JREL-012, JOURNEY-013
+- **Validation:** `pnpm validate:full`; `pnpm release-plan:check`; JREL-012's recorded end-to-end command; Linux/macOS/Windows matrix and interactive evidence on the same pinned source. Any platform waiver must be explicitly recorded by the operator, never inferred from a different platform's pass.
+- **Confidence:** medium — no release or runtime success is claimed by the plan.
+
+### JOURNEY-016: Simplified journey acceptance and documentation closeout
+
+- **Status:** Ready
+- **Intent:** Prove first-time and returning users experience one understandable journey after the reliability repairs.
+- **Expected Outcome:** JSIMP's agreed command/state contract is implemented, documented and verified. Observe a first-time user from installation through first useful proof and a returning user on a later session and second repository. Both can identify current coverage and their next action without undocumented repair steps. Setup resumes, declined integrations stay declined, healthy daily invocation remains quiet, and changed machine contracts have explicit compatibility treatment. Record residual usability issues and resolve blocking ones before making a simplification release claim.
+- **Dependencies:** JOURNEY-015, JSIMP-001, JSIMP-002, JSIMP-003, JSIMP-004, JSIMP-005, JSIMP-006
+- **Coordinates with:** JOURNEY-013, JSIMP
+- **Validation:** `pnpm docs:check`; `pnpm aps:active-lint`; JREL-012's non-skipping journey command extended by JSIMP-006; linked first-time/returning-user observations against the same build.
+- **Confidence:** medium — design is gated by observation and JSIMP-001.
+
 ## Sequencing
 
-```text
-Release cut:
-  ACTTUI-009 -> JOURNEY-001 / WOW-005
-  ACTTUI-009 -> ACTTUI-010 -> ACTTUI-012 -> JOURNEY-002
-  CIB-183 + CIB-190 -> JOURNEY-003
-  CIB-073 -> JOURNEY-004
-  JOURNEY-001..004 + DSV cut-line -> JOURNEY-005 -> JOURNEY-006
+| Phase | Owning work | Exit condition |
+| ----- | ----------- | -------------- |
+| Reliability | Start JREL-001/-002 and JREL-012 harness; execute remaining JREL items according to their Dependencies | JOURNEY-014 evidence gate passes |
+| Rehearsal and release handoff | JOURNEY-015 on a pinned main build, using the existing public release process | Complete journey evidence and recorded release disposition; no internal channel needed |
+| Simplification decision | JOURNEY-013 observation, then JSIMP-001 contract/ADR decision | Agreed contract before downstream changes |
+| Simplification delivery | JSIMP-002..006 in dependency order | JOURNEY-016 acceptance passes |
 
-Post-cut expansion:
-  JOURNEY-007 || JOURNEY-008 || JOURNEY-009 || JOURNEY-010
-  ADR-114 -> ONSW-001..006 -> JOURNEY-011
-
-Onboarding entry (2026-09-01 design):
-  JOURNEY-012                      (independent; tutorial discovery)
-  e586b6e53 released -> JOURNEY-013 (gates any activation-splash work)
-```
+Dependencies on each item are authoritative. Historical JOURNEY-001..012
+delivery remains recorded above; JOURNEY-009/-010 retain their hold/block and
+are not pulled into this programme.
 
 ## Release Gate
 
-JOURNEY-006 is the final conductor gate. Completion of a coordinated module is
-necessary evidence, not sufficient evidence: the candidate must pass the two
-journeys on the same source SHA that is tagged.
+JOURNEY-006 remains the historical v0.9.0 gate. For the current programme,
+JOURNEY-014 and JOURNEY-015 gate any reliable-journey release claim;
+JOURNEY-016 additionally gates a simplification claim. Passing a planning or
+implementation gate does not itself publish a release.
