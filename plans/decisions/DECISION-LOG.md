@@ -9,6 +9,12 @@ integrity report against this directory (no duplicate numbers, no missing
 entries, next available ADR number) run `pnpm adr:check`. The fixture tests
 for the script itself live at `pnpm test:adr-integrity`.
 
+## Converged Application
+
+| ADR | Decision | Status |
+| --- | --- | --- |
+| [140](140-converged-command-event-contract.md) | Anvil-owned typed commands and projections informed by EXP-002; preserve daemon scope, evidence pipes and existing exits; durable admission, approval and reconnect require production fixtures | Proposed |
+
 ## Core Philosophy
 
 These define how Anvil behaves by default. All features must align.

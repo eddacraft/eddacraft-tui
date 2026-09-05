@@ -1,5 +1,20 @@
 # APS and anvil Convergence and Migration Plan
 
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Spec | Advisory | CONV | Proposed | Reviewed 2026-09-05 against ADR-140 and the A–J reconciliation |
+
+| Upstream | Downstream |
+| --- | --- |
+| Accepted anvil ADRs; converged-app decision register | CONV implementation |
+
+The package tree below is illustrative, not authority to create a second daemon,
+move existing anvil-run responsibilities or import allomorph. Existing ADR-036/064/067
+scope and crate boundaries remain binding. Follow the [current decision disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition--2026-09-05)
+and [CONV](../../modules/converged-app-decisions.aps.md) before implementation.
+Canonical APS source changes still require ADR-A; this reconciliation moves no source.
+
+
 ## Purpose
 
 This document describes a low-risk path from the current separate and duplicated APS/anvil implementations to one canonical monorepo implementation with multiple intentional product distributions.

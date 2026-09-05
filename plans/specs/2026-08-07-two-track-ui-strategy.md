@@ -2,11 +2,31 @@
 
 # Two-Track UI Strategy: Converged App and Ultimate UI
 
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Spec | Authoritative | CONV | Live | Reviewed 2026-09-05 against anvil main 4a8ad6e3 and allomorph PR #8 |
+
+| Upstream | Downstream |
+| --- | --- |
+| Existing accepted anvil ADRs; EXP-002 evidence | ADR-140; CONV; converged-app implementation |
+
+
 Date: 2026-08-07
 Status: Direction agreed; ADRs pending
 Sources:
 [`plans/specs/converged-app/`](converged-app/README.md) ·
 [`plans/specs/anvil-ultimate-ui/`](anvil-ultimate-ui/00-index.md)
+
+## September decision follow-through
+
+EXP-002 landed in [allomorph PR #8](https://github.com/eddacraft/allomorph/pull/8).
+[ADR-140](../decisions/140-converged-command-event-contract.md) is the proposed
+anvil-side ADR-B contract. The [A–J disposition](converged-app/05-decisions-risks-and-open-questions.md#current-decision-disposition--2026-09-05)
+reconciles existing authority; [CONV](../modules/converged-app-decisions.aps.md)
+tracks remaining work. Experimental wire compatibility and runtime adoption are
+not approved; the Gate E import rule below is unchanged. Human evaluation was
+deferred for allomorph internal incubation; this does not pass anvil UX/release
+gates or stabilise the experimental API.
 
 ## Verdict
 

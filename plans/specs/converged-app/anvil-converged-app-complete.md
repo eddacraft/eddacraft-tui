@@ -1,5 +1,20 @@
 # APS and anvil Converged Application — Complete Planning Document
 
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Archive | Historical | CONV | Archived | Reviewed 2026-09-05 against ADR-140 and the A–J reconciliation |
+
+| Upstream | Downstream |
+| --- | --- |
+| Accepted anvil ADRs; converged-app decision register | Historical reference only |
+
+This combined document is a historical planning snapshot. Its embedded decision
+inventory and illustrative contracts have not been maintained as a second authority.
+Use the [maintained pack](README.md), [current A–J disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition--2026-09-05)
+and [ADR-140 proposal](../../decisions/140-converged-command-event-contract.md)
+for the September EXP-002 handoff. The snapshot does not establish runtime readiness.
+
+
 ## Status
 
 Draft product, requirements, and architecture pack for converging APS and anvil into a shared native, web, tray, CLI, and TUI application platform.

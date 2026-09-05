@@ -1,5 +1,21 @@
 # Domain, Command, Event, and Projection Model
 
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Spec | Advisory | CONV | Proposed | Reviewed 2026-09-05 against ADR-140 and the A–J reconciliation |
+
+| Upstream | Downstream |
+| --- | --- |
+| Accepted anvil ADRs; converged-app decision register | CONV implementation |
+
+The illustrative types below describe domain intent, not an accepted wire schema.
+[ADR-140](../../decisions/140-converged-command-event-contract.md) proposes the
+production command/event semantics; the [decision disposition](05-decisions-risks-and-open-questions.md#current-decision-disposition--2026-09-05)
+identifies existing authority. In particular, actor/source fields are host-established,
+not caller-granted authority; retriable mutations need durable idempotency, and
+ADR-035/116 retain evidence-pipe and identity ownership. CONV-002 owns exact DTOs.
+
+
 ## Purpose
 
 This document proposes the app-layer domain model and interaction contracts for a converged APS and anvil product.

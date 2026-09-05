@@ -1,10 +1,49 @@
 # Decisions, Risks, and Open Questions
 
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Spec | Authoritative | CONV | Live | Reviewed 2026-09-05 against anvil main 4a8ad6e3 and allomorph PR #8 |
+
+| Upstream | Downstream |
+| --- | --- |
+| Existing accepted anvil ADRs; EXP-002 evidence | ADR-140; CONV; converged-app implementation |
+
+
 ## Purpose
 
 This document captures the decisions that should be made deliberately before or during the APS/anvil app-layer convergence. It also records the principal risks and the questions that should remain open until evidence exists.
 
 ---
+
+## Current decision disposition — 2026-09-05
+
+This is the owning A–J reconciliation, based on anvil main
+`4a8ad6e318f87116d947a87a643f5bb922a50e41` and
+[allomorph EXP-002](https://github.com/eddacraft/allomorph/pull/8).
+Existing accepted ADRs remain authoritative. The candidates below are not
+automatically accepted or implemented because an experiment passed.
+
+| Candidate | Disposition | Remaining work |
+| --- | --- | --- |
+| A: APS source/public mirror | Still requires its own source-authority ADR. ADR-018/020/047 are product/versioning/mirror precedents, not APS migration approval. | CONV-004: import/export, contributions, public dependency allow-list and standalone parity |
+| B: Command/event contracts | [ADR-140](../../decisions/140-converged-command-event-contract.md) proposes the anvil-side contract using EXP-002 evidence. Arena IDs, process-local approvals, retry-never and experimental exit numbers are not adopted. | CONV-002/003: exact schemas and real production fixtures; no wire API is stabilised by this document |
+| C: Daemon transport | Reuse ADR-036 execution-scope discovery/locality and current authenticated local transport. "Local application centre" is not a universal singleton. | CONV-003: app subscription/recovery contract; CONV-006: browser transport, origin/auth and web scope if selected |
+| D: Planning authority/mutation | Markdown remains the directional source; no second board database. Existing file safety is reused. | CONV-005: deterministic patching, content hashes, external edits and branch-switch conflicts |
+| E: Workspace isolation/ownership | Reuse ADR-036/116 repository and local worktree identity; logical workspace is distinct. | CONV-005: default isolation, ownership, shared-checkout rules and cleanup/history |
+| F: Run/session lifecycle | EXP-002 supports scoped cancellation in one process only. Daemon discovery/lifecycle already exists; client-independent durable application work is additional. | CONV-003: crash recovery, reconnect, cancellation uncertainty, retention and backpressure |
+| G: Native framework | Remains evidence-driven; allomorph terminal projections do not choose Dioxus or Tauri/React. | CONV-006: difficult-component/platform/packaging spike |
+| H: Capability/feature model | Reuse existing feature catalogue/flags, ADR-092 activation and ADR-132 settings authority. Flags are not permissions; MCP stays optional. | CONV-007: app action/scope/entitlement composition and default-off exposure |
+| I: Evidence storage/retention | ADR-035 and ADR-116 already own pipe allocation, governance retention, quotas and prune. Do not reopen those as an empty choice. | CONV-003/007: operational metadata and large-artefact placement/access; preserve governance rules |
+| J: Native/web shared UI | Framework-neutral contracts are the baseline; component sharing remains unselected. | CONV-006: choose sharing model from spike evidence |
+
+[CONV](../../modules/converged-app-decisions.aps.md) owns execution status and
+acceptance criteria. The detailed candidate questions below remain the scope
+inventory; this disposition identifies which have existing authority.
+
+The first useful sequence is CONV-002 contract proof, CONV-003 durable boundary
+proof and CONV-005 planning/workspace proof. APS source movement requires CONV-004;
+framework research can proceed independently, using the typed fixture when ready.
+Neither EXP-003 nor adoption of the allomorph runtime blocks this work.
 
 ## 1. Strong current direction
 
