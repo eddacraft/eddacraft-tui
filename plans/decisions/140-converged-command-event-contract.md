@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted 2026-09-05 (operator: @joshuaboys).
+Accepted 2026-09-05 (operator)
 Approval: "approve ADR-140 and continue".
 
 Design contract for incremental implementation; no new runtime,
