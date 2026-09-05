@@ -6,9 +6,9 @@
 
 #![cfg(unix)]
 
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
+use std::time::{Duration, Instant};
 
 use anvil_intercept::save_time::SymbolParser;
 use anvil_intercept::snapshot_io::base_store::{
@@ -24,19 +24,15 @@ use serde::Serialize;
 
 use crate::intercept_symbol_parser::KernelSymbolParser;
 
-/// Upper bound on a single committed blob the producer will materialise, in
-/// bytes. The `git cat-file --batch` header carries the object size before the
-/// body, so an over-cap blob is discarded at parse time and never copied into
-/// the returned per-blob buffer. Note the bound this does — and does not —
-/// give: `wait_with_output()` still buffers the child's **whole batch stdout**
-/// (including any over-cap body) once, so the guard caps the per-blob copy,
-/// not the subprocess's peak transcript; a streaming two-phase
-/// (`cat-file -s` then fetch) read is a graduation-gate follow-up if
-/// whole-tree transcripts prove heavy on large monorepos. An over-cap blob is
-/// treated as "skipped" (no symbols), never an error: the base stays a
-/// best-effort, non-fatal artefact. 8 MiB comfortably clears any real source
-/// file.
+/// Size metadata is checked before content is requested. Oversized objects
+/// are skipped without materialising their bodies. Retained bodies total at
+/// most 64 MiB; the bounded wire transcript adds at most 4 MiB of framing.
+/// Parsing temporarily holds both the bounded transcript and bounded body copies.
 const MAX_BLOB_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_BATCH_BODY_BYTES: usize = 64 * 1024 * 1024;
+const MAX_BATCH_METADATA_BYTES: usize = 4 * 1024 * 1024;
+const MAX_BATCH_OBJECTS: usize = MAX_BATCH_METADATA_BYTES / 128;
+const BLOB_BATCH_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Deterministic one-line summary of a produced base graph (GBASE-001).
 ///
@@ -324,70 +320,95 @@ fn enumerate_tree(repo_root: &Path, sha: &str) -> Result<Vec<TreeBlob>, BaseGrap
     Ok(blobs)
 }
 
-/// Batch-read committed blob bodies by object id through a single
-/// `git cat-file --batch` child process (the `l4_engine.rs` pattern: a writer
-/// thread feeds oids while `wait_with_output()` concurrently drains the
-/// child's stdout, so a full stdout pipe cannot deadlock a full stdin pipe;
-/// the length-prefixed bodies are parsed from the captured transcript after
-/// the child exits — see the [`MAX_BLOB_BYTES`] note on what that buffers).
-///
-/// Returns a vec aligned with `oids`. A slot is `None` when the object is
-/// missing, is not a blob, or exceeds [`MAX_BLOB_BYTES`] (the size guard, read
-/// from the batch header before the body is buffered). A batch-level framing or
-/// I/O failure is a typed [`BaseGraphError::Git`].
+/// Probe immutable object sizes, then request only content within the per-blob
+/// and aggregate budgets. Slots remain aligned, including skipped neighbours.
 fn read_blobs_batch(
     repo_root: &Path,
     oids: &[&str],
 ) -> Result<Vec<Option<Vec<u8>>>, BaseGraphError> {
+    read_blobs_batch_with_budget(repo_root, oids, MAX_BATCH_BODY_BYTES)
+}
+
+fn batch_error(detail: &str) -> BaseGraphError {
+    BaseGraphError::Git { op: "cat-file batch".to_string(), detail: detail.to_string() }
+}
+
+fn read_blobs_batch_with_budget(
+    repo_root: &Path,
+    oids: &[&str],
+    budget: usize,
+) -> Result<Vec<Option<Vec<u8>>>, BaseGraphError> {
     if oids.is_empty() {
         return Ok(Vec::new());
     }
-
-    let mut child = Command::new("git")
-        .arg("-C")
-        .arg(repo_root)
-        .args(["cat-file", "--batch"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| BaseGraphError::Git {
-            op: "cat-file --batch".to_string(),
-            detail: format!("spawn failed: {e}"),
-        })?;
-
-    let queries: Vec<String> = oids.iter().map(|oid| format!("{oid}\n")).collect();
-    let expected = queries.len();
-    let mut stdin = child.stdin.take().expect("piped stdin");
-    let writer = std::thread::spawn(move || {
-        for q in &queries {
-            if stdin.write_all(q.as_bytes()).is_err() {
-                break;
-            }
-        }
-        drop(stdin);
-    });
-
-    let output_res = child.wait_with_output();
-    let _ = writer.join();
-    let output = output_res.map_err(|e| BaseGraphError::Git {
-        op: "cat-file --batch".to_string(),
-        detail: format!("wait failed: {e}"),
-    })?;
-    if !output.status.success() {
-        return Err(BaseGraphError::Git {
-            op: "cat-file --batch".to_string(),
-            detail: String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        });
+    if oids.len() > MAX_BATCH_OBJECTS || oids.iter().any(|oid| !is_hex_object_name(oid)) {
+        return Err(batch_error("object query count or identity outside bounds"));
     }
-
-    parse_batch_stdout(&output.stdout, expected).ok_or_else(|| BaseGraphError::Git {
-        op: "cat-file --batch (parse)".to_string(),
-        detail: "unparseable --batch stream framing".to_string(),
-    })
+    let deadline = Instant::now() + BLOB_BATCH_TIMEOUT;
+    let run = |mode: &str, input: Vec<u8>, cap| {
+        let mut command = Command::new("git");
+        command.arg("-C").arg(repo_root).args(["cat-file", mode]);
+        let output = crate::bounded_process::output_until(command, input, deadline, cap, 64 * 1024)
+            .map_err(|_| batch_error("subprocess failed or exceeded I/O bounds"))?;
+        if !output.status.success() {
+            return Err(batch_error("subprocess exited unsuccessfully"));
+        }
+        Ok(output.stdout)
+    };
+    let queries = oids.iter().map(|oid| format!("{oid}\n")).collect::<String>().into_bytes();
+    let metadata = run("--batch-check", queries, MAX_BATCH_METADATA_BYTES)?;
+    let selected = select_blob_queries(&metadata, oids, budget)
+        .ok_or_else(|| batch_error("invalid size metadata"))?;
+    let skipped = oids.len() - selected.len();
+    if skipped != 0 {
+        tracing::debug!(skipped, "Base graph skipped missing, non-blob or over-budget objects");
+    }
+    let mut bodies = vec![None; oids.len()];
+    if selected.is_empty() {
+        return Ok(bodies);
+    }
+    let queries = selected.iter().map(|(index, _)| format!("{}\n", oids[*index]))
+        .collect::<String>().into_bytes();
+    let total: usize = selected.iter().map(|(_, size)| size).sum();
+    let transcript = run("--batch", queries, total + MAX_BATCH_METADATA_BYTES)?;
+    let selected_oids: Vec<&str> = selected.iter().map(|(index, _)| oids[*index]).collect();
+    let parsed = parse_batch_stdout(&transcript, &selected_oids)
+        .ok_or_else(|| batch_error("invalid content framing"))?;
+    for ((index, expected_size), body) in selected.into_iter().zip(parsed) {
+        if body.as_ref().map(Vec::len) != Some(expected_size) {
+            return Err(batch_error("content disagrees with immutable size metadata"));
+        }
+        bodies[index] = body;
+    }
+    Ok(bodies)
 }
 
-/// Parse the streaming `git cat-file --batch` stdout into `expected` entries.
+/// Size headers are bounded before this parser is called. Selection follows
+/// deterministic caller order, skipping an object that cannot fit while still
+/// admitting a later small object. No object body is present in this phase.
+fn select_blob_queries(metadata: &[u8], oids: &[&str], budget: usize) -> Option<Vec<(usize, usize)>> {
+    let text = std::str::from_utf8(metadata).ok()?;
+    if !text.ends_with('\n') { return None; }
+    let mut lines = text.lines();
+    let mut remaining = budget.min(MAX_BATCH_BODY_BYTES);
+    let mut selected = Vec::new();
+    for (index, oid) in oids.iter().enumerate() {
+        let fields: Vec<_> = lines.next()?.split(' ').collect();
+        if !fields.first()?.eq_ignore_ascii_case(oid) { return None; }
+        if fields.len() == 2 && matches!(fields[1], "missing" | "ambiguous") { continue; }
+        if fields.len() != 3 { return None; }
+        let size = fields[2].parse::<u64>().ok()?;
+        if fields[1] == "blob" && size <= MAX_BLOB_BYTES && size <= remaining as u64 {
+            let size = usize::try_from(size).ok()?;
+            selected.push((index, size));
+            remaining -= size;
+        }
+    }
+    if lines.next().is_some() { return None; }
+    Some(selected)
+}
+
+/// Parse bounded `git cat-file --batch` output aligned with the requested OIDs.
 ///
 /// Adapted from `l4_engine::parse_batch_stdout`. Each record is either a hit
 /// header `<oid> SP <type> SP <size> LF <size bytes> LF` or a miss `<oid> SP
@@ -396,14 +417,17 @@ fn read_blobs_batch(
 /// keep the cursor aligned). Any framing error returns `None` for the whole
 /// batch — the caller degrades to a typed error rather than reading garbage as
 /// source bytes.
-fn parse_batch_stdout(stdout: &[u8], expected: usize) -> Option<Vec<Option<Vec<u8>>>> {
-    let mut out: Vec<Option<Vec<u8>>> = Vec::with_capacity(expected);
+fn parse_batch_stdout(stdout: &[u8], oids: &[&str]) -> Option<Vec<Option<Vec<u8>>>> {
+    let mut out: Vec<Option<Vec<u8>>> = Vec::with_capacity(oids.len());
     let mut cursor = 0usize;
-    while out.len() < expected {
+    while out.len() < oids.len() {
         let rel = stdout.get(cursor..)?.iter().position(|&b| b == b'\n')?;
         let header = &stdout[cursor..cursor + rel];
         cursor += rel + 1;
         let header_str = std::str::from_utf8(header).ok()?;
+        if !header_str.split(' ').next()?.eq_ignore_ascii_case(oids[out.len()]) {
+            return None;
+        }
         if header_str.ends_with(" missing") || header_str.ends_with(" ambiguous") {
             out.push(None);
             continue;
@@ -431,7 +455,7 @@ fn parse_batch_stdout(stdout: &[u8], expected: usize) -> Option<Vec<Option<Vec<u
         }
         cursor += 1;
     }
-    Some(out)
+    (cursor == stdout.len()).then_some(out)
 }
 
 /// A fully built base graph plus its deterministic summary (GBASE-002). The
@@ -687,6 +711,50 @@ pub fn build_and_persist_base(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn content_parser_rejects_malformed_or_mismatched_frames() {
+        for bytes in [
+            b"a blob 2\nx".as_slice(),
+            b"a blob 2\nxx", // no terminator
+            b"a blob 18446744073709551616\nx\n", // size overflow
+            b"a blob 1\nx\nb blob 1\ny\n", // trailing frame
+            b"b blob 1\nx\n", // wrong object, same body size
+        ] {
+            assert!(super::parse_batch_stdout(bytes, &["a"]).is_none());
+        }
+        assert_eq!(super::parse_batch_stdout(b"a blob 1\nx\n", &["a"]), Some(vec![Some(vec![b'x'])]));
+    }
+
+    #[test]
+    fn size_selection_skips_large_and_aggregate_overflow_but_keeps_neighbours() {
+        let oids = ["a", "b", "c", "d", "e"];
+        let metadata = format!("a blob {}\nb blob 7\nc blob 5\nd blob 3\ne missing\n", super::MAX_BLOB_BYTES + 1);
+        assert_eq!(super::select_blob_queries(metadata.as_bytes(), &oids, 10), Some(vec![(1, 7), (3, 3)]));
+        assert!(super::select_blob_queries(b"a blob nope\n", &["a"], 10).is_none());
+        assert!(super::select_blob_queries(b"b blob 1\n", &["a"], 10).is_none());
+        assert!(super::select_blob_queries(b"a blob 1\nextra\n", &["a"], 10).is_none());
+    }
+
+    #[test]
+    fn real_batch_skips_oversized_and_aggregate_heavy_objects() {
+        let (_tmp, root) = init_repo();
+        write_file(&root, "a.ts", &vec![b'x'; (super::MAX_BLOB_BYTES + 1) as usize]);
+        write_file(&root, "b.ts", b"1234567");
+        write_file(&root, "c.ts", b"12345");
+        write_file(&root, "d.ts", b"ok");
+        git(&root, &["add", "."]);
+        git(&root, &["commit", "-q", "-m", "bounded blobs"]);
+        let objects: Vec<String> = ["a.ts", "b.ts", "c.ts", "d.ts"].iter().map(|path| {
+            String::from_utf8(git(&root, &["rev-parse", &format!("HEAD:{path}")]).stdout).unwrap().trim().to_string()
+        }).collect();
+        let refs: Vec<&str> = objects.iter().map(String::as_str).collect();
+        let bodies = super::read_blobs_batch_with_budget(&root, &refs, 10).unwrap();
+        assert!(bodies[0].is_none());
+        assert_eq!(bodies[1].as_deref(), Some(b"1234567".as_slice()));
+        assert!(bodies[2].is_none());
+        assert_eq!(bodies[3].as_deref(), Some(b"ok".as_slice()));
+    }
+
     use super::*;
     use std::path::PathBuf;
     use tempfile::TempDir;
@@ -970,7 +1038,7 @@ mod tests {
         stream.push(b'\n');
         stream.extend_from_slice(b"cafebabe blob 2\nok\n");
 
-        let parsed = parse_batch_stdout(&stream, 2).expect("framed correctly");
+        let parsed = parse_batch_stdout(&stream, &["deadbeef", "cafebabe"]).expect("framed correctly");
         assert_eq!(parsed.len(), 2);
         assert!(parsed[0].is_none(), "over-cap blob skipped");
         assert_eq!(parsed[1].as_deref(), Some(b"ok".as_ref()));

@@ -4,6 +4,7 @@ mod architecture_check;
 mod architecture_source;
 mod ast_followup;
 mod auth;
+mod bounded_process;
 mod capacity;
 mod commands;
 mod config_summary;

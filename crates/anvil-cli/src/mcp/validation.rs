@@ -402,7 +402,7 @@ fn request_daemon_diagnostics(
             _ => Err(DAEMON_FAILURE.into()),
         };
     }
-    let mut stream = std::os::unix::net::UnixStream::connect(socket_path).map_err(|err| {
+    let stream = std::os::unix::net::UnixStream::connect(socket_path).map_err(|err| {
         eprintln!("anvil-mcp: daemon validation connection failed: {err}");
         DaemonRequestError::Failure(DAEMON_FAILURE)
     })?;
@@ -410,18 +410,10 @@ fn request_daemon_diagnostics(
         eprintln!("anvil-mcp: daemon validation peer rejected: {err}");
         DaemonRequestError::Failure(DAEMON_FAILURE)
     })?;
-    stream
-        .set_read_timeout(Some(DAEMON_REQUEST_TIMEOUT))
-        .map_err(|err| {
-            eprintln!("anvil-mcp: daemon validation read-timeout setup failed: {err}");
-            DaemonRequestError::Failure(DAEMON_FAILURE)
-        })?;
-    stream
-        .set_write_timeout(Some(DAEMON_REQUEST_TIMEOUT))
-        .map_err(|err| {
-            eprintln!("anvil-mcp: daemon validation write-timeout setup failed: {err}");
-            DaemonRequestError::Failure(DAEMON_FAILURE)
-        })?;
+    let mut stream = DeadlineStream {
+        stream,
+        deadline: std::time::Instant::now() + DAEMON_REQUEST_TIMEOUT,
+    };
 
     let frame = json!({
         "jsonrpc": "2.0",
@@ -449,6 +441,45 @@ fn request_daemon_diagnostics(
     eprintln!("anvil-mcp: received daemon validation response");
 
     parse_scan_buffer_response(&response)
+}
+
+/// Each raw read/write receives only the remaining exchange budget. In
+/// particular, BufRead::read_until cannot renew the timeout when a peer keeps
+/// sending partial frames. Socket flush is unbuffered but still checks expiry.
+#[cfg(unix)]
+struct DeadlineStream {
+    stream: std::os::unix::net::UnixStream,
+    deadline: std::time::Instant,
+}
+
+#[cfg(unix)]
+impl DeadlineStream {
+    fn remaining(&self) -> std::io::Result<Duration> {
+        self.deadline.checked_duration_since(std::time::Instant::now())
+            .filter(|remaining| !remaining.is_zero())
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::TimedOut, "daemon exchange deadline exceeded"))
+    }
+}
+
+#[cfg(unix)]
+impl std::io::Read for DeadlineStream {
+    fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+        self.stream.set_read_timeout(Some(self.remaining()?))?;
+        self.stream.read(bytes)
+    }
+}
+
+#[cfg(unix)]
+impl Write for DeadlineStream {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.stream.set_write_timeout(Some(self.remaining()?))?;
+        self.stream.write(bytes)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.remaining()?;
+        self.stream.flush()
+    }
 }
 
 /// Parse and translate a daemon `scan_buffer` reply line into diagnostics, or a
@@ -658,6 +689,46 @@ pub(crate) fn sanitise_id_part(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    #[test]
+    fn slow_drip_response_cannot_renew_exchange_deadline() {
+        use std::io::Write;
+        use std::time::{Duration, Instant};
+        let (client, mut peer) = std::os::unix::net::UnixStream::pair().unwrap();
+        let started = Instant::now();
+        let writer = std::thread::spawn(move || {
+            for _ in 0..100 {
+                if peer.write_all(b" ").is_err() { break; }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        });
+        let mut reader = std::io::BufReader::new(super::DeadlineStream {
+            stream: client, deadline: started + Duration::from_millis(200),
+        });
+        assert!(super::read_capped_response_line(&mut reader).is_err());
+        assert!(started.elapsed() < Duration::from_millis(800));
+        drop(reader);
+        writer.join().unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn blocked_write_and_flush_share_the_deadline() {
+        use std::io::Write;
+        use std::time::{Duration, Instant};
+        let (client, _peer) = std::os::unix::net::UnixStream::pair().unwrap();
+        let started = Instant::now();
+        let mut stream = super::DeadlineStream {
+            stream: client, deadline: started + Duration::from_millis(100),
+        };
+        assert!(stream.write_all(&vec![0; 8 * 1024 * 1024]).is_err());
+        assert!(started.elapsed() < Duration::from_secs(1));
+        // Explicit expiry avoids depending on the OS timeout rounding.
+        stream.deadline = started;
+        assert!(stream.flush().is_err());
+        assert!(super::read_capped_response_line(&mut std::io::BufReader::new(stream)).is_err());
+    }
+
     use super::{
         DaemonStatus, DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
     };

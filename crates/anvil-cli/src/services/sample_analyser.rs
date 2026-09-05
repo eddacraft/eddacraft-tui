@@ -264,10 +264,9 @@ fn select_sample(
 /// when git itself never returns.
 const GIT_RECENT_FILES_TIMEOUT: Duration = Duration::from_secs(3);
 
-/// Poll interval while waiting for the git subprocess to exit. Small
-/// enough that the timeout boundary is tight; large enough that we don't
-/// burn CPU spinning on `try_wait`.
-const GIT_RECENT_FILES_POLL_INTERVAL: Duration = Duration::from_millis(50);
+/// Retained subprocess output limits; failure uses the existing repo-walk fallback.
+const GIT_HISTORY_STDOUT_CAP: usize = 4 * 1024 * 1024;
+const GIT_HISTORY_STDERR_CAP: usize = 64 * 1024;
 
 /// Ask git for files touched in the last `days`. Returns `None` if the
 /// directory is not a git repo, git is unavailable, or the git subprocess
@@ -284,45 +283,19 @@ fn git_recent_files(
     // `--diff-filter=d` excludes deletions, so we don't try to scan files
     // git knows about but no longer exist on disk.
     let since = format!("--since={days}.days");
-    let mut child = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args([
-            "log",
-            &since,
-            "--name-only",
-            "--pretty=format:",
-            "--diff-filter=d",
-        ])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .ok()?;
-
-    let started = Instant::now();
-    let output = loop {
-        match child.try_wait() {
-            Ok(Some(_)) => match child.wait_with_output() {
-                Ok(output) => break output,
-                Err(_) => return None,
-            },
-            Ok(None) => {
-                if started.elapsed() >= GIT_RECENT_FILES_TIMEOUT {
-                    // Timeout: the git call is taking too long (NFS, stalled
-                    // remote, network filesystem). Terminate the child so we
-                    // do not leak a stuck subprocess, then fall through to
-                    // the walk-based sample so init still surfaces something.
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return None;
-                }
-                std::thread::sleep(GIT_RECENT_FILES_POLL_INTERVAL);
-            }
-            Err(_) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return None;
-            }
+    let deadline = Instant::now() + GIT_RECENT_FILES_TIMEOUT;
+    let mut command = Command::new("git");
+    command.arg("-C").arg(root).args([
+        "log", &since, "--name-only", "--pretty=format:", "--diff-filter=d",
+        "--no-ext-diff", "--no-textconv",
+    ]);
+    let output = match crate::bounded_process::output_until(
+        command, Vec::new(), deadline, GIT_HISTORY_STDOUT_CAP, GIT_HISTORY_STDERR_CAP,
+    ) {
+        Ok(output) => output,
+        Err(error) => {
+            tracing::debug!(reason = ?error.kind(), "Git history unavailable within I/O bounds; using repo walk");
+            return None;
         }
     };
 
@@ -419,6 +392,25 @@ const fn severity_rank(s: WarningSeverity) -> u8 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn recent_history_larger_than_a_pipe_buffer_still_supplies_sample() {
+        let dir = tempfile::tempdir().unwrap();
+        let run = |args: &[&str]| {
+            let output = std::process::Command::new("git").arg("-C").arg(dir.path()).args(args).output().unwrap();
+            assert!(output.status.success(), "git fixture failed");
+        };
+        run(&["init", "-q"]);
+        // Long names produce >128 KiB of log output with a single commit.
+        for i in 0..1200 {
+            std::fs::write(dir.path().join(format!("file_{i:04}_{}.ts", "x".repeat(120))), "export const x = 1;").unwrap();
+        }
+        run(&["add", "."]);
+        run(&["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "fixture"]);
+        let config = super::AntipatternCheckConfig::default();
+        let files = super::git_recent_files(dir.path(), 30, 50, &config).expect("history must not deadlock on a full pipe");
+        assert_eq!(files.len(), 50);
+    }
+
     use super::*;
     use std::fs;
 

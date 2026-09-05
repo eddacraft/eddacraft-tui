@@ -1,8 +1,8 @@
 # anvil CLI architecture
 
-| Type         | Authority | Owner          | Status | Freshness                                                                                                                                                                         |
-| ------------ | --------- | -------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-08-31 against CIB-385 through CIB-389 pack-12 honesty (workspace-root binding, GCTX re-warm skip, gate-history `skipped`); CLI topology and diagrams unchanged |
+| Type         | Authority | Owner          | Status | Freshness                                                                                           |
+| ------------ | --------- | -------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-05 against RIO-001/002 bounded I/O; component topology and diagrams unchanged |
 
 | Upstream                                                                                      | Downstream                                                                                              |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -185,3 +185,25 @@ keyboard, widget, lifecycle, and snapshot contracts belong to
 - The former activation, MCP-shim, and CLI-runner as-builts remain at their
   original central paths as compatibility and history records. Use
   `git log --follow -- <path>` to inspect their pre-migration detail.
+
+## Runtime I/O bounds
+
+MCP pre-write validation retains its peer checks and newline JSON-RPC contract.
+One monotonic two-second deadline covers writes, flush and response reads;
+partial responses cannot renew it. Transport failure remains fail-closed.
+
+The synchronous `bounded_process` helper uses the existing Tokio dependency on
+an isolated worker thread, so callers inside a runtime are also supported. It
+feeds stdin and drains both output streams concurrently under one deadline,
+then kills and reaps the child on timeout, I/O failure or output overflow.
+Git-history sampling allows three seconds, 4 MiB stdout and 64 KiB stderr,
+then falls back to a repository walk. Captured content is never logged.
+
+Base-graph loading probes immutable object sizes before fetching bodies. The
+8 MiB per-object cap is joined by a 64 MiB aggregate body budget, 4 MiB metadata
+cap and 32,768-object query cap. Over-budget objects are skipped in deterministic
+order, with later small objects admitted if space remains and skip counts
+reported at debug level. The size and content phases share a 30-second deadline.
+Malformed or over-limit subprocess output returns the existing non-fatal Git
+error so the caller can serve cold. These limits bound blob loading, not total
+parser or resident-graph memory.
