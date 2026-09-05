@@ -296,11 +296,11 @@ Signed with ES256 (ECDSA P-256) using `LICENSE_SIGNING_KEY` (PKCS#8 PEM).
 | ---------- | ------------------ | ------------------------------------ |
 | `sub`      | `beta_users.id`    | User UUID                            |
 | `email`    | `beta_users.email` | User email                           |
-| `identity` | Per-flow (caller)  | `email` or `github` — see below    |
+| `identity` | Per-flow (caller)  | `email` or `github` — see below      |
 | `org`      | Hardcoded          | `null`                               |
 | `plan`     | `beta_users.plan`  | Entitlement axis, e.g. `"beta"`      |
-| `tier`     | Mirrors `plan`     | Compat alias only — see G-02       |
-| `scopes`   | Active-token union | e.g. `["beta"]` — see below        |
+| `tier`     | Mirrors `plan`     | Compat alias only — see G-02         |
+| `scopes`   | Active-token union | e.g. `["beta"]` — see below          |
 | `seats`    | Hardcoded          | `1`                                  |
 | `rcAfter`  | Computed           | `iat + 7 days` (refresh-check-after) |
 | `iat`      | Auto               | Issued-at timestamp                  |
