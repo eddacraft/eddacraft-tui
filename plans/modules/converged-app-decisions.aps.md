@@ -115,7 +115,9 @@ numeric bounds and validation commands are made Ready.
 - **Expected Outcome:** Dioxus versus Tauri/React or constrained hybrid measured on
   terminals, diffs, virtual lists, accessibility, Windows/macOS/Linux tray behaviour
   and packaging. Record component/code cost and explicit go/no-go results.
-  Decide local-web release scope and browser transport/auth separately.
+  Reuse ADR-104's existing React/Vite/OpenAPI dashboard seam as the baseline.
+  Decide native component sharing and browser transport/auth/write expansion
+  separately; this work does not revoke the current read-only dashboard boundary.
 - **Validation:** Real interactive tasks and platform matrix, not static mock-ups;
   framework decision and shared-UI disposition recorded in ADRs.
 - **Dependencies:** CONV-001; typed fixture from CONV-002 for integration proof.

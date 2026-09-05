@@ -183,6 +183,16 @@ No serialised allomorph token is accepted as an anvil credential.
 - Standalone APS remains possible without proprietary runtime dependencies.
   Canonical source/public mirror changes require the separate ADR-A decision.
 
+### Existing browser dashboard
+
+[ADR-104](104-dashboard-host-server-module-boundary.md) already selects the
+React/Vite dashboard host, loopback Rust read-only server and OpenAPI-generated
+client seam. Preserve those choices for the existing dashboard. This ADR does
+not enable browser writes, authenticated remote control, real-time channels or
+replace that server. The native framework spike must evaluate reuse of existing
+components; a change to the dashboard stack needs an explicit ADR-104 amendment.
+CONV-006 owns the browser auth/transport/write design gate if that scope is selected.
+
 ### 7. Adoption and verification gates
 
 Adopt the semantics incrementally in one real, bounded anvil vertical slice,
