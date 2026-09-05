@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 316/404  |
+| CIB | —     | In Progress | 321/409  |
 
 ## Purpose
 
@@ -10495,7 +10495,9 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
 
 ### CIB-339: Path-shaped exemption must cover Git Bash `/c/` drives
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-16 via PR #3950
+- **Reconciliation (2026-09-05):** Git Bash drive-prefix exemption and regression
+  coverage are on main; named-provider detection remains unchanged.
 - **Priority:** P2 — same class as SEC-FP-1; live Windows Git Bash FP
 - **Intent:** `is_path_shaped_document_token` exempts a Windows drive only
   when it sees `X:` before the capture. Git Bash writes `/c/Users/...` (no
@@ -10519,7 +10521,10 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
 
 ### CIB-340: Entropy must not treat mixed-case tokens as code
 
-- **Status:** Ready
+- **Status:** Merged 2026-08-16 via PR #3950
+- **Reconciliation (2026-09-05):** Entropy uses the structural-code heuristic and
+  includes mixed-case-token regression coverage. The separate named-pattern gap remains
+  CIB-363.
 - **Priority:** P2 — false negative on the generic entropy fallback
 - **Intent:** `looks_like_code` camelCase / PascalCase filters
   (`^[a-z][a-z0-9]*[A-Z]`, `^[A-Z][a-z]+[A-Z]`) drop about half of random
@@ -12682,7 +12687,10 @@ reply.
 
 ### CIB-390: a check that has not reached a verdict must not read as a pass
 
-- **Status:** Ready by operator authorisation
+- **Status:** Merged 2026-09-03 via PR #4353
+- **Reconciliation (2026-09-05):** The markdownlint wrapper and required-status helper
+  are integrated; wrapper crash handling followed in #4364. Required-status conflict
+  classification and pagination remain CIB-404 and GH #4389.
 - **Priority:** P2 — no wrong verdict is shipped, but it manufactures false
   confidence in exactly the place the project has twice decided it will not
   tolerate it (CIB-278, CIB-316)
@@ -12777,7 +12785,10 @@ reply.
 
 ### CIB-391: run the suite under a hostile ambient profile so environment-dependent tests fail deterministically
 
-- **Status:** Ready by operator authorisation
+- **Status:** Merged 2026-09-03 via PR #4353
+- **Reconciliation (2026-09-05):** The hostile-ambient nightly profile is integrated.
+  This records delivery of the test vehicle, not a clean hostile-suite verdict. Daemon
+  cleanup and fail-closed workflow contract follow-up remain GH #4387.
 - **Priority:** P2 — three independent instances surfaced in a single day, each
   initially read as a random flake; the cost is wasted triage and eroded trust
   in a red suite
@@ -12838,7 +12849,10 @@ reply.
 
 ### CIB-392: the MCP pre-write gate flags anvil's own secret-detection fixture
 
-- **Status:** Ready by operator authorisation
+- **Status:** Merged 2026-09-03 via PR #4353
+- **Reconciliation (2026-09-05):** Pre-write secret interrupts are limited to changed
+  lines when a pre-image is available; new secrets and partial/preview scans remain
+  fail-closed.
 - **Priority:** P2 — the write gate crying wolf on the repository that ships
   it. No wrong write is permitted, but an agent that honours the gate is
   interrupted on a file it did not put a secret in

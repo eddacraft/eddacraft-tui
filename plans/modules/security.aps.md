@@ -11,7 +11,7 @@ See: plans/aps-rules.md
 | ------ | ----- | --------- |
 | SEC    | —     | In Progress |
 
-**Last reviewed:** 2026-09-04 — SEC-007 summary row reconciled to the section's Released/Shipped status (v0.7.0-beta, PR #1806); prior review 2026-07-30
+**Last reviewed:** 2026-09-05 — SEC-001..004 reconciled to #2656; SEC-013 narrowed to the residual after CIB-399 / #4366. SEC-007 release evidence unchanged.
 
 ## Purpose
 
@@ -73,10 +73,10 @@ security concerns.
 
 | Item | Title | Status |
 | ---- | ----- | ------ |
-| SEC-001 | Reconcile + document the dependency-audit posture | Ready |
-| SEC-002 | Secret rotation runbook | Ready |
-| SEC-003 | Vulnerability response + coordinated disclosure policy | Ready |
-| SEC-004 | Supply-chain policy doc (lockfile, registry, cargo-deny) | Ready |
+| SEC-001 | Reconcile + document the dependency-audit posture | Merged via #2656 |
+| SEC-002 | Secret rotation runbook | Merged via #2656 |
+| SEC-003 | Vulnerability response + coordinated disclosure policy | Merged via #2656 |
+| SEC-004 | Supply-chain policy doc (lockfile, registry, cargo-deny) | Merged via #2656 |
 | SEC-005 | HTTP security headers on `anvil-api` | Proposed — **needs APGOV boundary call** |
 | SEC-006 | SBOM generation for release artefacts | **Deferred to SCA** — do not duplicate |
 | SEC-007 | Atomic token-revocation hardening (GH #1672) | Released/Shipped via v0.7.0-beta |
@@ -84,6 +84,8 @@ security concerns.
 | SEC-009 | Private docs entitlement gate (GH #1673) | Done |
 | SEC-010 | Remediate brace-expansion denial-of-service alerts | Merged |
 | SEC-011 | Remediate repository-wide JavaScript dependency advisories | Merged |
+| SEC-012 | Authoritative, fail-closed entitlement claim | Draft |
+| SEC-013 | Shared licence-auth status enforcement and route audit | Draft — route fix merged via #4366 |
 | SEC-014 | Remediate the current Dependabot pull-request queue | Complete |
 
 > **Cross-module overlaps flagged 2026-05-28 (do not duplicate scope):**
@@ -105,9 +107,13 @@ security concerns.
 >   header config + policy lives in APGOV's API-surface governance or here in
 >   SEC. It is not fleshable to Ready until that boundary is set.
 
-### SEC-001: Reconcile and document the dependency-audit posture — Ready
+### SEC-001: Reconcile and document the dependency-audit posture — Merged
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-16 via PR #2656
+- **Reconciliation (2026-09-05):** Verified against the live security-posture
+  deliverables and Cargo Dependabot configuration. This is the live SEC item described
+  by #2656, not the colliding archived security-ci-pipeline ID. Historical scope below
+  describes the pre-implementation state; ongoing operational review is separate.
 - **Intent:** Make the already-shipped dependency-audit automation legible and
   close the one real Rust-update gap, rather than rebuilding it.
 - **Reality on `main` (2026-05-28):** the original bullet ("pnpm + cargo audit
@@ -140,9 +146,13 @@ security concerns.
   and the new posture doc passes `pnpm docs:check`.
 - **Confidence:** high
 
-### SEC-002: Secret rotation runbook — Ready
+### SEC-002: Secret rotation runbook — Merged
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-16 via PR #2656
+- **Reconciliation (2026-09-05):** Verified against the live security-posture
+  deliverables and Cargo Dependabot configuration. This is the live SEC item described
+  by #2656, not the colliding archived security-ci-pipeline ID. Historical scope below
+  describes the pre-implementation state; ongoing operational review is separate.
 - **Intent:** Document how each long-lived secret is rotated, on what cadence,
   and through which channel (Pulumi ESC), so rotation is a runbook step rather
   than tribal knowledge.
@@ -161,9 +171,13 @@ security concerns.
 - **Confidence:** medium — the secret inventory is grounded but the Pulumi ESC
   rotation path needs confirmation against the live infra.
 
-### SEC-003: Vulnerability response and coordinated disclosure policy — Ready
+### SEC-003: Vulnerability response and coordinated disclosure policy — Merged
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-16 via PR #2656
+- **Reconciliation (2026-09-05):** Verified against the live security-posture
+  deliverables and Cargo Dependabot configuration. This is the live SEC item described
+  by #2656, not the colliding archived security-ci-pipeline ID. Historical scope below
+  describes the pre-implementation state; ongoing operational review is separate.
 - **Intent:** Define how externally-reported and internally-found
   vulnerabilities are received, triaged, and patched, and publish a disclosure
   contact — the root policy file does not exist today (`apps/anvil-api/` has a
@@ -182,9 +196,13 @@ security concerns.
   review that the SLA table maps severity → response time.
 - **Confidence:** high
 
-### SEC-004: Supply-chain policy documentation — Ready
+### SEC-004: Supply-chain policy documentation — Merged
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-16 via PR #2656
+- **Reconciliation (2026-09-05):** Verified against the live security-posture
+  deliverables and Cargo Dependabot configuration. This is the live SEC item described
+  by #2656, not the colliding archived security-ci-pipeline ID. Historical scope below
+  describes the pre-implementation state; ongoing operational review is separate.
 - **Intent:** Write down the supply-chain policy that the `deny.toml` config
   already enforces, plus the lockfile/registry rules, so the enforcement is
   documented and changes to `deny.toml` have a referenced rationale.
@@ -653,19 +671,23 @@ passed) and `pnpm --filter @eddacraft/docs-shell typecheck` passed locally.
 
 ### SEC-013: Licence-authenticated routes must re-check account status
 
-- **Status:** Draft — filed 2026-08-19 from the auth/authz plan review; **not
-  self-authorised**.
+- **Status:** Draft — route fix merged; shared-helper and route-inventory residual remain.
+- **Reconciliation (2026-09-05):** CIB-399 / PR #4366 (2026-09-03) added the
+  active-account lookup and regression tests directly in account-activity.ts. The route
+  no longer accepts suspended accounts on signature alone. It did not introduce the
+  shared licence-auth helper or prove the route-wide inventory required below, so this
+  item is not marked Merged.
 - **Priority:** P2 revocation completeness — bounded by the licence TTL, not
   unbounded.
 - **Intent:** Close the SEC-007 residual at the route layer. `POST /auth/verify`
   re-reads the account and rejects a subject whose `status` is not `active`;
-  routes added after SEC-007 do not.
+  the remaining task is to centralise and audit that rule across licence-authenticated routes.
 - **Expected Outcome:** every licence-authenticated route resolves the account
   and rejects non-`active` subjects, rather than treating a valid signature as
   sufficient. `apps/anvil-api/src/routes/account-activity.ts` is the known
-  instance — it calls `verifyLicence` and proceeds on the claims alone, so a
-  suspended account's unexpired licence still writes activity for the remainder
-  of the licence TTL. The check belongs in shared licence-auth middleware so
+  instance whose route-local check was repaired by CIB-399 / #4366. The
+  remaining work is shared enforcement and a route inventory, not repeating
+  that repair. The check belongs in shared licence-auth middleware so
   the next route added inherits it instead of repeating the omission.
 - **Non-scope / do not:** do not build a `jti` deny-list, and do not shorten the
   licence TTL — both were considered and left out of SEC-007 for the same

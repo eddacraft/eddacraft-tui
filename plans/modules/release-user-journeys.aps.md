@@ -2,24 +2,11 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 9/13 |
+| JOURNEY | Conductor | Josh | high | In Progress | 10/13 |
 
-**Last reviewed:** 2026-09-01 — onboarding-entry intake: filed **JOURNEY-012**
-Ready (`anvil start` never points at `anvil welcome`, so a first-time user on
-the activation path is never told the tutorial exists) and **JOURNEY-013**
-Proposed (re-test activation navigation against the unreleased help bar before
-designing a splash). Both from the accepted
-[`onboarding entry design`](../specs/2026-09-01-onboarding-entry-design.md).
-Stored `N/M` left to reconciliation per ADR-053. Prior 2026-08-01 — **JOURNEY-011 Merged** via #3474; filed earlier (bare `anvil` daily ensure
-vs `anvil start` reconfigure; ADR-114 / ONSW). Prior 2026-07-30 note: the
-`v0.9.0-beta` cut chain (JOURNEY-001..006) remains complete and shipped (record:
-[`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md); closeout
-[#3305](https://github.com/eddacraft/anvil-001/issues/3305)). Post-cut:
-JOURNEY-007 Merged 2026-07-30 via PR #3441 (sandboxed autoplay with WOW-006);
-JOURNEY-008 Merged 2026-07-25 via PR #3408; JOURNEY-009 Proposed on hold;
-JOURNEY-010 Proposed blocked on DASHARCH/DASHOPS view waves; **JOURNEY-011
-Merged #3474**. Progress 9/13 counts Merged items only (JOURNEY-012 Ready and JOURNEY-013 Proposed raised the total). Created 2026-07-11 from the operator's release goal and the accepted
-[`release user journeys conductor design`](../specs/2026-07-11-release-user-journeys-conductor.md).
+**Last reviewed:** 2026-09-05 — JOURNEY-012 reconciled to merged PR #4317.
+JOURNEY-013 remains Proposed pending first-user observation of the current
+activation help bar; no release or completion claim is added for that work.
 
 ## Purpose
 
@@ -348,7 +335,11 @@ the operator explicitly promotes them into the cut.
 
 ### JOURNEY-012: `anvil start` points a new user at the tutorial
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-02 via PR #4317
+- **Reconciliation (2026-09-05):** The tutorial pointer is implemented on the
+  interactive activation path and suppressed after any tutorial path is completed.
+  JOURNEY-013 first-user observation remains Proposed; no splash is authorised by this
+  closeout.
 - **Intent:** the tutorial is offered on the post-install banner
   (`install.sh:167-168`, CIB-288) and second of three in first-run onboarding
   (`crates/anvil-tui/src/surfaces/onboarding/welcome.rs:23-37`), but **`anvil start` never mentions

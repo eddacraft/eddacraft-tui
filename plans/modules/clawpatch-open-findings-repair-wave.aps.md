@@ -7,7 +7,9 @@
 | -------- | ----- | -------- | ----------- | -------- |
 | CLAWOPEN | —     | P1       | In Progress | 9/12     |
 
-**Last reviewed:** 2026-08-30 — CLAWOPEN-002 and CLAWOPEN-010 merged via
+**Last reviewed:** 2026-09-05 — open PR #4361 reconciled: CLAWOPEN-007
+is In Progress; CLAWOPEN-011 is Blocked on hosted Neon provisioning.
+Prior: CLAWOPEN-002 and CLAWOPEN-010 merged via
 [#4219](https://github.com/eddacraft/anvil-001/pull/4219) (`6e728c0f7`).
 The bounded first delivery of seven clusters covering 14 of the 24 findings
 that remain after SETCON-012 merged via
@@ -15,8 +17,9 @@ that remain after SETCON-012 merged via
 The source set remains the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
 selected for this repair wave. CLAWOPEN-001, -002, -003, -004, -005, -006,
--008, -010, and -012 are Merged; CLAWOPEN-007, -009, and -011 retain explicit
-design checkpoints.
+-008, -010, and -012 are Merged. CLAWOPEN-007 is In Progress on #4361;
+CLAWOPEN-011 is Blocked on its hosted Neon proof; CLAWOPEN-009 remains
+Proposed behind its design checkpoint.
 
 > **Exclusive module.** The wave orchestrator is the only plan writer.
 > Parallel executors own isolated code/test workspaces and do not edit this
@@ -52,8 +55,10 @@ combined delivery without folding those settings repairs into this module.
 
 CLAWOPEN-002 and CLAWOPEN-010 later merged via
 [#4219](https://github.com/eddacraft/anvil-001/pull/4219). CLAWOPEN-007, -009,
-and -011 remain outside this delivery: five findings whose design gates remain
-authoritative. Their status is not a defect in the bounded candidate and the
+and -011 remain outside that merged delivery: five findings not yet closed.
+The later #4361 records approved designs for -007/-011 and carries their
+unmerged implementation; -009 still requires design. Their status is not a
+defect in the bounded candidate and the
 candidate must not claim that all 24 CLAWOPEN findings, or all 28 reviewed
 findings, are repaired.
 
@@ -190,7 +195,11 @@ findings, are repaired.
 
 ### CLAWOPEN-007: Make generated docs durable
 
-- **Status:** Proposed
+- **Status:** In Progress — implementation in open PR #4361
+- **Reconciliation (2026-09-05):** The implementing branch contains whole-batch rollback
+  and help-snapshot boundary work. PR #4361 is non-draft and mergeable at
+  7a650924dd738bacc26920e547792d15098f6d03, but remains unmerged. Its opening
+  description predates that state; no completion claim is made here.
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** Documentation generation cannot destroy the prior valid outputs.
@@ -202,8 +211,8 @@ findings, are repaired.
 - **Finding ID:** `fnd_sig-feat-library-49c5c2a728-0640_c321ad6f8f`
 - **Validation:** injected-failure generator tests; `pnpm docs:public:check`;
   `pnpm docs:catalogue:check`; `pnpm docs:check`
-- **Decision:** needs-design — define whole-batch rollback semantics and the
-  `--update-help-snapshots` boundary before implementation
+- **Decision:** the whole-batch rollback and `--update-help-snapshots`
+  boundary design is implemented on #4361; review and merge remain outstanding.
 
 ### CLAWOPEN-008: Make evaluation evidence non-vacuous
 
@@ -278,7 +287,12 @@ findings, are repaired.
 
 ### CLAWOPEN-011: Prove OTP attempt caps against PostgreSQL
 
-- **Status:** Proposed
+- **Status:** Blocked — hosted Neon provisioning is not configured
+- **Reconciliation (2026-09-05):** Implementation is in open PR #4361 at
+  7a650924dd738bacc26920e547792d15098f6d03. Hosted run 33893142132 failed before the
+  database proof: NEON_API_KEY is required (NEON_PROJECT_ID was also empty). Configure
+  the dedicated non-production harness and pass the real contention test before
+  closeout; green mock tests are insufficient.
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** The OTP attempt cap is verified against the real database
@@ -290,8 +304,8 @@ findings, are repaired.
 - **Finding ID:** `fnd_sig-feat-route-c6c95ee31e-9b089f_43160b2454`
 - **Validation:** the repository's PostgreSQL-backed API integration command;
   focused API tests and typecheck
-- **Decision:** needs-design — establish the disposable PostgreSQL harness
-  owned by TEXT before implementation
+- **Decision:** disposable PostgreSQL harness implementation is on #4361;
+  hosted provisioning and real-database verification remain outstanding.
 
 ### CLAWOPEN-012: Complete operational API documentation
 
@@ -320,8 +334,9 @@ findings, are repaired.
 2. Run CLAWOPEN-004 and -005 next; the API-auth work from -002/-003 must land
    before rebasing any overlapping API test helpers.
 3. Run Ready clusters CLAWOPEN-006, -010, and -012 by owning package.
-4. Pass CLAWOPEN-007, -009, and -011 through their design membranes before
-   implementation.
+4. Complete review and hosted Neon verification for CLAWOPEN-007/-011 on
+   #4361; its branch records design approval on 2026-08-31. Pass CLAWOPEN-009
+   through its remaining design checkpoint before implementation.
 5. For a bounded publication, re-run the acceptance matrix for every finding
    included in that candidate, independently verify the exact head, and obtain
    Council convergence. Keep excluded clusters and their counts explicit.
