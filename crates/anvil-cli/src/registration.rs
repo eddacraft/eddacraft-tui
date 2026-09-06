@@ -865,20 +865,59 @@ pub(crate) fn register_live_mcp_session(
             );
             true
         }
-        // A re-register of the same id is an idempotent success: the
-        // daemon heartbeats the existing owner.
-        Err(err) if err.is_session_already_registered() || err.is_worktree_already_owned() => {
-            heartbeat_live_mcp_session(session_id)
-        }
-        Err(err) => {
-            tracing::debug!(
-                worktree = %canonical.display(),
-                client = client_label,
-                error = %err,
-                "mcp: live client session registration unavailable",
-            );
-            false
-        }
+        Err(err) => match classify_live_registration_refusal(&err) {
+            // Our own id is already registered — a re-register from this
+            // same process. Heartbeating it refreshes the record we own.
+            LiveRegistrationRefusal::OwnSessionExists => heartbeat_live_mcp_session(session_id),
+            // A record with this exact tag exists under a *different*
+            // session id. Unlike activation — whose id is derived
+            // deterministically from the worktree path, so the "existing
+            // owner" is always the same id — an MCP session id carries
+            // this process's pid, so the owner the daemon names is not
+            // us. Heartbeating our own unregistered id would fail
+            // silently while we reported success, and adopting theirs
+            // would let our exit unregister another process's evidence.
+            // Decline instead: their live record already attests this
+            // client.
+            LiveRegistrationRefusal::OwnedByAnotherSession => {
+                tracing::debug!(
+                    worktree = %canonical.display(),
+                    client = client_label,
+                    "mcp: an equally-tagged live session already attests this client; not duplicating it",
+                );
+                false
+            }
+            LiveRegistrationRefusal::Unavailable => {
+                tracing::debug!(
+                    worktree = %canonical.display(),
+                    client = client_label,
+                    error = %err,
+                    "mcp: live client session registration unavailable",
+                );
+                false
+            }
+        },
+    }
+}
+
+/// How a refused live-session registration should be handled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LiveRegistrationRefusal {
+    /// The daemon already holds *this* session id.
+    OwnSessionExists,
+    /// The daemon holds an equally-tagged session under another id.
+    OwnedByAnotherSession,
+    /// Daemon unreachable, fenced, capped, or any other refusal.
+    Unavailable,
+}
+
+fn classify_live_registration_refusal(err: &DaemonRegistrationError) -> LiveRegistrationRefusal {
+    if err.is_session_already_registered() {
+        LiveRegistrationRefusal::OwnSessionExists
+    } else if err.is_worktree_already_owned() {
+        LiveRegistrationRefusal::OwnedByAnotherSession
+    } else {
+        LiveRegistrationRefusal::Unavailable
     }
 }
 
@@ -928,6 +967,44 @@ mod tests {
             agent_tag: Some(activation_agent_tag()),
             daemon_issued_tag: None,
         }
+    }
+
+    /// JREL-002 (Copilot review on #4416): the two "already registered"
+    /// refusals are not interchangeable for a live MCP session.
+    ///
+    /// Activation derives its session id deterministically from the
+    /// worktree path, so `worktree already owned` there always names the
+    /// same id and heartbeating our own id is correct. An MCP session id
+    /// carries this process's pid, so the same refusal names a *different*
+    /// process. Heartbeating our own unregistered id would fail silently
+    /// while registration reported success, and adopting theirs would let
+    /// our exit unregister another process's evidence.
+    #[test]
+    fn live_registration_refusals_distinguish_our_session_from_another_owner() {
+        let ours = DaemonRegistrationError::JsonRpc {
+            code: None,
+            message: format!("{SESSION_ALREADY_REGISTERED_MARKER}: sess_mcp_claude_code_1_2"),
+        };
+        assert_eq!(
+            classify_live_registration_refusal(&ours),
+            LiveRegistrationRefusal::OwnSessionExists,
+        );
+
+        let theirs = DaemonRegistrationError::JsonRpc {
+            code: None,
+            message: format!("{WORKTREE_ALREADY_OWNED_MARKER} by session \"sess_other\""),
+        };
+        assert_eq!(
+            classify_live_registration_refusal(&theirs),
+            LiveRegistrationRefusal::OwnedByAnotherSession,
+            "an equally-tagged session under another id must not be claimed as ours",
+        );
+
+        let down = DaemonRegistrationError::DaemonUnavailable("not running".into());
+        assert_eq!(
+            classify_live_registration_refusal(&down),
+            LiveRegistrationRefusal::Unavailable,
+        );
     }
 
     #[test]
