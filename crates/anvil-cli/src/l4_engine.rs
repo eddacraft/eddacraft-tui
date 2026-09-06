@@ -1672,10 +1672,12 @@ mod tests {
     /// would pay 200× `git show` spawns (~5–15 ms each) and burn most
     /// of the budget before any rule fired. With `git cat-file --batch`
     /// the engine pays one git process per `validate_commit` call.
-    /// 1.0 s is the threshold — comfortably under 2 s but far above
-    /// the batch path's actual cost, so the test is not flake-prone
-    /// on contended CI hardware yet a regression that drops the batch
-    /// helper (re-introducing per-file spawns) trips it cleanly.
+    /// 1.5 s is the threshold — still under 2 s and far above the
+    /// batch path's isolated cost — so a regression that drops the
+    /// batch helper (re-introducing per-file spawns, ~1–3 s) trips
+    /// it. The previous 1.0 s floor flaked at 1.109 s under parallel
+    /// `cargo nextest run --workspace` (PR #4415, run 34052857906)
+    /// with no `l4_engine` change.
     #[test]
     fn validate_commit_handles_200_file_commit_under_budget() {
         use std::time::{Duration, Instant};
@@ -1719,8 +1721,8 @@ mod tests {
             "expected Allow for 200 clean files, got {verdict:?}",
         );
         assert!(
-            elapsed < Duration::from_secs(1),
-            "200-file validation took {elapsed:?}, expected < 1.0 s; \
+            elapsed < Duration::from_millis(1500),
+            "200-file validation took {elapsed:?}, expected < 1.5 s; \
              regression likely re-introduces per-file git spawns",
         );
     }
