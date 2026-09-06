@@ -62,19 +62,14 @@ export function parseGitNameStatusZ(stdout) {
   return [...new Set(paths)];
 }
 
-export async function collectGitDiffPaths({
-  cwd,
-  extraArgs = [],
-  execute = execFileAsync,
-} = {}) {
+export async function collectGitDiffPaths({ cwd, extraArgs = [], execute = execFileAsync } = {}) {
   let result;
   try {
     result = await execute('git', [...GIT_DIFF_PATH_ARGS, ...extraArgs], { cwd });
   } catch (error) {
-    throw new Error(
-      `git name-status collector failed: ${error?.message || String(error)}`,
-      { cause: error }
-    );
+    throw new Error(`git name-status collector failed: ${error?.message || String(error)}`, {
+      cause: error,
+    });
   }
 
   const stdout = typeof result?.stdout === 'string' ? result.stdout : '';

@@ -541,10 +541,7 @@ const infraOwnerDocument = {
 };
 
 test('modifying or deleting a declared infra upstream fails when the owner is untouched', async () => {
-  for (const changedPaths of [
-    ['infra/src/components/vercel-app.ts'],
-    ['infra/src/vercel.ts'],
-  ]) {
+  for (const changedPaths of [['infra/src/components/vercel-app.ts'], ['infra/src/vercel.ts']]) {
     assert.deepEqual(
       classifyDiagramImpact({
         documents: [infraOwnerDocument],
@@ -580,7 +577,9 @@ test('modifying or deleting a declared infra upstream fails when the owner is un
 
 test('live docs-delivery.md retains repository-rooted infra upstreams', async () => {
   const documents = await discoverDiagramDocuments({ root: process.cwd() });
-  const owner = documents.find((document) => document.path === 'docs/architecture/docs-delivery.md');
+  const owner = documents.find(
+    (document) => document.path === 'docs/architecture/docs-delivery.md'
+  );
   assert.ok(owner, 'docs/architecture/docs-delivery.md must remain a live Mermaid owner');
   assert.ok(
     owner.upstreams.includes('infra/src/components/vercel-app.ts'),
@@ -776,11 +775,9 @@ flowchart LR
     { cwd: root }
   );
   const base = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
-  await execFileAsync(
-    'git',
-    ['mv', 'crates/example/src/lib.rs', 'crates/example/src/renamed.rs'],
-    { cwd: root }
-  );
+  await execFileAsync('git', ['mv', 'crates/example/src/lib.rs', 'crates/example/src/renamed.rs'], {
+    cwd: root,
+  });
   await execFileAsync('git', ['add', '-A'], { cwd: root });
   await execFileAsync(
     'git',

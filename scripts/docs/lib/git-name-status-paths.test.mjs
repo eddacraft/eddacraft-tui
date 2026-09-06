@@ -6,10 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { promisify } from 'node:util';
 
-import {
-  collectGitDiffPaths,
-  parseGitNameStatusZ,
-} from './git-name-status-paths.mjs';
+import { collectGitDiffPaths, parseGitNameStatusZ } from './git-name-status-paths.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -32,7 +29,10 @@ test('parses add, modify, delete, copy, and rename endpoints from NUL status rec
 
 test('fails closed on unknown or truncated name-status records', () => {
   assert.throws(() => parseGitNameStatusZ(['U', 'unmerged.ts', ''].join('\0')), /unrecognised/u);
-  assert.throws(() => parseGitNameStatusZ(['R100', 'only-source.ts', ''].join('\0')), /incomplete/u);
+  assert.throws(
+    () => parseGitNameStatusZ(['R100', 'only-source.ts', ''].join('\0')),
+    /incomplete/u
+  );
   assert.throws(() => parseGitNameStatusZ(['A', ''].join('\0')), /incomplete/u);
   assert.throws(() => parseGitNameStatusZ(['X99', 'mystery.ts', ''].join('\0')), /unrecognised/u);
 });
@@ -66,11 +66,9 @@ test('the real git collector retains both rename endpoints and ordinary ACDM pat
   await commit('base');
   const base = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
 
-  await execFileAsync(
-    'git',
-    ['mv', 'crates/example/src/lib.rs', 'crates/example/src/renamed.rs'],
-    { cwd: root }
-  );
+  await execFileAsync('git', ['mv', 'crates/example/src/lib.rs', 'crates/example/src/renamed.rs'], {
+    cwd: root,
+  });
   await writeFile(join(root, 'added.ts'), 'export const added = true;\n');
   await writeFile(join(root, 'kept.ts'), 'export const kept = false;\n');
   await commit('rename plus add and modify');
