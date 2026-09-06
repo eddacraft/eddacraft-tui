@@ -2,6 +2,7 @@ pub mod client_session;
 pub mod enforcement;
 pub mod gctx_client;
 pub mod policy_prewrite;
+pub mod prewrite_observation;
 pub mod protocol;
 pub mod reexec;
 pub mod resources;

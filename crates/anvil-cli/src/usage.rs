@@ -17,7 +17,7 @@ use anvil_intercept::kindling_observation::{
     ConstraintAppliedObservation, DEFAULT_SAVE_TIME_PASS_CAPACITY, DEFAULT_SAVE_TIME_PASS_WINDOW,
     FalsePositiveReportContext, FalsePositiveReportedObservation, FlagSetEntry,
     GateEvaluatedObservation, KindlingObservationSink, KindlingSinkError,
-    NonBlockingObservationSink, SAVE_TIME_GATE_ID, SaveTimeObservationEmitter,
+    NonBlockingObservationSink, PREWRITE_GATE_ID, SAVE_TIME_GATE_ID, SaveTimeObservationEmitter,
     from_command_invocation, from_fp_report,
 };
 use anvil_intercept::rate_window::RateWindow;
@@ -1061,13 +1061,14 @@ fn list_false_positive_reports_in(state_dir: &Path) -> Result<Vec<FalsePositiveR
 /// the CLI / USAGE-004 producers write, with the same private-dir +
 /// symlink-refusal + `0600` + retention posture.
 ///
-/// `try_emit` persists a `gate_evaluated` row ONLY when its `gate_id`
-/// equals [`SAVE_TIME_GATE_ID`] (`save-time`); rows from other gates
-/// (mid-edit, audit-chain) are silently ignored so this sink never
-/// scoops up rows from surfaces DPO does not own. `command.invoked` rows
-/// are NOT consumed here (the daemon `command.invoked` producer routes them
-/// through `KindlingDaemonSink` since KDS-005) so a sink shared between both
-/// producers does not double-write usage rows.
+/// `try_emit` persists a `gate_evaluated` row when its `gate_id` is
+/// [`SAVE_TIME_GATE_ID`] (`save-time`) or [`PREWRITE_GATE_ID`]
+/// (`pre-write`); rows from other gates (mid-edit, audit-chain) are
+/// silently ignored so this sink never scoops up rows from surfaces DPO
+/// does not own. `command.invoked` rows are NOT consumed here (the daemon
+/// `command.invoked` producer routes them through `KindlingDaemonSink`
+/// since KDS-005) so a sink shared between both producers does not
+/// double-write usage rows.
 ///
 /// A write failure is surfaced as [`KindlingSinkError::Unavailable`];
 /// behind the [`NonBlockingObservationSink`] decorator it is logged on
@@ -1084,10 +1085,10 @@ struct DaemonObservationSink {
 
 impl KindlingObservationSink for DaemonObservationSink {
     fn try_emit(&self, observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError> {
-        // Only the save-time gate is DPO's to persist here; ignore every
-        // other gate_id so mid-edit / audit rows are never silently
-        // grabbed onto the usage sidecar.
-        if observation.gate_id != SAVE_TIME_GATE_ID {
+        // DPO owns save-time and MCP pre-write rows on this sidecar;
+        // ignore every other gate_id so mid-edit / audit rows are never
+        // silently grabbed onto the usage sidecar.
+        if observation.gate_id != SAVE_TIME_GATE_ID && observation.gate_id != PREWRITE_GATE_ID {
             return Ok(());
         }
         append_gate_evaluated_to(&self.path, &observation)
@@ -1355,6 +1356,20 @@ pub fn daemon_observation_producers() -> (
     ));
 
     (Some(emitter), Some(shared_sink), include_paths)
+}
+
+/// DPO-007: persist a selected `gate_evaluated` row from the MCP process.
+/// Best-effort: opt-out and path errors are silent and never change the
+/// validation verdict.
+pub(crate) fn emit_selected_gate_evaluated(observation: GateEvaluatedObservation) {
+    if usage_collection_disabled() {
+        return;
+    }
+    let Ok(path) = default_usage_log_path() else {
+        return;
+    };
+    let sink = DaemonObservationSink { path };
+    let _ = sink.try_emit(observation);
 }
 
 /// DPO-001: bound on the shared non-blocking observation channel. Past
@@ -2278,6 +2293,22 @@ mod tests {
         let parsed: GateEvaluatedObservation = serde_json::from_str(lines[0]).expect("valid row");
         assert_eq!(parsed.gate_id, SAVE_TIME_GATE_ID);
         assert_eq!(parsed.kind, "gate_evaluated");
+    }
+
+    #[test]
+    fn daemon_observation_sink_persists_prewrite_gate_rows() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("kindling").join(USAGE_NDJSON);
+        let sink = DaemonObservationSink { path: path.clone() };
+
+        let mut row = save_time_row(&["src/lib.rs".to_string()]);
+        row.gate_id = PREWRITE_GATE_ID.to_string();
+        sink.try_emit(row).expect("persist pre-write row");
+
+        let contents = fs::read_to_string(&path).expect("read sidecar");
+        let parsed: GateEvaluatedObservation =
+            serde_json::from_str(contents.lines().next().expect("row")).expect("valid row");
+        assert_eq!(parsed.gate_id, PREWRITE_GATE_ID);
     }
 
     #[test]

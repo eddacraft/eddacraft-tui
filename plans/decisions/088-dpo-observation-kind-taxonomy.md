@@ -79,9 +79,18 @@ over upstream `generic-event@1`. The taxonomy choice remains binding; ADR-116
 supersedes the original KDS-side mapping and upstream Anvil-kind schema entry.
 
 **Decision 3 — One registry for the kind / `gate_id` namespace.** The
-`SAVE_TIME_GATE_ID` constant and the new fence kind are declared in one place
-(`kindling_observation.rs`) and listed in this ADR; there is no compile-time
-guard against duplicate `gate_id` strings, so the ADR is the human registry.
+`SAVE_TIME_GATE_ID` constant, `PREWRITE_GATE_ID` (`pre-write`, DPO-007), and the
+fence kind are declared in one place (`kindling_observation.rs`) and listed in
+this ADR; there is no compile-time guard against duplicate `gate_id` strings, so
+the ADR is the human registry.
+
+Pinned `gate_id` values:
+
+- `midEdit` — L1 intercept mid-edit (`MIDEDIT_GATE_ID`)
+- `save-time` — L2 daemon `validate_paths` (`SAVE_TIME_GATE_ID`)
+- `pre-write` — MCP `anvil_validate_write` / `anvil_apply_patch` (`PREWRITE_GATE_ID`)
+- `audit-chain` — audit-chain (`AUDIT_CHAIN_GATE_ID`)
+- `daemon.fence` — fence/cascade (`FENCE_GATE_ID`, `constraint_applied` kind)
 
 **Decision 4 — Config-gated path inclusion; fence `reason` always
 normalised.** File paths in `changed_files` are gated by the

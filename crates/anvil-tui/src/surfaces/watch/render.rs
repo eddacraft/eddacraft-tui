@@ -334,33 +334,37 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
     // Format timestamps at render time so stored kernel ISO8601 stays raw
     // while the live dashboard shows relative ages (CIB-266).
     let now = SystemTime::now();
-    let lines: Vec<Line> = state
-        .data
-        .queue
-        .iter()
-        .enumerate()
-        .map(|(i, change)| {
-            let selected = focused && i == state.selected_item;
-            let indicator = if selected { ">> " } else { "  " };
-            let ts = format_live_timestamp(&change.timestamp, now);
+    let mut lines: Vec<Line> = Vec::new();
+    for (i, change) in state.data.queue.iter().enumerate() {
+        let selected = focused && i == state.selected_item;
+        let indicator = if selected { ">> " } else { "  " };
+        let ts = format_live_timestamp(&change.timestamp, now);
+        let expand_marker = if selected && focused {
+            if state.expanded { " [-]" } else { " [+]" }
+        } else {
+            ""
+        };
 
-            Line::from(vec![
-                Span::styled(indicator, Style::default().fg(theme.fg())),
-                Span::styled(
-                    &change.notification.title,
-                    if selected {
-                        Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(theme.fg())
-                    },
-                ),
-                Span::styled(
-                    format!("  {} {ts}", change.notification.message),
-                    Style::default().fg(theme.muted()),
-                ),
-            ])
-        })
-        .collect();
+        lines.push(Line::from(vec![
+            Span::styled(indicator, Style::default().fg(theme.fg())),
+            Span::styled(
+                &change.notification.title,
+                if selected {
+                    Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(theme.fg())
+                },
+            ),
+            Span::styled(
+                format!("  {} {ts}{expand_marker}", change.notification.message),
+                Style::default().fg(theme.muted()),
+            ),
+        ]));
+
+        if state.expanded && selected {
+            lines.extend(queue_expand_lines(change, theme));
+        }
+    }
 
     // `selected_item` is shared across panels, so only apply scroll when
     // this panel is focused — otherwise navigating in a sibling panel
@@ -372,6 +376,56 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
         0
     };
     frame.render_widget(Paragraph::new(Text::from(lines)).scroll((scroll, 0)), inner);
+}
+
+fn queue_expand_lines(
+    change: &super::QueuedNotification,
+    theme: &EddaCraftTheme,
+) -> Vec<Line<'static>> {
+    let class = match change.notification.class {
+        anvil_kernel_types::NotificationClass::Warning => "warning",
+        anvil_kernel_types::NotificationClass::Failure => "failure",
+        anvil_kernel_types::NotificationClass::Block => "block",
+        anvil_kernel_types::NotificationClass::Finding => "finding",
+        _ => "notice",
+    };
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("    Class: ", Style::default().fg(theme.muted())),
+            Span::styled(class, Style::default().fg(theme.warning())),
+        ]),
+        Line::from(vec![
+            Span::styled("    File: ", Style::default().fg(theme.muted())),
+            Span::styled(
+                change.notification.title.clone(),
+                Style::default().fg(theme.fg()),
+            ),
+        ]),
+    ];
+    if let Some(rule_id) = change.rule_id.as_deref() {
+        lines.push(Line::from(vec![
+            Span::styled("    Rule: ", Style::default().fg(theme.muted())),
+            Span::styled(rule_id.to_string(), Style::default().fg(theme.fg())),
+        ]));
+    }
+    if let Some(symbol) = change.symbol.as_deref() {
+        lines.push(Line::from(vec![
+            Span::styled("    Symbol: ", Style::default().fg(theme.muted())),
+            Span::styled(symbol.to_string(), Style::default().fg(theme.fg())),
+        ]));
+    }
+    lines.push(Line::from(vec![
+        Span::styled("    Message: ", Style::default().fg(theme.muted())),
+        Span::styled(
+            change.notification.message.clone(),
+            Style::default().fg(theme.fg()),
+        ),
+    ]));
+    lines.push(Line::from(vec![
+        Span::styled("    Recording: ", Style::default().fg(theme.muted())),
+        Span::styled("live candidate", Style::default().fg(theme.accent())),
+    ]));
+    lines
 }
 
 fn render_history_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
@@ -524,24 +578,24 @@ mod tests {
         WatchState::new(WatchData {
             status: WatchStatus::Passing,
             queue: std::collections::VecDeque::from([
-                QueuedNotification {
-                    notification: Notification::new(
+                QueuedNotification::new(
+                    Notification::new(
                         NotificationClass::Finding,
                         NotificationPriority::High,
                         "src/main.rs",
                         "modified",
                     ),
-                    timestamp: "10:30:01".to_string(),
-                },
-                QueuedNotification {
-                    notification: Notification::new(
+                    "10:30:01",
+                ),
+                QueuedNotification::new(
+                    Notification::new(
                         NotificationClass::Finding,
                         NotificationPriority::High,
                         "src/lib.rs",
                         "created",
                     ),
-                    timestamp: "10:30:02".to_string(),
-                },
+                    "10:30:02",
+                ),
             ]),
             history: vec![
                 RunHistory {
@@ -600,6 +654,43 @@ mod tests {
 
         let buf = terminal.backend().buffer().clone();
         insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn expanded_queue_shows_finding_context() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.focused_panel = WatchPanel::Queue;
+        state.expanded = true;
+        if let Some(item) = state.data.queue.get_mut(0) {
+            item.rule_id = Some("AP-001".to_string());
+            item.symbol = Some("run".to_string());
+        }
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render(frame, frame.area(), &state, &theme);
+            })
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("Class:"),
+            "expanded queue must show class, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("Rule:"),
+            "expanded queue must show rule id, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("AP-001"),
+            "expanded queue must show the rule id value, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("live candidate"),
+            "expanded queue must show recording status, got:\n{rendered}"
+        );
     }
 
     #[test]
@@ -844,15 +935,15 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
         let mut state = sample_state();
         state.data.status = WatchStatus::Passing;
-        state.data.queue = std::collections::VecDeque::from([QueuedNotification {
-            notification: Notification::new(
+        state.data.queue = std::collections::VecDeque::from([QueuedNotification::new(
+            Notification::new(
                 NotificationClass::Warning,
                 NotificationPriority::Normal,
                 "src/lib.rs",
                 "new public symbol detected",
             ),
-            timestamp: "10:30:03".to_string(),
-        }]);
+            "10:30:03",
+        )]);
         let theme = EddaCraftTheme;
 
         terminal

@@ -55,6 +55,22 @@ impl WatchStatus {
 pub struct QueuedNotification {
     pub notification: Notification,
     pub timestamp: String,
+    /// Kernel `Violation.policy_id` when this row came from a watch finding.
+    pub rule_id: Option<String>,
+    /// Kernel `Violation.symbol` when this row came from a watch finding.
+    pub symbol: Option<String>,
+}
+
+impl QueuedNotification {
+    #[must_use]
+    pub fn new(notification: Notification, timestamp: impl Into<String>) -> Self {
+        Self {
+            notification,
+            timestamp: timestamp.into(),
+            rule_id: None,
+            symbol: None,
+        }
+    }
 }
 
 /// A completed gate run in history.
@@ -235,6 +251,9 @@ pub struct WatchState {
     /// narrow IDE side panes where the four-up layout becomes
     /// unreadable.
     pub zoomed: bool,
+    /// When `true`, the selected Queue item shows its full finding body.
+    /// Toggle via Enter on the Queue panel (DPO-008).
+    pub expanded: bool,
     pub(crate) anim_pass_rate: AnimatedF64,
     pub(crate) anim_pass_rate_target: f64,
     pub(crate) anim_avg_duration_ms: AnimatedF64,
@@ -257,6 +276,7 @@ impl WatchState {
             should_quit: false,
             wants_back: false,
             zoomed: false,
+            expanded: false,
             anim_pass_rate: animated_f64(pass_rate),
             anim_pass_rate_target: pass_rate,
             anim_avg_duration_ms: animated_f64(avg_duration_ms),
@@ -306,6 +326,10 @@ impl WatchState {
         }
     }
 
+    fn queue_can_expand(&self) -> bool {
+        self.focused_panel == WatchPanel::Queue && !self.data.queue.is_empty()
+    }
+
     pub fn handle_key(&mut self, action: Action) {
         match action {
             Action::Up => {
@@ -313,6 +337,7 @@ impl WatchState {
                 // at the top (or on item-less panels like Status/Stats),
                 // spill over to the panel in the row above so arrow keys
                 // navigate the 2×2 grid without needing PgUp/PgDn.
+                self.expanded = false;
                 if self.max_items_in_panel() > 0 && self.selected_item > 0 {
                     self.selected_item -= 1;
                     self.mark_dirty();
@@ -326,6 +351,7 @@ impl WatchState {
                 // Scroll within the panel while there are items below; once
                 // at the bottom (or on item-less panels), spill over to the
                 // panel in the row below.
+                self.expanded = false;
                 let max = self.max_items_in_panel().saturating_sub(1);
                 if self.max_items_in_panel() > 0 && self.selected_item < max {
                     self.selected_item += 1;
@@ -339,31 +365,46 @@ impl WatchState {
             Action::Right => {
                 self.focused_panel = self.focused_panel.right();
                 self.selected_item = 0;
+                self.expanded = false;
                 self.mark_dirty();
             }
             Action::Left => {
                 self.focused_panel = self.focused_panel.left();
                 self.selected_item = 0;
+                self.expanded = false;
                 self.mark_dirty();
             }
             Action::PageDown => {
                 self.focused_panel = self.focused_panel.down();
                 self.selected_item = 0;
+                self.expanded = false;
                 self.mark_dirty();
             }
             Action::PageUp => {
                 self.focused_panel = self.focused_panel.up();
                 self.selected_item = 0;
+                self.expanded = false;
+                self.mark_dirty();
+            }
+            Action::Select if self.queue_can_expand() => {
+                self.expanded = !self.expanded;
                 self.mark_dirty();
             }
             Action::Character('z') => {
                 self.zoomed = !self.zoomed;
+                if self.zoomed {
+                    self.expanded = false;
+                }
                 self.mark_dirty();
             }
             Action::Back if self.zoomed => {
                 // First press exits zoom; second press goes back. Lets users
                 // un-zoom without losing context.
                 self.zoomed = false;
+                self.mark_dirty();
+            }
+            Action::Back if self.expanded => {
+                self.expanded = false;
                 self.mark_dirty();
             }
             Action::Back => {
@@ -412,10 +453,17 @@ impl crate::surface::Surface for WatchState {
     }
 
     fn help_text(&self) -> &'static str {
-        if self.zoomed {
-            "\u{2191}\u{2193}/jk scroll  z unzoom  esc unzoom  q quit"
-        } else {
-            "\u{2191}\u{2193}/jk scroll  \u{2190}\u{2192}/hl panel  z zoom  esc back  q quit"
+        match (self.zoomed, self.queue_can_expand()) {
+            (true, true) => {
+                "\u{2191}\u{2193}/jk scroll  enter expand  z unzoom  esc unzoom  q quit"
+            }
+            (true, false) => "\u{2191}\u{2193}/jk scroll  z unzoom  esc unzoom  q quit",
+            (false, true) => {
+                "\u{2191}\u{2193}/jk scroll  enter expand  \u{2190}\u{2192}/hl panel  z zoom  esc back  q quit"
+            }
+            (false, false) => {
+                "\u{2191}\u{2193}/jk scroll  \u{2190}\u{2192}/hl panel  z zoom  esc back  q quit"
+            }
         }
     }
 
@@ -434,6 +482,7 @@ impl crate::surface::Surface for WatchState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
+        self.expanded = false;
         self.dirty = true; // ensure first frame renders on re-entry
     }
 
@@ -456,24 +505,24 @@ mod tests {
         WatchData {
             status: WatchStatus::Passing,
             queue: VecDeque::from([
-                QueuedNotification {
-                    notification: Notification::new(
+                QueuedNotification::new(
+                    Notification::new(
                         NotificationClass::Finding,
                         NotificationPriority::High,
                         "src/main.rs",
                         "modified",
                     ),
-                    timestamp: "10:30:01".to_string(),
-                },
-                QueuedNotification {
-                    notification: Notification::new(
+                    "10:30:01",
+                ),
+                QueuedNotification::new(
+                    Notification::new(
                         NotificationClass::Finding,
                         NotificationPriority::High,
                         "src/lib.rs",
                         "created",
                     ),
-                    timestamp: "10:30:02".to_string(),
-                },
+                    "10:30:02",
+                ),
             ]),
             history: vec![
                 RunHistory {
@@ -793,6 +842,53 @@ mod tests {
         assert_eq!(notifications.len(), 2);
         assert_eq!(notifications[0].title, "src/main.rs");
         assert_eq!(notifications[1].title, "src/lib.rs");
+    }
+
+    #[test]
+    fn enter_toggles_queue_expand() {
+        use crate::surface::Surface;
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        assert!(!state.expanded);
+        state.handle_key(Action::Select);
+        assert!(state.expanded);
+        state.handle_key(Action::Select);
+        assert!(!state.expanded);
+        assert!(
+            state.help_text().contains("enter expand"),
+            "Queue with items must advertise enter expand, got {}",
+            state.help_text()
+        );
+    }
+
+    #[test]
+    fn enter_ignored_outside_queue() {
+        let mut state = WatchState::new(sample_data());
+        state.handle_key(Action::Select);
+        assert!(!state.expanded);
+        assert!(!state.wants_back);
+    }
+
+    #[test]
+    fn navigation_collapses_queue_expand() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        state.handle_key(Action::Select);
+        assert!(state.expanded);
+        state.handle_key(Action::Down);
+        assert!(!state.expanded);
+    }
+
+    #[test]
+    fn back_collapses_expand_before_leaving() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        state.handle_key(Action::Select);
+        state.handle_key(Action::Back);
+        assert!(!state.expanded);
+        assert!(!state.wants_back);
+        state.handle_key(Action::Back);
+        assert!(state.wants_back);
     }
 
     #[test]

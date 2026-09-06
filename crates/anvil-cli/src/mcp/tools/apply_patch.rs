@@ -146,6 +146,8 @@ fn call_with_validation_client(
     let diagnostics = normalise_response_diagnostics(&diagnostics, backend);
     let decision = enforcement::decision_for(&diagnostics, enforcement_mode);
 
+    crate::mcp::prewrite_observation::emit_prewrite_findings(&request.relative_path, &diagnostics);
+
     let mut payload = json!({
         "schema": RESPONSE_SCHEMA,
         "decision": decision,

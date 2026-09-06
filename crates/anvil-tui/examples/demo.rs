@@ -358,33 +358,33 @@ fn mock_watch_data() -> WatchData {
     WatchData {
         status: WatchStatus::Passing,
         queue: std::collections::VecDeque::from([
-            QueuedNotification {
-                notification: Notification::new(
+            QueuedNotification::new(
+                Notification::new(
                     NotificationClass::Finding,
                     NotificationPriority::High,
                     "src/lib.rs",
                     "modified",
                 ),
-                timestamp: "09:14:32".into(),
-            },
-            QueuedNotification {
-                notification: Notification::new(
+                "09:14:32",
+            ),
+            QueuedNotification::new(
+                Notification::new(
                     NotificationClass::Finding,
                     NotificationPriority::High,
                     "src/config.rs",
                     "modified",
                 ),
-                timestamp: "09:14:35".into(),
-            },
-            QueuedNotification {
-                notification: Notification::new(
+                "09:14:35",
+            ),
+            QueuedNotification::new(
+                Notification::new(
                     NotificationClass::Finding,
                     NotificationPriority::High,
                     "tests/integration.rs",
                     "created",
                 ),
-                timestamp: "09:14:38".into(),
-            },
+                "09:14:38",
+            ),
         ]),
         history: vec![
             RunHistory {

@@ -36,6 +36,12 @@ pub const MIDEDIT_GATE_ID: &str = "midEdit";
 /// so a clean save is a queryable `Pass` row, not silence.
 pub const SAVE_TIME_GATE_ID: &str = "save-time";
 
+/// DPO-007: pinned `gate_id` for MCP pre-write (`anvil_validate_write` /
+/// `anvil_apply_patch`) verdicts. Distinct from [`MIDEDIT_GATE_ID`]:
+/// RTAI-006 treats MCP pre-write as a different layer from intercept
+/// mid-edit `scan_buffer`.
+pub const PREWRITE_GATE_ID: &str = "pre-write";
+
 /// MLP2-008: the canonical `gate_eval_id` join key, extracted from a
 /// W3C `traceparent`.
 ///
@@ -442,6 +448,70 @@ pub fn from_midedit_response(
         warning_count: Some(warning_count),
         // Mid-edit emissions are never partial — the scan either
         // completes or returns no diagnostics.
+        partial: false,
+    })
+}
+
+/// DPO-007: convert MCP pre-write diagnostics into a Kindling
+/// `gate_evaluated` observation. Returns `None` when the batch is empty
+/// (clean allow stays silent, matching [`from_midedit_response`]).
+///
+/// `include_paths` gates `inputs.changed_files` (ADR-088 Decision 4).
+/// `file_count` is still 1 so coverage queries see that a file was
+/// evaluated.
+#[must_use]
+pub fn from_prewrite_diagnostics(
+    ctx: &ObservationContext<'_>,
+    diagnostics: &[Diagnostic],
+    include_paths: bool,
+) -> Option<GateEvaluatedObservation> {
+    if diagnostics.is_empty() {
+        return None;
+    }
+
+    let enforcement = enforcement_for(diagnostics);
+    let (violation_count, warning_count) = counts_for(diagnostics);
+    let rules_evaluated: Vec<String> = diagnostics
+        .iter()
+        .map(|d| d.source.rule_id.clone())
+        .collect();
+    let rules_violated: Vec<String> = diagnostics
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.severity,
+                Severity::Error | Severity::Warning | Severity::Unknown
+            )
+        })
+        .map(|d| d.source.rule_id.clone())
+        .collect();
+
+    Some(GateEvaluatedObservation {
+        kind: KIND_GATE_EVALUATED.to_string(),
+        session_id: ctx.session_id.to_string(),
+        timestamp: ctx.timestamp.to_string(),
+        gate_eval_id: ctx.gate_eval_id.to_string(),
+        gate_id: PREWRITE_GATE_ID.to_string(),
+        inputs: ObservationInputs {
+            file_count: 1,
+            changed_files: if include_paths {
+                vec![ctx.file_path.to_string()]
+            } else {
+                Vec::new()
+            },
+            baseline_hash: None,
+        },
+        outcome: Outcome::Fail,
+        rules_evaluated,
+        rules_violated: if rules_violated.is_empty() {
+            None
+        } else {
+            Some(rules_violated)
+        },
+        enforcement,
+        duration_ms: ctx.duration_ms,
+        violation_count: Some(violation_count),
+        warning_count: Some(warning_count),
         partial: false,
     })
 }
@@ -2823,6 +2893,41 @@ mod tests {
             obs.rules_violated.is_none(),
             "info-only batches must omit rules_violated to match the Zod optional"
         );
+    }
+
+    #[test]
+    fn from_prewrite_empty_batch_is_silent() {
+        let ctx = sample_ctx();
+        assert!(
+            from_prewrite_diagnostics(&ctx, &[], false).is_none(),
+            "clean pre-write allows must not emit a governance row"
+        );
+    }
+
+    #[test]
+    fn from_prewrite_warning_uses_prewrite_gate_id() {
+        let ctx = sample_ctx();
+        let obs =
+            from_prewrite_diagnostics(&ctx, &[make_diag("style-nit", Severity::Warning)], false)
+                .expect("observation");
+        assert_eq!(obs.gate_id, PREWRITE_GATE_ID);
+        assert_eq!(obs.enforcement, Enforcement::Warning);
+        assert_eq!(obs.outcome, Outcome::Fail);
+        assert!(
+            obs.inputs.changed_files.is_empty(),
+            "paths stay off unless opted in"
+        );
+        assert_eq!(obs.inputs.file_count, 1);
+    }
+
+    #[test]
+    fn from_prewrite_include_paths_records_file() {
+        let ctx = sample_ctx();
+        let obs =
+            from_prewrite_diagnostics(&ctx, &[make_diag("secrets-aws-key", Severity::Error)], true)
+                .expect("observation");
+        assert_eq!(obs.inputs.changed_files, vec!["src/lib.rs".to_string()]);
+        assert_eq!(obs.enforcement, Enforcement::Blocking);
     }
 
     #[test]

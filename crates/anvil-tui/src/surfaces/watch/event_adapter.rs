@@ -71,12 +71,12 @@ impl WatchEventAdapter {
                 self.handle_snapshot(*files_watched, &event.timestamp, data);
             }
             EventPayload::Violation {
-                policy_id: _,
+                policy_id,
                 file,
-                symbol: _,
+                symbol,
                 message,
             } => {
-                self.handle_violation(file, message, &event.timestamp, data);
+                self.handle_violation(file, message, policy_id, symbol, &event.timestamp, data);
             }
             EventPayload::Error(err) => {
                 self.handle_error(&err.message, err.file.as_deref(), &event.timestamp, data);
@@ -169,13 +169,14 @@ impl WatchEventAdapter {
         &mut self,
         file: &str,
         message: &str,
+        policy_id: &str,
+        symbol: &str,
         timestamp: &str,
         data: &mut WatchData,
     ) {
         self.violation_count += 1;
 
-        Self::push_queue(
-            data,
+        let mut queued = QueuedNotification::new(
             Notification::new(
                 NotificationClass::Warning,
                 NotificationPriority::Normal,
@@ -188,6 +189,13 @@ impl WatchEventAdapter {
             }),
             timestamp,
         );
+        if !policy_id.is_empty() {
+            queued.rule_id = Some(policy_id.to_string());
+        }
+        if !symbol.is_empty() {
+            queued.symbol = Some(symbol.to_string());
+        }
+        Self::push_queue(data, queued);
     }
 
     fn handle_error(
@@ -205,29 +213,28 @@ impl WatchEventAdapter {
         let title = file.unwrap_or("Watch error");
         Self::push_queue(
             data,
-            Notification::new(
-                NotificationClass::Failure,
-                NotificationPriority::High,
-                title,
-                message,
-            )
-            .with_context(NotificationContext {
-                file: file.map(str::to_string),
-                source: Some("watch".to_string()),
-            }),
-            timestamp,
+            QueuedNotification::new(
+                Notification::new(
+                    NotificationClass::Failure,
+                    NotificationPriority::High,
+                    title,
+                    message,
+                )
+                .with_context(NotificationContext {
+                    file: file.map(str::to_string),
+                    source: Some("watch".to_string()),
+                }),
+                timestamp,
+            ),
         );
     }
 
     /// Push an entry to the change queue, dropping the oldest if at capacity.
-    fn push_queue(data: &mut WatchData, notification: Notification, timestamp: &str) {
+    fn push_queue(data: &mut WatchData, queued: QueuedNotification) {
         if data.queue.len() >= MAX_QUEUE_LEN {
             data.queue.pop_front();
         }
-        data.queue.push_back(QueuedNotification {
-            notification,
-            timestamp: timestamp.to_string(),
-        });
+        data.queue.push_back(queued);
     }
 
     /// Recompute pass rate as a rolling window over retained history.
@@ -455,6 +462,8 @@ mod tests {
         assert_eq!(data.queue.len(), 1);
         assert_eq!(data.queue[0].notification.title, "src/bad.ts");
         assert_eq!(data.queue[0].notification.class, NotificationClass::Warning);
+        assert_eq!(data.queue[0].rule_id.as_deref(), Some("test-policy"));
+        assert_eq!(data.queue[0].symbol.as_deref(), Some("sym"));
         assert_eq!(
             data.queue[0].notification.priority,
             NotificationPriority::Normal

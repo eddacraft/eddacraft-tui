@@ -155,6 +155,7 @@ impl EnforcementResolver for WorkspaceEnforcementResolver {
     }
 }
 
+#[allow(clippy::too_many_lines)] // DPO-007 emit is one extra line on the existing pipeline
 fn call_with_validation_client(
     arguments: &Value,
     default_workspace_root: &Path,
@@ -182,7 +183,6 @@ fn call_with_validation_client(
             ));
         }
     };
-
     let enforcement_mode = enforcement_resolver.resolve(&request.workspace_root);
 
     if let Some(problem) = request.input_problem() {
@@ -297,6 +297,8 @@ fn call_with_validation_client(
     // policy decision strictest-wins with the scan decision.
     let decision = merge_prewrite_policy(&request, &mut diagnostics, enforcement_mode);
 
+    crate::mcp::prewrite_observation::emit_prewrite_findings(&request.relative_path, &diagnostics);
+
     let mut payload = validation_payload_with_decision(
         &request.relative_path,
         &diagnostics,
@@ -313,16 +315,12 @@ fn call_with_validation_client(
     // operations) the FULL pipeline; the recorded reason says why the
     // safelist did not serve the request.
     let full_tier_reason = if materialised_original.is_some() {
-        // A patch was materialised but the safelist matcher declined —
-        // multi-node change, structural change, non-JSON target, or a
-        // value the conservative screens refused.
         "patch-not-safelisted"
     } else if request.partial_scan {
         "preview"
     } else if request.content.is_some() {
         "full-content"
     } else {
-        // Delete/rename: no post-image content exists to tier.
         "no-content"
     };
     payload["tier"] = json!({

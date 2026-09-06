@@ -132,6 +132,11 @@ KFIT-007 must make every admission failure visible without changing verdicts.
   (today only the command-usage path is first-class).
 - The deferred TDASH watch-session / gate-summary dashboard and a TUIDASH
   save-time-protection component, as thin readers of the authoritative store.
+- MCP pre-write (`anvil_validate_write` / `anvil_apply_patch`) `gate_evaluated`
+  candidates with pinned `PREWRITE_GATE_ID` (`pre-write`), silent on clean
+  allow (DPO-007).
+- Watch Queue Enter-expand of the live candidate, retaining kernel `policy_id`
+  and `symbol` (DPO-008). Kindling-backed history stays DPO-003/004.
 
 ## Out of scope
 
@@ -320,6 +325,48 @@ KFIT-007 must make every admission failure visible without changing verdicts.
 - **Dependencies:** DPO-001, DPO-002
 - **Confidence:** high
 
+### DPO-007: Emit MCP pre-write verdicts as `gate_evaluated`
+
+- **Intent:** MCP pre-write warn/block/fail outcomes are governance candidates,
+  not only agent-transcript text.
+- **Expected Outcome:** `anvil_validate_write` and `anvil_apply_patch` emit a
+  `gate_evaluated` row with pinned `PREWRITE_GATE_ID` (`pre-write`) when the
+  diagnostic batch is non-empty. Clean allows emit nothing. Paths are
+  config-gated (ADR-088 Decision 4). The existing DPO sidecar sink persists
+  these rows (same writer as save-time) until KFIT-007. Sink failure never
+  changes the tool decision. Distinct from `midEdit` (RTAI-006).
+- **Validation:** `cargo test -p eddacraft-anvil-intercept from_prewrite -- --nocapture` and
+  `cargo test -p eddacraft-anvil daemon_observation_sink_persists_prewrite -- --nocapture`
+- **Status:** In Progress
+- **Files:** `crates/anvil-intercept/src/kindling_observation.rs`,
+  `crates/anvil-cli/src/usage.rs`,
+  `crates/anvil-cli/src/mcp/prewrite_observation.rs`,
+  `crates/anvil-cli/src/mcp/tools/validate_write.rs`,
+  `crates/anvil-cli/src/mcp/tools/apply_patch.rs`
+- **Dependencies:** ADR-088 `PREWRITE_GATE_ID` registry entry; DPO-001 sink
+- **Confidence:** high
+- **Pull Request:** Fixes #4411
+- **Design Source:** `plans/specs/2026-09-06-governance-facts-watch-expand.md`
+
+### DPO-008: Watch Queue enter-expand for live findings
+
+- **Intent:** The Watch Queue is inspectable: Enter shows the finding instead of
+  a truncated ticker row.
+- **Expected Outcome:** On the Queue panel, Enter toggles expand for the
+  selected item. The expanded block shows class, file, rule id, symbol, full
+  message, and recording status `live candidate`. Kernel `Violation` events
+  retain `policy_id` and `symbol`. Footer advertises `enter expand` when Queue
+  can expand. Kindling-backed join remains DPO-003/004.
+- **Validation:** `cargo test -p eddacraft-anvil-tui watch -- --nocapture`
+- **Status:** In Progress
+- **Files:** `crates/anvil-tui/src/surfaces/watch/mod.rs`,
+  `crates/anvil-tui/src/surfaces/watch/render.rs`,
+  `crates/anvil-tui/src/surfaces/watch/event_adapter.rs`
+- **Dependencies:** None
+- **Confidence:** high
+- **Pull Request:** Fixes #4412
+- **Design Source:** `plans/specs/2026-09-06-governance-facts-watch-expand.md`
+
 ## Implementation notes
 
 DPO-001 + DPO-002 producer seams were implemented on
@@ -357,6 +404,8 @@ DPO-003/-004/-005 land in order.
   findings addressed.
 - **DPO-006** (Proposed) tracks the council MINOR producer hardening follow-ups
   from PR #2833 — see the work item above.
+- **DPO-007 / DPO-008** (In Progress) add the MCP pre-write producer and Watch
+  Queue enter-expand; Kindling-backed dashboard remains DPO-003/004.
 
 ## Risks
 
