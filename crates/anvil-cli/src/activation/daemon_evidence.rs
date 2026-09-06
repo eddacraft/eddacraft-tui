@@ -1,6 +1,6 @@
 //! MLP2-051f: promote MCP tiers using daemon-attested live validation evidence.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -376,11 +376,26 @@ pub(super) fn evaluate_and_promote(
     // known client is not unattributed — do not borrow it. Two or
     // more HSV clients with no attributable surface stay at
     // `RestartHandshakeVerified`.
+    let live_surface_identifiers = live_surface_identifiers(snapshot, worktree, now);
     let participating: Vec<&str> = claim
         .surfaces
         .iter()
         .filter(|surface| surface.state == SurfaceClaimState::Participating)
         .map(|surface| surface.identifier.as_str())
+        .collect();
+    // JREL-002: only a *live* surface is evidence that a client is
+    // attached. Worktree-level freshness (above) is deliberately
+    // permissive — durable membership attests the worktree on a fresh
+    // daemon (CIB-384) — but a frozen activation-spine record is
+    // byte-identical whether the editor is running or was closed hours
+    // ago, and `RestartHandshakeVerified` only ever meant anvil's own
+    // disposable probe spawned the configured command. Neither may
+    // promote a client. Per-surface freshness also stops one client
+    // borrowing a beating sibling's liveness.
+    let live_participating: Vec<&str> = participating
+        .iter()
+        .copied()
+        .filter(|identifier| live_surface_identifiers.contains(*identifier))
         .collect();
     let hsv_ids: Vec<McpClientId> = map
         .iter()
@@ -392,14 +407,19 @@ pub(super) fn evaluate_and_promote(
             .iter()
             .any(|entry| surface_attests_client(identifier, entry.id))
     });
-    let unique_unattributed_fallback = hsv_ids.len() == 1 && !any_known_client_named;
+    // The unattributed fallback still exists for a live agent lease whose
+    // tag carries no recognisable client token, but it now requires that
+    // live evidence: with no live surface at all there is nothing to
+    // attribute and the sole handshake-verified client stays put.
+    let unique_unattributed_fallback =
+        hsv_ids.len() == 1 && !any_known_client_named && !live_participating.is_empty();
 
     let mut promoted = 0_usize;
     for (id, result) in map.iter_mut() {
         if result.tier != McpTier::RestartHandshakeVerified {
             continue;
         }
-        let attested = participating
+        let attested = live_participating
             .iter()
             .any(|identifier| surface_attests_client(identifier, *id));
         if attested || unique_unattributed_fallback {
@@ -423,6 +443,38 @@ pub(super) fn evaluate_and_promote(
         "activation: promoted to LiveValidation via daemon attestation",
     );
     DaemonAttestation::Promoted
+}
+
+/// Surface identifiers whose own session is **live client evidence**: an
+/// agent lease (never durable membership) beating inside the freshness
+/// window.
+///
+/// JREL-002: this is the per-client half of the freshness gate.
+/// [`heartbeat_within_freshness_window`] answers "is the worktree's
+/// evidence fresh enough to attest at all", which durable membership can
+/// satisfy on a live daemon (CIB-384). This answers the narrower question
+/// "does *this* surface prove a client is attached right now", which
+/// durable membership never can — its `last_heartbeat_unix` is frozen at
+/// registration by design (ACTMO-014).
+///
+/// Identifiers are built through
+/// [`anvil_intercept::status::surface_identifier_for_session`], the same
+/// helper the claim builders use, so a surface always matches its own
+/// claim entry.
+fn live_surface_identifiers(
+    snapshot: &DaemonStatusV1,
+    worktree: &Path,
+    now: SystemTime,
+) -> BTreeSet<String> {
+    snapshot
+        .worktrees
+        .iter()
+        .filter(|w| w.worktree == worktree)
+        .filter_map(|w| snapshot.sessions.iter().find(|s| s.id == w.session_id))
+        .filter(|session| !session_is_durable_membership(session))
+        .filter(|session| within_window(session.last_heartbeat_unix, now))
+        .map(anvil_intercept::status::surface_identifier_for_session)
+        .collect()
 }
 
 /// True when a participating surface identifier names this MCP client.
@@ -1370,6 +1422,122 @@ mod tests {
         );
     }
 
+    /// JREL-002: a configured but closed editor must never gain live
+    /// pre-write status. With only a durable (activation-spine)
+    /// registration for the worktree there is no evidence that any client
+    /// is attached — the record is byte-identical whether the editor is
+    /// running or was closed hours ago. The worktree is still attested
+    /// (`Enforced`, the ACTMO-003 MCP-optional case); no client advances.
+    #[test]
+    fn durable_membership_alone_does_not_promote_a_possibly_closed_client() {
+        let worktree = PathBuf::from("/tmp/wt-jrel002-durable-only");
+        let now = now_with_recent_heartbeats();
+        let frozen = 1_716_300_000;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess_activation_jrel002",
+                &worktree,
+                frozen,
+                "anvil-start",
+                anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            )],
+            vec![make_worktree_status(
+                "sess_activation_jrel002",
+                &worktree,
+                false,
+            )],
+            IpcStateV1::Serving,
+            1_716_336_050,
+        );
+
+        let mut map = handshake_verified_pair();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(
+            attestation,
+            DaemonAttestation::Enforced,
+            "durable registration still attests the worktree",
+        );
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::RestartHandshakeVerified,
+            "durable registration is not evidence that a client is attached",
+        );
+    }
+
+    /// JREL-002: a live MCP session registered by `anvil mcp serve` names
+    /// its own client, so that client — and only that client — advances.
+    #[test]
+    fn live_mcp_session_promotes_its_own_client_only() {
+        let worktree = PathBuf::from("/tmp/wt-jrel002-live-mcp");
+        let now = now_with_recent_heartbeats();
+        let heartbeat = 1_716_336_050;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session_with_agent(
+                "sess_mcp_claude",
+                &worktree,
+                heartbeat,
+                "anvil-mcp",
+                "claude-code",
+            )],
+            vec![make_worktree_status("sess_mcp_claude", &worktree, false)],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+
+        let mut map = both_handshake_verified();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::Promoted);
+        assert_eq!(map[&McpClientId::ClaudeCode].tier, McpTier::LiveValidation);
+        assert_eq!(
+            map[&McpClientId::Cursor].tier,
+            McpTier::RestartHandshakeVerified,
+            "a second editor with no live session of its own must not advance",
+        );
+    }
+
+    /// JREL-002: stale evidence from one client must not borrow another
+    /// client's freshness. Freshness was worktree-scoped, so a single
+    /// beating session made every attributed surface look live.
+    #[test]
+    fn stale_client_surface_does_not_borrow_a_fresh_siblings_freshness() {
+        let worktree = PathBuf::from("/tmp/wt-jrel002-no-borrow");
+        let now = now_with_recent_heartbeats();
+        let fresh = 1_716_336_050; // 10s before `now`
+        let stale = 1_716_300_000; // hours before `now`
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![
+                make_session_with_agent("sess_mcp_claude", &worktree, fresh, "anvil-mcp", "claude-code"),
+                make_session_with_agent("sess_mcp_cursor", &worktree, stale, "anvil-mcp", "cursor"),
+            ],
+            vec![
+                make_worktree_status("sess_mcp_claude", &worktree, false),
+                make_worktree_status("sess_mcp_cursor", &worktree, false),
+            ],
+            IpcStateV1::Serving,
+            fresh,
+        );
+
+        let mut map = both_handshake_verified();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::Promoted);
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::LiveValidation,
+            "the client with its own beating session still advances",
+        );
+        assert_eq!(
+            map[&McpClientId::Cursor].tier,
+            McpTier::RestartHandshakeVerified,
+            "a stale client must not borrow a fresh sibling's liveness",
+        );
+    }
+
     /// CIB-384: durable (activation-spine) membership is TTL-exempt by
     /// design — ACTMO-014 made it *membership, not liveness*, so nothing
     /// ever beats for it and `last_heartbeat_unix` stays pinned at
@@ -1410,10 +1578,21 @@ mod tests {
             DaemonAttestation::StaleHeartbeat,
             "a durable member on a live daemon must not read as a stale heartbeat",
         );
+        // JREL-002 narrows CIB-384's promotion half. The freshness claim
+        // above is unchanged and still load-bearing: a frozen durable
+        // heartbeat must not read as stale, so the worktree still attests.
+        // What changed is that worktree attestation alone no longer
+        // promotes a *client* — a frozen spine record cannot distinguish
+        // an open editor from one closed hours ago.
+        assert_eq!(
+            attestation,
+            DaemonAttestation::Enforced,
+            "durable membership attests the worktree",
+        );
         assert_eq!(
             map[&McpClientId::ClaudeCode].tier,
-            McpTier::LiveValidation,
-            "durable membership on a fresh daemon must promote the sole handshake-verified client",
+            McpTier::RestartHandshakeVerified,
+            "durable membership is not evidence that a client is attached (JREL-002)",
         );
     }
 
@@ -1534,10 +1713,20 @@ mod tests {
             DaemonAttestation::StaleHeartbeat,
             "a leftover stale live lease must not veto durable membership",
         );
+        // JREL-002: the CIB-384 half under test here is the freshness
+        // verdict above — a dead live lease must not drag the worktree to
+        // `StaleHeartbeat`. Client promotion is separate: neither the
+        // frozen spine record nor the stale lease proves an attached
+        // client, so no client advances.
+        assert_eq!(
+            attestation,
+            DaemonAttestation::Enforced,
+            "the worktree still attests through durable membership",
+        );
         assert_eq!(
             map[&McpClientId::ClaudeCode].tier,
-            McpTier::LiveValidation,
-            "durable membership on a fresh daemon must still promote",
+            McpTier::RestartHandshakeVerified,
+            "a stale lease beside durable membership is not live client evidence (JREL-002)",
         );
     }
 

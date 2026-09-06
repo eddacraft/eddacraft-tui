@@ -708,8 +708,10 @@ pub fn build_protection_claim(snapshot: &DaemonStatus, worktree: &Path) -> Prote
                 .sessions
                 .iter()
                 .find(|s| s.id == w.session_id)
-                .and_then(|s| s.agent_tag.as_ref().map(format_agent_tag))
-                .unwrap_or_else(|| w.session_id.as_str().to_owned());
+                .map_or_else(
+                    || w.session_id.as_str().to_owned(),
+                    surface_identifier_for_session,
+                );
             let state = if ipc_draining {
                 SurfaceClaimState::Detached
             } else if w.fenced {
@@ -779,8 +781,10 @@ pub fn build_protection_claim_from_wire(
                 .sessions
                 .iter()
                 .find(|s| s.id == w.session_id)
-                .and_then(|s| s.agent_tag.as_ref().map(format_agent_tag))
-                .unwrap_or_else(|| w.session_id.as_str().to_owned());
+                .map_or_else(
+                    || w.session_id.as_str().to_owned(),
+                    surface_identifier_for_session,
+                );
             let state = if ipc_draining {
                 SurfaceClaimState::Detached
             } else if w.fenced {
@@ -794,6 +798,21 @@ pub fn build_protection_claim_from_wire(
     surfaces.sort_by(|a, b| a.identifier.cmp(&b.identifier));
 
     ProtectionClaim::new(worktree_state, surfaces)
+}
+
+/// The stable per-surface identifier for a session record.
+///
+/// JREL-002: activation evidence joins a `SurfaceClaim` back to the session
+/// that produced it, so identifier formatting lives in exactly one place.
+/// Both claim builders and `activation::daemon_evidence` go through here; if
+/// they drifted, a live-lease surface could fail to match its own claim and
+/// silently stop attesting its client.
+#[must_use]
+pub fn surface_identifier_for_session(session: &anvil_intercept_proto::SessionRecord) -> String {
+    session
+        .agent_tag
+        .as_ref()
+        .map_or_else(|| session.id.as_str().to_owned(), format_agent_tag)
 }
 
 /// Format an `AgentTag` as a stable per-surface identifier.
