@@ -33,6 +33,52 @@ CLI surfaces consume typed component outcomes and one canonical project/worktree
 
 **Coordinates with:** [MCPLH](./mcp-live-heal.aps.md), [ACTMO](./activation-mcp-optional.aps.md), [CIB](./continuous-improvement-backlog.aps.md), [JOURNEY](./release-user-journeys.aps.md).
 
+## Attach diagnosis reconciliation (2026-09-06)
+
+The [source review and proposed evidence contract](../specs/2026-09-06-mcp-attach-reconciliation.md)
+reconciles the operator's 2026-09-05 MCP attach note against main and open
+PR #4416. [Execution checkpoints](../execution/JREL-attach.actions.md) sequence
+this slice within the existing JOURNEY gates. No additional module or claim
+issue is created; JREL-002 implementation remains owned by PR #4416 / #4408.
+Do not overwrite that branch's progress during planning reconciliation.
+
+The following acceptance clarifications belong to the existing items below:
+
+- **JREL-002:** Preserve #4416's registration and per-lease freshness work;
+  additionally settle attached/readiness versus observed-validation semantics
+  through its owning ADR before completion. Require session/worktree/daemon
+  generation correlation, explicit probe exclusion, two instances of one client,
+  bounded reconnect after daemon loss and no identity transfer on PID reuse.
+  Lease freshness alone must not claim an observed validation call.
+- **JREL-004:** Enforce convergence within ADR-036 execution scope, including
+  same-scope duplicate detection, while preserving isolated homes and existing
+  unsupported-boundary refusal. Registration, scan, GCTX and status use the same
+  verified generation; stale identity must never target a replacement process.
+- **JREL-005:** Replace MCP status's hardcoded local/not-wired provenance with
+  the shared measured projection. Scope aggregate coverage to actual sessions;
+  distinguish configuration, startability, attachment, last validation, graph
+  readiness and watcher readiness. Preserve policy outcome versus capability,
+  optional MCP, JSON compatibility and component-specific recovery actions.
+- **JREL-010:** Settle root semantics with JREL-002 before implementation;
+  complete canonical admitted-root integration after its session foundation.
+  Client-supplied names or roots do not grant authority. Outside-repo and
+  multiple-root sessions require explicit admitted bindings or truthful refusal.
+- **JREL-011:** Include heartbeat/reconnect bursts at around 100 sessions and
+  full-snapshot payload cost. Deliver bounded worktree/session attestation if
+  measurements require it, retaining wire compatibility and CIB-405 ownership.
+  Validate deadline and capacity behaviour rather than assuming short-lived
+  connections cannot exhaust limits.
+- **JREL-012:** Add the specification's real-process matrix, including
+  probe-only negatives, multi-editor positives, expiry, duplicate endpoints,
+  component degradation and upgrade. Missing required scenarios are failures.
+
+JREL-003 retains save-time recovery ownership. JOURNEY-014/-015 consume the full
+JREL evidence and installed-release rehearsal; this subset alone cannot close
+those gates. CIB-384 is already implemented on main, so distribution inclusion
+is a release verification task. The spec is proposed planning context: changes
+to public evidence semantics require the existing ADR process, not implicit
+acceptance through this intake. Item statuses and counters remain unchanged.
+
 ## Work Items
 
 ### JREL-001: Lossless MCP upgrade and session continuity
@@ -178,3 +224,4 @@ CLI surfaces consume typed component outcomes and one canonical project/worktree
 - **Files:** `.github/workflows/ci.yml`, `.github/workflows/rust.yml`, `apps/e2e/`, `crates/anvil-cli/tests/`, `package.json`
 - **Validation:** `pnpm --filter @eddacraft/anvil-e2e test:cli`; `pnpm --filter @eddacraft/anvil-e2e test:smoke`; `cargo test -p eddacraft-anvil --no-fail-fast`; remove the binary and a required scenario to prove the gate fails. Completion publishes the exact no-skip rehearsal command consumed by JOURNEY-014/-015.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
+
