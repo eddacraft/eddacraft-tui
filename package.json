@@ -108,7 +108,7 @@
     "predocs:check:update-baseline": "pnpm -s -F @eddacraft/anvil-docs-meta build",
     "docs:check:update-baseline": "node scripts/docs/docs-check.mjs --update-baseline",
     "pretest:docs-check": "pnpm -s -F @eddacraft/anvil-docs-meta build",
-    "test:docs-check": "node --test scripts/docs/check-conflict-markers.test.mjs scripts/docs/check-diagram-impact.test.mjs scripts/docs/check-docs-owed.test.mjs scripts/docs/check-public-diagrams.test.mjs scripts/docs/redate-owed.test.mjs scripts/docs/run-markdownlint.test.mjs && bash scripts/docs/docs-check.test.sh",
+    "test:docs-check": "node --test scripts/docs/check-conflict-markers.test.mjs scripts/docs/check-diagram-impact.test.mjs scripts/docs/check-docs-owed.test.mjs scripts/docs/check-public-diagrams.test.mjs scripts/docs/lib/git-name-status-paths.test.mjs scripts/docs/redate-owed.test.mjs scripts/docs/run-markdownlint.test.mjs && bash scripts/docs/docs-check.test.sh",
     "validate:staged": "bash scripts/validate/local.sh --staged",
     "validate:changed": "bash scripts/validate/local.sh --changed",
     "validate:full": "bash scripts/validate/local.sh --full",

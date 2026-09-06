@@ -211,6 +211,23 @@ step_block_excludes 'Check diagram impact for this change' 'HEAD~1'
 assert_contains "${detect_action}" 'diagram-impact-required:'
 assert_contains "${ci_workflow}" 'diagram-impact-required: ${{ steps.changes.outputs.diagram-impact-required }}'
 
+diagram_impact_script="${repo_root}/scripts/docs/check-diagram-impact.mjs"
+local_validator="${repo_root}/scripts/validate/local.sh"
+name_status_helper="${repo_root}/scripts/docs/lib/git-name-status-paths.mjs"
+assert_contains "${diagram_impact_script}" "from './lib/git-name-status-paths.mjs'"
+assert_contains "${local_validator}" 'git-name-status-paths.mjs'
+assert_contains "${name_status_helper}" "'--name-status'"
+assert_contains "${name_status_helper}" "'-z'"
+assert_contains "${name_status_helper}" "'--diff-filter=ACDMR'"
+if grep -Fq -- "--name-only', '--diff-filter=ACDMR" "${diagram_impact_script}"; then
+  echo "expected check-diagram-impact.mjs not to collect paths with name-only" >&2
+  exit 1
+fi
+if grep -Fq -- 'git diff --name-only --diff-filter=ACDMR' "${local_validator}"; then
+  echo "expected local.sh not to collect paths with name-only" >&2
+  exit 1
+fi
+
 # Pin the required-check name and fail-closed aggregator. A rename or an
 # `if` that drops `always()` / worker failure would skip-satisfy the
 # ruleset the way the old twin filler jobs did.

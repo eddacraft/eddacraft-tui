@@ -50,6 +50,8 @@ test('matches declared files, directories and globs without escaping boundaries'
   assert.equal(matchesUpstream('crates/example/src/lib.rs', 'crates/example'), true);
   assert.equal(matchesUpstream('crates/example-other/src/lib.rs', 'crates/example'), false);
   assert.equal(matchesUpstream('../outside', 'crates/example/**'), false);
+  assert.equal(matchesUpstream('../infra/secret.ts', 'infra/src/**'), false);
+  assert.equal(matchesUpstream('infra/src/components/vercel-app.ts', 'infra/src/**'), true);
 });
 
 test('relevant declared-upstream changes fail when the owning diagram is untouched', () => {
@@ -157,12 +159,21 @@ flowchart LR
     await writeFile(join(root, 'crates', 'component', 'ARCHITECTURE.md'), component);
     await writeFile(join(root, 'plans', 'specs', 'live.md'), planSpec);
     await writeFile(join(root, 'plans', 'modules', 'ignored.md'), ignoredPlan);
+    const infra = live
+      .replace('# Live diagram', '# Infra diagram')
+      .replace('crates/example/src/**', 'infra/src/components/vercel-app.ts');
+    await writeFile(join(root, 'docs', 'architecture', 'infra.md'), infra);
 
     assert.deepEqual(await discoverDiagramDocuments({ root }), [
       {
         path: 'crates/component/ARCHITECTURE.md',
         upstreams: ['crates/component/src/**'],
         content: component,
+      },
+      {
+        path: 'docs/architecture/infra.md',
+        upstreams: ['infra/src/components/vercel-app.ts'],
+        content: infra,
       },
       {
         path: 'docs/architecture/live.md',
@@ -515,6 +526,85 @@ test('blank --head is treated as HEAD', async (t) => {
   assert.equal(JSON.parse(output).findings[0]?.path, 'docs/architecture/owner.md');
 });
 
+const infraOwnerDocument = {
+  path: 'docs/architecture/docs-delivery.md',
+  upstreams: ['infra/src/components/vercel-app.ts', 'infra/src/vercel.ts'],
+  content: [
+    '# Documentation delivery',
+    '',
+    '```mermaid',
+    'flowchart LR',
+    '  Source --> Host',
+    '```',
+    '',
+  ].join('\n'),
+};
+
+test('modifying or deleting a declared infra upstream fails when the owner is untouched', async () => {
+  for (const changedPaths of [
+    ['infra/src/components/vercel-app.ts'],
+    ['infra/src/vercel.ts'],
+  ]) {
+    assert.deepEqual(
+      classifyDiagramImpact({
+        documents: [infraOwnerDocument],
+        changedPaths,
+      }),
+      [
+        {
+          code: 'diagram-review-owed',
+          path: infraOwnerDocument.path,
+          upstream: changedPaths[0],
+        },
+      ]
+    );
+  }
+
+  const rendered = [];
+  assert.deepEqual(
+    await checkDiagramImpact({
+      documents: [infraOwnerDocument],
+      changedPaths: ['infra/src/components/vercel-app.ts'],
+      render: async (block) => rendered.push(block.path),
+    }),
+    [
+      {
+        code: 'diagram-review-owed',
+        path: infraOwnerDocument.path,
+        upstream: 'infra/src/components/vercel-app.ts',
+      },
+    ]
+  );
+  assert.deepEqual(rendered, [infraOwnerDocument.path]);
+});
+
+test('live docs-delivery.md retains repository-rooted infra upstreams', async () => {
+  const documents = await discoverDiagramDocuments({ root: process.cwd() });
+  const owner = documents.find((document) => document.path === 'docs/architecture/docs-delivery.md');
+  assert.ok(owner, 'docs/architecture/docs-delivery.md must remain a live Mermaid owner');
+  assert.ok(
+    owner.upstreams.includes('infra/src/components/vercel-app.ts'),
+    `expected infra exact upstream, got: ${owner.upstreams.join(', ')}`
+  );
+  assert.ok(
+    owner.upstreams.includes('infra/src/vercel.ts'),
+    `expected infra vercel.ts upstream, got: ${owner.upstreams.join(', ')}`
+  );
+  assert.deepEqual(
+    classifyDiagramImpact({
+      documents: [owner],
+      changedPaths: ['infra/src/components/vercel-app.ts'],
+    }),
+    [
+      {
+        code: 'diagram-review-owed',
+        path: owner.path,
+        upstream: 'infra/src/components/vercel-app.ts',
+      },
+    ]
+  );
+});
+
 test('the real --since collector retains a deleted exact declared upstream', async () => {
   const root = await mkdtemp(join(tmpdir(), 'diagram-impact-deletion-'));
   const upstream = join(root, 'crates', 'example', 'src', 'lib.rs');
@@ -603,6 +693,119 @@ flowchart LR
     process.stdout.write = originalWrite;
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test('the --paths-file collector reports the infra owner for a trusted paths file', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'diagram-impact-infra-paths-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const owner = `# Infra owner
+
+| Type  | Authority     | Owner | Status | Freshness                                                              |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-22 against \`infra/src/components/vercel-app.ts\` |
+
+| Upstream                                 | Downstream |
+| ---------------------------------------- | ---------- |
+| \`infra/src/components/vercel-app.ts\` | none       |
+
+\`\`\`mermaid
+flowchart LR
+  Infra --> Owner
+\`\`\`
+`;
+  await mkdir(join(root, 'docs', 'architecture'), { recursive: true });
+  await writeFile(join(root, 'docs', 'architecture', 'docs-delivery.md'), owner);
+  await writeFile(join(root, 'changed.paths'), 'infra/src/components/vercel-app.ts\n');
+
+  const { code, output } = await captureCli([
+    '--root',
+    root,
+    '--paths-file',
+    'changed.paths',
+    '--json',
+  ]);
+  assert.equal(code, 1, output);
+  assert.deepEqual(JSON.parse(output).findings, [
+    {
+      code: 'diagram-review-owed',
+      path: 'docs/architecture/docs-delivery.md',
+      upstream: 'infra/src/components/vercel-app.ts',
+    },
+  ]);
+  assert.equal(JSON.parse(output).summary.fencesRendered, 1);
+});
+
+test('the real --since collector retains both endpoints of a renamed exact upstream', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'diagram-impact-rename-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const owner = `# Rename owner
+
+| Type  | Authority     | Owner | Status | Freshness                                                        |
+| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-22 against \`crates/example/src/lib.rs\` |
+
+| Upstream                      | Downstream |
+| ----------------------------- | ---------- |
+| \`crates/example/src/lib.rs\` | none       |
+
+\`\`\`mermaid
+flowchart LR
+  Source --> Owner
+\`\`\`
+`;
+  await mkdir(join(root, 'crates', 'example', 'src'), { recursive: true });
+  await mkdir(join(root, 'docs', 'architecture'), { recursive: true });
+  await writeFile(join(root, 'crates', 'example', 'src', 'lib.rs'), 'export const value = 1;\n');
+  await writeFile(join(root, 'docs', 'architecture', 'owner.md'), owner);
+  await execFileAsync('git', ['init', '--quiet', '-b', 'main'], { cwd: root });
+  await execFileAsync('git', ['add', '.'], { cwd: root });
+  await execFileAsync(
+    'git',
+    [
+      '-c',
+      'user.name=DOCRB test',
+      '-c',
+      'user.email=docrb@example.invalid',
+      'commit',
+      '--quiet',
+      '-m',
+      'base',
+    ],
+    { cwd: root }
+  );
+  const base = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
+  await execFileAsync(
+    'git',
+    ['mv', 'crates/example/src/lib.rs', 'crates/example/src/renamed.rs'],
+    { cwd: root }
+  );
+  await execFileAsync('git', ['add', '-A'], { cwd: root });
+  await execFileAsync(
+    'git',
+    [
+      '-c',
+      'user.name=DOCRB test',
+      '-c',
+      'user.email=docrb@example.invalid',
+      'commit',
+      '--quiet',
+      '-m',
+      'rename upstream',
+    ],
+    { cwd: root }
+  );
+
+  const { code, output } = await captureCli(['--root', root, '--since', base, '--json']);
+  assert.equal(code, 1, output);
+  assert.deepEqual(JSON.parse(output).findings, [
+    {
+      code: 'diagram-review-owed',
+      path: 'docs/architecture/owner.md',
+      upstream: 'crates/example/src/lib.rs',
+    },
+  ]);
 });
 
 test('candidate text cannot authorise the no-sandbox fallback', async () => {

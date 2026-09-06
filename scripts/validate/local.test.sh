@@ -99,6 +99,13 @@ jq -e '.classification.requiredChecks | index("diagram-impact")' >/dev/null <<<"
 jq -e '.commands[] | select(startswith("node scripts/docs/check-diagram-impact.mjs --paths-file "))' \
   >/dev/null <<<"${semantic_only}"
 
+infra_paths="${tmp_dir}/infra.paths"
+printf '%s\n' 'infra/src/components/vercel-app.ts' >"${infra_paths}"
+infra_plan=$(bash "${validator}" --changed --paths-file "${infra_paths}" --dry-run --json)
+jq -e '.classification.requiredChecks | index("diagram-impact")' >/dev/null <<<"${infra_plan}"
+jq -e '.commands[] | select(startswith("node scripts/docs/check-diagram-impact.mjs --paths-file "))' \
+  >/dev/null <<<"${infra_plan}"
+
 agent_shell_paths="${tmp_dir}/agent-shell.paths"
 printf '%s\n' 'scripts/agent/guidance.sh' >"${agent_shell_paths}"
 agent_shell=$(bash "${validator}" --changed --paths-file "${agent_shell_paths}" --dry-run --json)
@@ -203,6 +210,96 @@ if [[ ! -f "${staged_root}/docs-meta-built.marker" || ! -f "${staged_root}/diagr
 fi
 
 if ((deletion_failures > 0)); then
+  exit 1
+fi
+
+create_rename_fixture() {
+  local root="$1"
+  mkdir -p \
+    "${root}/bin" \
+    "${root}/scripts/ci" \
+    "${root}/scripts/docs" \
+    "${root}/crates/example/src"
+  cat >"${root}/bin/pnpm" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$*" != "-s -F @eddacraft/anvil-docs-meta build" ]]; then
+  printf 'unexpected pnpm fixture command: %s\n' "$*" >&2
+  exit 2
+fi
+printf 'built\n' >docs-meta-built.marker
+EOF
+  printf 'export PATH=%q/bin:$PATH\n' "${root}" >"${root}/bash-env"
+  cat >"${root}/scripts/ci/classify-changes.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"paths":[],"pathClasses":[],"requiredChecks":["diagram-impact"],"warnings":[]}'
+EOF
+  cat >"${root}/scripts/docs/check-diagram-impact.mjs" <<'EOF'
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const index = process.argv.indexOf('--paths-file');
+if (index === -1 || !process.argv[index + 1]) process.exit(2);
+writeFileSync('diagram-checker-ran.marker', 'ran');
+const paths = readFileSync(process.argv[index + 1], 'utf8').split(/\r?\n/u);
+if (
+  paths.includes('crates/example/src/lib.rs') &&
+  paths.includes('crates/example/src/renamed.rs')
+) {
+  process.stderr.write('rename endpoints retained\n');
+  process.exit(1);
+}
+process.stderr.write('rename source dropped\n');
+process.exit(0);
+EOF
+  chmod +x "${root}/bin/pnpm" "${root}/scripts/ci/classify-changes.sh"
+  printf '%s\n' 'export const value = 1;' >"${root}/crates/example/src/lib.rs"
+  git -C "${root}" init --quiet
+  git -C "${root}" add .
+  git -C "${root}" -c user.name='DOCRB test' -c user.email='docrb@example.invalid' \
+    commit --quiet -m base
+}
+
+rename_failures=0
+changed_rename_root="${tmp_dir}/changed-rename"
+create_rename_fixture "${changed_rename_root}"
+git -C "${changed_rename_root}" mv crates/example/src/lib.rs crates/example/src/renamed.rs
+git -C "${changed_rename_root}" add -A
+git -C "${changed_rename_root}" -c user.name='DOCRB test' -c user.email='docrb@example.invalid' \
+  commit --quiet -m 'rename upstream'
+if (
+  cd "${changed_rename_root}" &&
+    BASH_ENV="${changed_rename_root}/bash-env" PATH="${changed_rename_root}/bin:${PATH}" \
+      VALIDATE_BASE_REF=HEAD~1 \
+      bash "${validator}" --changed >validation.log 2>&1
+); then
+  echo 'expected automatic changed validation to retain both rename endpoints and fail' >&2
+  rename_failures=$((rename_failures + 1))
+fi
+if [[ ! -f "${changed_rename_root}/docs-meta-built.marker" || ! -f "${changed_rename_root}/diagram-checker-ran.marker" ]]; then
+  cat "${changed_rename_root}/validation.log" >&2
+  echo 'expected automatic changed validation to build docs-meta and reach the diagram checker' >&2
+  rename_failures=$((rename_failures + 1))
+fi
+
+staged_rename_root="${tmp_dir}/staged-rename"
+create_rename_fixture "${staged_rename_root}"
+git -C "${staged_rename_root}" mv crates/example/src/lib.rs crates/example/src/renamed.rs
+git -C "${staged_rename_root}" add -A
+if (
+  cd "${staged_rename_root}" &&
+    BASH_ENV="${staged_rename_root}/bash-env" PATH="${staged_rename_root}/bin:${PATH}" \
+      bash "${validator}" --staged >validation.log 2>&1
+); then
+  echo 'expected automatic staged validation to retain both rename endpoints and fail' >&2
+  rename_failures=$((rename_failures + 1))
+fi
+if [[ ! -f "${staged_rename_root}/docs-meta-built.marker" || ! -f "${staged_rename_root}/diagram-checker-ran.marker" ]]; then
+  cat "${staged_rename_root}/validation.log" >&2
+  echo 'expected automatic staged validation to build docs-meta and reach the diagram checker' >&2
+  rename_failures=$((rename_failures + 1))
+fi
+
+if ((rename_failures > 0)); then
   exit 1
 fi
 

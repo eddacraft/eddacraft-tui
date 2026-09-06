@@ -4,7 +4,12 @@
 set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 classifier="${repo_root}/scripts/ci/classify-changes.sh"
+# Resolve the collector from this script, not from the git toplevel. Fixture
+# repos used by local validation tests have their own top-level and would
+# otherwise miss the helper.
+path_collector="${script_dir}/../docs/lib/git-name-status-paths.mjs"
 
 mode=''
 paths_file=''
@@ -89,7 +94,10 @@ trap cleanup EXIT
 detect_paths() {
   case "${mode}" in
     staged)
-      git diff --cached --name-only --diff-filter=ACDMR >"${path_file}"
+      if ! node "${path_collector}" --cwd "${repo_root}" -- --cached >"${path_file}"; then
+        echo "could not collect staged diagram-impact paths" >&2
+        exit 2
+      fi
       ;;
     changed)
       local base_ref="${VALIDATE_BASE_REF:-origin/main}"
@@ -99,7 +107,10 @@ detect_paths() {
         echo "could not determine merge-base for ${base_ref}" >&2
         exit 2
       fi
-      git diff --name-only --diff-filter=ACDMR "${merge_base}" HEAD >"${path_file}"
+      if ! node "${path_collector}" --cwd "${repo_root}" -- "${merge_base}" HEAD >"${path_file}"; then
+        echo "could not collect changed diagram-impact paths" >&2
+        exit 2
+      fi
       ;;
     full)
       : >"${path_file}"

@@ -213,6 +213,15 @@ assert_json_contains "${council_adapter}" '.requiredChecks | index("diagram-impa
 deleted_upstream=$(run_case deleted-upstream plans/modules/open-spec-adapter.aps.md)
 assert_json_contains "${deleted_upstream}" '.requiredChecks | index("diagram-impact")' 'deleted declared upstream remains routed to diagram impact'
 
+infra_upstream=$(run_case infra-upstream infra/src/components/vercel-app.ts)
+assert_json_contains "${infra_upstream}" '.requiredChecks | index("diagram-impact")' 'declared infra upstream remains routed to diagram impact'
+
+renamed_upstream=$(run_case renamed-upstream crates/example/src/lib.rs crates/example/src/renamed.rs)
+assert_json_contains "${renamed_upstream}" '.requiredChecks | index("diagram-impact")' 'rename source and destination remain routed to diagram impact'
+
+rename_source_only=$(run_case rename-source-only crates/example/src/lib.rs)
+assert_json_contains "${rename_source_only}" '.requiredChecks | index("diagram-impact")' 'rename source endpoint alone remains routed to diagram impact'
+
 unrelated_guide=$(run_case unrelated-guide docs/guides/testing.md)
 assert_json_contains "${unrelated_guide}" '.requiredChecks | index("diagram-impact")' 'broad cheap routing defers unrelated-guide relevance to the semantic checker'
 

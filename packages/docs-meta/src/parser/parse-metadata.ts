@@ -34,6 +34,7 @@ const PATH_LIKE_ROOTED_PREFIXES = [
   'archive/',
   'crates/',
   'docs/',
+  'infra/',
   'packages/',
   'patterns/',
   'plans/',

@@ -9,6 +9,8 @@ import { pathToFileURL } from 'node:url';
 import { parseDocGovernance, ParseError } from '@eddacraft/anvil-docs-meta';
 import globby from 'globby';
 
+import { collectGitDiffPaths } from './lib/git-name-status-paths.mjs';
+
 const DIAGRAM_DOCUMENT_PATTERNS = [
   'docs/**/*.md',
   'plans/specs/**/*.md',
@@ -392,12 +394,11 @@ export async function runDiagramImpactCli(
   if (values['paths-file']) {
     changedPaths = lines(await readFile(path.resolve(root, values['paths-file']), 'utf8'));
   } else if (values.since) {
-    const result = await execFileAsync(
-      'git',
-      ['diff', '--name-only', '--diff-filter=ACDMR', `${values.since}...${headRef}`],
-      { cwd: root }
-    );
-    changedPaths = lines(result.stdout);
+    changedPaths = await collectGitDiffPaths({
+      cwd: root,
+      extraArgs: [`${values.since}...${headRef}`],
+      execute: execFileAsync,
+    });
   }
 
   const rendererVersion = await verifyMermaidVersion({ root, execute: executeVersion });

@@ -93,6 +93,33 @@ describe('parseDocGovernance', () => {
     ]);
   });
 
+  it('retains repository-rooted infra exact and directory references without weakening confinement', () => {
+    const content = `# Documentation delivery
+
+| Type  | Authority     | Owner | Status | Freshness                                                     |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------- |
+| Guide | Authoritative | DOCRB | Live   | Last reviewed 2026-08-22 against \`infra/src/vercel.ts\` |
+
+| Upstream                                                                 | Downstream |
+| ------------------------------------------------------------------------ | ---------- |
+| \`infra/src/components/vercel-app.ts\`, \`infra/src/**\`, \`tmp/secret.ts\`, \`../infra/escape.ts\` | none       |
+`;
+
+    const result = parseDocGovernance(content, 'docs/architecture/docs-delivery.md');
+
+    expect(result.relations.upstream).toEqual([
+      'infra/src/components/vercel-app.ts',
+      'infra/src/**',
+      'tmp/secret.ts',
+      '../infra/escape.ts',
+    ]);
+    expect(result.sourceReferences).toEqual([
+      { path: 'infra/src/vercel.ts', context: 'freshness', line: undefined },
+      { path: 'infra/src/components/vercel-app.ts', context: 'upstream', line: undefined },
+      { path: 'infra/src/**', context: 'upstream', line: undefined },
+    ]);
+  });
+
   it('keeps allow-listed root files, strips table-field suffixes on paths, and drops bare basenames', () => {
     const content = `# Release Runbook
 
