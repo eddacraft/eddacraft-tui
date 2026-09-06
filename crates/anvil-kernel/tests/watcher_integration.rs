@@ -14,7 +14,7 @@ use notify::{Error as NotifyError, ErrorKind as NotifyErrorKind};
 /// Write `filename` (fsync'd) and wait until a batch names it.
 ///
 /// A single create-plus-`recv_timeout` is not enough on loaded
-/// aarch64-apple-darwin runners: FSEvents can miss the first create that
+/// aarch64-apple-darwin runners: `FSEvents` can miss the first create that
 /// lands during watch registration. Rewriting until the event arrives
 /// keeps the assertion (parseable files are delivered) without depending
 /// on one delivery after a fixed sleep.
