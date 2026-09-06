@@ -125,6 +125,13 @@ fn stop_clears_a_stale_pid_file() {
     // A PID far above any plausible `pid_max`, so `existing_pid_status`
     // sees no such process and classifies the record Stale.
     fs::write(&pid_file, "2147483646\n").expect("write stale pid file");
+    // Production `PidFileGuard` creates the record at 0600 (`OpenOptions::mode`).
+    // `fs::write` honours the process umask, so under hostile-ambient `umask 002`
+    // the fixture would be 664 and stop would correctly refuse it as untrusted.
+    // This test is about clearing a stale owner-only record; group-writable
+    // refusal is covered by `stop_json_reports_writable_canonical_pid_and_every_sibling`.
+    fs::set_permissions(&pid_file, fs::Permissions::from_mode(0o600))
+        .expect("owner-only stale PID file");
 
     let out = stop_in_home(home.path());
     assert!(

@@ -1,11 +1,54 @@
 use std::fs;
-use std::time::Duration;
+use std::io::Write;
+use std::path::Path;
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use std::time::{Duration, Instant};
 
+use anvil_kernel::watcher::events::ChangeBatch;
 use anvil_kernel::watcher::filter::FileFilter;
 use anvil_kernel::watcher::{
     WatchSetupDiagnostics, WatcherConfig, failure_guidance, start_watcher,
 };
 use notify::{Error as NotifyError, ErrorKind as NotifyErrorKind};
+
+/// Write `filename` (fsync'd) and wait until a batch names it.
+///
+/// A single create-plus-`recv_timeout` is not enough on loaded
+/// aarch64-apple-darwin runners: FSEvents can miss the first create that
+/// lands during watch registration. Rewriting until the event arrives
+/// keeps the assertion (parseable files are delivered) without depending
+/// on one delivery after a fixed sleep.
+fn write_and_await_change(
+    rx: &Receiver<ChangeBatch>,
+    dir: &Path,
+    filename: &str,
+    contents: &str,
+) -> ChangeBatch {
+    let path = dir.join(filename);
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let mut last_error = None;
+    while Instant::now() < deadline {
+        {
+            let mut file = fs::File::create(&path).expect("create watched file");
+            file.write_all(contents.as_bytes())
+                .expect("write watched file");
+            let _ = file.sync_all();
+        }
+        match rx.recv_timeout(Duration::from_secs(2)) {
+            Ok(batch) if batch.changes.iter().any(|c| c.path.ends_with(filename)) => {
+                return batch;
+            }
+            Ok(_) => {}
+            Err(RecvTimeoutError::Timeout) => {
+                last_error = Some("timeout");
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                panic!("watcher channel disconnected before {filename} arrived");
+            }
+        }
+    }
+    panic!("watcher did not emit {filename} within 15s (last={last_error:?})");
+}
 
 #[test]
 fn detects_parseable_file_creation() {
@@ -21,15 +64,11 @@ fn detects_parseable_file_creation() {
 
     let (_watcher, rx, _diag) = start_watcher(&config, None).unwrap();
 
-    // Give the watcher time to start; cross-compiled macOS runners can
-    // take longer to register the temp directory with the OS watcher.
+    // Give the watcher time to start; macOS runners can take longer to
+    // register the temp directory with the OS watcher.
     std::thread::sleep(Duration::from_millis(250));
 
-    // Create a .ts file (parseable — should pass filter)
-    fs::write(dir.path().join("test.ts"), "const x = 1;").unwrap();
-
-    // Wait for the batch
-    let batch = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    let batch = write_and_await_change(&rx, dir.path(), "test.ts", "const x = 1;");
     assert!(!batch.changes.is_empty());
     assert!(batch.changes.iter().any(|c| c.path.ends_with("test.ts")));
 }
@@ -56,15 +95,11 @@ fn filters_out_non_parseable_files() {
     // Create a .md file (not parseable — should be filtered out)
     fs::write(dir.path().join("README.md"), "# Hello").unwrap();
 
-    // Then create a .ts file (parseable — should pass)
+    // Then create a .ts file (parseable — should pass). Retry the write
+    // until the watcher delivers it; a single create can be lost during
+    // FSEvents registration on aarch64-apple-darwin.
     std::thread::sleep(Duration::from_millis(20));
-    fs::write(dir.path().join("index.ts"), "export {};").unwrap();
-
-    // We should only get the .ts file. Use the same generous 10 s receive
-    // window as detects_parseable_file_creation: a loaded CI runner can take
-    // well over 2 s to emit the debounced batch, and a short window here is
-    // the next-most-likely flake after the warm-up sleep was aligned.
-    let batch = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    let batch = write_and_await_change(&rx, dir.path(), "index.ts", "export {};");
     assert!(batch.changes.iter().all(|c| !c.path.ends_with("README.md")));
     assert!(batch.changes.iter().any(|c| c.path.ends_with("index.ts")));
 }

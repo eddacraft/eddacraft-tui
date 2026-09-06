@@ -2018,11 +2018,15 @@ mod tests {
     fn default_unset_still_wires_an_emitter() {
         // KDS-005: with the var unset the producer is wired to the daemon sink
         // (the new default). Re-root state under a temp ANVIL_HOME so the test
-        // never touches the real home.
+        // never touches the real home. Pin the privacy opt-outs unset — the
+        // hostile-ambient nightly exports `DO_NOT_TRACK=1`, which correctly
+        // disables the producer and would otherwise fail this wiring assertion.
         let home = tempdir().expect("temp home");
         temp_env::with_vars(
             [
                 ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None::<&str>),
+                ("ANVIL_USAGE_DISABLE", None::<&str>),
+                ("DO_NOT_TRACK", None::<&str>),
                 ("ANVIL_KINDLING_SINK", None::<&str>),
                 ("ANVIL_HOME", Some(home.path().to_str().expect("utf8 home"))),
             ],
@@ -2044,6 +2048,8 @@ mod tests {
         temp_env::with_vars(
             [
                 ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None::<&str>),
+                ("ANVIL_USAGE_DISABLE", None::<&str>),
+                ("DO_NOT_TRACK", None::<&str>),
                 ("ANVIL_KINDLING_SINK", Some("daemon")),
                 ("ANVIL_HOME", Some(home.path().to_str().expect("utf8 home"))),
             ],
@@ -2072,6 +2078,8 @@ mod tests {
         temp_env::with_vars(
             [
                 ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None::<&str>),
+                ("ANVIL_USAGE_DISABLE", None::<&str>),
+                ("DO_NOT_TRACK", None::<&str>),
                 ("ANVIL_KINDLING_SINK", Some("daemon")),
                 ("ANVIL_HOME", Some(home.path().to_str().expect("utf8 home"))),
             ],

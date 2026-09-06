@@ -54,6 +54,12 @@ fn run_anvil(home: &Path, args: &[&str]) -> String {
         .env("ANVIL_SKIP_WELCOME", "1");
     cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
     cmd.env_remove("TRACEPARENT");
+    // Collection-positive tests must not inherit a process-wide privacy
+    // opt-out (hostile-ambient nightly exports `DO_NOT_TRACK=1`). The
+    // dedicated suppression tests set these themselves.
+    cmd.env_remove("DO_NOT_TRACK");
+    cmd.env_remove("ANVIL_USAGE_DISABLE");
+    cmd.env_remove("ANVIL_INTERCEPT_DISABLE_OBSERVATION");
     let out = cmd.output().expect("spawn anvil");
     let mut combined = String::from_utf8_lossy(&out.stdout).into_owned();
     combined.push_str(&String::from_utf8_lossy(&out.stderr));
@@ -76,6 +82,9 @@ fn run_anvil_no_dev(home: &Path, args: &[&str]) -> String {
     cmd.env_remove("ANVIL_DEV");
     cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
     cmd.env_remove("TRACEPARENT");
+    cmd.env_remove("DO_NOT_TRACK");
+    cmd.env_remove("ANVIL_USAGE_DISABLE");
+    cmd.env_remove("ANVIL_INTERCEPT_DISABLE_OBSERVATION");
     let out = cmd.output().expect("spawn anvil");
     let mut combined = String::from_utf8_lossy(&out.stdout).into_owned();
     combined.push_str(&String::from_utf8_lossy(&out.stderr));
@@ -286,6 +295,8 @@ fn usage_disable_env_suppresses_the_cli_producer() {
         .env("ANVIL_USAGE_DISABLE", "1");
     cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
     cmd.env_remove("TRACEPARENT");
+    cmd.env_remove("DO_NOT_TRACK");
+    cmd.env_remove("ANVIL_INTERCEPT_DISABLE_OBSERVATION");
     let out = cmd.output().expect("spawn anvil");
     assert!(
         out.status.success(),
