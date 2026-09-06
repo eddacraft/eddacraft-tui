@@ -814,6 +814,100 @@ fn git_rev_parse(start: &Path, args: &[&str]) -> Result<String, NotRegisterable>
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+// --------------------------------------------------------------------
+// JREL-002 / ADR-141: live MCP client sessions.
+// --------------------------------------------------------------------
+
+/// `driver_id` for sessions registered by `anvil mcp serve --stdio`.
+///
+/// Distinct from `anvil-start` (durable activation membership) and
+/// `anvil-run` (launcher-owned agent leases) so operators can tell at a
+/// glance which lane produced a surface.
+pub(crate) const MCP_SESSION_DRIVER_ID: &str = "anvil-mcp";
+
+/// Register a **live** MCP client session with the daemon.
+///
+/// ADR-141: the tag's `claimed_agent_id` is the client's stable label
+/// (`claude-code`, `cursor`, …), so the surface identifier reads
+/// `anvil-mcp/<client>#<starttime>` and `daemon_evidence` attributes it
+/// to exactly that client. It is never `activation-spine`, so the record
+/// is a live lease that must keep beating — which is precisely what makes
+/// it evidence that a client is attached.
+///
+/// Returns `false` when the daemon is unavailable or refuses; MCP serve
+/// treats registration as best-effort and never fails a session over it.
+pub(crate) fn register_live_mcp_session(
+    session_id: &SessionId,
+    worktree: &Path,
+    client_label: &str,
+    pid_starttime: u64,
+) -> bool {
+    let canonical = canonicalise_for_registration(worktree);
+    let tag = AgentTag::new(MCP_SESSION_DRIVER_ID, client_label, pid_starttime);
+    let params = serde_json::json!({
+        "session_id": session_id.as_str(),
+        "worktree": canonical.to_string_lossy(),
+        "agent_tag": tag,
+    });
+    let request_id = format!("anvil-mcp-register-{}", session_id.as_str());
+    match request_jsonrpc(
+        REGISTER_METHOD,
+        &params,
+        &request_id,
+        ACTIVATION_DAEMON_QUERY_TIMEOUT,
+    ) {
+        Ok(_) => {
+            tracing::debug!(
+                worktree = %canonical.display(),
+                session_id = session_id.as_str(),
+                client = client_label,
+                "mcp: registered live client session with intercept daemon",
+            );
+            true
+        }
+        // A re-register of the same id is an idempotent success: the
+        // daemon heartbeats the existing owner.
+        Err(err) if err.is_session_already_registered() || err.is_worktree_already_owned() => {
+            heartbeat_live_mcp_session(session_id)
+        }
+        Err(err) => {
+            tracing::debug!(
+                worktree = %canonical.display(),
+                client = client_label,
+                error = %err,
+                "mcp: live client session registration unavailable",
+            );
+            false
+        }
+    }
+}
+
+/// Refresh a live MCP session's TTL. Best-effort: a missed beat costs the
+/// session its liveness after the registry TTL, which is the honest
+/// outcome when the daemon is unreachable.
+pub(crate) fn heartbeat_live_mcp_session(session_id: &SessionId) -> bool {
+    let request_id = format!("anvil-mcp-heartbeat-{}", session_id.as_str());
+    request_jsonrpc(
+        HEARTBEAT_METHOD,
+        &serde_json::json!({ "session_id": session_id.as_str() }),
+        &request_id,
+        ACTIVATION_DAEMON_QUERY_TIMEOUT,
+    )
+    .is_ok()
+}
+
+/// Drop a live MCP session on clean shutdown so a closed editor stops
+/// attesting immediately rather than waiting out the registry TTL.
+pub(crate) fn unregister_live_mcp_session(session_id: &SessionId) {
+    let request_id = format!("anvil-mcp-unregister-{}", session_id.as_str());
+    let _ = request_jsonrpc(
+        UNREGISTER_METHOD,
+        &serde_json::json!({ "session_id": session_id.as_str() }),
+        &request_id,
+        ACTIVATION_DAEMON_QUERY_TIMEOUT,
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;

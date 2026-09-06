@@ -13,6 +13,15 @@ engineering maintenance are recorded in the
 
 ### Changed
 
+- **Protection status now proves a client is actually attached.**
+  `anvil mcp serve` registers a live session with the intercept daemon,
+  identified from the editor's own MCP handshake. Live pre-write status is
+  reported only for a client with fresh, independently attributed evidence, so
+  an editor that is configured but closed no longer appears to be protecting
+  your writes, and one client's activity can no longer make another look live. A
+  registered worktree with no attached editor still reports the daemon as
+  enforcing.
+
 - **Ember is inactive pending its Rust migration.** The historical
   `anvil ember list` reader is hidden and default-off behind `ember.enabled`.
   Explicit `ANVIL_EMBER=1` allows historical reads only; generation remains

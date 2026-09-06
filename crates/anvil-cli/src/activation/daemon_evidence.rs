@@ -1511,7 +1511,13 @@ mod tests {
         let snapshot = make_snapshot(
             &worktree,
             vec![
-                make_session_with_agent("sess_mcp_claude", &worktree, fresh, "anvil-mcp", "claude-code"),
+                make_session_with_agent(
+                    "sess_mcp_claude",
+                    &worktree,
+                    fresh,
+                    "anvil-mcp",
+                    "claude-code",
+                ),
                 make_session_with_agent("sess_mcp_cursor", &worktree, stale, "anvil-mcp", "cursor"),
             ],
             vec![

@@ -11,9 +11,9 @@
 //! cost the session its TTL.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Condvar, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anvil_intercept_proto::SessionId;
 
@@ -23,7 +23,7 @@ pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(10);
 
 /// Handle on a running heartbeat thread. Drop to stop the thread.
 pub struct HeartbeatHandle {
-    stop: Arc<AtomicBool>,
+    stop: Arc<(Mutex<bool>, Condvar)>,
     join: Option<JoinHandle<()>>,
 }
 
@@ -35,28 +35,27 @@ impl HeartbeatHandle {
     where
         F: FnMut(&SessionId) + Send + 'static,
     {
-        let stop = Arc::new(AtomicBool::new(false));
+        let stop = Arc::new((Mutex::new(false), Condvar::new()));
         let stop_clone = stop.clone();
         let join = thread::spawn(move || {
-            // Honour `stop` with sub-interval responsiveness so
-            // tests do not have to wait a full tick to observe
-            // shutdown. We poll a fixed 50ms cadence and only
-            // dispatch when an interval has elapsed.
-            let poll = Duration::from_millis(50);
-            // Subtracting `interval` from `now` would underflow if
-            // the system uptime is less than `interval`. `checked_sub`
-            // keeps us at `now` in that edge case (first tick still
-            // fires after one interval has elapsed, just one cycle
-            // later — acceptable).
-            let mut last = Instant::now()
-                .checked_sub(interval)
-                .unwrap_or_else(Instant::now);
-            while !stop_clone.load(Ordering::Acquire) {
-                if last.elapsed() >= interval {
-                    tick(&session_id);
-                    last = Instant::now();
+            // ADR-141: wait on a condvar rather than polling a flag every
+            // 50 ms. Shutdown stays immediate — `stop` notifies — but an
+            // idle session now costs one wakeup per interval instead of
+            // twenty per second. That mattered once MCP sessions started
+            // registering too: ~100 concurrent sessions on a developer
+            // workstation would otherwise burn ~2000 wakeups/second
+            // between them for no work.
+            let (lock, cvar) = &*stop_clone;
+            loop {
+                let guard = lock.lock().unwrap_or_else(PoisonError::into_inner);
+                let (guard, _) = cvar
+                    .wait_timeout(guard, interval)
+                    .unwrap_or_else(PoisonError::into_inner);
+                if *guard {
+                    return;
                 }
-                thread::sleep(poll);
+                drop(guard);
+                tick(&session_id);
             }
         });
         Self {
@@ -81,16 +80,23 @@ impl HeartbeatHandle {
 
     /// Stop the thread and block until it exits.
     pub fn stop(mut self) {
-        self.stop.store(true, Ordering::Release);
+        self.signal_stop();
         if let Some(handle) = self.join.take() {
             let _ = handle.join();
         }
+    }
+
+    fn signal_stop(&self) {
+        let (lock, cvar) = &*self.stop;
+        let mut stopped = lock.lock().unwrap_or_else(PoisonError::into_inner);
+        *stopped = true;
+        cvar.notify_all();
     }
 }
 
 impl Drop for HeartbeatHandle {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Release);
+        self.signal_stop();
         if let Some(handle) = self.join.take() {
             let _ = handle.join();
         }

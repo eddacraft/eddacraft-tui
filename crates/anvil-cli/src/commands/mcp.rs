@@ -322,6 +322,10 @@ fn run_stdio_server() -> Result<()> {
     let stdin = io::stdin();
     let mut reader = BufReader::new(stdin.lock());
     let mut stdout = io::stdout().lock();
+    // Dropped on return (EOF, `exit`, or error), which unregisters the
+    // session so a closed editor stops attesting without waiting out the
+    // registry TTL.
+    let mut client_session: Option<crate::mcp::client_session::McpClientSession> = None;
 
     while let Some(frame) = read_frame(&mut reader)? {
         let Frame::Message(frame) = frame else {
@@ -347,6 +351,21 @@ fn run_stdio_server() -> Result<()> {
 
         // Between complete frames only — never after partial JSON-RPC stdout.
         crate::mcp::reexec::maybe_reexec_between_messages(&message);
+
+        // JREL-002 / ADR-141: register this client as attached once the
+        // handshake tells us who it is. Done before dispatch so the very
+        // first tool call is already covered by live evidence, and only
+        // once per process — a client that never identifies itself is
+        // never registered, because unattributed evidence is exactly what
+        // must stop counting as protection.
+        if client_session.is_none()
+            && let Some(name) = crate::mcp::client_session::client_info_name(&message)
+            && let Some(client) = crate::mcp::client_session::client_from_client_info_name(&name)
+            && let Some(worktree) = crate::mcp::client_session::server_worktree()
+        {
+            client_session =
+                crate::mcp::client_session::McpClientSession::register(&worktree, client);
+        }
 
         if let Some(response) = handle_message(&message) {
             write_message(&mut stdout, &response)?;

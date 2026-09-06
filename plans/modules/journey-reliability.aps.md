@@ -49,13 +49,13 @@ CLI surfaces consume typed component outcomes and one canonical project/worktree
 
 ### JREL-002: Actual client evidence for protection claims
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P0
 - **Intent:** Protection reporting identifies real client activity rather than inferring it from configured client count.
 - **Expected Outcome:** A configured but closed editor never gains live pre-write status from durable registration or a disposable handshake probe. One or several clients have independently attributed, fresh worktree/session evidence. Connection, observed validation, graph readiness and enforcement mode remain distinct; stale evidence from one client cannot borrow another's freshness.
 - **Dependencies:** none
 - **Coordinates with:** CIB-384 is already Merged for durable-age handling; this is its explicitly unowned client-attribution residual. MCPLH-005 inventory is reused, not rewritten as connection proof.
-- **Files:** `crates/anvil-cli/src/activation/daemon_evidence.rs`, `crates/anvil-cli/src/activation/diagnostic.rs`, `crates/anvil-cli/src/mcp/`, `crates/anvil-intercept/src/registry.rs`
+- **Files:** `crates/anvil-cli/src/activation/daemon_evidence.rs`, `crates/anvil-cli/src/mcp/client_session.rs`, `crates/anvil-cli/src/commands/mcp.rs`, `crates/anvil-cli/src/registration.rs`, `crates/anvil-intercept/src/status.rs`, `crates/anvil-run/src/heartbeat.rs`, `plans/decisions/141-mcp-live-session-registration.md`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; closed-client, one-client, two-client, expired-client and temporary-probe scenarios verify both positive and negative protection claims.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
 
