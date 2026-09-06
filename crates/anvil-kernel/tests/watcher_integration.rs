@@ -32,7 +32,7 @@ fn write_and_await_change(
             let mut file = fs::File::create(&path).expect("create watched file");
             file.write_all(contents.as_bytes())
                 .expect("write watched file");
-            let _ = file.sync_all();
+            file.sync_all().expect("fsync watched file");
         }
         match rx.recv_timeout(Duration::from_secs(2)) {
             Ok(batch) if batch.changes.iter().any(|c| c.path.ends_with(filename)) => {
