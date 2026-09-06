@@ -1,8 +1,8 @@
 # anvil intercept architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                   |
-| ------------ | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-08-31 for CIB-385 no-parser graph honesty (stale reason, skip scan enqueue, GCTX recovery hints) after CIB-382 rendezvous and PID-trust repair; save/validation/fence diagrams unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                          |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-09-07 for JREL-002 surface-identifier extraction in `status.rs` (claim builders now share one identifier helper); scan_buffer, save/validation and fence diagrams unchanged — the change is claim-construction plumbing, not a transport, lineage or fence path |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
