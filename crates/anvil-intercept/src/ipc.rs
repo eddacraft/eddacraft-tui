@@ -7748,17 +7748,17 @@ mod tests {
         let Ok(ours) = std::env::current_exe().and_then(std::fs::canonicalize) else {
             panic!("this process must resolve its own exe");
         };
+        // A long poll interval that we must not honour. Zero budget returns
+        // after the first read; sleeping this interval would fail the bound.
+        // The bound is half the interval so one `canonical_peer_exe` on a
+        // loaded host cannot flake the way a 50 ms wall-clock ceiling can.
+        let poll = Duration::from_secs(2);
         let started = Instant::now();
-        let _ = wait_for_execed_foreign_exe(
-            std::process::id(),
-            &ours,
-            Duration::ZERO,
-            Duration::from_millis(50),
-        );
+        let _ = wait_for_execed_foreign_exe(std::process::id(), &ours, Duration::ZERO, poll);
+        let elapsed = started.elapsed();
         assert!(
-            started.elapsed() < Duration::from_millis(50),
-            "a zero exec-wait budget must return without polling, got {:?}",
-            started.elapsed()
+            elapsed < poll / 2,
+            "a zero exec-wait budget must return without polling, got {elapsed:?}"
         );
     }
 

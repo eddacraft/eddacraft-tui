@@ -2642,8 +2642,19 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // The probe spawns a canary and must wait for exec; doing that on
         // the first `session.register` races the client's 500 ms RPC timeout
         // and a too-early pre-exec `/proc/<pid>/exe` read permanently
-        // fail-closes the durable wire gate.
-        let _ = tokio::task::spawn_blocking(ipc::warm_foreign_exe_faithfulness_probe).await;
+        // fail-closes the durable wire gate. If the blocking task panics or
+        // is cancelled, run the probe inline so accept still sees a warm
+        // cache rather than paying the wait on the first register.
+        if let Err(err) =
+            tokio::task::spawn_blocking(ipc::warm_foreign_exe_faithfulness_probe).await
+        {
+            tracing::warn!(
+                target: "anvil_intercept::ipc",
+                error = %err,
+                "foreign-exe faithfulness probe warm-up task failed; running inline before accept",
+            );
+            ipc::warm_foreign_exe_faithfulness_probe();
+        }
 
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
