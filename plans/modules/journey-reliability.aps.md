@@ -125,7 +125,23 @@ acceptance through this intake. Item statuses and counters remain unchanged.
   `cargo test -p eddacraft-anvil --no-fail-fast` 4276 passed, with the only
   failures being the same pre-existing sandbox-environment tests noted under
   JREL-004. JREL-005 owns typed readiness presentation and exit status and can
-  consume the new evidence.
+  consume the new evidence. Council (general + adversarial) findings addressed
+  in the same PR: the respawn bound is now measured from evidence that the
+  child was actually alive (liveness probes and the readiness marker's
+  modification time) rather than from when the next event happened to be
+  processed, so a child that crashes immediately is capped even when refreshes
+  are minutes apart; the readiness marker carries the writing child's PID and a
+  marker from another generation is not read as the current child's evidence;
+  stopping a driver waits a bounded time and escalates to a hard kill before
+  releasing the entry, so a stop racing a registration cannot leave two
+  children; membership signals are enqueued under the same lock as the mutation
+  they describe, so an unregister racing a heartbeat can no longer respawn a
+  driver for a worktree that has left durable membership; and the readiness
+  wait short-circuits outcomes that cannot become attached, so a disabled or
+  failed driver no longer costs every command the full budget. Failed drivers
+  now reach the `--all` and `--json` registration surfaces through additive
+  keys. Deferred: capping each status fetch against the remaining budget, which
+  is documented at the constant instead.
 - **Priority:** P1
 - **Intent:** The daily command restores a failed worktree watcher while preserving durable registration.
 - **Expected Outcome:** After child death or initial spawn failure, public bare/start registration paths restore exactly one ready driver or return a bounded failure. Membership refresh alone is not readiness. Ready evidence distinguishes spawned from watches-installed and fresh activity; persistent failure cannot enter an unbounded respawn loop.
