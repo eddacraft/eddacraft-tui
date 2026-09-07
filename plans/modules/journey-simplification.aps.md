@@ -33,7 +33,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 - **Status:** Ready
 - **Priority:** P1
 - **Intent:** The simplified journey has one accepted public contract grounded in the repaired product.
-- **Expected Outcome:** A decision record covers first-use bare routing before gated actions, optional welcome learning, shared setup via start, daily ensure, status/doctor roles and action-versus-output semantics. It accounts for ADR-044/080/082/092/103/114 and script compatibility, and records JOURNEY-013 first-user evidence before any additional splash/tutorial-depth choice. Current entitlement and consent policies are not silently overridden.
+- **Expected Outcome:** A decision record covers first-use bare routing before gated actions, optional welcome learning, shared setup via start, daily ensure, status/doctor roles and action-versus-output semantics. It accounts for ADR-044/080/082/092/103/114 and script compatibility, and records JOURNEY-013 first-user evidence before any additional splash/tutorial-depth choice. Current entitlement and consent policies are not silently overridden. The contract also records whether public `anvil intercept ensure` / `restart` exist as operator verbs, or whether bare `anvil` and `anvil mcp refresh --daemon restart` remain the only names.
 - **Dependencies:** JOURNEY-015, JOURNEY-013
 - **Coordinates with:** JOURNEY-013 owns current-build first-user observation; CIB-353 retains editorial ownership if promoted. This item owns contract decisions, not duplicate observation or an assumed splash.
 - **Files:** `plans/decisions/`, `plans/specs/`, `docs/public/anvil/quickstart.md`, `docs/runbooks/cli-surface.md`
@@ -69,9 +69,9 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 - **Status:** Ready
 - **Priority:** P1
 - **Intent:** Daily use respects selected coverage while reconfiguration remains deliberate.
-- **Expected Outcome:** Client, scope, executable and optional protection choices have one durable owner. Healthy bare ensure restores chosen coverage without pickers or needless rewrites; intentional omission/disablement stays distinct from failed installation. Start can deliberately reconsider choices. Ordinary recovery uses shared reliability operations and escalates to doctor only for unresolved faults.
+- **Expected Outcome:** Client, scope, executable and optional protection choices have one durable owner. Healthy bare ensure restores chosen coverage without pickers or needless rewrites; intentional omission/disablement stays distinct from failed installation. Start can deliberately reconsider choices. Ordinary recovery uses shared reliability operations and escalates to doctor only for unresolved faults. If JSIMP-001 accepts operator ensure/restart verbs, `doctor --fix` may invoke those shared operations for unresolved daemon-down faults; it is not the daily on-switch.
 - **Dependencies:** JSIMP-001, JSIMP-003
-- **Coordinates with:** JREL-009 protects current explicit launch overrides; this item provides unified selection/resume and does not reimplement its repair logic.
+- **Coordinates with:** JREL-009 protects current explicit launch overrides; this item provides unified selection/resume and does not reimplement its repair logic. JREL-005 names the public recovery command until this contract lands.
 - **Files:** `crates/anvil-cli/src/activation/`, `crates/anvil-cli/src/commands/ensure.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/doctor.rs`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; activate, decline/disable, repeat bare, add a client and reconfigure; assert selected intent, safe repair, no unexpected writes and one next action.
 - **Confidence:** medium — contract details are gated by JSIMP-001 and user observation.

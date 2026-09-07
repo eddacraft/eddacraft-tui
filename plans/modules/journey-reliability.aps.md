@@ -59,6 +59,7 @@ The following acceptance clarifications belong to the existing items below:
   distinguish configuration, startability, attachment, last validation, graph
   readiness and watcher readiness. Preserve policy outcome versus capability,
   optional MCP, JSON compatibility and component-specific recovery actions.
+  Recovery copy names bare `anvil` rather than `anvil intercept start --foreground`.
 - **JREL-010:** Settle root semantics with JREL-002 before implementation;
   complete canonical admitted-root integration after its session foundation.
   Client-supplied names or roots do not grant authority. Outside-repo and
@@ -176,12 +177,14 @@ acceptance through this intake. Item statuses and counters remain unchanged.
   lock, and a typed outcome when the coordinator cannot be acquired (today it
   degrades to the per-install lock with a warning, per warnings-over-blocks).
   Deferred to JREL-005: surfacing the same-scope conflict through `intercept
-  status` typed output.
+  status` typed output, and headless recovery copy that names bare `anvil`
+  rather than `anvil intercept start --foreground`. Deferred to JSIMP-001:
+  public `anvil intercept ensure` / `restart` verbs.
 - **Priority:** P1
 - **Intent:** Shell and editor environments converge on the same intended daemon instance.
-- **Expected Outcome:** Discovery, startup, registration, status and recycle agree on one verified instance across runtime/state-home endpoints. Concurrent cold starts or updates cannot produce duplicate daemons or stop a newly started replacement using stale identity. Expected replacement version and readiness are checked; isolated ANVIL_HOME installations remain distinct.
+- **Expected Outcome:** Discovery, startup, registration, status and recycle agree on one verified instance across runtime/state-home endpoints. Concurrent cold starts or updates cannot produce duplicate daemons or stop a newly started replacement using stale identity. Expected replacement version and readiness are checked; isolated ANVIL_HOME installations remain distinct. Headless recovery names the existing ensure primitive and bare `anvil`, not `anvil intercept start --foreground`. Public `anvil intercept ensure` / `restart` verbs are out of scope for this item; they are a JSIMP-001 contract option after JOURNEY-015.
 - **Dependencies:** none
-- **Coordinates with:** DLIFE lifecycle, MCPLH-004 recycle, CIB-382 and merged sibling-discovery/repair fixes; CIB-405 separately owns caller migration to connection reuse.
+- **Coordinates with:** DLIFE lifecycle, MCPLH-004 recycle, CIB-382 and merged sibling-discovery/repair fixes; CIB-405 separately owns caller migration to connection reuse. JSIMP-001 owns any later public ensure/restart verbs.
 - **Files:** `crates/anvil-intercept/src/ensure.rs`, `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/commands/daemon_recycle.rs`, `crates/anvil-cli/src/commands/intercept.rs`
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --no-fail-fast`; `cargo test -p eddacraft-anvil --no-fail-fast`; run set/unset XDG environments in both orders, concurrent starts/recycles, stale canonical plus live sibling, and intentional isolated homes.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
@@ -191,9 +194,9 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 - **Status:** Ready
 - **Priority:** P1
 - **Intent:** Successful daily activation means the user's selected coverage is ready.
-- **Expected Outcome:** Registration refusal/cap, failed selected MCP repair, dead watcher and unresponsive daemon remain typed failures through human/JSON output and exit status. Deliberately omitted MCP is not failure when selected save-time coverage works. Starting, ready, disabled, degraded and failed evidence is distinguishable; one next action names the actual failing component. Preserve current output compatibility or document an explicit versioned migration.
+- **Expected Outcome:** Registration refusal/cap, failed selected MCP repair, dead watcher and unresponsive daemon remain typed failures through human/JSON output and exit status. Deliberately omitted MCP is not failure when selected save-time coverage works. Starting, ready, disabled, degraded and failed evidence is distinguishable; one next action names the actual failing component and the public recovery command (bare `anvil` or `anvil start`), not `anvil intercept start --foreground`. Do not introduce public `intercept ensure` / `restart` or wire `doctor --fix` as a daemon supervisor; those are JSIMP-001 / JSIMP-004. Preserve current output compatibility or document an explicit versioned migration.
 - **Dependencies:** JREL-002, JREL-003, JREL-004
-- **Coordinates with:** ACTMO activation diagnostic, ONSW ensure, MCPLH-005 split inventory; JSIMP-002 owns later presentation/action contract migration.
+- **Coordinates with:** ACTMO activation diagnostic, ONSW ensure, MCPLH-005 split inventory; JSIMP-002 owns later presentation/action contract migration. JSIMP-001 owns any public ensure/restart verbs; JSIMP-004 owns doctor escalation after that contract.
 - **Files:** `crates/anvil-cli/src/commands/ensure.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/status.rs`, `crates/anvil-cli/src/activation/`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; assert typed JSON, human next action and exit behaviour for every required/optional component combination, including warming and no-MCP.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
