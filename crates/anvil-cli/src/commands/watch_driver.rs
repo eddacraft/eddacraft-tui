@@ -99,6 +99,12 @@ impl DriverLog {
 /// stronger than "the PID is alive". Path and content are the
 /// `anvil_intercept::save_time_driver` contract: the supervisor removes the
 /// marker before every spawn and reads it fresh on each status probe.
+///
+/// The marker is `<state>\n<pid>\n` — the state line, then this child's PID.
+/// The PID line binds the evidence to one child generation: the supervisor
+/// trusts the state only when the PID matches the child it tracks, so a
+/// previous child still exiting (or a manual driver run over the same paths)
+/// can never have its write read as the current child's readiness.
 #[derive(Debug)]
 pub(crate) struct DriverReadyMarker {
     path: PathBuf,
@@ -132,7 +138,9 @@ impl DriverReadyMarker {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&self.path, format!("{content}\n"))
+        // The whole marker is rewritten in one call: a reader never sees a
+        // state line without the PID line that qualifies it.
+        std::fs::write(&self.path, format!("{content}\n{}\n", std::process::id()))
     }
 }
 
@@ -270,6 +278,39 @@ mod tests {
     }
 
     #[test]
+    fn watch_save_time_driver_ready_marker_stamps_the_writing_child_pid() {
+        // JREL-003: the marker is `<state>\n<pid>\n`. The supervisor uses the
+        // PID line to bind the evidence to one child generation, so both
+        // states must carry this process's PID.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let marker = DriverReadyMarker::beside(&dir.path().join("nested").join("wt.log"));
+        assert_eq!(marker.path(), dir.path().join("nested").join("wt.ready"));
+
+        marker.mark_watching().expect("write watching marker");
+        let watching = std::fs::read_to_string(marker.path()).expect("read marker");
+        assert_eq!(
+            watching,
+            format!(
+                "{}\n{}\n",
+                anvil_intercept::save_time_driver::READY_MARKER_WATCHING,
+                std::process::id()
+            )
+        );
+
+        marker.mark_activity().expect("write activity marker");
+        let activity = std::fs::read_to_string(marker.path()).expect("read marker");
+        assert_eq!(
+            activity,
+            format!(
+                "{}\n{}\n",
+                anvil_intercept::save_time_driver::READY_MARKER_ACTIVITY,
+                std::process::id()
+            ),
+            "the rewrite replaces the whole marker, PID line included"
+        );
+    }
+
+    #[test]
     fn watch_save_time_driver_log_env_override_wins() {
         let resolved = resolve_driver_log_path_from(
             Some(std::ffi::OsString::from("/custom/driver.log")),
@@ -336,16 +377,19 @@ mod tests {
                 .join(format!("repo.v2-0123456789ab.{READY_MARKER_EXTENSION}"))
         );
 
+        // The first line is the state; the second is the PID that qualifies it.
+        let state_line = || {
+            std::fs::read_to_string(marker.path())
+                .expect("read")
+                .lines()
+                .next()
+                .expect("state line")
+                .to_owned()
+        };
         marker.mark_watching().expect("mark watching");
-        assert_eq!(
-            std::fs::read_to_string(marker.path()).expect("read").trim(),
-            READY_MARKER_WATCHING
-        );
+        assert_eq!(state_line(), READY_MARKER_WATCHING);
         marker.mark_activity().expect("mark activity");
-        assert_eq!(
-            std::fs::read_to_string(marker.path()).expect("read").trim(),
-            READY_MARKER_ACTIVITY
-        );
+        assert_eq!(state_line(), READY_MARKER_ACTIVITY);
     }
 
     #[test]

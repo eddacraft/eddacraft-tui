@@ -157,18 +157,17 @@ fn run_register(args: &RegisterArgs, json_mode: bool) -> Result<()> {
             let driver_failed = report.driver_failed();
             let outcome = report.registration;
             if json_mode {
-                let (label, detail) = registration_fields(&outcome);
                 let persisted = if args.persist {
                     Some(persist_register_on_start(&root, true)?)
                 } else {
                     None
                 };
-                crate::output::json::print(&serde_json::json!({
-                    "worktree": root.display().to_string(),
-                    "outcome": label,
-                    "detail": detail,
-                    "persisted": persisted,
-                }))?;
+                crate::output::json::print(&register_json(
+                    &root,
+                    &outcome,
+                    persisted.as_ref(),
+                    driver_failed,
+                ))?;
                 return Ok(());
             }
             report_registration(&root, outcome);
@@ -176,10 +175,7 @@ fn run_register(args: &RegisterArgs, json_mode: bool) -> Result<()> {
                 // JREL-003: membership succeeded but the daemon reported the
                 // supervised driver failed — say so; the membership line alone
                 // would read as coverage.
-                println!(
-                    "Save-time driver failed for {} — inspect `anvil intercept status`.",
-                    root.display()
-                );
+                println!("{}", driver_failed_note(&root));
             }
             // ACTMO-019: `--persist` records the worktree in `register_on_start`
             // independent of the live outcome — it captures the *intent* to
@@ -202,6 +198,75 @@ fn run_register(args: &RegisterArgs, json_mode: bool) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// JREL-003: the one line that names a driver failure to a human. Membership
+/// succeeded, so the registration line alone would read as coverage.
+fn driver_failed_note(root: &std::path::Path) -> String {
+    format!(
+        "Save-time driver failed for {} — inspect `anvil intercept status`.",
+        root.display()
+    )
+}
+
+/// The machine-readable `anvil workspace register` document.
+///
+/// JREL-003: `save_time_driver` is additive and appears ONLY when the daemon
+/// reported the supervised driver `failed`, so a scripted caller sees the same
+/// coverage gap the human output names instead of reading `outcome:
+/// "registered"` as readiness. Every pre-existing key is unchanged.
+fn register_json(
+    root: &std::path::Path,
+    outcome: &WorktreeRegistration,
+    persisted: Option<&serde_json::Value>,
+    driver_failed: bool,
+) -> serde_json::Value {
+    let (label, detail) = registration_fields(outcome);
+    let mut document = serde_json::json!({
+        "worktree": root.display().to_string(),
+        "outcome": label,
+        "detail": detail,
+        "persisted": persisted,
+    });
+    if driver_failed && let Some(fields) = document.as_object_mut() {
+        fields.insert(
+            "save_time_driver".to_owned(),
+            serde_json::Value::String("failed".to_owned()),
+        );
+    }
+    document
+}
+
+/// The machine-readable `anvil workspace register --all` document.
+///
+/// JREL-003: `save_time_driver_failed` lists the worktrees whose membership
+/// succeeded but whose driver the daemon reported `failed`. Additive and
+/// present only when there is at least one — the readiness wait `--all` pays
+/// per worktree is now reported rather than discarded.
+fn register_all_json(
+    outcome: &str,
+    registered: usize,
+    prefix_skipped: usize,
+    skips: &[String],
+    persisted: Option<&serde_json::Value>,
+    driver_failed: &[String],
+) -> serde_json::Value {
+    let mut document = serde_json::json!({
+        "outcome": outcome,
+        "registered": registered,
+        "prefix_skipped": prefix_skipped,
+        "skips": skips,
+        "persisted": persisted,
+    });
+    if !driver_failed.is_empty()
+        && let Some(fields) = document.as_object_mut()
+    {
+        fields.insert(
+            "save_time_driver_failed".to_owned(),
+            serde_json::json!(driver_failed),
+        );
+    }
+    document
 }
 
 /// The machine-readable projection of a registration outcome: a stable
@@ -755,6 +820,8 @@ fn run_register_all(persist: bool, json_mode: bool) -> Result<()> {
                 "outcome": outcome,
                 "registered": 0,
             }))?;
+            // (The early documents predate the per-entry keys and stay as they
+            // are: nothing was registered, so no driver was waited on.)
         } else {
             println!("{message}");
         }
@@ -784,6 +851,11 @@ fn run_register_all(persist: bool, json_mode: bool) -> Result<()> {
     // the exact entries that resolved to a live worktree (the same set `--all`
     // registered this run).
     let mut persist_roots: Vec<std::path::PathBuf> = Vec::new();
+    // JREL-003 (review finding 3): `--all` pays the bounded driver-readiness
+    // wait for every entry, so it reports the result rather than discarding
+    // it — a run that registers ten worktrees and attaches no driver is not a
+    // clean run.
+    let mut driver_failed: Vec<String> = Vec::new();
     for entry in &file.allow {
         if matches!(entry.kind, MatchKind::Prefix) {
             prefix_skipped += 1;
@@ -802,7 +874,14 @@ fn run_register_all(persist: bool, json_mode: bool) -> Result<()> {
                 continue;
             }
         };
-        match registration::register_worktree_with_daemon(&root).registration {
+        let report = registration::register_worktree_with_daemon(&root);
+        if report.driver_failed() {
+            driver_failed.push(root.display().to_string());
+            if !json_mode {
+                println!("{}", driver_failed_note(&root));
+            }
+        }
+        match report.registration {
             WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {
                 registered += 1;
                 persist_roots.push(root);
@@ -822,13 +901,14 @@ fn run_register_all(persist: bool, json_mode: bool) -> Result<()> {
                     None
                 };
                 if json_mode {
-                    crate::output::json::print(&serde_json::json!({
-                        "outcome": "daemon-unavailable",
-                        "registered": registered,
-                        "prefix_skipped": prefix_skipped,
-                        "skips": skips,
-                        "persisted": persisted,
-                    }))?;
+                    crate::output::json::print(&register_all_json(
+                        "daemon-unavailable",
+                        registered,
+                        prefix_skipped,
+                        &skips,
+                        persisted.as_ref(),
+                        &driver_failed,
+                    ))?;
                 }
                 return Ok(());
             }
@@ -857,6 +937,12 @@ fn run_register_all(persist: bool, json_mode: bool) -> Result<()> {
                 println!("  {skip}");
             }
         }
+        if !driver_failed.is_empty() {
+            println!(
+                "{} of them registered without a save-time driver.",
+                driver_failed.len()
+            );
+        }
     }
     let persisted = if persist && !persist_roots.is_empty() {
         Some(persist_register_on_start_all(&persist_roots, json_mode)?)
@@ -864,13 +950,14 @@ fn run_register_all(persist: bool, json_mode: bool) -> Result<()> {
         None
     };
     if json_mode {
-        crate::output::json::print(&serde_json::json!({
-            "outcome": "completed",
-            "registered": registered,
-            "prefix_skipped": prefix_skipped,
-            "skips": skips,
-            "persisted": persisted,
-        }))?;
+        crate::output::json::print(&register_all_json(
+            "completed",
+            registered,
+            prefix_skipped,
+            &skips,
+            persisted.as_ref(),
+            &driver_failed,
+        ))?;
     }
     Ok(())
 }
@@ -1217,6 +1304,78 @@ mod tests {
             WorkspaceCommand::Unregister(args) => assert!(args.persist),
             other => panic!("expected Unregister, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn register_json_names_a_failed_driver_without_changing_existing_keys() {
+        // JREL-003 (review finding 4): the human path already named a failed
+        // driver; the JSON document dropped it, so a scripted caller read
+        // `outcome: "registered"` as coverage.
+        let root = std::path::Path::new("/srv/proj");
+        let healthy = register_json(root, &WorktreeRegistration::Registered, None, false);
+        assert_eq!(
+            healthy,
+            serde_json::json!({
+                "worktree": "/srv/proj",
+                "outcome": "registered",
+                "detail": serde_json::Value::Null,
+                "persisted": serde_json::Value::Null,
+            }),
+            "an attached driver leaves the document exactly as it was"
+        );
+
+        let failed = register_json(
+            root,
+            &WorktreeRegistration::Refreshed,
+            Some(&serde_json::json!({ "added": true })),
+            true,
+        );
+        assert_eq!(failed["outcome"], "refreshed", "existing keys unchanged");
+        assert_eq!(failed["persisted"], serde_json::json!({ "added": true }));
+        assert_eq!(
+            failed["save_time_driver"], "failed",
+            "the failed driver is machine-readable: {failed}"
+        );
+    }
+
+    #[test]
+    fn register_all_json_lists_the_worktrees_whose_driver_failed() {
+        // JREL-003 (review finding 3): `--all` pays the readiness wait per
+        // worktree, so the result is surfaced rather than discarded.
+        let clean = register_all_json("completed", 2, 1, &["a — nope".to_owned()], None, &[]);
+        assert_eq!(
+            clean,
+            serde_json::json!({
+                "outcome": "completed",
+                "registered": 2,
+                "prefix_skipped": 1,
+                "skips": ["a — nope"],
+                "persisted": serde_json::Value::Null,
+            }),
+            "no failure means no new key"
+        );
+
+        let degraded = register_all_json(
+            "daemon-unavailable",
+            2,
+            0,
+            &[],
+            None,
+            &["/srv/a".to_owned(), "/srv/b".to_owned()],
+        );
+        assert_eq!(degraded["registered"], 2, "existing keys unchanged");
+        assert_eq!(
+            degraded["save_time_driver_failed"],
+            serde_json::json!(["/srv/a", "/srv/b"]),
+            "every entry whose driver failed is named: {degraded}"
+        );
+    }
+
+    #[test]
+    fn driver_failed_note_points_at_the_status_surface() {
+        let note = driver_failed_note(std::path::Path::new("/srv/proj"));
+        assert!(note.contains("/srv/proj"), "{note}");
+        assert!(note.contains("anvil intercept status"), "{note}");
     }
 
     #[test]

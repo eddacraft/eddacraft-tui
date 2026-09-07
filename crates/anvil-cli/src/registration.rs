@@ -23,17 +23,34 @@ use serde_json::Value;
 
 use crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT;
 
-/// JREL-003: after durable membership is confirmed, how long the registration
-/// path waits for the daemon's supervisor to report the worktree's save-time
-/// driver attached. Paid in full only on the failing path: the supervisor
-/// spawns (or restores) the child within milliseconds of the membership
-/// signal, so a healthy registration returns on the first snapshot that shows
-/// it. A daemon without driver supervision (`ANVIL_NO_SAVE_TIME_DRIVER`) or a
-/// persistently failing spawn pays the whole budget once, then reports the
-/// honest [`SaveTimeDriverReadiness`].
+/// JREL-003: after durable membership is confirmed, the ceiling on how long
+/// the registration path waits for the daemon's supervisor to report the
+/// worktree's save-time driver attached.
+///
+/// Almost never paid in full. The supervisor spawns (or restores) the child
+/// within milliseconds of the membership signal, so a healthy registration
+/// returns on the first snapshot that shows it; an outcome that cannot become
+/// `attached` by waiting longer — a daemon with driver supervision disabled
+/// (`ANVIL_NO_SAVE_TIME_DRIVER`), a worktree the supervisor's failure bound is
+/// holding in `failed`, or an unreadable status — returns after
+/// [`DRIVER_TRANSIENT_GRACE`] instead of polling out the budget (review
+/// finding 8: every bare `anvil` used to pay a full second, forever, on those
+/// paths).
+///
+/// Worst case in wall-clock terms: this budget plus one
+/// [`ACTIVATION_DAEMON_QUERY_TIMEOUT`], because the deadline is only checked
+/// between status reads and the read in flight when it expires is not
+/// cancelled (review finding 6).
 const DRIVER_READY_BUDGET: Duration = Duration::from_secs(1);
 /// Gap between status polls while waiting for the driver.
 const DRIVER_READY_INTERVAL: Duration = Duration::from_millis(50);
+/// JREL-003: how long a `failed`/`absent` snapshot is still treated as "the
+/// supervisor has not drained the membership signal yet". After a refresh the
+/// first read can legitimately still show the dead child, so the wait keeps
+/// polling for this long — but no longer, since nothing beyond a
+/// still-starting driver changes those outcomes within a one-second budget.
+/// Clamped to the budget for callers that pass a shorter one.
+const DRIVER_TRANSIENT_GRACE: Duration = Duration::from_millis(200);
 
 const REGISTER_METHOD: &str = "session.register";
 const UNREGISTER_METHOD: &str = "session.unregister";
@@ -391,49 +408,76 @@ where
 {
     let started = Instant::now();
     let deadline = started + budget;
+    let grace = DRIVER_TRANSIENT_GRACE.min(budget);
     let mut reads = 1_usize;
     let mut last = fetch();
-    loop {
-        // `failed` is NOT final mid-wait: after a refresh the first snapshot
-        // can still show the dead child before the supervisor drains the
-        // refresh and respawns. Only `attached` ends the wait early.
-        if let Ok(status) = &last
-            && let Some(entry) = worktree_driver_entry(status, canonical)
-            && entry.save_time_driver == SaveTimeDriverStatusV1::Attached
-        {
-            return SaveTimeDriverReadiness::Attached {
-                evidence: entry.save_time_driver_evidence,
-            };
+    let readiness = loop {
+        let observed = classify_driver_snapshot(&last, canonical);
+        match &observed {
+            // Readiness proven: the one outcome that ends the wait happy.
+            SaveTimeDriverReadiness::Attached { .. } => return observed,
+            // Daemon status could not be read. Membership was confirmed
+            // through this same channel moments ago, so this is not a daemon
+            // that is still coming up — polling it harder cannot make the
+            // driver attach within the budget.
+            SaveTimeDriverReadiness::Unknown(_) => break observed,
+            // `failed` is NOT final immediately after a refresh: the snapshot
+            // can still show the dead child before the supervisor drains the
+            // signal and respawns, and `absent` can precede a fresh spawn
+            // landing in the map. Both are plausible only while the driver is
+            // starting, so they are given the transient grace and no more —
+            // beyond it, driver supervision is off, or the failure bound is
+            // holding this worktree, and waiting out the budget only taxes
+            // every `anvil` run.
+            SaveTimeDriverReadiness::Failed | SaveTimeDriverReadiness::Absent => {
+                if started.elapsed() >= grace {
+                    break observed;
+                }
+            }
         }
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            break;
+            break observed;
         }
         std::thread::sleep(interval.min(remaining));
         last = fetch();
         reads += 1;
-    }
-    let readiness = match &last {
-        Ok(status) => match worktree_driver_entry(status, canonical).map(|w| w.save_time_driver) {
-            Some(SaveTimeDriverStatusV1::Attached) => SaveTimeDriverReadiness::Attached {
-                evidence: worktree_driver_entry(status, canonical)
-                    .and_then(|w| w.save_time_driver_evidence),
-            },
-            Some(SaveTimeDriverStatusV1::Failed) => SaveTimeDriverReadiness::Failed,
-            Some(SaveTimeDriverStatusV1::Absent | SaveTimeDriverStatusV1::Unknown) | None => {
-                SaveTimeDriverReadiness::Absent
-            }
-        },
-        Err(err) => SaveTimeDriverReadiness::Unknown(err.to_string()),
     };
     tracing::warn!(
         worktree = %canonical.display(),
         status_reads = reads,
         waited_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
         readiness = ?readiness,
-        "activation: save-time driver was not attached before the readiness budget expired",
+        "activation: save-time driver was not attached before the readiness wait ended",
     );
     readiness
+}
+
+/// Classify one daemon-status read as driver readiness for `canonical`.
+fn classify_driver_snapshot<E>(
+    last: &Result<DaemonStatusV1, E>,
+    canonical: &Path,
+) -> SaveTimeDriverReadiness
+where
+    E: std::fmt::Display,
+{
+    match last {
+        Ok(status) => match worktree_driver_entry(status, canonical) {
+            Some(entry) => match entry.save_time_driver {
+                SaveTimeDriverStatusV1::Attached => SaveTimeDriverReadiness::Attached {
+                    evidence: entry.save_time_driver_evidence,
+                },
+                SaveTimeDriverStatusV1::Failed => SaveTimeDriverReadiness::Failed,
+                // A forward-compatible unknown state is treated fail-safe:
+                // never readiness.
+                SaveTimeDriverStatusV1::Absent | SaveTimeDriverStatusV1::Unknown => {
+                    SaveTimeDriverReadiness::Absent
+                }
+            },
+            None => SaveTimeDriverReadiness::Absent,
+        },
+        Err(err) => SaveTimeDriverReadiness::Unknown(err.to_string()),
+    }
 }
 
 /// The daemon's status entry for `canonical`, matched on canonical identity
@@ -1767,8 +1811,8 @@ mod tests {
         let elapsed = started.elapsed();
         assert_eq!(failed, SaveTimeDriverReadiness::Failed);
         assert!(
-            elapsed >= Duration::from_millis(100) && elapsed < Duration::from_secs(10),
-            "a persistent failure is reported after the bounded wait, got {elapsed:?}"
+            elapsed < Duration::from_secs(10),
+            "a persistent failure is reported within the bounded wait, got {elapsed:?}"
         );
 
         // Membership refresh alone is not readiness: an absent driver entry
@@ -1813,6 +1857,74 @@ mod tests {
         );
         assert_eq!(
             unreadable,
+            SaveTimeDriverReadiness::Unknown("daemon status unreadable".to_owned())
+        );
+    }
+
+    #[test]
+    fn driver_wait_short_circuits_outcomes_that_cannot_become_attached() {
+        // Review finding 8: with driver supervision disabled, or a worktree
+        // held in `failed` by the supervisor's failure bound, every bare
+        // `anvil` / `anvil start` / `anvil workspace register` used to pay the
+        // whole budget. The wait now ends once the transient grace has passed.
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let budget = Duration::from_secs(30);
+        let interval = Duration::from_millis(10);
+
+        for (state, expected) in [
+            (
+                SaveTimeDriverStatusV1::Failed,
+                SaveTimeDriverReadiness::Failed,
+            ),
+            (
+                SaveTimeDriverStatusV1::Absent,
+                SaveTimeDriverReadiness::Absent,
+            ),
+        ] {
+            let started = Instant::now();
+            let readiness = await_save_time_driver_within(
+                &worktree,
+                budget,
+                interval,
+                || -> Result<DaemonStatusV1, std::convert::Infallible> {
+                    Ok(status_with_driver(&worktree, state, None))
+                },
+            );
+            let elapsed = started.elapsed();
+            assert_eq!(readiness, expected);
+            assert!(
+                elapsed >= DRIVER_TRANSIENT_GRACE,
+                "a still-starting driver keeps its grace, got {elapsed:?}"
+            );
+            assert!(
+                elapsed < budget / 2,
+                "{state:?} must not poll out the budget, got {elapsed:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn driver_wait_returns_at_once_on_an_unreadable_status() {
+        // An IPC error cannot become `attached` by polling: membership was
+        // confirmed over the same channel moments earlier.
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let mut reads = 0_usize;
+        let started = Instant::now();
+        let readiness = await_save_time_driver_within(
+            &worktree,
+            Duration::from_secs(30),
+            Duration::from_millis(10),
+            || -> Result<DaemonStatusV1, String> {
+                reads += 1;
+                Err("daemon status unreadable".to_owned())
+            },
+        );
+        assert_eq!(reads, 1, "no retry after an unreadable status");
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_eq!(
+            readiness,
             SaveTimeDriverReadiness::Unknown("daemon status unreadable".to_owned())
         );
     }

@@ -505,10 +505,19 @@ pub enum MembershipChange {
 }
 
 /// ACTMO-014: callback fired with a [`MembershipChange`] and the canonical
-/// worktree path each time the durable membership set changes. Like
-/// [`WorktreeUnregisterHook`] it fires **outside** the registry's internal
-/// lock and should stay short. Only durable (activation-spine) membership
-/// transitions fire it — live agent-session leases do not.
+/// worktree path each time the durable membership set changes. Only durable
+/// (activation-spine) membership transitions fire it — live agent-session
+/// leases do not.
+///
+/// **Contract (JREL-003).** It fires **while the registry's internal lock is
+/// held**, so the order signals arrive in is exactly the order of the
+/// mutations that justified them. An implementation must therefore be
+/// enqueue-only: no spawning, no filesystem or process work, no blocking, and
+/// never a call back into the registry. Anything expensive belongs on the
+/// consumer's own task (the save-time driver supervisor pushes onto a queue
+/// and wakes its drain task). Work that may block on foreign state belongs on
+/// [`WorktreeUnregisterHook`] instead, which still fires after the lock is
+/// released.
 pub type MembershipHook = Arc<dyn Fn(MembershipChange, &Path) + Send + Sync>;
 
 struct Inner {
@@ -713,9 +722,25 @@ impl SessionRegistry {
         self.membership_hook.set(hook).is_ok()
     }
 
-    /// ACTMO-014: fire the membership hook outside the registry lock. No-op
-    /// when no hook is installed (the common cut-line posture until DSV-046
-    /// wires a consumer).
+    /// ACTMO-014: fire the membership hook. No-op when no hook is installed
+    /// (the common cut-line posture until DSV-046 wires a consumer).
+    ///
+    /// JREL-003: called while the caller still holds the registry lock, so the
+    /// signal order is exactly the order of the mutations that justified them.
+    /// Firing after the guard dropped let a `Refreshed` be enqueued behind an
+    /// `Unregistered`/`Reaped` for the same worktree — the consumer then
+    /// stopped the driver and respawned a child for a worktree that is no
+    /// longer durable, and nothing stopped it again until daemon restart.
+    /// Under the lock the two are atomic: a heartbeat that loses the race
+    /// finds the session gone and signals nothing at all.
+    ///
+    /// This is compatible with the ADR-094 review pin that kept the hook off
+    /// the registry's I/O path: the pin's intent is that a membership hook
+    /// must never spawn, touch the filesystem, or block — the supervisor's
+    /// hook only pushes onto a queue and wakes its own task (O(1), no I/O),
+    /// and every implementation must stay that way. The slow consumer the pin
+    /// was written for is the *unregister* (warm-state) hook, which still
+    /// fires after the guard is released.
     fn signal_membership(&self, change: MembershipChange, worktree: &Path) {
         if let Some(hook) = self.membership_hook.get() {
             hook(change, worktree);
@@ -783,7 +808,7 @@ impl SessionRegistry {
         // wire), so it may pass a durable tag directly.
         let durable = agent_tag.is_some_and(AgentTag::is_durable_membership);
 
-        let (record, signal_registered) = {
+        let record = {
             let mut inner = self.lock();
 
             if inner.sessions.contains_key(id) {
@@ -880,13 +905,14 @@ impl SessionRegistry {
             inner.by_composite.insert(composite_key, id.clone());
             // Signal a membership *gain* only when this is the first durable
             // session for the worktree — symmetric with the "last session
-            // leaves" rule on `unregister` / `evict_stale`.
-            (record, durable && !already_member)
+            // leaves" rule on `unregister` / `evict_stale`. JREL-003: enqueued
+            // under this guard so the signal order matches the mutation order.
+            if durable && !already_member {
+                self.signal_membership(MembershipChange::Registered, &canonical);
+            }
+            record
         };
 
-        if signal_registered {
-            self.signal_membership(MembershipChange::Registered, &canonical);
-        }
         Ok(record)
     }
 
@@ -1326,17 +1352,21 @@ impl SessionRegistry {
     /// [`RegistryError::UnknownSession`] if the id is not registered
     /// (or has already been evicted).
     pub fn heartbeat(&self, id: &SessionId, now: Instant) -> Result<(), RegistryError> {
-        let refreshed = {
-            let mut inner = self.lock();
-            Self::heartbeat_locked(&mut inner, id, now)?
-        };
+        let mut inner = self.lock();
+        let refreshed = Self::heartbeat_locked(&mut inner, id, now)?;
+        // JREL-003: under the guard — see `signal_membership`. A heartbeat
+        // that loses the race to an unregister returns `UnknownSession` above
+        // and signals nothing, so a `Refreshed` can never follow the
+        // `Unregistered` for a worktree that is no longer durable.
         self.signal_refreshed(refreshed.as_deref());
+        drop(inner);
         Ok(())
     }
 
     /// JREL-003: fire [`MembershipChange::Refreshed`] for a durable
-    /// heartbeat, outside the registry lock like every other membership
-    /// signal. `None` (a live lease, or no hook) is a no-op.
+    /// heartbeat, under the same registry lock as the heartbeat mutation
+    /// (see [`Self::signal_membership`]). `None` (a live lease, or no hook)
+    /// is a no-op.
     fn signal_refreshed(&self, durable_worktree: Option<&Path>) {
         if let Some(worktree) = durable_worktree {
             self.signal_membership(MembershipChange::Refreshed, worktree);
@@ -1351,7 +1381,7 @@ impl SessionRegistry {
     ///
     /// Returns the canonical worktree when the heartbeated session is a
     /// durable member, so the caller can signal
-    /// [`MembershipChange::Refreshed`] once the lock is released.
+    /// [`MembershipChange::Refreshed`] before it releases the lock.
     fn heartbeat_locked(
         inner: &mut Inner,
         id: &SessionId,
@@ -1651,12 +1681,17 @@ impl SessionRegistry {
     pub fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
         let outcome = {
             let mut inner = self.lock();
-            Self::remove_session_locked(&mut inner, id)
+            let outcome = Self::remove_session_locked(&mut inner, id);
+            // JREL-003: the membership-loss signal is enqueued under the same
+            // guard as the removal (see `signal_membership`).
+            self.signal_membership_lost(outcome.as_ref());
+            drop(inner);
+            outcome
         };
         let Some(outcome) = outcome else {
             return Ok(false);
         };
-        self.fire_unregister_side_effects(outcome);
+        self.fire_warm_reclaim(outcome);
         Ok(true)
     }
 
@@ -1702,23 +1737,30 @@ impl SessionRegistry {
         Some((warm, membership_lost))
     }
 
-    /// Fire the post-removal hooks recorded by
+    /// ACTMO-014: enqueue the membership-loss signal recorded by
+    /// [`Self::remove_session_locked`]. JREL-003: called by the removal paths
+    /// while they still hold the registry lock, so an `Unregistered` can never
+    /// be ordered behind a `Refreshed` that mutated after it (see
+    /// [`Self::signal_membership`]).
+    fn signal_membership_lost(&self, outcome: Option<&(Option<PathBuf>, Option<PathBuf>)>) {
+        if let Some((_, Some(worktree))) = outcome {
+            self.signal_membership(MembershipChange::Unregistered, worktree);
+        }
+    }
+
+    /// Fire the warm-state reclamation hook recorded by
     /// [`Self::remove_session_locked`] once the registry lock has been
     /// released.
-    fn fire_unregister_side_effects(&self, outcome: (Option<PathBuf>, Option<PathBuf>)) {
-        let (worktree_to_signal, membership_lost) = outcome;
+    fn fire_warm_reclaim(&self, outcome: (Option<PathBuf>, Option<PathBuf>)) {
+        let (worktree_to_signal, _membership_lost) = outcome;
         // MLP2-057: fire the hook AFTER the inner lock is released so a
         // slow consumer (a `SaveTimeState::invalidate` running under
-        // its own mutex) does not extend the registry-lock window.
+        // its own mutex) does not extend the registry-lock window. Unlike the
+        // enqueue-only membership hook, this one may block on foreign state.
         if let Some(worktree) = worktree_to_signal
             && let Some(hook) = self.unregister_hook.get()
         {
             hook(&worktree);
-        }
-        // ACTMO-014: membership-change producer (ADR-094 decision 7), also
-        // outside the lock.
-        if let Some(worktree) = membership_lost {
-            self.signal_membership(MembershipChange::Unregistered, &worktree);
         }
     }
 
@@ -1772,8 +1814,9 @@ impl SessionRegistry {
     /// `exists` is injected rather than calling the filesystem directly so the
     /// sweep is unit-testable without real directories; it is evaluated at
     /// most once per distinct worktree. Fires the membership `Reaped` signal
-    /// (ADR-094 decision 7) and the warm-state unregister hook for
-    /// fully-drained worktrees, both outside the registry lock.
+    /// (ADR-094 decision 7) for worktrees drained of durable membership — under
+    /// the lock, with the removals (JREL-003) — and the warm-state unregister
+    /// hook for fully-drained worktrees once the lock is released.
     pub fn reap_missing(&self, exists: impl Fn(&Path) -> bool) -> Vec<PathBuf> {
         let (warm_drained, mut reaped) = {
             let mut inner = self.lock();
@@ -1821,15 +1864,19 @@ impl SessionRegistry {
                     reaped.push(worktree.clone());
                 }
             }
+            // JREL-003: the `Reaped` signals are enqueued under the same
+            // guard as the removals (see `signal_membership`), so a heartbeat
+            // racing the reaper cannot slip a `Refreshed` in behind them for a
+            // worktree that is no longer durable.
+            for worktree in &reaped {
+                self.signal_membership(MembershipChange::Reaped, worktree);
+            }
             (warm_drained, reaped)
         };
         if let Some(hook) = self.unregister_hook.get() {
             for worktree in &warm_drained {
                 hook(worktree);
             }
-        }
-        for worktree in &reaped {
-            self.signal_membership(MembershipChange::Reaped, worktree);
         }
         reaped.sort();
         reaped
@@ -2014,14 +2061,14 @@ impl SessionDispatcher for SessionRegistry {
         // cannot be evicted and re-registered between them (mirrors
         // `update_lineage_anchor`'s all-checks-before-mutation, single-lock
         // pattern).
-        let refreshed = {
-            let mut inner = self.lock();
-            SessionRegistry::peer_ownership_check(inner.sessions.get(id), id, peer_pid)?;
-            SessionRegistry::heartbeat_locked(&mut inner, id, Instant::now())?
-        };
-        // JREL-003: signalled after the guard is dropped — the hook must
-        // never run under the registry lock.
+        let mut inner = self.lock();
+        SessionRegistry::peer_ownership_check(inner.sessions.get(id), id, peer_pid)?;
+        let refreshed = SessionRegistry::heartbeat_locked(&mut inner, id, Instant::now())?;
+        // JREL-003: enqueued under the guard, so a `Refreshed` can never be
+        // ordered behind an `Unregistered`/`Reaped` for the same worktree
+        // (see `SessionRegistry::signal_membership`).
         self.signal_refreshed(refreshed.as_deref());
+        drop(inner);
         Ok(())
     }
 
@@ -2033,12 +2080,16 @@ impl SessionDispatcher for SessionRegistry {
         let outcome = {
             let mut inner = self.lock();
             SessionRegistry::peer_ownership_check(inner.sessions.get(id), id, peer_pid)?;
-            SessionRegistry::remove_session_locked(&mut inner, id)
+            let outcome = SessionRegistry::remove_session_locked(&mut inner, id);
+            // JREL-003: membership loss is enqueued under the guard.
+            SessionRegistry::signal_membership_lost(self, outcome.as_ref());
+            drop(inner);
+            outcome
         };
         let Some(outcome) = outcome else {
             return Ok(false);
         };
-        self.fire_unregister_side_effects(outcome);
+        SessionRegistry::fire_warm_reclaim(self, outcome);
         Ok(true)
     }
 
@@ -2791,28 +2842,84 @@ mod tests {
         );
     }
 
-    /// JREL-003: the `Refreshed` signal fires outside the registry lock —
-    /// a hook that re-enters the registry must not deadlock.
+    /// JREL-003 (review finding 7): membership signals are enqueued under the
+    /// registry lock, so their order is the order of the mutations that
+    /// justified them. A `Refreshed` overtaking an `Unregistered` for the same
+    /// worktree made the driver supervisor stop the child and then spawn a
+    /// replacement for a worktree that is no longer durable — a leak nothing
+    /// cleaned up until daemon restart.
     #[test]
-    fn refreshed_signal_fires_outside_the_registry_lock() {
+    fn membership_signals_cannot_be_reordered_by_a_slow_hook() {
         let registry = Arc::new(SessionRegistry::new());
-        let probe = Arc::clone(&registry);
-        let reentered = Arc::new(Mutex::new(false));
-        let flag = Arc::clone(&reentered);
+        let events: Arc<Mutex<Vec<MembershipChange>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
         assert!(registry.set_membership_hook(Arc::new(move |change, _wt| {
+            // A hook that takes its time on the refresh: the unregister behind
+            // it must not be able to enqueue its own signal first.
             if change == MembershipChange::Refreshed {
-                // Re-enter: a lock held across the signal would deadlock here.
-                let _ = probe.active_sessions();
-                *flag.lock().unwrap() = true;
+                std::thread::sleep(Duration::from_millis(200));
             }
+            sink.lock().unwrap().push(change);
         })));
         let wt = make_worktree();
         let now = Instant::now();
         registry
             .register(&sid("d"), wt.path(), Some(&spine_tag()), now)
             .expect("register");
-        registry.heartbeat(&sid("d"), now).expect("heartbeat");
-        assert!(*reentered.lock().unwrap(), "hook observed the refresh");
+
+        let beating = Arc::clone(&registry);
+        let heartbeat = std::thread::spawn(move || {
+            beating
+                .heartbeat(&sid("d"), Instant::now())
+                .expect("heartbeat");
+        });
+        // Give the heartbeat time to enter the hook, then race it.
+        std::thread::sleep(Duration::from_millis(40));
+        assert!(registry.unregister(&sid("d")).expect("unregister"));
+        heartbeat.join().expect("heartbeat thread");
+
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec![
+                MembershipChange::Registered,
+                MembershipChange::Refreshed,
+                MembershipChange::Unregistered,
+            ],
+            "the loss signal never overtakes the refresh that mutated first"
+        );
+    }
+
+    /// The other half of finding 7: a heartbeat that LOSES the race finds the
+    /// session gone under the same lock, so no `Refreshed` follows the
+    /// `Unregistered` at all — the supervisor is never asked to respawn a
+    /// driver for a worktree that has left the durable set.
+    #[test]
+    fn a_heartbeat_after_unregister_signals_nothing() {
+        let registry = SessionRegistry::new();
+        let events: Arc<Mutex<Vec<MembershipChange>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        assert!(registry.set_membership_hook(Arc::new(move |change, _wt| {
+            sink.lock().unwrap().push(change);
+        })));
+        let wt = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&sid("d"), wt.path(), Some(&spine_tag()), now)
+            .expect("register");
+        assert!(registry.unregister(&sid("d")).expect("unregister"));
+        assert!(matches!(
+            registry.heartbeat(&sid("d"), now),
+            Err(RegistryError::UnknownSession(_))
+        ));
+        assert!(matches!(
+            SessionDispatcher::heartbeat(&registry, &sid("d"), None),
+            Err(RegistryError::UnknownSession(_))
+        ));
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec![MembershipChange::Registered, MembershipChange::Unregistered],
+            "no refresh signal for a worktree that is no longer durable"
+        );
     }
 
     /// `pid` / `pgid` / `started_at_unix` update; supplying `None` does

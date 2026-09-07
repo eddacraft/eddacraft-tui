@@ -340,12 +340,17 @@ fn bare_anvil_restores_exactly_one_ready_driver_after_child_death() {
         second_stdout.contains("worktree: registration refreshed"),
         "the re-run must refresh durable membership rather than re-register:\n{second_stdout}"
     );
-    let entry = harness
-        .worktree_entry(&worktree, &worktree)
-        .expect("worktree stays a durable member across the re-run");
-    assert_eq!(
-        entry["save_time_driver"], "attached",
-        "the re-run must leave the driver attached, not merely refreshed; entry={entry}"
+    // The CLI's own bounded wait normally makes this true by the time it
+    // exits; under a loaded runner the daemon's snapshot can lag it, so this
+    // is retried like the surrounding assertions rather than read once.
+    wait_until(
+        "the re-run to leave the driver attached, not merely refreshed",
+        || {
+            let entry = harness
+                .worktree_entry(&worktree, &worktree)
+                .expect("worktree stays a durable member across the re-run");
+            (entry["save_time_driver"] == "attached").then_some(())
+        },
     );
     let second_pid = harness
         .driver_pid()
