@@ -2312,19 +2312,20 @@ mod tests {
     }
 
     #[test]
-    fn daemon_observation_sink_ignores_non_save_time_gate_rows() {
+    fn daemon_observation_sink_ignores_unselected_gate_ids() {
         let dir = tempdir().expect("tempdir");
         let path = dir.path().join("kindling").join(USAGE_NDJSON);
         let sink = DaemonObservationSink { path: path.clone() };
 
-        // A mid-edit gate row must NOT be persisted by this sink.
+        // midEdit is also non-save-time, but unlike PREWRITE it is not a
+        // selected gate_id for this sink and must not be persisted.
         let mut row = save_time_row(&["src/lib.rs".to_string()]);
         row.gate_id = "midEdit".to_string();
         sink.try_emit(row).expect("ignored, returns Ok");
 
         assert!(
             !path.exists() || fs::read_to_string(&path).unwrap().is_empty(),
-            "non-save-time gate rows must not be persisted to the usage sidecar",
+            "unselected gate ids (e.g. midEdit) must not be persisted to the usage sidecar",
         );
     }
 
