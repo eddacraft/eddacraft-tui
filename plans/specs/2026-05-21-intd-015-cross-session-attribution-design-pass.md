@@ -375,7 +375,7 @@ The implementation slice (one PR, scope-capped) must show:
   `with_enforcement_config` advances to "wires the fan-out alongside
   the per-worktree cap and IPC limits"
 - CHANGELOG "Known gaps" line narrowed per D7
-- `docs/runbooks/v0.7.0-beta-security-note.md` §M1 cross-reference
+- `docs/archive/runbooks/v0.7.0-beta-security-note.md` §M1 cross-reference
   updated to point at MLP2-071's resolution
 
 The slice must NOT:
