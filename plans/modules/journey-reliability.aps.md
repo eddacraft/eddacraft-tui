@@ -119,7 +119,19 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-004: One daemon identity through start and recycle
 
-- **Status:** In Progress (claim #4424)
+- **Status:** Committed — PR #4428 (claim #4424). Closeout: ensure probes the
+  canonical endpoint then validated sibling endpoints before spawning and
+  serialises spawn under the existing CIB-382 rendezvous coordinator; recycle
+  signals only the instances it observed, re-probes when nothing was signalled
+  and requires the replacement to report the CLI version; status reads the PID
+  verified beside the answering socket. Baseline reproduction through the real
+  binary (`crates/anvil-cli/tests/daemon_identity.rs`): XDG shell and
+  stale-canonical-plus-live-sibling both spawned a duplicate (`daemon: started`)
+  before the fix; isolated homes were already distinct. Closeout runs:
+  `cargo test -p eddacraft-anvil-intercept --no-fail-fast` 1241 passed and
+  `cargo test -p eddacraft-anvil --no-fail-fast` 4277 passed, with the only
+  failures being pre-existing sandbox-environment tests (unset `USER`, uid 0
+  bypassing `chmod` fixtures) in files this change does not touch.
 - **Priority:** P1
 - **Intent:** Shell and editor environments converge on the same intended daemon instance.
 - **Expected Outcome:** Discovery, startup, registration, status and recycle agree on one verified instance across runtime/state-home endpoints. Concurrent cold starts or updates cannot produce duplicate daemons or stop a newly started replacement using stale identity. Expected replacement version and readiness are checked; isolated ANVIL_HOME installations remain distinct.
