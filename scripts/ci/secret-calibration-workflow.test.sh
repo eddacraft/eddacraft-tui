@@ -95,8 +95,14 @@ if assert_calibrate_runs_on "${negative}" 2>"${tmp_dir}/negative.err"; then
   echo "expected parked-ternary fixture to fail when calibrate.runs-on is vars.LINUX_RUNNER" >&2
   exit 1
 fi
-if ! grep -Fq 'actual:   ${{ vars.LINUX_RUNNER }}' "${tmp_dir}/negative.err"; then
+if ! grep -Fq 'jobs.calibrate.runs-on is not the fork-safe LINUX_RUNNER ternary' \
+  "${tmp_dir}/negative.err"; then
   echo "parked-ternary fixture failed for the wrong reason:" >&2
+  cat "${tmp_dir}/negative.err" >&2
+  exit 1
+fi
+if ! grep -Fq '${{ vars.LINUX_RUNNER }}' "${tmp_dir}/negative.err"; then
+  echo "parked-ternary fixture stderr missing the unguarded vars.LINUX_RUNNER:" >&2
   cat "${tmp_dir}/negative.err" >&2
   exit 1
 fi
