@@ -495,12 +495,12 @@ pub enum MembershipChange {
     /// A worktree left the durable set because the reaper found its directory
     /// gone (e.g. `git worktree remove`).
     Reaped,
-    /// JREL-003: an existing durable session was heartbeated — the public
-    /// re-run path (`anvil`, `anvil start`, `anvil workspace register`)
-    /// after the daemon refused a duplicate `session.register`. Membership
-    /// did not change; the consumer treats it as "ensure the driver for
-    /// this worktree is live" so a dead child is restored without a fresh
-    /// membership gain. Live (non-durable) heartbeats never produce it.
+    /// JREL-003: an existing durable session was re-registered through the
+    /// gated `session.register` verb (the public re-run path after the daemon
+    /// refused a duplicate id). Membership did not change; the consumer treats
+    /// it as "ensure the driver for this worktree is live" so a dead child is
+    /// restored without a fresh membership gain. Heartbeats never produce it:
+    /// they only refresh TTL. Live (non-durable) registers never produce it.
     Refreshed,
 }
 
@@ -812,13 +812,13 @@ impl SessionRegistry {
             let mut inner = self.lock();
 
             if inner.sessions.contains_key(id) {
+                self.refresh_duplicate_durable(&mut inner, id, &canonical, durable, now);
                 return Err(RegistryError::SessionAlreadyExists(id.clone()));
             }
             let composite_key = (canonical.clone(), agent_tag.cloned());
-            if let Some(existing) = inner.by_composite.get(&composite_key) {
-                return Err(RegistryError::WorktreeAlreadyOwned {
-                    existing: existing.clone(),
-                });
+            if let Some(existing) = inner.by_composite.get(&composite_key).cloned() {
+                self.refresh_duplicate_durable(&mut inner, &existing, &canonical, durable, now);
+                return Err(RegistryError::WorktreeAlreadyOwned { existing });
             }
 
             // MLP2-024: per-worktree session cap. This bounds the number of
@@ -1353,23 +1353,34 @@ impl SessionRegistry {
     /// (or has already been evicted).
     pub fn heartbeat(&self, id: &SessionId, now: Instant) -> Result<(), RegistryError> {
         let mut inner = self.lock();
-        let refreshed = Self::heartbeat_locked(&mut inner, id, now)?;
-        // JREL-003: under the guard — see `signal_membership`. A heartbeat
-        // that loses the race to an unregister returns `UnknownSession` above
-        // and signals nothing, so a `Refreshed` can never follow the
-        // `Unregistered` for a worktree that is no longer durable.
-        self.signal_refreshed(refreshed.as_deref());
+        Self::heartbeat_locked(&mut inner, id, now)?;
         drop(inner);
         Ok(())
     }
 
-    /// JREL-003: fire [`MembershipChange::Refreshed`] for a durable
-    /// heartbeat, under the same registry lock as the heartbeat mutation
-    /// (see [`Self::signal_membership`]). `None` (a live lease, or no hook)
-    /// is a no-op.
-    fn signal_refreshed(&self, durable_worktree: Option<&Path>) {
-        if let Some(worktree) = durable_worktree {
-            self.signal_membership(MembershipChange::Refreshed, worktree);
+    /// JREL-003: a duplicate durable `session.register` (already verified by
+    /// the IPC peer-executable gate) refreshes TTL and fires
+    /// [`MembershipChange::Refreshed`] under the same lock as the lookup, so
+    /// a heartbeat can never be the spawn trigger. Non-durable duplicates
+    /// stay silent.
+    fn refresh_duplicate_durable(
+        &self,
+        inner: &mut Inner,
+        id: &SessionId,
+        canonical: &Path,
+        incoming_durable: bool,
+        now: Instant,
+    ) {
+        let refresh = incoming_durable
+            && inner
+                .sessions
+                .get(id)
+                .is_some_and(|existing| existing.durable && existing.record.worktree == canonical);
+        if !refresh {
+            return;
+        }
+        if Self::heartbeat_locked(inner, id, now).is_ok() {
+            self.signal_membership(MembershipChange::Refreshed, canonical);
         }
     }
 
@@ -1378,22 +1389,18 @@ impl SessionRegistry {
     /// peer-ownership check ([`Self::peer_ownership_check`]) and this
     /// mutation under a single lock (Copilot PR #3188 TOCTOU fix),
     /// while the lock-free public [`Self::heartbeat`] keeps its shape.
-    ///
-    /// Returns the canonical worktree when the heartbeated session is a
-    /// durable member, so the caller can signal
-    /// [`MembershipChange::Refreshed`] before it releases the lock.
     fn heartbeat_locked(
         inner: &mut Inner,
         id: &SessionId,
         now: Instant,
-    ) -> Result<Option<PathBuf>, RegistryError> {
+    ) -> Result<(), RegistryError> {
         let entry = inner
             .sessions
             .get_mut(id)
             .ok_or_else(|| RegistryError::UnknownSession(id.clone()))?;
         entry.last_heartbeat = now;
         entry.record.last_heartbeat_unix = unix_seconds_now();
-        Ok(entry.durable.then(|| entry.record.worktree.clone()))
+        Ok(())
     }
 
     /// Look up the record owning a worktree, if any. The caller is
@@ -2063,11 +2070,7 @@ impl SessionDispatcher for SessionRegistry {
         // pattern).
         let mut inner = self.lock();
         SessionRegistry::peer_ownership_check(inner.sessions.get(id), id, peer_pid)?;
-        let refreshed = SessionRegistry::heartbeat_locked(&mut inner, id, Instant::now())?;
-        // JREL-003: enqueued under the guard, so a `Refreshed` can never be
-        // ordered behind an `Unregistered`/`Reaped` for the same worktree
-        // (see `SessionRegistry::signal_membership`).
-        self.signal_refreshed(refreshed.as_deref());
+        SessionRegistry::heartbeat_locked(&mut inner, id, Instant::now())?;
         drop(inner);
         Ok(())
     }
@@ -2791,12 +2794,12 @@ mod tests {
         );
     }
 
-    /// JREL-003: a heartbeat against a durable session fires `Refreshed`
-    /// with the canonical worktree — on both the public `heartbeat` and the
-    /// IPC `SessionDispatcher::heartbeat` path — while a live-lease
-    /// heartbeat never touches the membership hook.
+    /// JREL-003: a duplicate durable `session.register` fires `Refreshed`
+    /// with the canonical worktree — the gated verb that already verified the
+    /// peer-executable claim — while a heartbeat (public or IPC) never
+    /// touches the membership hook, and a live-lease duplicate stays silent.
     #[test]
-    fn membership_hook_fires_refreshed_only_for_durable_heartbeats() {
+    fn membership_hook_fires_refreshed_only_for_duplicate_durable_register() {
         let registry = SessionRegistry::new();
         let events: Arc<Mutex<Vec<(MembershipChange, PathBuf)>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = Arc::clone(&events);
@@ -2820,25 +2823,33 @@ mod tests {
             .expect("live");
         let canonical = std::fs::canonicalize(durable.path()).expect("canonicalise");
 
+        assert!(matches!(
+            registry.register(&sid("durable"), durable.path(), Some(&spine_tag()), now),
+            Err(RegistryError::SessionAlreadyExists(_))
+        ));
         registry
             .heartbeat(&sid("durable"), now)
             .expect("public heartbeat");
         SessionDispatcher::heartbeat(&registry, &sid("durable"), None)
             .expect("dispatcher heartbeat");
-        registry
-            .heartbeat(&sid("live"), now)
-            .expect("live heartbeat");
-        SessionDispatcher::heartbeat(&registry, &sid("live"), None).expect("live dispatcher");
+        assert!(matches!(
+            registry.register(
+                &sid("live"),
+                live.path(),
+                Some(&tag("claude-code", "agent-1", 1_700_000_000)),
+                now
+            ),
+            Err(RegistryError::SessionAlreadyExists(_))
+        ));
 
         let seen = events.lock().unwrap().clone();
         assert_eq!(
             seen,
             vec![
                 (MembershipChange::Registered, canonical.clone()),
-                (MembershipChange::Refreshed, canonical.clone()),
                 (MembershipChange::Refreshed, canonical),
             ],
-            "durable heartbeats refresh; live heartbeats are silent"
+            "duplicate durable register refreshes; heartbeats and live duplicates are silent"
         );
     }
 
@@ -2868,15 +2879,17 @@ mod tests {
             .expect("register");
 
         let beating = Arc::clone(&registry);
-        let heartbeat = std::thread::spawn(move || {
-            beating
-                .heartbeat(&sid("d"), Instant::now())
-                .expect("heartbeat");
+        let wt_path = wt.path().to_path_buf();
+        let refresh = std::thread::spawn(move || {
+            assert!(matches!(
+                beating.register(&sid("d"), &wt_path, Some(&spine_tag()), Instant::now()),
+                Err(RegistryError::SessionAlreadyExists(_))
+            ));
         });
-        // Give the heartbeat time to enter the hook, then race it.
+        // Give the duplicate register time to enter the hook, then race it.
         std::thread::sleep(Duration::from_millis(40));
         assert!(registry.unregister(&sid("d")).expect("unregister"));
-        heartbeat.join().expect("heartbeat thread");
+        refresh.join().expect("refresh thread");
 
         assert_eq!(
             *events.lock().unwrap(),

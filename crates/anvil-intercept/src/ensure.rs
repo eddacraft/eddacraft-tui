@@ -126,6 +126,11 @@ pub(crate) enum Liveness {
 pub(crate) trait DaemonProbe {
     /// Perform one liveness probe of the endpoint.
     fn probe(&self) -> Liveness;
+
+    /// Operator-facing label for this endpoint (path or pipe name).
+    fn describe(&self) -> String {
+        "endpoint".to_owned()
+    }
 }
 
 /// Launches a detached background daemon. Abstracted so the ensure state machine
@@ -389,7 +394,9 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
     //    reused regardless of capability.
     match live_endpoints(params) {
         EndpointLiveness::One => return EnsureOutcome::Reused,
-        EndpointLiveness::Conflict { live } => return conflict_outcome(live),
+        EndpointLiveness::Conflict { live, endpoints } => {
+            return conflict_outcome(live, &endpoints);
+        }
         EndpointLiveness::None => {}
     }
 
@@ -420,7 +427,9 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
     //    a sibling one — may have started a daemon while we waited.
     match live_endpoints(params) {
         EndpointLiveness::One => return EnsureOutcome::Reused,
-        EndpointLiveness::Conflict { live } => return conflict_outcome(live),
+        EndpointLiveness::Conflict { live, endpoints } => {
+            return conflict_outcome(live, &endpoints);
+        }
         EndpointLiveness::None => {}
     }
 
@@ -454,16 +463,6 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
             ),
         }
     }
-}
-
-/// `true` when a probe shows a daemon endpoint we must reuse rather than spawn
-/// over: either a healthy answer or a present-but-slow listener.
-#[cfg(any(unix, windows))]
-fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
-    matches!(
-        probe.probe(),
-        Liveness::Answered | Liveness::ConnectedNoAnswer
-    )
 }
 
 /// Hold the cross-candidate rendezvous coordinator across the spawn critical
@@ -503,7 +502,7 @@ fn hold_spawn_rendezvous(candidates: Option<&[PathBuf]>) -> Option<std::fs::File
 
 /// How many of this scope's endpoints carry a daemon to reuse.
 #[cfg(any(unix, windows))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum EndpointLiveness {
     /// No endpoint answers or listens.
     None,
@@ -513,36 +512,52 @@ enum EndpointLiveness {
     /// daemon per execution scope, so this is reported, never resolved by
     /// silently picking one (JREL-004).
     Conflict {
-        /// How many endpoints answered or listened.
+        /// How many endpoints answered.
         live: usize,
+        /// Canonical/sibling labels that answered, for the recovery hint and log.
+        endpoints: Vec<String>,
     },
 }
 
 /// Probe the canonical endpoint and every verified sibling endpoint of this
-/// scope. Every candidate is probed — a live canonical does not skip the
-/// siblings — so two live daemons in one scope are detected rather than the
-/// first one being chosen.
+/// scope. Only an **answering** daemon counts as live: a listener that accepts
+/// but never answers is not a daemon we can reuse, and must not inflate a
+/// same-scope conflict (any same-user process binding a sibling path used to
+/// wedge every command).
 #[cfg(any(unix, windows))]
 fn live_endpoints(params: &EnsureParams<'_>) -> EndpointLiveness {
-    let live = usize::from(reuse_if_live(params.probe))
-        + params
-            .sibling_probes
-            .iter()
-            .filter(|sibling| reuse_if_live(**sibling))
-            .count();
-    match live {
+    let mut answered = Vec::new();
+    if params.probe.probe() == Liveness::Answered {
+        answered.push(format!("canonical ({})", params.probe.describe()));
+    }
+    for (index, sibling) in params.sibling_probes.iter().enumerate() {
+        if sibling.probe() == Liveness::Answered {
+            answered.push(format!("sibling-{index} ({})", sibling.describe()));
+        }
+    }
+    match answered.len() {
         0 => EndpointLiveness::None,
         1 => EndpointLiveness::One,
-        live => EndpointLiveness::Conflict { live },
+        live => EndpointLiveness::Conflict {
+            live,
+            endpoints: answered,
+        },
     }
 }
 
 /// The bounded-recovery outcome for a same-scope daemon conflict.
 #[cfg(any(unix, windows))]
-fn conflict_outcome(live: usize) -> EnsureOutcome {
+fn conflict_outcome(live: usize, endpoints: &[String]) -> EnsureOutcome {
+    let named = endpoints.join(", ");
+    tracing::warn!(
+        target: "anvil_intercept::ensure",
+        live,
+        endpoints = %named,
+        "same-scope daemon conflict: more than one live daemon answers this execution scope"
+    );
     EnsureOutcome::Failed {
         recovery: format!(
-            "{live} live daemons answer this execution scope where one is expected; \
+            "{live} live daemons answer this execution scope where one is expected ({named}); \
              none was reused or stopped. Run `anvil doctor --fix` to repair the \
              endpoints, or `anvil intercept stop` then `anvil start`"
         ),
@@ -776,6 +791,10 @@ impl DaemonProbe for SocketProbe {
             Ok(()) => Liveness::Answered,
             Err(()) => Liveness::ConnectedNoAnswer,
         }
+    }
+
+    fn describe(&self) -> String {
+        self.socket_path.display().to_string()
     }
 }
 
@@ -1026,6 +1045,10 @@ impl DaemonProbe for PipeProbe {
             Ok(()) => Liveness::Answered,
             Err(()) => Liveness::ConnectedNoAnswer,
         }
+    }
+
+    fn describe(&self) -> String {
+        self.pipe_name.clone()
     }
 }
 
@@ -1368,22 +1391,55 @@ mod tests {
     }
 
     #[test]
-    fn connected_but_slow_endpoint_is_reused_and_not_torn_down() {
-        // The live-but-slow guarantee: a listener that connects but does not
-        // answer is reused, never spawned over (and so never unlinked).
+    fn connected_but_silent_endpoint_is_not_reused() {
+        // A listener that accepts but never answers is not a live daemon: treating
+        // it as one wedged every command when any same-user process bound a
+        // sibling path. Spawn is attempted instead.
         let fx = fixture();
         let probe = FlagProbe {
             ready: Arc::new(AtomicBool::new(false)),
             connected_no_answer: true,
         };
         let launcher = FakeLauncher::never_binds();
-        let p = params(&probe, &launcher, &fx.lock, &fx.log);
+        let p = EnsureParams {
+            bind_timeout: Duration::from_millis(40),
+            ..params(&probe, &launcher, &fx.lock, &fx.log)
+        };
+
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Failed { .. } => {}
+            other => panic!("silent listener must not be reused, got {other:?}"),
+        }
+        assert_eq!(
+            launcher.spawns(),
+            1,
+            "a silent listener is not a daemon to reuse"
+        );
+    }
+
+    #[test]
+    fn answering_daemon_plus_silent_sibling_is_reused_not_a_conflict() {
+        let fx = fixture();
+        let canonical = FlagProbe {
+            ready: Arc::new(AtomicBool::new(true)),
+            connected_no_answer: false,
+        };
+        let sibling = FlagProbe {
+            ready: Arc::new(AtomicBool::new(false)),
+            connected_no_answer: true,
+        };
+        let launcher = FakeLauncher::never_binds();
+        let siblings: [&dyn DaemonProbe; 1] = [&sibling];
+        let p = EnsureParams {
+            sibling_probes: &siblings,
+            ..params(&canonical, &launcher, &fx.lock, &fx.log)
+        };
 
         assert_eq!(
             ensure_with(&p, StartCapability::MaySpawn),
             EnsureOutcome::Reused
         );
-        assert_eq!(launcher.spawns(), 0, "live-but-slow must not be respawned");
+        assert_eq!(launcher.spawns(), 0);
     }
 
     #[test]
@@ -1627,8 +1683,11 @@ mod tests {
 
         match ensure_with(&p, StartCapability::MaySpawn) {
             EnsureOutcome::Failed { recovery } => assert!(
-                recovery.contains("2 live daemons") && recovery.contains("anvil doctor --fix"),
-                "the conflict must be named with its bounded recovery: {recovery}"
+                recovery.contains("2 live daemons")
+                    && recovery.contains("canonical")
+                    && recovery.contains("sibling-0")
+                    && recovery.contains("anvil doctor --fix"),
+                "the conflict must name the endpoints and the bounded recovery: {recovery}"
             ),
             other => panic!("a same-scope conflict must be reported, got {other:?}"),
         }

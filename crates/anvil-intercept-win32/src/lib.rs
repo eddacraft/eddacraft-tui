@@ -703,9 +703,28 @@ pub fn process_exists(pid: u32) -> io::Result<bool> {
 /// intercept daemon library checks the PID file's recorded creation time before
 /// reaching this boundary.
 pub fn terminate_process(pid: u32) -> io::Result<()> {
+    terminate_process_matching(pid, None)
+}
+
+/// Terminate `pid` only when it is still the process recorded at
+/// `recorded_creation_time` (raw FILETIME ticks from
+/// [`process_creation_time`]).
+///
+/// Windows has no zombie state: between a liveness check and `OpenProcess` the
+/// PID can exit and be recycled. Opening by bare PID at that moment can
+/// terminate an unrelated process. When `recorded_creation_time` is `Some`,
+/// this opens with query rights, compares creation times, and is a no-op on
+/// mismatch or if the times cannot be read. `None` is the one caller-asserted
+/// safe moment (milliseconds after our own spawn, before the PID can recycle).
+pub fn terminate_process_matching(pid: u32, recorded_creation_time: Option<u64>) -> io::Result<()> {
+    let access = if recorded_creation_time.is_some() {
+        PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION
+    } else {
+        PROCESS_TERMINATE
+    };
     // SAFETY: OpenProcess returns either NULL+last_error or a valid owned handle
     // that ProcessHandle closes on drop.
-    let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
+    let handle = unsafe { OpenProcess(access, 0, pid) };
     if handle.is_null() {
         let err = io::Error::last_os_error();
         if err.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) {
@@ -714,9 +733,29 @@ pub fn terminate_process(pid: u32) -> io::Result<()> {
         return Err(err);
     }
     let process = ProcessHandle(handle);
+    if let Some(expected) = recorded_creation_time {
+        let mut creation = FILETIME::default();
+        let mut exit = FILETIME::default();
+        let mut kernel = FILETIME::default();
+        let mut user = FILETIME::default();
+        // SAFETY: all FILETIME pointers are valid out parameters and `process.0`
+        // is a live handle opened with PROCESS_QUERY_LIMITED_INFORMATION.
+        let ok =
+            unsafe { GetProcessTimes(process.0, &mut creation, &mut exit, &mut kernel, &mut user) };
+        if ok == 0 {
+            // Fail closed: do not terminate a process whose identity we cannot
+            // prove. The PID may already have been recycled.
+            return Err(io::Error::last_os_error());
+        }
+        let current =
+            (u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime);
+        if current != expected {
+            return Ok(());
+        }
+    }
     // SAFETY: `process.0` is an owned live process handle opened with
     // PROCESS_TERMINATE. Exit code 1 matches the existing job-object forced
-    // termination path.
+    // termination path. When a creation time was supplied it has been verified.
     let ok = unsafe { TerminateProcess(process.0, 1) };
     if ok == 0 {
         let err = io::Error::last_os_error();

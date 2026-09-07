@@ -29,16 +29,25 @@ impl RunningDaemon {
     /// files (one process recorded from two candidate directories counts
     /// once). A version probe answers on one connection only, so a recycle
     /// may act only when exactly one process is behind it (JREL-004).
+    ///
+    /// Distinctness is PID first: a record missing its start time next to a
+    /// record of the same PID with a start time is one instance, not two.
+    /// Differing start times on the same PID are still two generations.
     #[must_use]
     pub(crate) fn distinct_instance_count(&self) -> usize {
-        let mut seen: Vec<(u32, Option<u64>)> = Vec::new();
+        let mut groups: Vec<(u32, Option<u64>)> = Vec::new();
         for record in &self.instances {
-            let key = (record.pid, record.start_time);
-            if !seen.contains(&key) {
-                seen.push(key);
+            if let Some(existing) = groups.iter_mut().find(|(pid, start)| {
+                *pid == record.pid && start_times_same_instance(*start, record.start_time)
+            }) {
+                if existing.1.is_none() {
+                    existing.1 = record.start_time;
+                }
+            } else {
+                groups.push((record.pid, record.start_time));
             }
         }
-        seen.len()
+        groups.len()
     }
 
     /// The conflict recovery hint when more than one live daemon answers this
@@ -61,6 +70,13 @@ impl RunningDaemon {
              probe cannot be attributed to one instance, so nothing was stopped. Run \
              `anvil doctor --fix` to repair, or `anvil intercept stop` then `anvil start`"
         ))
+    }
+}
+
+fn start_times_same_instance(left: Option<u64>, right: Option<u64>) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) => left == right,
+        _ => true,
     }
 }
 
@@ -584,6 +600,23 @@ mod tests {
         let running = RunningDaemon {
             version: "0.5.1-beta".into(),
             instances: vec![observed_instance(4242, 99), observed_instance(4242, 99)],
+        };
+        assert_eq!(running.distinct_instance_count(), 1);
+        assert!(running.conflict_recovery().is_none());
+    }
+
+    #[test]
+    fn one_process_with_a_missing_start_time_is_still_one_instance() {
+        let running = RunningDaemon {
+            version: "0.5.1-beta".into(),
+            instances: vec![
+                observed_instance(4242, 99),
+                anvil_intercept::DaemonPidRecord {
+                    pid_file: std::path::PathBuf::from("/state/anvil/intercept.pid"),
+                    pid: 4242,
+                    start_time: None,
+                },
+            ],
         };
         assert_eq!(running.distinct_instance_count(), 1);
         assert!(running.conflict_recovery().is_none());

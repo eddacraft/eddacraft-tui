@@ -19,10 +19,12 @@
 //!   supervisor-redirected stdout/stderr — never the findings log).
 //! - never respawns a child on its own: a child that dies while the daemon
 //!   lives reports `failed` honestly until the registry signals the worktree
-//!   again. JREL-003: that signal is a durable **refresh** — the public
-//!   re-run path (`anvil`, `anvil start`, `anvil workspace register`)
-//!   heartbeats the existing membership — as well as a fresh `Registered`.
-//!   Either restores exactly one child. Spawn failure (including a stale
+//!   again. JREL-003: that signal is a durable **refresh** from a verified
+//!   `session.register` (the public re-run path hits `SessionAlreadyExists`
+//!   on the deterministic activation id, and the daemon treats that gated
+//!   duplicate as a refresh) as well as a fresh `Registered`. A heartbeat
+//!   never forks a child: it only refreshes TTL. Either membership signal
+//!   restores exactly one child. Spawn failure (including a stale
 //!   `current_exe` path after a binary upgrade) marks the driver `failed`
 //!   and never panics the supervisor; a persistently failing worktree is
 //!   bounded by [`MAX_CONSECUTIVE_SPAWN_FAILURES`] and a backoff, so repeated
@@ -105,10 +107,13 @@ pub const MAX_CONSECUTIVE_SPAWN_FAILURES: u32 = 3;
 ///
 /// The lifetime is measured against **evidence that the child was alive**, not
 /// against the moment its death was noticed: a `Refreshed` arrives only when a
-/// human re-runs `anvil`, so "death noticed long after the spawn" says nothing
-/// about how long the child actually ran. A child that was never observed
-/// alive after its spawn is an early death by definition (see
-/// [`DriverEntry::last_alive`]).
+/// verified duplicate `session.register` lands, so "death noticed long after
+/// the spawn" says nothing about how long the child actually ran. A child that
+/// was never observed alive after its spawn is an early death by definition
+/// (see [`DriverEntry::last_alive`]). A matching readiness marker proves the
+/// child ran far enough to write it; that proof is **not** converted through
+/// wall-clock age into a monotonic instant (suspend and clock corrections
+/// made that conversion report "never alive").
 pub const DEFAULT_SPAWN_FAILURE_BACKOFF: Duration = Duration::from_mins(1);
 
 /// JREL-003: how long [`SupervisorInner::stop_driver`] waits for a SIGTERM-ed
@@ -189,12 +194,23 @@ pub trait ProcessControl: Send + Sync {
     /// process that already exited is success — the driver is gone either way.
     fn terminate(&self, pid: u32) -> io::Result<()>;
 
+    /// Terminate `pid` only when it is still the process recorded at
+    /// `recorded_start_time`. Defaults to [`ProcessControl::terminate`].
+    /// Windows overrides this: opening by bare PID after a liveness check can
+    /// hit a recycled identity, so the creation time is compared first.
+    fn terminate_if_matches(&self, pid: u32, recorded_start_time: Option<u64>) -> io::Result<()> {
+        let _ = recorded_start_time;
+        self.terminate(pid)
+    }
+
     /// JREL-003: the escalation [`SupervisorInner::stop_driver`] uses when a
     /// child has not exited within [`STOP_TERMINATE_GRACE`] of its
-    /// [`ProcessControl::terminate`] (SIGKILL on Unix). Defaults to
-    /// `terminate`, which is already unconditional on Windows.
-    fn kill(&self, pid: u32) -> io::Result<()> {
-        self.terminate(pid)
+    /// [`ProcessControl::terminate`] (SIGKILL on Unix).
+    ///
+    /// `recorded_start_time` is required on Windows so a recycled PID is never
+    /// hard-killed. Defaults to [`ProcessControl::terminate_if_matches`].
+    fn kill(&self, pid: u32, recorded_start_time: Option<u64>) -> io::Result<()> {
+        self.terminate_if_matches(pid, recorded_start_time)
     }
 }
 
@@ -244,16 +260,22 @@ impl ProcessControl for SystemProcessControl {
         anvil_intercept_win32::terminate_process(pid).map_err(io::Error::other)
     }
 
+    #[cfg(windows)]
+    fn terminate_if_matches(&self, pid: u32, recorded_start_time: Option<u64>) -> io::Result<()> {
+        anvil_intercept_win32::terminate_process_matching(pid, recorded_start_time)
+            .map_err(io::Error::other)
+    }
+
     #[cfg(not(any(unix, windows)))]
     fn terminate(&self, _pid: u32) -> io::Result<()> {
         Err(io::Error::from(io::ErrorKind::Unsupported))
     }
 
     /// SIGKILL: the escalation for a child that ignored (or was too wedged to
-    /// service) the SIGTERM. An already-exited process is success. On Windows
-    /// the trait default applies — `TerminateProcess` is already unconditional.
+    /// service) the SIGTERM. An already-exited process is success. The child is
+    /// still our unreaped child on Unix, so the PID cannot have been recycled.
     #[cfg(unix)]
-    fn kill(&self, pid: u32) -> io::Result<()> {
+    fn kill(&self, pid: u32, _recorded_start_time: Option<u64>) -> io::Result<()> {
         let raw = i32::try_from(pid).map_err(io::Error::other)?;
         match nix::sys::signal::kill(
             nix::unistd::Pid::from_raw(raw),
@@ -261,6 +283,21 @@ impl ProcessControl for SystemProcessControl {
         ) {
             Ok(()) | Err(nix::errno::Errno::ESRCH) => Ok(()),
             Err(err) => Err(io::Error::from(err)),
+        }
+    }
+
+    /// Windows has no SIGKILL distinct from terminate, but the escalation must
+    /// still verify creation time: unlike Unix, the PID can recycle the moment
+    /// the child exits.
+    #[cfg(windows)]
+    fn kill(&self, pid: u32, recorded_start_time: Option<u64>) -> io::Result<()> {
+        match recorded_start_time {
+            Some(_) => self.terminate_if_matches(pid, recorded_start_time),
+            None => {
+                // A missing discriminator on a start-time-capable platform is
+                // never a hard-kill: the PID may already belong to someone else.
+                Ok(())
+            }
         }
     }
 }
@@ -349,6 +386,9 @@ struct DriverEntry {
     consecutive_failures: u32,
     /// When the latest failed generation was recorded.
     last_failure: Option<Instant>,
+    /// A stop is in flight: spawn must not start a second child, and status
+    /// must not block on the exit wait. The map lock is dropped for that wait.
+    stopping: bool,
 }
 
 impl DriverEntry {
@@ -360,6 +400,7 @@ impl DriverEntry {
             last_alive: None,
             consecutive_failures,
             last_failure,
+            stopping: false,
         }
     }
 }
@@ -464,10 +505,10 @@ impl SaveTimeDriverSupervisor {
 
     /// Sweep PID files left by a previous daemon life: terminate any recorded
     /// child that is still alive (verified against its recorded start time,
-    /// so a recycled PID is never signalled) and remove the files. Fresh
-    /// drivers for the reloaded registrations are spawned by the `Registered`
-    /// events the durable reload enqueues through the membership hook — this
-    /// sweep only clears the previous generation.
+    /// so a recycled PID is never signalled), wait and escalate, and remove
+    /// the files only when the process is gone. A child that ignores
+    /// termination keeps its PID file so the following durable `Registered`
+    /// can adopt it instead of spawning a second watcher on the same worktree.
     pub fn reconcile_on_start(&self) {
         let entries = match std::fs::read_dir(&self.inner.dir) {
             Ok(entries) => entries,
@@ -488,20 +529,28 @@ impl SaveTimeDriverSupervisor {
                 continue;
             }
             if let Some((pid, start_time)) = read_pid_record(&path)
-                // A record with no start time on a platform that CAN read
-                // them means the spawn-time read transiently failed — the
-                // bare PID could have been recycled across the daemon
-                // restart, so sweep the file without signalling.
                 && (start_time.is_some() || !self.inner.procs.supports_start_time())
                 && self.inner.procs.is_alive(pid, start_time)
-                && let Err(err) = self.inner.procs.terminate(pid)
             {
-                tracing::warn!(
-                    target: "anvil_intercept::save_time_driver",
-                    pid,
-                    error = %err,
-                    "could not terminate a leftover save-time driver on startup",
-                );
+                if let Err(err) = self.inner.procs.terminate_if_matches(pid, start_time) {
+                    tracing::warn!(
+                        target: "anvil_intercept::save_time_driver",
+                        pid,
+                        error = %err,
+                        "could not terminate a leftover save-time driver on startup",
+                    );
+                }
+                self.inner
+                    .await_child_exit(Path::new("<leftover>"), pid, start_time);
+                if self.inner.procs.is_alive(pid, start_time) {
+                    tracing::warn!(
+                        target: "anvil_intercept::save_time_driver",
+                        pid,
+                        path = %path.display(),
+                        "leftover save-time driver survived terminate and hard kill; leaving its PID file so reload can adopt it"
+                    );
+                    continue;
+                }
             }
             if let Err(err) = std::fs::remove_file(&path)
                 && err.kind() != io::ErrorKind::NotFound
@@ -580,9 +629,10 @@ impl SaveTimeDriverSupervisor {
             .cloned()
             .collect();
         for worktree in worktrees {
-            // No spawn can follow the latched shutdown flag, so shutdown does
-            // not pay the per-child exit wait (see `stop_driver`).
-            self.inner.stop_driver(&worktree, false);
+            // Wait and escalate: a terminate without wait left children that
+            // ignored SIGTERM, lost their PID files on the next start, and
+            // were then duplicated by durable reload.
+            self.inner.stop_driver(&worktree, true);
         }
     }
 
@@ -668,6 +718,9 @@ impl SupervisorInner {
     /// proof of life there is, so it is recorded on the entry (JREL-003: the
     /// crash-loop bound reads it back on the next spawn decision).
     fn status_of(&self, worktree: &Path, entry: &mut DriverEntry) -> DriverStatus {
+        if entry.stopping {
+            return DriverStatus::Failed;
+        }
         match entry.pid {
             Some(pid) if self.procs.is_alive(pid, entry.start_time) => {
                 entry.last_alive = Some(Instant::now());
@@ -717,17 +770,18 @@ impl SupervisorInner {
         (marker.pid == Some(pid)).then_some(marker)
     }
 
-    /// JREL-003 (crash-loop bound): the moment a dead child was last *proven*
-    /// alive, from its own readiness marker. The marker's modification time
-    /// dates a write the child made while running, so it witnesses a lifetime
-    /// even when no liveness probe ran between the spawn and the death.
-    fn marker_liveness_proof(&self, worktree: &Path, entry: &DriverEntry) -> Option<Instant> {
-        let marker = self.read_generation_marker(worktree, entry.pid?)?;
-        if marker.state != READY_MARKER_WATCHING && marker.state != READY_MARKER_ACTIVITY {
-            return None;
-        }
-        let age = SystemTime::now().duration_since(marker.modified?).ok()?;
-        Instant::now().checked_sub(age)
+    /// JREL-003 (crash-loop bound): whether a dead child's own readiness
+    /// marker proves it ran. The marker is a write the child made while
+    /// alive; converting its wall-clock mtime into a monotonic instant is
+    /// what degraded to "never alive" across suspend or a clock correction.
+    fn marker_proves_lived(&self, worktree: &Path, entry: &DriverEntry) -> bool {
+        let Some(pid) = entry.pid else {
+            return false;
+        };
+        self.read_generation_marker(worktree, pid)
+            .is_some_and(|marker| {
+                marker.state == READY_MARKER_WATCHING || marker.state == READY_MARKER_ACTIVITY
+            })
     }
 
     fn ready_marker_path(&self, worktree: &Path) -> PathBuf {
@@ -772,14 +826,14 @@ impl SupervisorInner {
         if self.shutdown.load(std::sync::atomic::Ordering::SeqCst) {
             return;
         }
-        // Idempotent: a duplicate `Registered` (or a JREL-003 `Refreshed`)
-        // for a worktree whose child is still alive keeps the existing child.
-        // The probe also records proof of life for the crash-loop bound.
-        if let Some(entry) = drivers.get_mut(worktree)
-            && let Some(pid) = entry.pid
-            && self.procs.is_alive(pid, entry.start_time)
-        {
-            entry.last_alive = Some(Instant::now());
+        // A stop is waiting out terminate/kill with the lock released: do not
+        // start a second child on the same worktree. Sequential drain will
+        // spawn after the stop removes the placeholder, if a later event asks.
+        if drivers.get(worktree).is_some_and(|entry| entry.stopping) {
+            return;
+        }
+        let stem = worktree_artifact_stem(worktree);
+        if self.keep_or_adopt_existing(&mut drivers, worktree, &stem) {
             return;
         }
         let now = Instant::now();
@@ -787,12 +841,11 @@ impl SupervisorInner {
         // The child is gone: date its lifetime from the best evidence that it
         // ran — probes plus its own readiness marker, which is still on disk
         // (it is removed below, just before the next spawn).
-        let marker_proof = drivers
+        let marker_proved = drivers
             .get(worktree)
-            .and_then(|entry| self.marker_liveness_proof(worktree, entry));
+            .is_some_and(|entry| self.marker_proves_lived(worktree, entry));
         let (failures, last_failure) =
-            failure_history(drivers.get(worktree), now, backoff, marker_proof);
-        let stem = worktree_artifact_stem(worktree);
+            failure_history(drivers.get(worktree), now, backoff, marker_proved);
         if failures >= MAX_CONSECUTIVE_SPAWN_FAILURES
             && last_failure.is_some_and(|at| now.duration_since(at) < backoff)
         {
@@ -819,6 +872,79 @@ impl SupervisorInner {
             .factory
             .launcher_for(worktree, &findings_log)
             .and_then(|launcher| launcher.spawn_detached(&spawn_log));
+        self.record_spawn_result(
+            &mut drivers,
+            worktree,
+            &stem,
+            spawned,
+            now,
+            (failures, last_failure),
+        );
+    }
+
+    /// Keep a live tracked child, or adopt a leftover PID file that is still
+    /// alive, instead of forking a second watcher on the same worktree.
+    fn keep_or_adopt_existing(
+        &self,
+        drivers: &mut HashMap<PathBuf, DriverEntry>,
+        worktree: &Path,
+        stem: &str,
+    ) -> bool {
+        // Idempotent: a duplicate `Registered` (or a JREL-003 `Refreshed`)
+        // for a worktree whose child is still alive keeps the existing child.
+        // The probe also records proof of life for the crash-loop bound.
+        if let Some(entry) = drivers.get_mut(worktree)
+            && let Some(pid) = entry.pid
+            && self.procs.is_alive(pid, entry.start_time)
+        {
+            entry.last_alive = Some(Instant::now());
+            return true;
+        }
+        let pid_path = self.dir.join(format!("{stem}.pid"));
+        // A leftover that survived the previous daemon's terminate (or this
+        // daemon's startup sweep) is still our child: adopt it rather than
+        // spawning a second watcher on the same worktree.
+        let Some((pid, start_time)) = read_pid_record(&pid_path) else {
+            return false;
+        };
+        if start_time.is_none() && self.procs.supports_start_time() {
+            return false;
+        }
+        if !self.procs.is_alive(pid, start_time) {
+            return false;
+        }
+        let now = Instant::now();
+        tracing::info!(
+            target: "anvil_intercept::save_time_driver",
+            worktree = %worktree.display(),
+            pid,
+            "adopting leftover save-time driver",
+        );
+        drivers.insert(
+            worktree.to_path_buf(),
+            DriverEntry {
+                pid: Some(pid),
+                start_time,
+                spawned_at: Some(now),
+                last_alive: Some(now),
+                consecutive_failures: 0,
+                last_failure: None,
+                stopping: false,
+            },
+        );
+        true
+    }
+
+    fn record_spawn_result(
+        &self,
+        drivers: &mut HashMap<PathBuf, DriverEntry>,
+        worktree: &Path,
+        stem: &str,
+        spawned: io::Result<u32>,
+        now: Instant,
+        history: (u32, Option<Instant>),
+    ) {
+        let (failures, last_failure) = history;
         match spawned {
             Ok(pid) => {
                 let start_time = self.procs.start_time(pid);
@@ -830,7 +956,7 @@ impl SupervisorInner {
                     );
                     return;
                 }
-                if let Err(err) = self.write_pid_file(&stem, pid, start_time) {
+                if let Err(err) = self.write_pid_file(stem, pid, start_time) {
                     // The driver still runs; only reconcile-after-restart
                     // loses track of it. Loud, not fatal.
                     tracing::warn!(
@@ -859,6 +985,7 @@ impl SupervisorInner {
                         last_alive: None,
                         consecutive_failures: failures,
                         last_failure,
+                        stopping: false,
                     },
                 );
             }
@@ -883,32 +1010,40 @@ impl SupervisorInner {
 
     /// Stop the driver for `worktree`, removing its artefacts.
     ///
-    /// JREL-003: with `await_exit`, the map entry is held for the WHOLE stop —
-    /// signal, bounded wait for the child to leave the process table, and (if
-    /// it overstays [`STOP_TERMINATE_GRACE`]) the hard-kill escalation — so a
-    /// `Registered`/`Refreshed` arriving right behind the stop cannot spawn a
-    /// second child alongside the one still dying, with both writing the same
-    /// `<stem>.ready` and `<stem>.log`. Only the consumer task spawns or
-    /// stops, so the sole cost is that a concurrent status probe blocks for
-    /// the (sub-second) wait.
+    /// With `await_exit`, a placeholder stays in the map so a following spawn
+    /// cannot start a second child, but the lock is **released** for the
+    /// terminate/kill wait. Status, unregister, and new connections are not
+    /// stalled for the grace window. Sequential drain still waits here before
+    /// handling the next membership event, so unregister-then-register cannot
+    /// overlap two live children.
     ///
-    /// [`SaveTimeDriverSupervisor::stop_all`] passes `await_exit = false`: the
-    /// shutdown flag is already latched, no spawn can follow, and daemon
-    /// shutdown must not queue one wait per registered worktree.
+    /// [`SaveTimeDriverSupervisor::stop_all`] also waits: shutdown terminate
+    /// without wait left children that then lost their PID files and were
+    /// duplicated on reload.
     fn stop_driver(&self, worktree: &Path, await_exit: bool) {
-        let mut drivers = self.drivers.lock().expect("driver map lock poisoned");
-        let entry = drivers.remove(worktree);
-        if let Some(DriverEntry {
-            pid: Some(pid),
-            start_time,
-            ..
-        }) = entry
-            // Only signal a PID that is verifiably still our child (the
-            // recorded start time must match where readable) — never a
-            // recycled PID.
-            && self.procs.is_alive(pid, start_time)
+        let entry = {
+            let mut drivers = self.drivers.lock().expect("driver map lock poisoned");
+            let Some(entry) = drivers.remove(worktree) else {
+                drop(drivers);
+                self.remove_stop_artifacts(worktree);
+                return;
+            };
+            if await_exit && entry.pid.is_some() {
+                drivers.insert(
+                    worktree.to_path_buf(),
+                    DriverEntry {
+                        stopping: true,
+                        ..entry
+                    },
+                );
+            }
+            entry
+        };
+
+        if let Some(pid) = entry.pid
+            && self.procs.is_alive(pid, entry.start_time)
         {
-            if let Err(err) = self.procs.terminate(pid) {
+            if let Err(err) = self.procs.terminate_if_matches(pid, entry.start_time) {
                 tracing::warn!(
                     target: "anvil_intercept::save_time_driver",
                     worktree = %worktree.display(),
@@ -918,13 +1053,26 @@ impl SupervisorInner {
                 );
             }
             if await_exit {
-                self.await_child_exit(worktree, pid, start_time);
+                self.await_child_exit(worktree, pid, entry.start_time);
             }
         }
+
+        {
+            let mut drivers = self.drivers.lock().expect("driver map lock poisoned");
+            if drivers
+                .get(worktree)
+                .is_some_and(|held| held.stopping && held.pid == entry.pid)
+            {
+                drivers.remove(worktree);
+            }
+        }
+        self.remove_stop_artifacts(worktree);
+    }
+
+    fn remove_stop_artifacts(&self, worktree: &Path) {
         let stem = worktree_artifact_stem(worktree);
         remove_artifact(&self.dir.join(format!("{stem}.pid")), "PID file");
         remove_artifact(&self.ready_marker_path(worktree), "readiness marker");
-        drop(drivers);
     }
 
     /// Wait (bounded) for a terminated child to leave the process table,
@@ -942,7 +1090,7 @@ impl SupervisorInner {
             grace_ms = u64::try_from(STOP_TERMINATE_GRACE.as_millis()).unwrap_or(u64::MAX),
             "save-time driver did not exit after termination; escalating to a hard kill",
         );
-        if let Err(err) = self.procs.kill(pid) {
+        if let Err(err) = self.procs.kill(pid, start_time) {
             tracing::warn!(
                 target: "anvil_intercept::save_time_driver",
                 worktree = %worktree.display(),
@@ -996,35 +1144,30 @@ impl SupervisorInner {
 /// all) starts from zero.
 ///
 /// The lifetime is measured from **evidence the child was alive** —
-/// [`DriverEntry::last_alive`] (supervisor liveness probes) and
-/// `marker_proof` (the modification time of a readiness marker carrying this
-/// child's PID) — never from the moment the death is noticed. Detection time
-/// is worthless here: `Refreshed` fires only when a human re-runs `anvil`, so
-/// a child that crashes milliseconds after every spawn would otherwise look
-/// like it had outlived any backoff shorter than the gap between two runs, and
-/// the cap would never trip.
+/// [`DriverEntry::last_alive`] (supervisor liveness probes, monotonic) and
+/// `marker_proved_lived` (the child wrote a generation-bound readiness
+/// marker) — never from the moment the death is noticed, and never by
+/// converting a wall-clock file mtime into a monotonic instant.
 fn failure_history(
     entry: Option<&DriverEntry>,
     now: Instant,
     backoff: Duration,
-    marker_proof: Option<Instant>,
+    marker_proved_lived: bool,
 ) -> (u32, Option<Instant>) {
     match entry {
         None => (0, None),
         Some(entry) if entry.pid.is_none() => (entry.consecutive_failures, entry.last_failure),
         Some(entry) => {
-            let lived = match (entry.spawned_at, entry.last_alive.max(marker_proof)) {
+            let lived = match (entry.spawned_at, entry.last_alive) {
                 (Some(spawned_at), Some(alive_at)) => {
                     alive_at.saturating_duration_since(spawned_at)
                 }
-                // Never observed alive after the spawn: an early death, no
-                // matter how much later the death was noticed.
                 _ => Duration::ZERO,
             };
-            if lived < backoff {
-                (entry.consecutive_failures.saturating_add(1), Some(now))
-            } else {
+            if marker_proved_lived || lived >= backoff {
                 (0, None)
+            } else {
+                (entry.consecutive_failures.saturating_add(1), Some(now))
             }
         }
     }
@@ -1187,6 +1330,9 @@ mod tests {
         /// JREL-003: when set, `terminate` is a no-op (a child that ignores
         /// SIGTERM); only `kill` removes it.
         ignore_terminate: std::sync::atomic::AtomicBool,
+        /// When set, `kill` is also a no-op — models a child that survives
+        /// both terminate and hard-kill (startup leftover that must be adopted).
+        ignore_kill: std::sync::atomic::AtomicBool,
         killed: Mutex<Vec<u32>>,
         /// Model a transient start-time read failure on a platform that
         /// supports start times.
@@ -1289,9 +1435,11 @@ mod tests {
             Ok(())
         }
 
-        fn kill(&self, pid: u32) -> io::Result<()> {
+        fn kill(&self, pid: u32, _recorded_start_time: Option<u64>) -> io::Result<()> {
             self.state.killed.lock().expect("killed lock").push(pid);
-            self.state.alive.lock().expect("alive lock").remove(&pid);
+            if !self.state.ignore_kill.load(Ordering::SeqCst) {
+                self.state.alive.lock().expect("alive lock").remove(&pid);
+            }
             Ok(())
         }
 
@@ -2218,12 +2366,12 @@ mod tests {
     }
 
     #[test]
-    fn save_time_driver_durable_heartbeat_restores_a_dead_child() {
-        // JREL-003: the public re-run path. A second bare `anvil` / `anvil
-        // start` against a worktree whose child died is refused by
-        // `session.register` (`SessionAlreadyExists`) and the client
-        // heartbeats the existing owner instead. That heartbeat — not a
-        // membership gain — must restore exactly one driver.
+    fn save_time_driver_duplicate_register_restores_a_dead_child_heartbeat_does_not() {
+        // JREL-003 residual: the public re-run path is a gated
+        // `session.register`. Duplicate id is still `SessionAlreadyExists`,
+        // but the daemon fires `Refreshed` from that verified verb. A
+        // heartbeat — any same-user socket peer can send one for a guessable
+        // activation id — must not fork a child.
         use anvil_intercept_proto::SessionId;
         use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
 
@@ -2245,20 +2393,28 @@ mod tests {
             Some(DriverStatus::Attached { pid: 41, .. })
         ));
 
-        // The child dies while the daemon lives.
         h.state.alive.lock().expect("alive").remove(&41);
         assert_eq!(
             h.supervisor.driver_status(&worktree),
             Some(DriverStatus::Failed)
         );
 
-        // Re-run: the same deterministic session id is refused, so the CLI
-        // falls back to a heartbeat over the dispatcher (the IPC path).
+        SessionDispatcher::heartbeat(&registry, &session, None).expect("heartbeat");
+        assert_eq!(
+            h.supervisor.process_pending(),
+            0,
+            "heartbeat must not enqueue a spawn trigger"
+        );
+        assert_eq!(
+            h.supervisor.driver_status(&worktree),
+            Some(DriverStatus::Failed),
+            "a heartbeat must not restore the driver"
+        );
+
         assert!(matches!(
             registry.register(&session, &worktree, Some(&spine), std::time::Instant::now()),
             Err(RegistryError::SessionAlreadyExists(_))
         ));
-        SessionDispatcher::heartbeat(&registry, &session, None).expect("heartbeat");
         h.supervisor.process_pending();
 
         assert!(
@@ -2266,49 +2422,34 @@ mod tests {
                 h.supervisor.driver_status(&worktree),
                 Some(DriverStatus::Attached { pid: 42, .. })
             ),
-            "a durable heartbeat must restore the dead driver, got {:?}",
+            "a duplicate durable register must restore the dead driver, got {:?}",
             h.supervisor.driver_status(&worktree)
         );
         assert_eq!(
-            h.state
-                .spawns
-                .lock()
-                .expect("spawns")
-                .iter()
-                .filter(|(wt, _, _)| *wt == worktree)
-                .count(),
+            spawn_count_for(&h, &worktree),
             2,
             "exactly one respawn for the dead child"
         );
 
-        // A heartbeat against a LIVE child is idempotent — no second driver.
         SessionDispatcher::heartbeat(&registry, &session, None).expect("heartbeat");
         h.supervisor.process_pending();
         assert_eq!(
-            h.state
-                .spawns
-                .lock()
-                .expect("spawns")
-                .iter()
-                .filter(|(wt, _, _)| *wt == worktree)
-                .count(),
+            spawn_count_for(&h, &worktree),
             2,
-            "a refresh of a live driver must not spawn another"
+            "a heartbeat of a live driver must not spawn another"
         );
     }
 
     #[test]
-    fn save_time_driver_unregister_racing_a_heartbeat_never_leaks_a_driver() {
-        // Review finding 7: an `Unregistered` must never be followed by a
-        // `Refreshed` for a worktree that is no longer durable — that would
-        // stop the driver and then spawn a replacement nothing ever stops.
-        // The registry enqueues each membership signal under the same lock as
-        // the mutation that justifies it, so a heartbeat that loses the race
-        // to the unregister finds the session gone and signals nothing.
+    fn save_time_driver_unregister_racing_a_duplicate_register_never_leaks_a_driver() {
+        // An `Unregistered` must never be followed by a `Refreshed` for a
+        // worktree that is no longer durable. Heartbeat is no longer a spawn
+        // trigger; a duplicate register that loses the race finds the session
+        // gone and becomes a fresh `Registered` only if it is a new membership.
         use anvil_intercept_proto::SessionId;
         use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
 
-        use crate::registry::{RegistryError, SessionDispatcher, SessionRegistry};
+        use crate::registry::{SessionDispatcher, SessionRegistry};
 
         let h = harness();
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -2323,25 +2464,96 @@ mod tests {
         h.supervisor.process_pending();
         assert_eq!(spawn_count_for(&h, &worktree), 1);
 
-        // The unregister wins the race; the heartbeat behind it finds nothing.
         assert!(registry.unregister(&session).expect("unregister"));
         assert!(matches!(
             SessionDispatcher::heartbeat(&registry, &session, None),
-            Err(RegistryError::UnknownSession(_))
+            Err(crate::registry::RegistryError::UnknownSession(_))
         ));
         h.supervisor.process_pending();
 
         assert_eq!(
             spawn_count_for(&h, &worktree),
             1,
-            "no replacement child for a worktree that is no longer durable"
+            "heartbeat after unregister must not spawn"
         );
         assert_eq!(
             h.supervisor.driver_status(&worktree),
             None,
-            "the stopped driver stays stopped (wire absent)"
+            "the stopped driver stays gone"
         );
-        assert_eq!(*h.state.terminated.lock().expect("terminated"), vec![41]);
+    }
+
+    #[test]
+    fn save_time_driver_stop_releases_the_map_lock_during_the_exit_wait() {
+        // Residual: holding the map lock across terminate grace stalled every
+        // verb, including status. A placeholder keeps spawn deferred while
+        // status can proceed.
+        let h = harness();
+        let worktree = Path::new("/ws/repo");
+        enqueue(&h, MembershipChange::Registered, worktree);
+        h.supervisor.process_pending();
+        h.state.ignore_terminate.store(true, Ordering::SeqCst);
+
+        enqueue(&h, MembershipChange::Unregistered, worktree);
+        let supervisor = h.supervisor.clone();
+        let drain = std::thread::spawn(move || supervisor.process_pending());
+
+        std::thread::sleep(Duration::from_millis(20));
+        let started = Instant::now();
+        let _ = h.supervisor.driver_status(worktree);
+        assert!(
+            started.elapsed() < STOP_TERMINATE_GRACE,
+            "status must not wait out the terminate grace, got {:?}",
+            started.elapsed()
+        );
+        drain.join().expect("drain");
+    }
+
+    #[test]
+    fn save_time_driver_adopts_a_leftover_pid_instead_of_spawning_a_second_child() {
+        let h = harness();
+        let worktree = Path::new("/ws/repo");
+        std::fs::create_dir_all(&h.dir).expect("driver dir");
+        let stem = worktree_artifact_stem(worktree);
+        std::fs::write(h.dir.join(format!("{stem}.pid")), "99\n9900\n").expect("pid file");
+        h.state.alive.lock().expect("alive").insert(99, 9900);
+
+        enqueue(&h, MembershipChange::Registered, worktree);
+        h.supervisor.process_pending();
+
+        assert_eq!(spawn_count_for(&h, worktree), 0, "leftover must be adopted");
+        assert_eq!(
+            h.supervisor.driver_status(worktree),
+            Some(DriverStatus::Attached {
+                pid: 99,
+                evidence: DriverEvidence::Spawned,
+            })
+        );
+    }
+
+    #[test]
+    fn save_time_driver_reconcile_keeps_a_pid_file_when_the_child_survives_kill() {
+        let h = harness();
+        std::fs::create_dir_all(&h.dir).expect("driver dir");
+        let stem = worktree_artifact_stem(Path::new("/ws/repo"));
+        let pid_path = h.dir.join(format!("{stem}.pid"));
+        std::fs::write(&pid_path, "99\n9900\n").expect("pid file");
+        h.state.alive.lock().expect("alive").insert(99, 9900);
+        h.state.ignore_terminate.store(true, Ordering::SeqCst);
+        h.state.ignore_kill.store(true, Ordering::SeqCst);
+
+        h.supervisor.reconcile_on_start();
+        assert!(
+            pid_path.exists(),
+            "a child that survives terminate+kill must keep its record"
+        );
+        enqueue(&h, MembershipChange::Registered, Path::new("/ws/repo"));
+        h.supervisor.process_pending();
+        assert_eq!(
+            spawn_count_for(&h, Path::new("/ws/repo")),
+            0,
+            "reload must adopt the leftover, not spawn a second child"
+        );
     }
 
     #[test]

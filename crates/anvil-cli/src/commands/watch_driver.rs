@@ -138,9 +138,8 @@ impl DriverReadyMarker {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        // The whole marker is rewritten in one call: a reader never sees a
-        // state line without the PID line that qualifies it.
-        std::fs::write(&self.path, format!("{content}\n{}\n", std::process::id()))
+        let body = format!("{content}\n{}\n", std::process::id());
+        crate::util::atomic_write(&self.path, body.as_bytes()).map_err(std::io::Error::other)
     }
 }
 

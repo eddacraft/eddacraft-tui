@@ -2,7 +2,7 @@
 
 | Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-09-07 for JREL-004 one daemon identity through start and recycle (sibling-verified ensure under the rendezvous coordinator, identity-bound recycle stop, replacement version check); save/validation/fence diagrams unchanged. Prior review 2026-09-07 for DPO-007 `from_prewrite_diagnostics` in `kindling_observation.rs`; scan_buffer, save/validation and fence diagrams unchanged — MCP pre-write emit lives in anvil-cli, and scan_buffer PreWrite still does not emit a mid-edit observation. Prior: JREL-002 surface-identifier extraction in `status.rs` (claim builders now share one identifier helper); diagrams unchanged — claim-construction plumbing, not a transport, lineage or fence path |
+| Architecture | Authoritative | INTD  | Live   | Last reviewed 2026-09-07 for JREL-003/004 residuals (heartbeat is not a spawn trigger; duplicate durable `session.register` fires `Refreshed`; bounded stop releases the driver map lock; silent listeners do not count toward same-scope conflict). Save/validation/fence diagrams unchanged — membership and ensure control flow, not those diagrams. Prior review 2026-09-07 for JREL-004 one daemon identity through start and recycle (sibling-verified ensure under the rendezvous coordinator, identity-bound recycle stop, replacement version check); diagrams unchanged. Prior review 2026-09-07 for DPO-007 `from_prewrite_diagnostics` in `kindling_observation.rs`; scan_buffer, save/validation and fence diagrams unchanged — MCP pre-write emit lives in anvil-cli, and scan_buffer PreWrite still does not emit a mid-edit observation. Prior: JREL-002 surface-identifier extraction in `status.rs` (claim builders now share one identifier helper); diagrams unchanged — claim-construction plumbing, not a transport, lineage or fence path |
 
 | Upstream                                                       | Downstream                                     |
 | -------------------------------------------------------------- | ---------------------------------------------- |
@@ -169,11 +169,12 @@ owns their cross-component client and capability relationship.
 
 - Membership signals are enqueued while the registry lock is held, so the order
   a consumer observes matches the order the mutations happened and an unregister
-  racing a heartbeat cannot be seen in reverse. `MembershipHook` implementations
-  are therefore enqueue-only: no spawning, no filesystem or process work, no
-  blocking, and never a call back into the registry. A hook that does any of
-  those stalls every registry operation, including the pre-write path
-  (JREL-003).
+  racing a duplicate durable `session.register` cannot be seen in reverse.
+  Heartbeat never emits a membership signal and never forks a driver child.
+  `MembershipHook` implementations are therefore enqueue-only: no spawning, no
+  filesystem or process work, no blocking, and never a call back into the
+  registry. A hook that does any of those stalls every registry operation,
+  including the pre-write path (JREL-003).
 - Unix IPC relies on its owner-only `0700` directory and `0600` socket to limit
   access. The daemon does not perform a server-side Unix caller-UID comparison;
   clients instead validate the connected daemon UID before sending content.

@@ -2,7 +2,7 @@
 
 | Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | DSV   | Live   | Last reviewed 2026-09-07 for JREL-003 (council round two): refresh-driven recovery of a dead driver through the daily command, the lifetime-evidence respawn bound, the generation-bound `<stem>.ready` marker / `save_time_driver_evidence` readiness contract, the bounded stop, and the driver-failure keys in `anvil workspace register` JSON. Filed 2026-07-06 for DSV-051 against ADR-101 and `anvil start --no-mcp` |
+| Runbook | Authoritative | DSV   | Live   | Last reviewed 2026-09-07 for JREL-003/004 residuals: gated duplicate `session.register` restores a dead child (heartbeat does not fork), placeholder stop, leftover adopt, atomic `<stem>.ready` write, and absent-driver as a debug line rather than a stderr warning. Prior review 2026-09-07 for JREL-003 (council round two): refresh-driven recovery, the lifetime-evidence respawn bound, the generation-bound marker / `save_time_driver_evidence` contract, the bounded stop, and the driver-failure keys in `anvil workspace register` JSON. Filed 2026-07-06 for DSV-051 against ADR-101 and `anvil start --no-mcp` |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                              | Downstream                                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -113,8 +113,8 @@ anvil intercept status
 ```
 
 Expected result: a second save-time driver attaches. Re-registering the same
-worktree is a heartbeat refresh, not a request for another child; active driver
-counts should stay one per distinct registered worktree.
+worktree is a verified duplicate `session.register`, not a request for another
+child; active driver counts should stay one per distinct registered worktree.
 
 Small fixture worktrees are recommended for multi-driver smoke tests on shared
 Linux runners because every driver holds one kernel watch set. If the host is
@@ -145,14 +145,15 @@ anvil            # or: anvil start / anvil workspace register <worktree>
 anvil intercept status --json
 ```
 
-Re-running any of these heartbeats the existing membership
-(`worktree: registration refreshed`), and that refresh is what makes the daemon
-spawn exactly one replacement child. The command waits up to one second for the
-daemon to report the driver attached, so its output reflects the restored driver
-rather than the dead one. The wait ends as soon as the answer cannot improve: an
-attached driver returns immediately, and a driver that is disabled, absent by
-design, or held in `failed` returns after a short grace instead of polling out
-the whole second.
+Re-running any of these re-registers the existing membership
+(`worktree: registration refreshed`) through the gated `session.register`
+verb, and that refresh is what makes the daemon spawn exactly one replacement
+child. A heartbeat alone does not fork a child. The command waits up to one
+second for the daemon to report the driver attached, so its output reflects the
+restored driver rather than the dead one. The wait ends as soon as the answer
+cannot improve: an attached driver returns immediately, an absent driver
+(opt-out or no supervisor) returns after a short grace, and a failed snapshot
+keeps polling until the budget so a healthy respawn is not reported as failed.
 
 A refreshed membership is never reported as coverage by itself. When the daemon
 still reports `failed`, both bare `anvil` and `anvil workspace register` name
@@ -168,11 +169,12 @@ the daemon refuses further respawns until 60 seconds have passed since the last
 failure, and the worktree stays `failed` in the meantime. Inspect
 `<stem>.spawn.log` for the crash capture, then re-run the daily command once the
 cause is fixed. A child's lifetime is measured from evidence that it ran — the
-daemon's own liveness probes and the modification time of its `<stem>.ready`
-marker — not from the moment its death was noticed, so a child that crashes
-immediately still counts as a failed generation however long the gap between
-`anvil` runs. A child proven to have outlived the 60-second window resets the
-count.
+daemon's own liveness probes, or the fact that this generation wrote its
+`<stem>.ready` marker — not from converting that marker's wall-clock
+modification time into a monotonic instant, and not from the moment its death
+was noticed. A child that crashes immediately still counts as a failed
+generation however long the gap between `anvil` runs. A child proven to have
+outlived the 60-second window resets the count.
 
 Stopping a driver waits (briefly, escalating to a hard kill) for the child to
 exit before the daemon accepts a replacement for that worktree, so an unregister
