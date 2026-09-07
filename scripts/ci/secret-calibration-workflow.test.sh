@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # CIB-396 / issue #4345: lock secret-calibration.yml off LINUX_RUNNER for fork PRs.
+# Issue #4391: bind that lock to jobs.calibrate.runs-on, not a whole-file grep.
 #
 # DeepSec 20260902184224-6753b67df9c072ab found the advisory calibration job
 # scheduled on `vars.LINUX_RUNNER` with no fork ternary, so an external PR
 # touching secret-calibration paths could run PR-controlled `cargo test` on
 # the org Linux runner. rust-tests.yml and codeql.yml already force forks
-# onto ubuntu-latest; this fixture pins the same LINUX_RUNNER-only form.
+# onto ubuntu-latest. CIB-396/#4363 put the same ternary on
+# jobs.calibrate.runs-on. A file-wide substring check still passed if that
+# expression was parked in a comment, unrelated field, or dead job while
+# calibrate kept `runs-on: ${{ vars.LINUX_RUNNER }}`. This fixture parses
+# the workflow and requires the calibrate job's runs-on value to be exactly
+# the fork-safe expression.
 
 set -euo pipefail
 
@@ -17,42 +23,83 @@ if [ ! -f "${workflow}" ]; then
   exit 1
 fi
 
-assert_contains() {
-  local expected="$1"
-  if ! grep -Fq -- "${expected}" "${workflow}"; then
-    echo "expected ${workflow} to contain: ${expected}" >&2
-    exit 1
-  fi
+tmp_dir=$(mktemp -d)
+cleanup() {
+  rm -rf "${tmp_dir}"
+}
+trap cleanup EXIT
+
+# Node + the repo's `yaml` package (same toolchain as fast-pr-validation and
+# security-summary-gate) so the test needs no PyYAML and cannot be satisfied
+# by a parked substring.
+checker="${tmp_dir}/calibrate-runs-on.cjs"
+cat >"${checker}" <<'NODE'
+const fs = require('node:fs');
+const yaml = require('yaml');
+
+const file = process.argv[2];
+// YAML folding collapses the workflow's wrapped scalar to this single line.
+const expected =
+  "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}";
+const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
+const fail = (m) => {
+  console.error(`${file}: ${m}`);
+  process.exit(1);
+};
+
+const doc = yaml.parse(fs.readFileSync(file, 'utf8'));
+const job = doc.jobs && doc.jobs.calibrate;
+if (!job) fail('jobs.calibrate not found');
+const runsOn = job['runs-on'];
+if (typeof runsOn !== 'string') {
+  fail(`jobs.calibrate.runs-on is not a scalar string: ${JSON.stringify(runsOn)}`);
+}
+const actual = norm(runsOn);
+const want = norm(expected);
+if (actual !== want) {
+  fail(
+    `jobs.calibrate.runs-on is not the fork-safe LINUX_RUNNER ternary.\n` +
+      `  expected: ${want}\n` +
+      `  actual:   ${actual}`,
+  );
+}
+console.log(`${file}: jobs.calibrate.runs-on is the fork-safe LINUX_RUNNER ternary`);
+NODE
+
+assert_calibrate_runs_on() {
+  NODE_PATH="${repo_root}/node_modules" node "${checker}" "$1"
 }
 
-assert_not_contains() {
-  local forbidden="$1"
-  if grep -Fq -- "${forbidden}" "${workflow}"; then
-    echo "expected ${workflow} not to contain: ${forbidden}" >&2
-    exit 1
-  fi
-}
+assert_calibrate_runs_on "${workflow}"
 
-assert_contains "github.event.pull_request.head.repo.fork && 'ubuntu-latest'"
-assert_contains 'vars.LINUX_RUNNER'
-assert_not_contains "runs-on: \${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+# Negative: the ternary appears in a comment and a dead job, but calibrate
+# still uses the unguarded org runner. Whole-file grep would pass; this must
+# not.
+negative="${tmp_dir}/parked-ternary.yml"
+cat >"${negative}" <<'YAML'
+name: parked-ternary
+jobs:
+  calibrate:
+    name: Detection / false-positive report
+    # ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.LINUX_RUNNER }}
+    steps:
+      - run: echo decoy
+  decoy:
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - run: echo dead
+YAML
 
-python3 - "${workflow}" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-text = Path(sys.argv[1]).read_text()
-expr = re.search(
-    r"\$\{\{\s*github\.event\.pull_request\.head\.repo\.fork\s*&&\s*"
-    r"'ubuntu-latest'\s*\|\|\s*vars\.LINUX_RUNNER\s*\|\|\s*'ubuntu-latest'\s*\}\}",
-    text,
-    re.S,
-)
-if not expr:
-    print('secret-calibration.yml is missing the codeql/rust-tests LINUX_RUNNER fork ternary', file=sys.stderr)
-    sys.exit(1)
-print('secret-calibration fork ternary:', re.sub(r'\s+', ' ', expr.group(0)))
-PY
+if assert_calibrate_runs_on "${negative}" 2>"${tmp_dir}/negative.err"; then
+  echo "expected parked-ternary fixture to fail when calibrate.runs-on is vars.LINUX_RUNNER" >&2
+  exit 1
+fi
+if ! grep -Fq 'actual:   ${{ vars.LINUX_RUNNER }}' "${tmp_dir}/negative.err"; then
+  echo "parked-ternary fixture failed for the wrong reason:" >&2
+  cat "${tmp_dir}/negative.err" >&2
+  exit 1
+fi
+echo 'ok: parked ternary does not satisfy jobs.calibrate.runs-on'
 
 printf 'secret-calibration-workflow.test.sh: ok\n'
