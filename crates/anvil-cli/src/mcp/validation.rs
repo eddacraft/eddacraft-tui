@@ -699,30 +699,26 @@ mod tests {
     #[test]
     fn slow_drip_response_cannot_renew_exchange_deadline() {
         use std::io::Write;
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicBool, Ordering};
         use std::time::{Duration, Instant};
         let (client, mut peer) = std::os::unix::net::UnixStream::pair().unwrap();
-        // Closing the reader after the deadline must not SIGPIPE the test
-        // process. Darwin raises SIGPIPE on write to a disconnected
-        // socketpair unless SO_NOSIGPIPE is set; nightly aarch64-apple-darwin
-        // then kills the entire `--bin anvil` suite (signal 13).
-        #[cfg(any(target_os = "macos", target_os = "ios"))]
-        {
-            use std::os::unix::io::AsRawFd as _;
-            let yes: libc::c_int = 1;
-            let rc = unsafe {
-                libc::setsockopt(
-                    peer.as_raw_fd(),
-                    libc::SOL_SOCKET,
-                    libc::SO_NOSIGPIPE,
-                    (&yes as *const libc::c_int).cast(),
-                    std::mem::size_of_val(&yes) as libc::socklen_t,
-                )
-            };
-            assert_eq!(rc, 0, "SO_NOSIGPIPE must apply on the drip writer");
-        }
+        // Stop the drip writer before the reader is dropped. Rust's
+        // `UnixStream::pair()` does not set SO_NOSIGPIPE on Apple (unlike
+        // `Socket::new()`), so a write to the disconnected peer raises
+        // SIGPIPE and kills the `--bin anvil` suite on nightly
+        // aarch64-apple-darwin. Workspace `unsafe_code = "forbid"` becomes
+        // rustc `-F unsafe-code` on Cross smoke, and neither nix 0.31 nor
+        // socket2 exposes a safe Darwin SO_NOSIGPIPE setter. Ending the
+        // writer first avoids the closed-socket write entirely.
+        let stop = Arc::new(AtomicBool::new(false));
+        let writer_stop = Arc::clone(&stop);
         let started = Instant::now();
         let writer = std::thread::spawn(move || {
             for _ in 0..100 {
+                if writer_stop.load(Ordering::Relaxed) {
+                    break;
+                }
                 if peer.write_all(b" ").is_err() {
                     break;
                 }
@@ -735,7 +731,7 @@ mod tests {
         });
         assert!(super::read_capped_response_line(&mut reader).is_err());
         assert!(started.elapsed() < Duration::from_millis(800));
-        drop(reader);
+        stop.store(true, Ordering::Relaxed);
         writer.join().unwrap();
     }
 
