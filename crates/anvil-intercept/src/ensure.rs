@@ -63,11 +63,30 @@ pub enum StartCapability {
     NoSpawn(NoStartReason),
 }
 
+/// Whether the caller already serialises daemon start against every endpoint
+/// candidate of this execution scope (ADR-036).
+///
+/// `ensure_daemon` holds the same rendezvous coordinator that doctor's socket
+/// repair holds (`intercept.rendezvous-repair.lock` in the first physical
+/// candidate directory) before the per-install start lock, so two shells whose
+/// environments disagree about the canonical endpoint cannot both cold-start.
+/// The coordinator is an advisory lock on an open file description, so a
+/// process that already holds it must say so rather than re-open it and wait
+/// on itself (JREL-004).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RendezvousCoordination {
+    /// Acquire the cross-candidate rendezvous coordinator before starting.
+    Acquire,
+    /// The caller holds the coordinator for these candidates already
+    /// (`anvil doctor --fix` socket rendezvous repair).
+    HeldByCaller,
+}
+
 /// The typed result of an [`ensure_daemon`] call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EnsureOutcome {
-    /// A live daemon already answers the per-user endpoint (or a listener is
-    /// present but slow and must not be torn down).
+    /// A live daemon already answers one of this scope's endpoint candidates
+    /// (or a listener is present but slow and must not be torn down).
     Reused,
     /// Exactly one daemon was launched and now answers the status verb.
     Started,
@@ -138,11 +157,28 @@ pub fn platform_unsupported_outcome() -> EnsureOutcome {
 /// verb, not a per-workspace admission check (a daemon that is up but has not yet
 /// admitted the caller's worktree is still a live daemon to reuse).
 ///
+/// Reuse considers every endpoint candidate of this execution scope — the
+/// canonical bind path first, then the `XDG_RUNTIME_DIR` / state-home sibling
+/// (`ANVIL_HOME` alone when set) — so a shell that discovers the daemon at a
+/// sibling endpoint converges on it instead of starting a second daemon at its
+/// own canonical path. A daemon is only ever spawned at the canonical path.
+///
 /// `launcher` is how a detached daemon is spawned; the CLI passes a
 /// [`DetachedCommandLauncher`] built from `current_exe()` and
 /// `intercept start --foreground`.
 #[cfg(unix)]
 pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher) -> EnsureOutcome {
+    ensure_daemon_coordinated(capability, launcher, RendezvousCoordination::Acquire)
+}
+
+/// [`ensure_daemon`] for a caller that states whether it already holds the
+/// cross-candidate rendezvous coordinator (see [`RendezvousCoordination`]).
+#[cfg(unix)]
+pub fn ensure_daemon_coordinated(
+    capability: StartCapability,
+    launcher: &dyn DaemonLauncher,
+    coordination: RendezvousCoordination,
+) -> EnsureOutcome {
     let Ok(socket_path) = crate::ipc::resolve_socket_path() else {
         return EnsureOutcome::Failed {
             recovery: "could not resolve the per-user daemon socket path; \
@@ -157,7 +193,39 @@ pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher)
                 .to_owned(),
         };
     };
+    let Ok(candidates) = crate::ipc::resolve_socket_connect_candidates() else {
+        return EnsureOutcome::Failed {
+            recovery: "could not resolve the per-user daemon socket candidates; \
+                       check $XDG_RUNTIME_DIR / $HOME or set ANVIL_HOME"
+                .to_owned(),
+        };
+    };
     let runtime_dir = pid_path.parent().unwrap_or_else(|| Path::new("."));
+    ensure_daemon_at(
+        capability,
+        launcher,
+        &socket_path,
+        runtime_dir,
+        &candidates,
+        coordination,
+    )
+}
+
+/// Path-explicit core of [`ensure_daemon_coordinated`]: `socket_path` is the
+/// canonical bind path inside `runtime_dir`, and `candidates` is the ordered
+/// connect set (canonical first) that reuse verifies and the rendezvous
+/// coordinator is keyed on. Split from the environment resolution so both
+/// environment orders (runtime dir set/unset) run in-process against real
+/// sockets.
+#[cfg(unix)]
+pub(crate) fn ensure_daemon_at(
+    capability: StartCapability,
+    launcher: &dyn DaemonLauncher,
+    socket_path: &Path,
+    runtime_dir: &Path,
+    candidates: &[PathBuf],
+    coordination: RendezvousCoordination,
+) -> EnsureOutcome {
     // #3220: pre-flight the runtime/socket directory before spawn so a
     // wrong-mode `ANVIL_HOME` surfaces as a chmod recovery instead of a
     // false "daemon did not become ready" + intercept-start hint after
@@ -196,16 +264,47 @@ pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher)
     let lock_path = runtime_dir.join("intercept.ensure.lock");
     let log_path = runtime_dir.join("intercept.daemon.log");
 
-    let probe = SocketProbe::new(socket_path);
+    let probe = SocketProbe::new(socket_path.to_path_buf());
+    // Siblings are verified through the client-side owner-only gate before a
+    // connection counts as a live daemon; a planted inode at a sibling path is
+    // skipped, never reused, and never a reason to spawn elsewhere.
+    let sibling_probes: Vec<SocketProbe> = candidates
+        .iter()
+        .filter(|candidate| candidate.as_path() != socket_path)
+        .map(|candidate| SocketProbe::for_sibling(candidate.clone()))
+        .collect();
+    let sibling_refs: Vec<&dyn DaemonProbe> = sibling_probes
+        .iter()
+        .map(|probe| probe as &dyn DaemonProbe)
+        .collect();
+    let rendezvous_candidates = match coordination {
+        RendezvousCoordination::Acquire => Some(candidates),
+        RendezvousCoordination::HeldByCaller => None,
+    };
     let params = EnsureParams {
         probe: &probe,
+        sibling_probes: &sibling_refs,
         launcher,
         lock_path: &lock_path,
+        rendezvous_candidates,
         log_path: &log_path,
         bind_timeout: DAEMON_BIND_TIMEOUT,
         poll_interval: BIND_POLL_INTERVAL,
     };
     ensure_with(&params, capability)
+}
+
+/// Windows entry: same state machine as Unix, probing the per-user named pipe
+/// instead of the Unix socket (CIB-072 / GH #2609). The pipe namespace has one
+/// location per user, so there is no sibling endpoint to verify and no
+/// cross-candidate coordinator to hold.
+#[cfg(windows)]
+pub fn ensure_daemon_coordinated(
+    capability: StartCapability,
+    launcher: &dyn DaemonLauncher,
+    _coordination: RendezvousCoordination,
+) -> EnsureOutcome {
+    ensure_daemon(capability, launcher)
 }
 
 /// Windows entry: same state machine as Unix, probing the per-user named pipe
@@ -233,8 +332,10 @@ pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher)
     let probe = PipeProbe::new(pipe_name);
     let params = EnsureParams {
         probe: &probe,
+        sibling_probes: &[],
         launcher,
         lock_path: &lock_path,
+        rendezvous_candidates: None,
         log_path: &log_path,
         bind_timeout: DAEMON_BIND_TIMEOUT,
         poll_interval: BIND_POLL_INTERVAL,
@@ -251,24 +352,42 @@ pub fn ensure_daemon(
     platform_unsupported_outcome()
 }
 
+/// Platforms without a detached launcher implementation.
+#[cfg(all(not(unix), not(windows)))]
+pub fn ensure_daemon_coordinated(
+    _capability: StartCapability,
+    _launcher: &dyn DaemonLauncher,
+    _coordination: RendezvousCoordination,
+) -> EnsureOutcome {
+    platform_unsupported_outcome()
+}
+
 /// Inputs to the platform-agnostic ensure state machine.
 #[cfg(any(unix, windows))]
 struct EnsureParams<'a> {
+    /// The canonical endpoint: the only one a daemon is ever spawned at.
     probe: &'a dyn DaemonProbe,
+    /// Same-scope sibling endpoints (already gated): a live one is reused.
+    sibling_probes: &'a [&'a dyn DaemonProbe],
     launcher: &'a dyn DaemonLauncher,
+    /// Per-install start lock beside the canonical PID file.
     lock_path: &'a Path,
+    /// Every socket candidate the rendezvous coordinator is keyed on, or
+    /// `None` when the caller already holds that coordinator.
+    rendezvous_candidates: Option<&'a [PathBuf]>,
     log_path: &'a Path,
     bind_timeout: Duration,
     poll_interval: Duration,
 }
 
-/// The platform-agnostic ensure state machine. Pure but for the lock file, the
-/// injected probe, and the injected launcher — so every branch is unit-tested.
+/// The platform-agnostic ensure state machine. Pure but for the lock files, the
+/// injected probes, and the injected launcher — so every branch is unit-tested.
 #[cfg(any(unix, windows))]
 fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> EnsureOutcome {
-    // 1. Probe is read-only and always allowed, even for non-spawning callers:
-    //    a live daemon is reused regardless of capability.
-    if reuse_if_live(params.probe) {
+    // 1. Probes are read-only and always allowed, even for non-spawning
+    //    callers: a live daemon at any verified endpoint of this scope is
+    //    reused regardless of capability.
+    if any_endpoint_live(params) {
         return EnsureOutcome::Reused;
     }
 
@@ -277,8 +396,28 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
         return EnsureOutcome::NoStart { reason };
     }
 
-    // 3. Serialise the spawn critical section across concurrent start/watch
-    //    callers on the same per-`ANVIL_HOME` lock.
+    // 3. Serialise the spawn critical section. The rendezvous coordinator is
+    //    shared by every shell of this execution scope whatever it considers
+    //    canonical (it is the lock doctor's socket repair holds, taken in the
+    //    same order: coordinator before any per-install start lock), then the
+    //    per-`ANVIL_HOME` start lock serialises same-environment callers.
+    let _rendezvous = params.rendezvous_candidates.and_then(|candidates| {
+        match acquire_daemon_rendezvous_repair_lock_for_socket_candidates(candidates) {
+            Ok(lock) => Some(lock),
+            Err(err) => {
+                // A sibling directory this environment cannot establish must
+                // not block the canonical start; same-environment callers are
+                // still serialised by the start lock below.
+                tracing::warn!(
+                    target: "anvil_intercept::ensure",
+                    error = %err,
+                    "could not hold the daemon rendezvous coordinator; \
+                     serialising on the per-install start lock only"
+                );
+                None
+            }
+        }
+    });
     let _lock = match acquire_ensure_lock(params.lock_path) {
         Ok(lock) => lock,
         Err(err) => {
@@ -291,9 +430,9 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
         }
     };
 
-    // 4. Re-probe under the lock: a racing caller may have started one while we
-    //    waited for the lock.
-    if reuse_if_live(params.probe) {
+    // 4. Re-probe under the locks: a racing caller — from this environment or
+    //    a sibling one — may have started a daemon while we waited.
+    if any_endpoint_live(params) {
         return EnsureOutcome::Reused;
     }
 
@@ -337,6 +476,18 @@ fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
         probe.probe(),
         Liveness::Answered | Liveness::ConnectedNoAnswer
     )
+}
+
+/// `true` when the canonical endpoint or any verified sibling endpoint of this
+/// scope carries a daemon to reuse. Canonical first, so a live canonical never
+/// costs a sibling probe.
+#[cfg(any(unix, windows))]
+fn any_endpoint_live(params: &EnsureParams<'_>) -> bool {
+    reuse_if_live(params.probe)
+        || params
+            .sibling_probes
+            .iter()
+            .any(|sibling| reuse_if_live(*sibling))
 }
 
 /// Poll the probe until a daemon answers or the deadline passes. A
@@ -400,14 +551,20 @@ pub fn acquire_daemon_start_lock_for_pid_file(pid_path: &Path) -> io::Result<std
     acquire_ensure_lock(&runtime_dir.join("intercept.ensure.lock"))
 }
 
-/// Serialise operator repair across every socket candidate, independent of
-/// which candidate the current process considers canonical.
+/// Serialise operator repair and background start across every socket
+/// candidate, independent of which candidate the current process considers
+/// canonical.
 ///
 /// Each verified candidate parent is resolved to its physical path before the
 /// set is sorted and deduplicated, so permitted ancestor aliases converge on
 /// the same coordinator. The coordinator uses a distinct lock file from daemon
 /// start, allowing doctor to retain sibling start/PID fences while starting the
-/// canonical daemon without an opposite-canonical AB/BA cycle.
+/// canonical daemon without an opposite-canonical AB/BA cycle. [`ensure_daemon`]
+/// holds the same coordinator before its per-install start lock, so two shells
+/// whose environments reverse the candidate order cannot both cold-start;
+/// doctor therefore launches through
+/// [`RendezvousCoordination::HeldByCaller`] rather than re-opening a lock its
+/// own process holds.
 ///
 /// # Errors
 ///
@@ -476,6 +633,11 @@ pub fn acquire_daemon_rendezvous_repair_lock_for_socket_candidates(
 pub(crate) struct SocketProbe {
     socket_path: PathBuf,
     timeout: Duration,
+    /// Apply the client-side owner-only path gate before connecting. Sibling
+    /// endpoints are gated (a planted inode there is skipped, never reused);
+    /// the canonical endpoint keeps its connect-only contract because the
+    /// daemon's own bind owns that path.
+    gate_path: bool,
 }
 
 #[cfg(unix)]
@@ -486,6 +648,19 @@ impl SocketProbe {
         Self {
             socket_path,
             timeout: PROBE_TIMEOUT,
+            gate_path: false,
+        }
+    }
+
+    /// Probe a same-scope sibling endpoint. The path must pass
+    /// [`crate::ipc::validate_socket_path_for_client`] before a connection
+    /// counts; any other metadata is treated as no daemon here.
+    #[must_use]
+    pub(crate) fn for_sibling(socket_path: PathBuf) -> Self {
+        Self {
+            socket_path,
+            timeout: PROBE_TIMEOUT,
+            gate_path: true,
         }
     }
 
@@ -497,6 +672,7 @@ impl SocketProbe {
         Self {
             socket_path,
             timeout,
+            gate_path: false,
         }
     }
 }
@@ -506,6 +682,10 @@ impl DaemonProbe for SocketProbe {
     fn probe(&self) -> Liveness {
         use std::os::unix::net::UnixStream;
 
+        if self.gate_path && crate::ipc::validate_socket_path_for_client(&self.socket_path).is_err()
+        {
+            return Liveness::Unreachable;
+        }
         // Connect failure is the *only* signal that the endpoint is absent or
         // stale (no listener) — the case it is safe to respawn over.
         let Ok(stream) = UnixStream::connect(&self.socket_path) else {
@@ -1073,8 +1253,10 @@ mod tests {
     ) -> EnsureParams<'a> {
         EnsureParams {
             probe,
+            sibling_probes: &[],
             launcher,
             lock_path,
+            rendezvous_candidates: None,
             log_path,
             bind_timeout: Duration::from_secs(5),
             poll_interval: Duration::from_millis(5),
@@ -1328,6 +1510,397 @@ mod tests {
             outcomes.contains(&EnsureOutcome::Reused),
             "the other reused it: {outcomes:?}"
         );
+    }
+
+    // ----- JREL-004: one daemon identity across endpoint candidates -----
+
+    /// JREL-004: a daemon discovered live at a same-scope sibling endpoint is
+    /// the daemon; the canonical path being empty is not a reason to spawn.
+    #[test]
+    fn live_sibling_is_reused_without_spawning_a_duplicate() {
+        let fx = fixture();
+        let (canonical, _never_ready) = FlagProbe::absent();
+        let sibling = FlagProbe {
+            ready: Arc::new(AtomicBool::new(true)),
+            connected_no_answer: false,
+        };
+        let launcher = FakeLauncher::never_binds();
+        let siblings: [&dyn DaemonProbe; 1] = [&sibling];
+        let p = EnsureParams {
+            sibling_probes: &siblings,
+            ..params(&canonical, &launcher, &fx.lock, &fx.log)
+        };
+
+        assert_eq!(
+            ensure_with(&p, StartCapability::MaySpawn),
+            EnsureOutcome::Reused
+        );
+        assert_eq!(
+            launcher.spawns(),
+            0,
+            "a live sibling daemon must be reused, never duplicated"
+        );
+    }
+
+    /// A minimal same-user listener that answers the ensure probe's
+    /// `anvil/status/query` with an id-matched `result`, standing in for a
+    /// daemon bound at an arbitrary endpoint path.
+    struct FakeDaemon {
+        stop: Arc<AtomicBool>,
+        thread: Option<std::thread::JoinHandle<()>>,
+        path: PathBuf,
+    }
+
+    impl FakeDaemon {
+        fn bind(path: &Path) -> Self {
+            use std::io::{BufRead, BufReader, Write};
+            use std::os::unix::fs::PermissionsExt;
+            use std::os::unix::net::UnixListener;
+
+            let parent = path.parent().expect("socket parent");
+            crate::ensure_secure_runtime_dir(parent).expect("owner-only endpoint dir");
+            let listener = UnixListener::bind(path).expect("bind fake daemon");
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                .expect("owner-only socket");
+            listener.set_nonblocking(true).expect("non-blocking accept");
+            let stop = Arc::new(AtomicBool::new(false));
+            let stop_flag = Arc::clone(&stop);
+            let thread = std::thread::spawn(move || {
+                while !stop_flag.load(Ordering::SeqCst) {
+                    match listener.accept() {
+                        Ok((stream, _)) => {
+                            let _ = stream.set_nonblocking(false);
+                            let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+                            let mut reader = BufReader::new(&stream);
+                            let mut line = String::new();
+                            if reader.read_line(&mut line).is_ok() {
+                                let mut writer = &stream;
+                                let _ = writeln!(
+                                    writer,
+                                    "{{\"jsonrpc\":\"2.0\",\"id\":\"anvil-ensure-probe\",\"result\":{{}}}}"
+                                );
+                            }
+                        }
+                        Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                            std::thread::sleep(Duration::from_millis(5));
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+            Self {
+                stop,
+                thread: Some(thread),
+                path: path.to_path_buf(),
+            }
+        }
+    }
+
+    impl Drop for FakeDaemon {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+
+    /// A launcher that, after `delay`, binds a [`FakeDaemon`] at the canonical
+    /// socket path it was built for — a real-socket stand-in for
+    /// `intercept start --foreground` reaching its bind.
+    struct FakeSocketDaemonLauncher {
+        socket_path: PathBuf,
+        delay: Duration,
+        count: Arc<AtomicUsize>,
+        daemons: Arc<std::sync::Mutex<Vec<FakeDaemon>>>,
+    }
+
+    impl FakeSocketDaemonLauncher {
+        fn new(
+            socket_path: &Path,
+            delay: Duration,
+            count: &Arc<AtomicUsize>,
+            daemons: &Arc<std::sync::Mutex<Vec<FakeDaemon>>>,
+        ) -> Self {
+            Self {
+                socket_path: socket_path.to_path_buf(),
+                delay,
+                count: Arc::clone(count),
+                daemons: Arc::clone(daemons),
+            }
+        }
+    }
+
+    impl DaemonLauncher for FakeSocketDaemonLauncher {
+        fn spawn_detached(&self, _log_path: &Path) -> io::Result<u32> {
+            self.count.fetch_add(1, Ordering::SeqCst);
+            let socket_path = self.socket_path.clone();
+            let delay = self.delay;
+            let daemons = Arc::clone(&self.daemons);
+            std::thread::spawn(move || {
+                if !delay.is_zero() {
+                    std::thread::sleep(delay);
+                }
+                let daemon = FakeDaemon::bind(&socket_path);
+                daemons.lock().expect("daemon list").push(daemon);
+            });
+            Ok(1)
+        }
+    }
+
+    /// The two shell environments of one execution scope: a shell with
+    /// `XDG_RUNTIME_DIR` (runtime dir canonical, state home sibling) and a
+    /// shell without it (state home canonical, runtime dir found through the
+    /// implicit `/run/user/<uid>` sibling), resolved through the real
+    /// candidate resolver against per-test directories.
+    struct ScopeEnvironments {
+        dir: tempfile::TempDir,
+        xdg_candidates: Vec<PathBuf>,
+        plain_candidates: Vec<PathBuf>,
+    }
+
+    fn scope_environments() -> ScopeEnvironments {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let home = dir.path().join("home");
+        let runtime = dir.path().join("runtime");
+        let xdg_candidates = crate::ipc::resolve_socket_connect_candidates_with_env(
+            None,
+            Some(runtime.clone().into_os_string()),
+            Some(home.clone().into_os_string()),
+            None,
+        )
+        .expect("runtime-dir shell candidates");
+        let plain_candidates = crate::ipc::resolve_socket_connect_candidates_with_env(
+            None,
+            None,
+            Some(home.into_os_string()),
+            Some(runtime),
+        )
+        .expect("plain shell candidates");
+        assert_eq!(xdg_candidates.len(), 2, "{xdg_candidates:?}");
+        assert_eq!(plain_candidates.len(), 2, "{plain_candidates:?}");
+        assert_eq!(xdg_candidates[0], plain_candidates[1]);
+        assert_eq!(xdg_candidates[1], plain_candidates[0]);
+        ScopeEnvironments {
+            dir,
+            xdg_candidates,
+            plain_candidates,
+        }
+    }
+
+    fn ensure_in(
+        candidates: &[PathBuf],
+        launcher: &dyn DaemonLauncher,
+        coordination: RendezvousCoordination,
+    ) -> EnsureOutcome {
+        let canonical = &candidates[0];
+        let runtime_dir = canonical.parent().expect("canonical parent");
+        ensure_daemon_at(
+            StartCapability::MaySpawn,
+            launcher,
+            canonical,
+            runtime_dir,
+            candidates,
+            coordination,
+        )
+    }
+
+    /// JREL-004, "unset then set": a daemon bound under the state home by a
+    /// shell without `XDG_RUNTIME_DIR` is reused by a shell that has one.
+    #[test]
+    fn xdg_shell_reuses_state_home_daemon_through_the_sibling_candidate() {
+        let env = scope_environments();
+        let _daemon = FakeDaemon::bind(&env.plain_candidates[0]);
+        let launcher = FakeLauncher::never_binds();
+
+        assert_eq!(
+            ensure_in(
+                &env.xdg_candidates,
+                &launcher,
+                RendezvousCoordination::Acquire
+            ),
+            EnsureOutcome::Reused
+        );
+        assert_eq!(launcher.spawns(), 0, "must not start a second daemon");
+        assert!(
+            !env.xdg_candidates[0].exists(),
+            "nothing may be bound at the runtime-dir endpoint"
+        );
+    }
+
+    /// JREL-004, "set then unset": a daemon bound under the runtime dir by a
+    /// shell with `XDG_RUNTIME_DIR` is reused by a plain shell through the
+    /// implicit runtime-dir sibling.
+    #[test]
+    fn plain_shell_reuses_runtime_dir_daemon_through_the_implicit_sibling() {
+        let env = scope_environments();
+        let _daemon = FakeDaemon::bind(&env.xdg_candidates[0]);
+        let launcher = FakeLauncher::never_binds();
+
+        assert_eq!(
+            ensure_in(
+                &env.plain_candidates,
+                &launcher,
+                RendezvousCoordination::Acquire
+            ),
+            EnsureOutcome::Reused
+        );
+        assert_eq!(launcher.spawns(), 0, "must not start a second daemon");
+        assert!(
+            !env.plain_candidates[0].exists(),
+            "nothing may be bound at the state-home endpoint"
+        );
+    }
+
+    /// JREL-004: a stale canonical socket inode (crashed daemon, no listener)
+    /// beside a live sibling converges on the sibling; the stale inode is
+    /// neither reused nor a reason to spawn over the live daemon.
+    #[test]
+    fn stale_canonical_socket_with_live_sibling_reuses_the_sibling() {
+        use std::os::unix::net::UnixListener;
+
+        let env = scope_environments();
+        let stale = &env.xdg_candidates[0];
+        crate::ensure_secure_runtime_dir(stale.parent().unwrap()).expect("runtime dir");
+        drop(UnixListener::bind(stale).expect("bind stale socket"));
+        assert!(stale.exists(), "stale inode must remain for the scenario");
+        let _daemon = FakeDaemon::bind(&env.xdg_candidates[1]);
+        let launcher = FakeLauncher::never_binds();
+
+        assert_eq!(
+            ensure_in(
+                &env.xdg_candidates,
+                &launcher,
+                RendezvousCoordination::Acquire
+            ),
+            EnsureOutcome::Reused
+        );
+        assert_eq!(launcher.spawns(), 0);
+    }
+
+    /// JREL-004: a sibling endpoint is verified through the client owner-only
+    /// gate before it counts. A planted symlink at the sibling path is skipped
+    /// (not reused), and the daemon is still started at the canonical path.
+    #[test]
+    fn planted_sibling_symlink_is_not_reused() {
+        use std::os::unix::fs::symlink;
+
+        let env = scope_environments();
+        let elsewhere = env.dir.path().join("elsewhere/intercept.sock");
+        let _foreign = FakeDaemon::bind(&elsewhere);
+        let sibling = &env.xdg_candidates[1];
+        crate::ensure_secure_runtime_dir(sibling.parent().unwrap()).expect("sibling dir");
+        symlink(&elsewhere, sibling).expect("plant sibling symlink");
+
+        let count = Arc::new(AtomicUsize::new(0));
+        let daemons = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let launcher =
+            FakeSocketDaemonLauncher::new(&env.xdg_candidates[0], Duration::ZERO, &count, &daemons);
+
+        assert_eq!(
+            ensure_in(
+                &env.xdg_candidates,
+                &launcher,
+                RendezvousCoordination::Acquire
+            ),
+            EnsureOutcome::Started
+        );
+        assert_eq!(
+            count.load(Ordering::SeqCst),
+            1,
+            "a planted sibling inode is not a daemon; start at the canonical path"
+        );
+    }
+
+    /// JREL-004: concurrent cold starts from shells whose environments reverse
+    /// the candidate order (runtime dir set vs unset) must converge on one
+    /// daemon. Each environment has its own start lock, so only the shared
+    /// rendezvous coordinator can serialise them.
+    #[test]
+    fn concurrent_cross_environment_cold_starts_converge_on_one_daemon() {
+        let env = scope_environments();
+        let count = Arc::new(AtomicUsize::new(0));
+        let daemons = Arc::new(std::sync::Mutex::new(Vec::new()));
+
+        let outcomes: Vec<EnsureOutcome> = std::thread::scope(|scope| {
+            let handles: Vec<_> = [
+                &env.xdg_candidates,
+                &env.plain_candidates,
+                &env.xdg_candidates,
+                &env.plain_candidates,
+            ]
+            .into_iter()
+            .map(|candidates| {
+                let count = Arc::clone(&count);
+                let daemons = Arc::clone(&daemons);
+                scope.spawn(move || {
+                    let launcher = FakeSocketDaemonLauncher::new(
+                        &candidates[0],
+                        Duration::from_millis(50),
+                        &count,
+                        &daemons,
+                    );
+                    ensure_in(candidates, &launcher, RendezvousCoordination::Acquire)
+                })
+            })
+            .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+
+        assert_eq!(
+            count.load(Ordering::SeqCst),
+            1,
+            "cross-environment concurrent ensure must spawn exactly one daemon: {outcomes:?}"
+        );
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|o| **o == EnsureOutcome::Started)
+                .count(),
+            1,
+            "{outcomes:?}"
+        );
+        assert!(
+            outcomes
+                .iter()
+                .all(|o| matches!(o, EnsureOutcome::Started | EnsureOutcome::Reused)),
+            "{outcomes:?}"
+        );
+        drop(daemons);
+    }
+
+    /// JREL-004: intentionally isolated `ANVIL_HOME` installations are
+    /// separate scopes with exclusive single-candidate sets; each starts and
+    /// keeps its own daemon.
+    #[test]
+    fn isolated_homes_start_distinct_daemons() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let count = Arc::new(AtomicUsize::new(0));
+        let daemons = Arc::new(std::sync::Mutex::new(Vec::new()));
+        for home in ["home-a", "home-b"] {
+            let candidates = crate::ipc::resolve_socket_connect_candidates_with_env(
+                Some(dir.path().join(home).into_os_string()),
+                Some(dir.path().join("runtime").into_os_string()),
+                Some(dir.path().join("user-home").into_os_string()),
+                None,
+            )
+            .expect("isolated home candidates");
+            assert_eq!(
+                candidates.len(),
+                1,
+                "ANVIL_HOME is exclusive: {candidates:?}"
+            );
+            let launcher =
+                FakeSocketDaemonLauncher::new(&candidates[0], Duration::ZERO, &count, &daemons);
+            assert_eq!(
+                ensure_in(&candidates, &launcher, RendezvousCoordination::Acquire),
+                EnsureOutcome::Started,
+                "{home} must start its own daemon"
+            );
+        }
+        assert_eq!(count.load(Ordering::SeqCst), 2);
+        assert_eq!(daemons.lock().unwrap().len(), 2);
     }
 
     /// CIB-382: two doctor processes can see the same runtime candidates in

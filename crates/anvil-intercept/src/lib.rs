@@ -1158,10 +1158,7 @@ fn existing_pid_status(record: &str) -> ExistingPidStatus {
         return ExistingPidStatus::Live;
     }
 
-    let recorded_start_time = record
-        .lines()
-        .find_map(|line| line.strip_prefix("start_time="))
-        .and_then(|value| value.parse::<u64>().ok());
+    let recorded_start_time = parse_recorded_start_time(record);
 
     if !process_exists(pid) {
         return ExistingPidStatus::Stale;
@@ -1197,8 +1194,18 @@ pub enum StopOutcome {
 #[derive(Debug, PartialEq, Eq)]
 enum StopPlan {
     NotRunning,
-    Signal { pid: u32 },
-    ClearStale { pid: u32 },
+    Signal {
+        pid: u32,
+    },
+    ClearStale {
+        pid: u32,
+    },
+    /// A live daemon is named, but it is not the instance the caller
+    /// observed when it decided to stop; the caller's identity is stale and
+    /// must not target the replacement.
+    Replaced {
+        pid: u32,
+    },
     Malformed,
     Unproven,
 }
@@ -1208,6 +1215,13 @@ fn parse_pid_record(record: &str) -> Option<u32> {
         .lines()
         .next()
         .and_then(|line| line.trim().parse::<u32>().ok())
+}
+
+fn parse_recorded_start_time(record: &str) -> Option<u64> {
+    record
+        .lines()
+        .find_map(|line| line.strip_prefix("start_time="))
+        .and_then(|value| value.parse::<u64>().ok())
 }
 
 fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus) -> StopPlan {
@@ -1221,6 +1235,63 @@ fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus)
         ExistingPidStatus::Live => StopPlan::Signal { pid },
         ExistingPidStatus::Stale => StopPlan::ClearStale { pid },
         ExistingPidStatus::Unknown => StopPlan::Unproven,
+    }
+}
+
+/// One daemon instance as named by a PID-file signal instruction that was
+/// verified live when it was read: the PID plus the process start time the
+/// record carries (absent only where the daemon's platform could not supply
+/// one). Callers that decide to stop a daemon capture this at decision time
+/// and hand it back so the stop can refuse a replacement instance that has
+/// since taken over the same PID file (JREL-004).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DaemonPidRecord {
+    /// The PID file the instruction was read from.
+    pub pid_file: PathBuf,
+    /// The daemon PID the instruction names.
+    pub pid: u32,
+    /// The recorded process start time, in the platform's own unit.
+    pub start_time: Option<u64>,
+}
+
+impl DaemonPidRecord {
+    /// `true` when a freshly read instruction names the same instance.
+    #[must_use]
+    fn names_same_instance(&self, pid: u32, start_time: Option<u64>) -> bool {
+        self.pid == pid && self.start_time == start_time
+    }
+}
+
+/// Which daemon instance a stop may signal.
+#[derive(Debug, Clone, Copy)]
+enum StopTarget<'a> {
+    /// Whatever live daemon the PID file names now (operator `intercept stop`).
+    AnyLive,
+    /// Only the instance the caller verified when it decided to stop. `None`
+    /// records that the caller observed no live daemon at this candidate, so a
+    /// live daemon found now is a replacement and is never signalled.
+    Observed(Option<&'a DaemonPidRecord>),
+}
+
+/// [`plan_stop`] narrowed to a [`StopTarget`]: a live instruction that names
+/// a different instance from the one observed becomes
+/// [`StopPlan::Replaced`] instead of a signal.
+fn plan_stop_for_target(
+    record: Option<&str>,
+    classify: impl Fn(&str) -> ExistingPidStatus,
+    target: StopTarget<'_>,
+) -> StopPlan {
+    let plan = plan_stop(record, classify);
+    match (plan, target) {
+        (StopPlan::Signal { pid }, StopTarget::Observed(expected)) => {
+            let start_time = record.and_then(parse_recorded_start_time);
+            if expected.is_some_and(|expected| expected.names_same_instance(pid, start_time)) {
+                StopPlan::Signal { pid }
+            } else {
+                StopPlan::Replaced { pid }
+            }
+        }
+        (plan, _) => plan,
     }
 }
 
@@ -1500,8 +1571,10 @@ fn read_pid_file_for_stop(path: &Path) -> Result<Option<String>> {
     Ok(Some(record))
 }
 
+/// Read a PID signal instruction through the owner-only gates without acting
+/// on it. `None` when no PID file is present.
 #[cfg(any(unix, windows))]
-fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
+fn read_pid_record_for_stop(path: &Path) -> Result<Option<String>> {
     // A PID file is a signal-delivery instruction, so its directory must clear
     // the same owner-only bar the socket half enforces before connecting. The
     // dual-path search reaches directories this process's environment does not
@@ -1510,31 +1583,164 @@ fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
     // create path this never repairs, mirroring `RepairMode::Refuse` on the
     // client side.
     #[cfg(unix)]
-    let record = read_pid_file_for_stop(path)?;
+    {
+        read_pid_file_for_stop(path)
+    }
     #[cfg(windows)]
-    let record = match fs::symlink_metadata(path) {
-        Ok(metadata) => {
-            if metadata.file_type().is_symlink() {
-                anyhow::bail!("refusing symlink PID file {}", path.display());
+    {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() {
+                    anyhow::bail!("refusing symlink PID file {}", path.display());
+                }
+                // Gate only once a PID file is actually present: an absent
+                // candidate is "no daemon here" and must stay a quiet no-op.
+                Ok(Some(fs::read_to_string(path).with_context(|| {
+                    format!("failed to read PID file {}", path.display())
+                })?))
             }
-            // Gate only once a PID file is actually present: an absent
-            // candidate is "no daemon here" and must stay a quiet no-op.
-            Some(
-                fs::read_to_string(path)
-                    .with_context(|| format!("failed to read PID file {}", path.display()))?,
-            )
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(anyhow::Error::new(err))
+                .with_context(|| format!("failed to inspect PID file {}", path.display())),
         }
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
-        Err(err) => {
-            return Err(anyhow::Error::new(err))
-                .with_context(|| format!("failed to inspect PID file {}", path.display()));
-        }
-    };
+    }
+}
+
+/// The daemon instance a candidate PID file currently names, verified live
+/// through the same owner-only gates and start-time check the stop path uses,
+/// without signalling or removing anything. `None` when the candidate has no
+/// PID file or names a process that has exited.
+///
+/// # Errors
+///
+/// Returns the stop path's refusal for a malformed, unprovable, foreign, or
+/// group/world-writable instruction.
+#[cfg(any(unix, windows))]
+pub fn read_live_daemon_pid_record(path: &Path) -> Result<Option<DaemonPidRecord>> {
+    let record = read_pid_record_for_stop(path)?;
     match plan_stop(record.as_deref(), existing_pid_status) {
+        StopPlan::Signal { pid } | StopPlan::Replaced { pid } => Ok(Some(DaemonPidRecord {
+            pid_file: path.to_path_buf(),
+            pid,
+            start_time: record.as_deref().and_then(parse_recorded_start_time),
+        })),
+        StopPlan::NotRunning | StopPlan::ClearStale { .. } => Ok(None),
+        StopPlan::Malformed => Err(malformed_pid_file_error(path)),
+        StopPlan::Unproven => Err(unproven_pid_file_error(path)),
+    }
+}
+
+/// Every live daemon instance across the stop candidates, read without
+/// signalling. Candidates that are absent, stale, or refused are omitted; a
+/// later matching stop reports the refusals itself.
+///
+/// # Errors
+///
+/// Returns an error only when no candidate path can be resolved.
+#[cfg(unix)]
+pub fn snapshot_live_daemon_pid_records() -> Result<Vec<DaemonPidRecord>> {
+    Ok(resolve_daemon_stop_candidates()?
+        .iter()
+        .filter_map(|path| read_live_daemon_pid_record(path).ok().flatten())
+        .collect())
+}
+
+/// Windows: the single per-user PID file, read without signalling.
+///
+/// # Errors
+///
+/// Returns an error only when the PID file path cannot be resolved.
+#[cfg(windows)]
+pub fn snapshot_live_daemon_pid_records() -> Result<Vec<DaemonPidRecord>> {
+    let path = default_pid_file_path()?;
+    Ok(read_live_daemon_pid_record(&path)
+        .ok()
+        .flatten()
+        .into_iter()
+        .collect())
+}
+
+/// Stop the daemon instances in `observed` and nothing else. A candidate
+/// whose PID file now names a different live instance — or a live instance
+/// where none was observed — reports [`StopOutcome::NotRunning`] for the
+/// observed daemon and is never signalled, so a decision taken against a
+/// version probe cannot stop the replacement another caller has since
+/// started (JREL-004). Refusals are reported per candidate as in
+/// [`request_daemon_stop_all`].
+///
+/// # Errors
+///
+/// Returns an error only when no candidate path can be resolved.
+#[cfg(unix)]
+pub fn request_daemon_stop_all_matching(observed: &[DaemonPidRecord]) -> Result<Vec<StopReport>> {
+    stop_daemon_candidates(
+        resolve_daemon_stop_candidates()?,
+        CanonicalStopError::Report,
+        |path| {
+            let expected = observed
+                .iter()
+                .find(|record| record.pid_file.as_path() == path);
+            stop_daemon_at_target(path, StopTarget::Observed(expected))
+        },
+    )
+}
+
+/// Windows counterpart of [`request_daemon_stop_all_matching`] over the single
+/// per-user PID file.
+///
+/// # Errors
+///
+/// Returns the PID file path resolution error or the stop path's refusal.
+#[cfg(windows)]
+pub fn request_daemon_stop_matching(observed: &[DaemonPidRecord]) -> Result<StopOutcome> {
+    let path = default_pid_file_path()?;
+    let expected = observed
+        .iter()
+        .find(|record| record.pid_file.as_path() == path.as_path());
+    stop_daemon_at_target(&path, StopTarget::Observed(expected))
+}
+
+#[cfg(any(unix, windows))]
+fn malformed_pid_file_error(path: &Path) -> anyhow::Error {
+    anyhow::anyhow!(
+        "PID file {} is malformed (no parseable daemon PID); remove it manually if the \
+         daemon is not running",
+        path.display(),
+    )
+}
+
+#[cfg(any(unix, windows))]
+fn unproven_pid_file_error(path: &Path) -> anyhow::Error {
+    anyhow::anyhow!(
+        "PID file {} cannot be proven to identify the live daemon; refusing to signal it. \
+         Remove it manually if the daemon is not running",
+        path.display(),
+    )
+}
+
+#[cfg(any(unix, windows))]
+fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
+    stop_daemon_at_target(path, StopTarget::AnyLive)
+}
+
+#[cfg(any(unix, windows))]
+fn stop_daemon_at_target(path: &Path, target: StopTarget<'_>) -> Result<StopOutcome> {
+    let record = read_pid_record_for_stop(path)?;
+    match plan_stop_for_target(record.as_deref(), existing_pid_status, target) {
         StopPlan::NotRunning => Ok(StopOutcome::NotRunning),
         StopPlan::Signal { pid } => {
             stop_live_daemon(pid, path)?;
             Ok(StopOutcome::Signalled { pid })
+        }
+        StopPlan::Replaced { pid } => {
+            tracing::debug!(
+                target: "anvil_intercept::stop",
+                pid_file = %path.display(),
+                pid,
+                "PID file names a daemon instance the caller never observed; \
+                 not signalling the replacement"
+            );
+            Ok(StopOutcome::NotRunning)
         }
         StopPlan::ClearStale { pid } => {
             match fs::remove_file(path) {
@@ -1548,16 +1754,8 @@ fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
             }
             Ok(StopOutcome::StaleCleared { pid })
         }
-        StopPlan::Malformed => anyhow::bail!(
-            "PID file {} is malformed (no parseable daemon PID); remove it manually if the \
-             daemon is not running",
-            path.display(),
-        ),
-        StopPlan::Unproven => anyhow::bail!(
-            "PID file {} cannot be proven to identify the live daemon; refusing to signal it. \
-             Remove it manually if the daemon is not running",
-            path.display(),
-        ),
+        StopPlan::Malformed => Err(malformed_pid_file_error(path)),
+        StopPlan::Unproven => Err(unproven_pid_file_error(path)),
     }
 }
 
@@ -2960,6 +3158,156 @@ mod tests {
         assert_eq!(
             plan_stop(Some("4321\n"), |_| ExistingPidStatus::Unknown),
             StopPlan::Unproven
+        );
+    }
+
+    fn observed(pid: u32, start_time: Option<u64>) -> DaemonPidRecord {
+        DaemonPidRecord {
+            pid_file: PathBuf::from("/runtime/anvil/intercept.pid"),
+            pid,
+            start_time,
+        }
+    }
+
+    /// JREL-004: a stop bound to the observed instance signals it only while
+    /// the PID file still names exactly that PID and start time.
+    #[test]
+    fn plan_stop_for_observed_instance_signals_the_same_instance() {
+        let record = observed(4321, Some(99));
+        assert_eq!(
+            plan_stop_for_target(
+                Some("4321\nstart_time=99\n"),
+                |_| ExistingPidStatus::Live,
+                StopTarget::Observed(Some(&record)),
+            ),
+            StopPlan::Signal { pid: 4321 }
+        );
+    }
+
+    /// JREL-004: the same PID with a different start time is a replacement
+    /// (PID reuse or a restarted daemon), and a different PID plainly is.
+    /// Stale identity must never target either.
+    #[test]
+    fn plan_stop_for_observed_instance_refuses_a_replacement() {
+        let record = observed(4321, Some(99));
+        assert_eq!(
+            plan_stop_for_target(
+                Some("4321\nstart_time=100\n"),
+                |_| ExistingPidStatus::Live,
+                StopTarget::Observed(Some(&record)),
+            ),
+            StopPlan::Replaced { pid: 4321 }
+        );
+        assert_eq!(
+            plan_stop_for_target(
+                Some("5555\nstart_time=99\n"),
+                |_| ExistingPidStatus::Live,
+                StopTarget::Observed(Some(&record)),
+            ),
+            StopPlan::Replaced { pid: 5555 }
+        );
+    }
+
+    /// JREL-004: a live daemon at a candidate where none was observed came up
+    /// after the caller's probe; it is a replacement, not a target.
+    #[test]
+    fn plan_stop_for_unobserved_candidate_never_signals_a_live_daemon() {
+        assert_eq!(
+            plan_stop_for_target(
+                Some("4321\nstart_time=99\n"),
+                |_| ExistingPidStatus::Live,
+                StopTarget::Observed(None),
+            ),
+            StopPlan::Replaced { pid: 4321 }
+        );
+    }
+
+    /// The operator stop keeps its unconditional contract, and the stale /
+    /// absent / refused plans are unchanged by a target.
+    #[test]
+    fn plan_stop_target_leaves_other_plans_unchanged() {
+        let record = observed(1, None);
+        assert_eq!(
+            plan_stop_for_target(
+                Some("4321\nstart_time=99\n"),
+                |_| ExistingPidStatus::Live,
+                StopTarget::AnyLive,
+            ),
+            StopPlan::Signal { pid: 4321 }
+        );
+        assert_eq!(
+            plan_stop_for_target(
+                Some("4321\n"),
+                |_| ExistingPidStatus::Stale,
+                StopTarget::Observed(Some(&record)),
+            ),
+            StopPlan::ClearStale { pid: 4321 }
+        );
+        assert_eq!(
+            plan_stop_for_target(
+                None,
+                |_| ExistingPidStatus::Live,
+                StopTarget::Observed(None)
+            ),
+            StopPlan::NotRunning
+        );
+        assert_eq!(
+            plan_stop_for_target(
+                Some("nope\n"),
+                |_| ExistingPidStatus::Live,
+                StopTarget::Observed(None)
+            ),
+            StopPlan::Malformed
+        );
+    }
+
+    /// JREL-004: an identity-bound stop against a real PID file that a
+    /// replacement now owns signals nothing and leaves the file in place;
+    /// the read-only snapshot reports the live instance it would have
+    /// needed. Uses this process as the live daemon so no signal can land.
+    #[cfg(unix)]
+    #[test]
+    fn stop_matching_observed_instance_does_not_signal_replacement_pid_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700)).expect("owner-only dir");
+        let pid_file = dir.path().join("intercept.pid");
+        let current_pid = process::id();
+        fs::write(&pid_file, format!("{current_pid}\nstart_time=7\n")).expect("write PID file");
+        fs::set_permissions(&pid_file, fs::Permissions::from_mode(0o600))
+            .expect("owner-only PID file");
+
+        let live = read_live_daemon_pid_record(&pid_file)
+            .expect("readable")
+            .expect("live instance");
+        assert_eq!(
+            live,
+            DaemonPidRecord {
+                pid_file: pid_file.clone(),
+                pid: current_pid,
+                start_time: Some(7),
+            }
+        );
+
+        let stale = DaemonPidRecord {
+            start_time: Some(6),
+            ..live.clone()
+        };
+        assert_eq!(
+            stop_daemon_at_target(&pid_file, StopTarget::Observed(Some(&stale)))
+                .expect("stop decides"),
+            StopOutcome::NotRunning,
+            "a replacement instance must not be signalled"
+        );
+        assert_eq!(
+            stop_daemon_at_target(&pid_file, StopTarget::Observed(None)).expect("stop decides"),
+            StopOutcome::NotRunning,
+            "an instance observed nowhere must not be signalled"
+        );
+        assert!(
+            pid_file.exists(),
+            "refusing to signal must not consume the replacement's PID file"
         );
     }
 

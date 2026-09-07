@@ -18,7 +18,8 @@ use crate::activation::agent_registry::{AgentClientId, InstallScope, McpConfigKi
 use crate::activation::detect_agents::RealDetectionEnv;
 use crate::activation::mcp_client::preferred_mcp_command;
 use crate::commands::daemon_recycle::{
-    DaemonRecycleHooks, DaemonRecycleOutcome, DaemonStopBatch, recycle_daemon_if_version_skew,
+    DaemonRecycleHooks, DaemonRecycleOutcome, DaemonStopBatch, RunningDaemon,
+    recycle_daemon_if_version_skew,
 };
 use crate::commands::mcp_config::default_client_config_root;
 use crate::commands::mcp_generation::{generation_path, read_generation};
@@ -434,19 +435,25 @@ fn force_recycle(hooks: &dyn DaemonRecycleHooks) -> DaemonRecycleOutcome {
         return DaemonRecycleOutcome::NotRunning;
     };
     // Force stop → wait → start even when versions already match.
-    force_recycle_running(hooks, running.version)
+    force_recycle_running(hooks, running)
 }
 
-fn force_recycle_running(hooks: &dyn DaemonRecycleHooks, before: String) -> DaemonRecycleOutcome {
-    let stop = match hooks.stop_daemon() {
+fn force_recycle_running(
+    hooks: &dyn DaemonRecycleHooks,
+    running: RunningDaemon,
+) -> DaemonRecycleOutcome {
+    // The stop is bound to the instances observed by the probe above, so a
+    // replacement a concurrent caller started is never signalled (JREL-004).
+    let stop = match hooks.stop_daemon(&running) {
         Ok(stop) => stop,
         Err(recovery) => {
             return DaemonRecycleOutcome::Failed {
-                before: Some(before),
+                before: Some(running.version),
                 recovery,
             };
         }
     };
+    let before = running.version;
     let DaemonStopBatch {
         signalled_pids,
         canonical_error,
@@ -630,7 +637,10 @@ impl DaemonRecycleHooks for UnsupportedDaemonHooks {
     fn running_daemon(&self) -> Option<crate::commands::daemon_recycle::RunningDaemon> {
         None
     }
-    fn stop_daemon(&self) -> Result<crate::commands::daemon_recycle::DaemonStopBatch, String> {
+    fn stop_daemon(
+        &self,
+        _running: &crate::commands::daemon_recycle::RunningDaemon,
+    ) -> Result<crate::commands::daemon_recycle::DaemonStopBatch, String> {
         Ok(crate::commands::daemon_recycle::DaemonStopBatch::default())
     }
     fn wait_for_pid_exit(&self, _pid: u32) -> Result<(), String> {
@@ -671,6 +681,7 @@ mod tests {
             Self {
                 running: Some(RunningDaemon {
                     version: "0.5.1-beta".into(),
+                    instances: Vec::new(),
                 }),
                 stop_pids: vec![4242],
                 stop_canonical_error: None,
@@ -684,6 +695,7 @@ mod tests {
             Self {
                 running: Some(RunningDaemon {
                     version: "0.9.2-beta".into(),
+                    instances: Vec::new(),
                 }),
                 stop_pids: vec![4242],
                 stop_canonical_error: None,
@@ -703,7 +715,7 @@ mod tests {
             self.running.clone()
         }
 
-        fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
+        fn stop_daemon(&self, _running: &RunningDaemon) -> Result<DaemonStopBatch, String> {
             self.calls.borrow_mut().push(RecycleCall::Stop);
             Ok(DaemonStopBatch {
                 signalled_pids: self.stop_pids.clone(),

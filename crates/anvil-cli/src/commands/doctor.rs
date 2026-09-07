@@ -2707,7 +2707,10 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
         classify: classify_intercept_sockets,
         stop_siblings: stop_sibling_intercept_sockets,
         canonical_only: canonical_is_the_only_live_socket,
-        launch: crate::commands::intercept::launch_save_time_daemon,
+        // The repair lock held above is the rendezvous coordinator ensure
+        // takes before its start lock; launching through it here would wait
+        // on this process's own lock.
+        launch: crate::commands::intercept::launch_save_time_daemon_under_rendezvous_lock,
     };
     apply_intercept_socket_rendezvous_fix_with(check, speak, &candidates, operations);
 }

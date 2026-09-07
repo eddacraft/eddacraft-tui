@@ -14,10 +14,14 @@ use anvil_intercept::ensure::{EnsureOutcome, StartCapability};
 #[cfg(any(unix, windows))]
 const PID_EXIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
-/// Snapshot of a live daemon's version string.
+/// Snapshot of a live daemon: its version string and the verified PID-file
+/// instances observed at the same time. A recycle decided against this
+/// snapshot may stop only these instances (JREL-004): a replacement started
+/// by a concurrent caller is never signalled with this stale identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RunningDaemon {
     pub version: String,
+    pub instances: Vec<anvil_intercept::DaemonPidRecord>,
 }
 
 /// Complete result of stopping every per-user daemon candidate.
@@ -76,7 +80,8 @@ impl SaveTimeDaemonOutcome {
 /// Injected probe + lifecycle so recycle is unit-testable without a real daemon.
 pub(crate) trait DaemonRecycleHooks {
     fn running_daemon(&self) -> Option<RunningDaemon>;
-    fn stop_daemon(&self) -> Result<DaemonStopBatch, String>;
+    /// Stop the instances in `running` and nothing else.
+    fn stop_daemon(&self, running: &RunningDaemon) -> Result<DaemonStopBatch, String>;
     fn wait_for_pid_exit(&self, pid: u32) -> Result<(), String>;
     fn start_current_binary(&self) -> Result<String, String>;
 }
@@ -85,7 +90,10 @@ pub(crate) trait DaemonRecycleHooks {
 ///
 /// Matching versions skip (no stop). A missing daemon is [`NotRunning`] so
 /// the caller can fall through to ordinary ensure/start. Does not touch
-/// harness MCP children.
+/// harness MCP children. The stop is bound to the instances observed with the
+/// skewed version; if a concurrent caller has already replaced them, the
+/// replacement is re-probed rather than signalled, and the replacement this
+/// recycle starts must report exactly `cli_version` before it counts.
 pub(crate) fn recycle_daemon_if_version_skew(
     cli_version: &str,
     hooks: &dyn DaemonRecycleHooks,
@@ -99,16 +107,16 @@ pub(crate) fn recycle_daemon_if_version_skew(
         };
     }
 
-    let before = running.version;
-    let stop = match hooks.stop_daemon() {
+    let stop = match hooks.stop_daemon(&running) {
         Ok(stop) => stop,
         Err(recovery) => {
             return DaemonRecycleOutcome::Failed {
-                before: Some(before),
+                before: Some(running.version),
                 recovery,
             };
         }
     };
+    let before = running.version;
     let DaemonStopBatch {
         signalled_pids,
         canonical_error,
@@ -121,17 +129,22 @@ pub(crate) fn recycle_daemon_if_version_skew(
                 recovery,
             };
         }
-        // Race: the daemon can exit between the version probe and stop.
-        // Re-probe; if it is gone, fall through to ordinary ensure.
-        return if hooks.running_daemon().is_none() {
-            DaemonRecycleOutcome::NotRunning
-        } else {
-            DaemonRecycleOutcome::Failed {
+        // Nothing observed was still there to signal: the skewed daemon
+        // exited, or a concurrent caller already replaced it. Re-probe and
+        // decide on what answers now — a replacement at the CLI's version is
+        // the outcome this recycle wanted, so it is reused, never stopped.
+        return match hooks.running_daemon() {
+            None => DaemonRecycleOutcome::NotRunning,
+            Some(now) if now.version == cli_version => DaemonRecycleOutcome::Skipped {
+                version: now.version,
+            },
+            Some(_) => DaemonRecycleOutcome::Failed {
                 before: Some(before),
-                recovery: "could not stop the skewed daemon (no PID file); \
-                           run `anvil intercept stop` then `anvil start`"
+                recovery: "could not stop the skewed daemon (no PID file names the \
+                           instance that answered); run `anvil intercept stop` then \
+                           `anvil start`"
                     .to_owned(),
-            }
+            },
         };
     }
 
@@ -169,6 +182,17 @@ pub(crate) fn recycle_daemon_if_version_skew(
             recovery: format!(
                 "recycled daemon still reports version {after}; \
                  run `anvil intercept stop` then `anvil start`"
+            ),
+        },
+        // The replacement is only the intended instance when it answers with
+        // this binary's version; an unreadable or third version means some
+        // other daemon took the endpoint and the operator must look.
+        Ok(after) if after != cli_version => DaemonRecycleOutcome::Failed {
+            before: Some(before),
+            recovery: format!(
+                "recycled daemon reports version {after}, expected {cli_version}; \
+                 run `anvil intercept status` to identify it, then `anvil intercept stop` \
+                 and `anvil start`"
             ),
         },
         Ok(after) => DaemonRecycleOutcome::Recycled { before, after },
@@ -213,24 +237,29 @@ pub(crate) struct LiveDaemonRecycleHooks;
 #[cfg(any(unix, windows))]
 impl DaemonRecycleHooks for LiveDaemonRecycleHooks {
     fn running_daemon(&self) -> Option<RunningDaemon> {
+        // Snapshot the PID-file instances before the version probe: a daemon
+        // replaced between the two steps then shows as a mismatch at stop
+        // time (never signalled) instead of a stale instance being trusted.
+        let instances = anvil_intercept::snapshot_live_daemon_pid_records().unwrap_or_default();
         let status = crate::commands::intercept::query_daemon_status().ok()?;
         Some(RunningDaemon {
             version: status.health.version,
+            instances,
         })
     }
 
     #[cfg(unix)]
-    fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
-        let reports =
-            anvil_intercept::request_daemon_stop_all().map_err(|err| format!("{err:#}"))?;
+    fn stop_daemon(&self, running: &RunningDaemon) -> Result<DaemonStopBatch, String> {
+        let reports = anvil_intercept::request_daemon_stop_all_matching(&running.instances)
+            .map_err(|err| format!("{err:#}"))?;
         Ok(daemon_stop_batch_from_reports(reports))
     }
 
     #[cfg(windows)]
-    fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
+    fn stop_daemon(&self, running: &RunningDaemon) -> Result<DaemonStopBatch, String> {
         use anvil_intercept::StopOutcome;
 
-        match anvil_intercept::request_daemon_stop() {
+        match anvil_intercept::request_daemon_stop_matching(&running.instances) {
             Ok(StopOutcome::Signalled { pid }) => Ok(DaemonStopBatch {
                 signalled_pids: vec![pid],
                 canonical_error: None,
@@ -324,6 +353,14 @@ mod tests {
         Start,
     }
 
+    fn observed_instance(pid: u32, start_time: u64) -> anvil_intercept::DaemonPidRecord {
+        anvil_intercept::DaemonPidRecord {
+            pid_file: std::path::PathBuf::from("/runtime/anvil/intercept.pid"),
+            pid,
+            start_time: Some(start_time),
+        }
+    }
+
     struct RecordingHooks {
         running: Option<RunningDaemon>,
         stop_pids: Vec<u32>,
@@ -332,8 +369,12 @@ mod tests {
         stop_sibling_errors: Vec<String>,
         wait_ok: bool,
         gone_after_stop: bool,
+        /// What `running_daemon` answers after a stop, modelling a concurrent
+        /// caller's replacement.
+        replaced_after_stop: Option<RunningDaemon>,
         start_after: Result<String, String>,
         calls: RefCell<Vec<RecycleCall>>,
+        stop_targets: RefCell<Vec<RunningDaemon>>,
     }
 
     impl Default for RecordingHooks {
@@ -346,8 +387,10 @@ mod tests {
                 stop_sibling_errors: Vec::new(),
                 wait_ok: false,
                 gone_after_stop: false,
+                replaced_after_stop: None,
                 start_after: Err("start not configured".into()),
                 calls: RefCell::new(Vec::new()),
+                stop_targets: RefCell::new(Vec::new()),
             }
         }
     }
@@ -357,6 +400,7 @@ mod tests {
             Self {
                 running: Some(RunningDaemon {
                     version: "0.5.1-beta".into(),
+                    instances: vec![observed_instance(4242, 99)],
                 }),
                 stop_pids: vec![4242],
                 wait_ok: true,
@@ -369,6 +413,7 @@ mod tests {
             Self {
                 running: Some(RunningDaemon {
                     version: "0.9.2-beta".into(),
+                    instances: vec![observed_instance(4242, 99)],
                 }),
                 ..Self::default()
             }
@@ -381,14 +426,19 @@ mod tests {
 
     impl DaemonRecycleHooks for RecordingHooks {
         fn running_daemon(&self) -> Option<RunningDaemon> {
-            if self.gone_after_stop && self.calls.borrow().contains(&RecycleCall::Stop) {
+            let stopped = self.calls.borrow().contains(&RecycleCall::Stop);
+            if stopped && self.gone_after_stop {
                 return None;
+            }
+            if stopped && let Some(replacement) = &self.replaced_after_stop {
+                return Some(replacement.clone());
             }
             self.running.clone()
         }
 
-        fn stop_daemon(&self) -> Result<DaemonStopBatch, String> {
+        fn stop_daemon(&self, running: &RunningDaemon) -> Result<DaemonStopBatch, String> {
             self.calls.borrow_mut().push(RecycleCall::Stop);
+            self.stop_targets.borrow_mut().push(running.clone());
             if let Some(err) = &self.stop_err {
                 return Err(err.clone());
             }
@@ -432,6 +482,80 @@ mod tests {
                 RecycleCall::Wait(4242),
                 RecycleCall::Start
             ]
+        );
+    }
+
+    /// JREL-004: the stop is bound to the instances observed with the skewed
+    /// version, never to whatever the PID file names later.
+    #[test]
+    fn recycle_stops_only_the_instances_it_observed() {
+        let hooks = RecordingHooks::skewed();
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert!(matches!(outcome, DaemonRecycleOutcome::Recycled { .. }));
+        assert_eq!(
+            hooks.stop_targets.borrow().as_slice(),
+            &[RunningDaemon {
+                version: "0.5.1-beta".into(),
+                instances: vec![observed_instance(4242, 99)],
+            }],
+            "stop must carry exactly the observed identity"
+        );
+    }
+
+    /// JREL-004: a concurrent recycle replaced the skewed daemon between this
+    /// caller's probe and its stop. Nothing observed is signalled, and the
+    /// replacement at the CLI's version is reused — never stopped, never
+    /// duplicated by a second start.
+    #[test]
+    fn recycle_reuses_a_concurrent_replacement_at_the_cli_version() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.stop_pids.clear();
+        hooks.replaced_after_stop = Some(RunningDaemon {
+            version: "0.9.2-beta".into(),
+            instances: vec![observed_instance(5151, 120)],
+        });
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert_eq!(
+            outcome,
+            DaemonRecycleOutcome::Skipped {
+                version: "0.9.2-beta".into(),
+            }
+        );
+        assert_eq!(
+            hooks.calls(),
+            vec![RecycleCall::Stop],
+            "no wait on a PID that was never signalled and no second start"
+        );
+    }
+
+    /// JREL-004: a replacement that answers with neither the old nor this
+    /// binary's version is not the intended instance; readiness alone is not
+    /// success.
+    #[test]
+    fn recycle_fails_when_replacement_reports_an_unexpected_version() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.start_after = Ok("0.7.0-beta".into());
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert!(
+            matches!(
+                outcome,
+                DaemonRecycleOutcome::Failed { ref recovery, .. }
+                    if recovery.contains("0.7.0-beta") && recovery.contains("expected 0.9.2-beta")
+            ),
+            "{outcome:?}"
+        );
+    }
+
+    /// JREL-004: a replacement whose version cannot be read after start is
+    /// not verified; the recycle must not claim success on `unknown`.
+    #[test]
+    fn recycle_fails_when_replacement_version_is_unknown() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.start_after = Ok("unknown".into());
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        assert!(
+            matches!(outcome, DaemonRecycleOutcome::Failed { .. }),
+            "{outcome:?}"
         );
     }
 

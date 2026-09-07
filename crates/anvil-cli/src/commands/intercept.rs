@@ -606,10 +606,11 @@ fn run_status(args: &StatusArgs, global_json: bool) -> Result<()> {
     } else {
         #[cfg(unix)]
         println!("socket:    {}", socket_path.display());
-        print!(
-            "{}",
-            render_status_lines_with_pid(&snapshot, daemon_pid_for_display())
-        );
+        #[cfg(unix)]
+        let daemon_pid = daemon_pid_for_display(&socket_path);
+        #[cfg(not(unix))]
+        let daemon_pid = daemon_pid_for_display();
+        print!("{}", render_status_lines_with_pid(&snapshot, daemon_pid));
         #[cfg(unix)]
         match anvil_intercept::snapshot_io::base_store::list_default_produce_locks() {
             Ok(locks) => {
@@ -776,37 +777,41 @@ pub(crate) fn ensure_save_time_daemon_report(
 /// `current_exe()` that re-execs this binary as `anvil intercept start
 /// --foreground`. If `current_exe()` cannot be resolved, degrades to
 /// [`anvil_intercept::ensure::EnsureOutcome::Failed`].
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) fn launch_save_time_daemon(
     capability: anvil_intercept::ensure::StartCapability,
 ) -> anvil_intercept::ensure::EnsureOutcome {
-    use anvil_intercept::ensure::{DetachedCommandLauncher, EnsureOutcome, ensure_daemon};
-
-    let exe = match std::env::current_exe() {
-        Ok(exe) => exe,
-        Err(err) => {
-            return EnsureOutcome::Failed {
-                recovery: format!(
-                    "could not resolve the anvil executable to launch the daemon ({err}); \
-                     run `anvil intercept start --foreground` to start it manually"
-                ),
-            };
-        }
-    };
-    let launcher = DetachedCommandLauncher::new(
-        exe,
-        vec!["intercept".into(), "start".into(), "--foreground".into()],
-    );
-    ensure_daemon(capability, &launcher)
+    launch_save_time_daemon_coordinated(
+        capability,
+        anvil_intercept::ensure::RendezvousCoordination::Acquire,
+    )
 }
 
-/// Windows entry: same detached re-exec launcher as Unix, probing the
-/// per-user named pipe (CIB-072 / GH #2609).
-#[cfg(windows)]
-pub(crate) fn launch_save_time_daemon(
+/// [`launch_save_time_daemon`] for a caller that already holds the daemon
+/// rendezvous coordinator for every socket candidate — `anvil doctor --fix`
+/// socket repair — so the launch does not wait on a lock its own process
+/// holds (JREL-004).
+#[cfg(any(unix, windows))]
+pub(crate) fn launch_save_time_daemon_under_rendezvous_lock(
     capability: anvil_intercept::ensure::StartCapability,
 ) -> anvil_intercept::ensure::EnsureOutcome {
-    use anvil_intercept::ensure::{DetachedCommandLauncher, EnsureOutcome, ensure_daemon};
+    launch_save_time_daemon_coordinated(
+        capability,
+        anvil_intercept::ensure::RendezvousCoordination::HeldByCaller,
+    )
+}
+
+/// Shared detached re-exec launcher for Unix sockets and the Windows per-user
+/// named pipe (CIB-072 / GH #2609); the transport split lives in
+/// `ensure_daemon_coordinated`.
+#[cfg(any(unix, windows))]
+fn launch_save_time_daemon_coordinated(
+    capability: anvil_intercept::ensure::StartCapability,
+    coordination: anvil_intercept::ensure::RendezvousCoordination,
+) -> anvil_intercept::ensure::EnsureOutcome {
+    use anvil_intercept::ensure::{
+        DetachedCommandLauncher, EnsureOutcome, ensure_daemon_coordinated,
+    };
 
     let exe = match std::env::current_exe() {
         Ok(exe) => exe,
@@ -823,7 +828,7 @@ pub(crate) fn launch_save_time_daemon(
         exe,
         vec!["intercept".into(), "start".into(), "--foreground".into()],
     );
-    ensure_daemon(capability, &launcher)
+    ensure_daemon_coordinated(capability, &launcher, coordination)
 }
 
 /// Platforms without a detached launcher implementation.
@@ -1552,13 +1557,33 @@ fn save_time_driver_counts(status: &DaemonStatusV1) -> (usize, usize) {
         })
 }
 
+/// The PID of the daemon instance that answered `intercept status`: read from
+/// the PID file beside the answering endpoint and verified live, so a stale
+/// canonical record never labels a live sibling with a dead process's PID
+/// (JREL-004). `None` when no verified record is available.
+#[cfg(unix)]
+fn daemon_pid_for_display(socket_path: &std::path::Path) -> Option<u32> {
+    let pid_file = socket_path.with_file_name("intercept.pid");
+    anvil_intercept::read_live_daemon_pid_record(&pid_file)
+        .ok()
+        .flatten()
+        .map(|record| record.pid)
+}
+
+/// Windows: the named pipe has one location, so the per-user PID file is the
+/// answering instance's record; still verified live before display.
+#[cfg(windows)]
 fn daemon_pid_for_display() -> Option<u32> {
     let path = anvil_intercept::default_pid_file_path().ok()?;
-    let record = std::fs::read_to_string(path).ok()?;
-    record
-        .lines()
-        .next()
-        .and_then(|line| line.trim().parse::<u32>().ok())
+    anvil_intercept::read_live_daemon_pid_record(&path)
+        .ok()
+        .flatten()
+        .map(|record| record.pid)
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn daemon_pid_for_display() -> Option<u32> {
+    None
 }
 
 fn render_latency_line_for_wire(
