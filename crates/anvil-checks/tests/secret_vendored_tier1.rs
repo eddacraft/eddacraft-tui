@@ -17,15 +17,15 @@
 //!    shape-anchored and operator `custom_allowlist` tiers, with provenance
 //!    recorded, exactly as a built-in would be (ADR-136 §1).
 //!
-//! Every credential here is a synthetic canary built at runtime from a `CANARY`
-//! marker plus fixed filler, so no literal credential-shaped string appears in
-//! this source file (the same construction rule the SDT-002 corpus uses).
+//! Every credential here is a synthetic canary built at runtime from harmless
+//! fragments, so no literal credential-shaped string appears in this source
+//! file (the same construction rule the SDT-002 corpus uses).
 
 use anvil_checks::secret::patterns::PatternMatcher;
 use anvil_checks::secret::{
     AllowlistProvenance, SECRET_PATTERNS, SecretCheckConfig, SecretPatternDef,
     VENDORED_COMPILED_PATTERNS, VENDORED_RULESET, VENDORED_RULESET_VERSION,
-    compile_custom_patterns, scan_content_with_stats,
+    compile_custom_patterns, scan_content_with_compiled_patterns, scan_content_with_stats,
 };
 
 // ---------------------------------------------------------------------------
@@ -50,6 +50,22 @@ fn slack_webhook_url() -> String {
 /// A Mailgun private API key.
 fn mailgun_key() -> String {
     format!("key-{}", "0cafe0000cafe0000cafe0000cafe000")
+}
+
+/// Canonical AWS docs example access key, assembled from fragments so this
+/// source file never contains the full credential-shaped literal.
+fn aws_example_access_key() -> String {
+    ["AKIA", "IOSFODNN7", "EXAMPLE"].concat()
+}
+
+/// 32-character hex run — MD5-shaped, and the body of a Shopify access token.
+fn md5_shaped_hex() -> String {
+    format!("{}{}", "abcdef0123456789", "abcdef0123456789")
+}
+
+/// A Shopify access token whose body is the MD5-shaped hex run above.
+fn shopify_access_token() -> String {
+    format!("{}{}", "shpat_", md5_shaped_hex())
 }
 
 fn vendored_pattern(id: &str) -> String {
@@ -225,9 +241,10 @@ fn a_vendored_finding_carries_the_ruleset_version_and_the_credential_span() {
 
     // And a built-in is not attributed to a vendored ruleset.
     let builtin_config = SecretCheckConfig::default();
-    let builtin_content = "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n";
+    let aws_key = aws_example_access_key();
+    let builtin_content = format!("AWS_ACCESS_KEY_ID={aws_key}\n");
     let (builtin_findings, _) =
-        scan_content_with_stats(builtin_content, "infra/deploy.conf", &builtin_config);
+        scan_content_with_stats(&builtin_content, "infra/deploy.conf", &builtin_config);
     let builtin = builtin_findings
         .iter()
         .find(|f| f.pattern_name == "AWS Key")
@@ -274,18 +291,102 @@ fn an_operator_allowlist_still_suppresses_a_vendored_rule_with_provenance() {
 #[test]
 fn the_shape_allowlist_still_applies_to_vendored_rules() {
     // A Shopify token whose body is a 32-character hex run is also an MD5-shaped
-    // value; the shape tier is the one that survives the high-confidence bypass,
-    // and it must keep working for vendored rules too.
+    // value. The shape tier is the one that survives the high-confidence bypass,
+    // and it must keep working on the combined vendored scan path — not merely
+    // as two independent unit checks.
+    let body = md5_shaped_hex();
+    let token = shopify_access_token();
     let matcher = PatternMatcher::new(&[]);
     assert!(
-        matcher.is_shape_or_custom_allowlisted("abcdef0123456789abcdef0123456789"),
-        "the shape tier is unchanged"
+        matcher.is_shape_or_custom_allowlisted(&body),
+        "the credential body is MD5-shaped; the shape tier must own it"
     );
     assert!(
-        VENDORED_COMPILED_PATTERNS
-            .iter()
-            .all(|pattern| pattern.high_confidence),
+        !matcher.is_shape_or_custom_allowlisted(&token),
+        "the prefixed Shopify token is a real credential shape, not a hash — \
+         applying the shape tier to the prefix+body span would hide live tokens"
+    );
+
+    let vendored = VENDORED_COMPILED_PATTERNS
+        .iter()
+        .find(|pattern| pattern.name == "shopify-access-token")
+        .expect("shopify-access-token is in the vendored tier-1 ruleset");
+    assert!(
+        vendored.high_confidence,
         "tier 1 is high-confidence, which is precisely why the shape tier must still apply"
+    );
+    assert!(
+        vendored.first_match_range(&token).is_some(),
+        "the vendored Shopify rule must match the prefixed token or this test \
+         is not talking about that rule"
+    );
+
+    // Control: a real-shape Shopify token must remain a finding. The shape
+    // tier applies to the extracted span, not to a hex substring of it.
+    let config = SecretCheckConfig::default();
+    let (prefixed_findings, _) = scan_content_with_stats(
+        &format!("SHOPIFY_TOKEN={token}\n"),
+        "ci/shopify.conf",
+        &config,
+    );
+    assert!(
+        prefixed_findings
+            .iter()
+            .any(|finding| finding.pattern_name == "shopify-access-token"),
+        "a prefixed Shopify token must still be reported; got {prefixed_findings:?}"
+    );
+
+    // Combined path: scan the shape-allowlisted credential *body* through a
+    // high-confidence rule that carries the vendored Shopify identity. The
+    // real `shpat_` regex cannot match a bare hex run (and must not, or every
+    // Shopify token would be suppressed). This is the same skip branch
+    // vendored rules take (`pattern.high_confidence` → shape/custom only).
+    // If that branch stops consulting the shape tier, this scan emits a
+    // finding and the assertions below fail.
+    let (mut body_rules, errors) = compile_custom_patterns(&[SecretPatternDef {
+        name: vendored.name.clone(),
+        pattern: r"^[a-fA-F0-9]{32}$".to_string(),
+    }]);
+    assert!(errors.is_empty(), "body pattern must compile: {errors:?}");
+    let body_rule = &mut body_rules[0];
+    body_rule.high_confidence = vendored.high_confidence;
+    body_rule.ruleset_version = vendored.ruleset_version.clone();
+    assert!(
+        body_rule.high_confidence,
+        "the body rule must take the high-confidence skip path or this test \
+         would pass even if that path bypassed the shape tier"
+    );
+    assert!(
+        body_rule.first_match_range(&body).is_some(),
+        "the body rule must match the hex run for the scan below to mean anything"
+    );
+
+    let (findings, stats) = scan_content_with_compiled_patterns(
+        &format!("{body}\n"),
+        "src/integrity.ts",
+        &config,
+        &body_rules,
+        usize::MAX,
+    );
+    assert!(
+        !findings
+            .iter()
+            .any(|finding| finding.pattern_name == "shopify-access-token"),
+        "the shape-allowlisted body must not be reported; got {findings:?}"
+    );
+    let suppression = stats
+        .suppressions
+        .iter()
+        .find(|suppression| suppression.rule_name == "shopify-access-token")
+        .expect("the suppression must identify the vendored rule, never silent");
+    assert_eq!(
+        suppression.provenance,
+        AllowlistProvenance::BuiltinShape,
+        "the recorded suppression must name the shape tier, not a keyword or custom opt-out"
+    );
+    assert!(
+        !suppression.redacted_match.contains(&body),
+        "a recorded suppression must not echo the raw value"
     );
 }
 
