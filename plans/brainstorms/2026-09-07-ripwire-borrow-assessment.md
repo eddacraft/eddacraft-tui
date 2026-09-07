@@ -27,13 +27,16 @@ or commit count is published here rather than guessed.
 
 ---
 
-## 0. What this document is
+## What this document is
 
-A borrow assessment of an external repository, in the format of
-[`2026-06-06-node9-borrow-assessment.md`](./2026-06-06-node9-borrow-assessment.md)
-and its siblings, produced through the `anvil-opportunity-assessment` skill. The
-goal is **not** to adopt ripwire but to mine it for reusable ideas, scope-guard
-each one, and name the gaps. Facts were read from a clone of the public
+A borrow assessment of an external repository. It follows the **precedent** set
+by [`2026-06-06-node9-borrow-assessment.md`](./2026-06-06-node9-borrow-assessment.md)
+and its siblings — same purpose, same header block, same place in `plans/brainstorms/`
+— but its body is **structured as an Anvil Opportunity Assessment**, the output
+format the `anvil-opportunity-assessment` skill mandates, rather than as those
+documents' numbered sections. Read it as a sibling in intent, not a clone in
+outline. The goal is **not** to adopt ripwire but to mine it for reusable ideas,
+scope-guard each one, and name the gaps. Facts were read from a clone of the public
 repository at commit dated 2026-09-06 and cross-checked against
 [`docs/architecture/graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md),
 [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md),
@@ -44,7 +47,8 @@ repository at commit dated 2026-09-06 and cross-checked against
 No shared module file is edited (CIB is multi-writer — see
 `plans/project-context.md#keeping-plans-current`). One APS module was filed from
 this assessment on the same day — `graph-answer-attestation` (GATT), Draft — and
-§9 records what was filed and what was deliberately left unfiled.
+**Suggested follow-ups** below records what was filed and what was
+deliberately left unfiled.
 
 ---
 
@@ -185,7 +189,8 @@ tell us we are wrong.
 This is the more valuable idea of the two, because it is upstream of every claim
 Anvil makes about its graph, and because "we publish the cases where our tool
 loses" is a governance posture, not a benchmarking technique. It is also the
-harder one to adopt, which is why it is tracked in §9 rather than folded into
+harder one to adopt, which is why it is tracked under **Suggested
+follow-ups** rather than folded into
 the specification.
 
 ### Customer Surface Test
@@ -376,7 +381,8 @@ Where the primitive would appear, in dependency order:
 5. **`docs/guides/ai-context-delivery.md`** and the shipped
    `anvil-developer-functions` skill — teach assistants to *read* the confidence
    and route on it. An unread disclosure is decoration.
-6. **`crates/anvil-bench`** — the eval thread, if §9's tracked item is ever
+6. **`crates/anvil-bench`** — the eval thread, if the tracked item under
+   **Suggested follow-ups** is ever
    picked up.
 
 ### Risks and Concerns
@@ -426,9 +432,9 @@ belongs to a retrieval race Anvil should not enter.
 
 ---
 
-## 9. Suggested follow-ups
+## Suggested follow-ups
 
-> **Filing update (2026-09-07):** thread 1 was filed the same day as the
+> **Filing update (2026-09-07):** thread 1 below was filed the same day as the
 > `graph-answer-attestation` (GATT) module — Draft, six work items, three Ready
 > gates open. Two corrections were forced by reading the code while planning it,
 > and they narrow the borrow: `anvil_search_symbols` is conjunctive filters with
@@ -452,7 +458,7 @@ multi-writer and is reconciled on a bookkeeping branch only
 | 4 | Sibling-completeness as a standing Council review question | Council checklist | "Which siblings does this fix not cover?" — no tooling required. |
 | 5 | Cite ripwire's cold-start as evidence in the CIB-341 full-scan-timeout lane | Existing CIB-341 | Evidence only; do **not** open a parallel lane. |
 
-## 10. Sources
+## Sources
 
 - `redhat-et/ripwire` at the 2026-09-06 commit — `README.md`,
   `docs/ARCHITECTURE.md`, `docs/METHODOLOGY.md`, `docs/EVALS.md`,

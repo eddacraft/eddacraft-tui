@@ -259,7 +259,7 @@ evolution with nothing to borrow. **No kernel work is proposed.**
 
 Recorded so they are not lost, and deliberately not filed as work items. Detail
 and reasoning in
-[the assessment §9](../brainstorms/2026-09-07-ripwire-borrow-assessment.md).
+the assessment's [Suggested follow-ups](../brainstorms/2026-09-07-ripwire-borrow-assessment.md#suggested-follow-ups).
 
 | Thread | Why not here |
 | --- | --- |
