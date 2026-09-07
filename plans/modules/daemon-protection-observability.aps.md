@@ -337,7 +337,7 @@ KFIT-007 must make every admission failure visible without changing verdicts.
   changes the tool decision. Distinct from `midEdit` (RTAI-006).
 - **Validation:** `cargo test -p eddacraft-anvil-intercept from_prewrite -- --nocapture` and
   `cargo test -p eddacraft-anvil daemon_observation_sink_persists_prewrite -- --nocapture`
-- **Status:** In Progress
+- **Status:** Merged 2026-09-07 via PR #4426
 - **Files:** `crates/anvil-intercept/src/kindling_observation.rs`,
   `crates/anvil-cli/src/usage.rs`,
   `crates/anvil-cli/src/mcp/prewrite_observation.rs`,
@@ -358,7 +358,7 @@ KFIT-007 must make every admission failure visible without changing verdicts.
   retain `policy_id` and `symbol`. Footer advertises `enter expand` when Queue
   can expand. Kindling-backed join remains DPO-003/004.
 - **Validation:** `cargo test -p eddacraft-anvil-tui watch -- --nocapture`
-- **Status:** In Progress
+- **Status:** Merged 2026-09-07 via PR #4426
 - **Files:** `crates/anvil-tui/src/surfaces/watch/mod.rs`,
   `crates/anvil-tui/src/surfaces/watch/render.rs`,
   `crates/anvil-tui/src/surfaces/watch/event_adapter.rs`
@@ -404,8 +404,8 @@ DPO-003/-004/-005 land in order.
   findings addressed.
 - **DPO-006** (Proposed) tracks the council MINOR producer hardening follow-ups
   from PR #2833 — see the work item above.
-- **DPO-007 / DPO-008** (In Progress) add the MCP pre-write producer and Watch
-  Queue enter-expand; Kindling-backed dashboard remains DPO-003/004.
+- **DPO-007 / DPO-008** Merged 2026-09-07 via PR #4426 (MCP pre-write producer
+  and Watch Queue enter-expand). Kindling-backed dashboard remains DPO-003/004.
 
 ## Risks
 
