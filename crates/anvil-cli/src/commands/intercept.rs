@@ -791,7 +791,11 @@ pub(crate) fn launch_save_time_daemon(
 /// rendezvous coordinator for every socket candidate — `anvil doctor --fix`
 /// socket repair — so the launch does not wait on a lock its own process
 /// holds (JREL-004).
-#[cfg(any(unix, windows))]
+///
+/// Unix-only, like the socket rendezvous repair that is its only caller: the
+/// Windows pipe namespace has one location per user and no coordinator to
+/// hold.
+#[cfg(unix)]
 pub(crate) fn launch_save_time_daemon_under_rendezvous_lock(
     capability: anvil_intercept::ensure::StartCapability,
 ) -> anvil_intercept::ensure::EnsureOutcome {
