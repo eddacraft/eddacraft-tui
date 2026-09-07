@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | Ready | 0/12 |
+| JREL | Josh | high | In Progress | 1/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -95,7 +95,7 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-002: Actual client evidence for protection claims
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Priority:** P0
 - **Intent:** Protection reporting identifies real client activity rather than inferring it from configured client count.
 - **Expected Outcome:** A configured but closed editor never gains live pre-write status from durable registration or a disposable handshake probe. One or several clients have independently attributed, fresh worktree/session evidence. Connection, observed validation, graph readiness and enforcement mode remain distinct; stale evidence from one client cannot borrow another's freshness.
@@ -225,3 +225,14 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 - **Validation:** `pnpm --filter @eddacraft/anvil-e2e test:cli`; `pnpm --filter @eddacraft/anvil-e2e test:smoke`; `cargo test -p eddacraft-anvil --no-fail-fast`; remove the binary and a required scenario to prove the gate fails. Completion publishes the exact no-skip rehearsal command consumed by JOURNEY-014/-015.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
 
+### JREL-013: Scope pre-write protection evidence to one worktree
+
+- **Status:** Proposed
+- **Priority:** P2
+- **Intent:** Reading protection evidence on the pre-write path costs one worktree's worth of work, not the whole daemon's.
+- **Expected Outcome:** A caller that needs one worktree's attestation can ask for exactly that. The pre-write MCP path no longer materialises every registered session to answer a single-worktree question, so evidence cost stops scaling with unrelated sessions on the host. Existing full-snapshot consumers (`anvil status`, `anvil workspace list`, activation diagnostics) keep their current answers; freshness, attribution and fail-closed behaviour are unchanged by the narrowing.
+- **Dependencies:** JREL-002
+- **Coordinates with:** ADR-141 names this as follow-up; CIB-405 separately owns caller migration to connection reuse. MLP2-051f/-051h freshness and anchor semantics are reused, not restated.
+- **Files:** `crates/anvil-intercept-proto/src/lib.rs`, `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-intercept/src/status.rs`, `crates/anvil-cli/src/mcp/validation.rs`, `crates/anvil-cli/src/commands/intercept.rs`
+- **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; `cargo test -p eddacraft-anvil-intercept --no-fail-fast`; a scoped query and a full snapshot must agree on the same worktree's claim across attested, unattested, stale and fenced fixtures, and a pre-write request must not read sessions belonging to other worktrees.
+- **Confidence:** medium — ADR-141 records the measured motivation (95 concurrent `anvil mcp serve` processes on one host; `QueryStatus` is unscoped and `mcp/validation.rs` fetches the full snapshot on the pre-write path). Confirm the cost against a real snapshot before choosing between a new verb and a filter parameter.
