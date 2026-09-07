@@ -33,6 +33,30 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] `cargo test -p eddacraft-anvil --test daemon_identity -- --test-threads=1`
       passes on merged `main` (agent: yes)
 
+### JREL-003 — recover and verify the save-time driver
+
+- [ ] `anvil start --no-mcp` in a small repository; `anvil intercept status
+      --json` shows `save_time_driver: "attached"` with
+      `save_time_driver_evidence: "watches-installed"` (human required)
+- [ ] `kill -9` the PID in the driver's `<stem>.pid` under the runtime
+      `save-time-drivers` directory; status now reports `failed`, not
+      `attached` (human required)
+- [ ] Run bare `anvil`: expect `worktree: registration refreshed`, a new PID in
+      `<stem>.pid`, exactly one `anvil watch --save-time-driver` process for the
+      worktree, and status `attached` (human required)
+- [ ] Save a `.ts` file containing `: any`; within a few seconds `<stem>.log`
+      shows the AP-003 finding and status reports `fresh-activity` (human
+      required)
+- [ ] Bound: make the anvil binary unexecutable, run `anvil` four times; the
+      spawn log shows three attempts then a refused respawn and the `worktree:`
+      line names the failed driver. Restore the binary, wait 60 s, run `anvil`
+      once and expect `attached` again (human required)
+- [ ] macOS: repeat the kill and re-run steps (zombie reaping is Unix-generic);
+      Windows: confirm `anvil intercept status` is unchanged and the evidence key
+      is absent unless the child wrote the marker (human required)
+- [ ] `cargo test -p eddacraft-anvil --test save_time_driver_recovery` passes on
+      merged `main` (agent: yes)
+
 ## Notes
 
 The JREL-004 closeout was validated in a Linux sandbox running as uid 0, so

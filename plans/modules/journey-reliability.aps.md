@@ -107,7 +107,25 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-003: Recover and verify the save-time driver
 
-- **Status:** In Progress (claim #4423)
+- **Status:** Committed — PR #4428 (claim #4423). Closeout: a durable
+  membership refresh now restores a dead save-time driver child (new
+  `MembershipChange::Refreshed`, fired outside the registry lock), dead children
+  are reaped before liveness probes instead of being reported attached,
+  respawns are bounded (three consecutive failures, one-minute backoff, early
+  death counts as failure), and the child writes a readiness marker the daemon
+  reports as the additive optional `save_time_driver_evidence`
+  (`spawned` / `watches-installed` / `fresh-activity`). Registration waits a
+  bounded second for the driver and names only a failed driver on the human
+  `worktree:` line. Baseline reproduction through the real binary
+  (`crates/anvil-cli/tests/save_time_driver_recovery.rs`): re-running bare
+  `anvil` after killing only the child left the dead PID reported attached;
+  after the fix exactly one new driver installs watches and a saved fixture
+  yields a real AP-003 verdict. Closeout runs:
+  `cargo test -p eddacraft-anvil-intercept --no-fail-fast` 1144 passed and
+  `cargo test -p eddacraft-anvil --no-fail-fast` 4276 passed, with the only
+  failures being the same pre-existing sandbox-environment tests noted under
+  JREL-004. JREL-005 owns typed readiness presentation and exit status and can
+  consume the new evidence.
 - **Priority:** P1
 - **Intent:** The daily command restores a failed worktree watcher while preserving durable registration.
 - **Expected Outcome:** After child death or initial spawn failure, public bare/start registration paths restore exactly one ready driver or return a bounded failure. Membership refresh alone is not readiness. Ready evidence distinguishes spawned from watches-installed and fresh activity; persistent failure cannot enter an unbounded respawn loop.
