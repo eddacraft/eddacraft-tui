@@ -1,13 +1,15 @@
 # Graph Answer Attestation
 
-| ID   | Owner | Status | Progress |
-| ---- | ----- | ------ | -------- |
-| GATT | —     | Draft  | 0/6      |
+| ID   | Owner       | Status | Progress |
+| ---- | ----------- | ------ | -------- |
+| GATT | @joshuaboys | Draft  | 0/6      |
 
-**Status:** Draft. Scope and boundaries are settled; three Ready gates remain
-(owner, the ADR-vs-spec-amendment call, and the field-name freeze) — see
-[Ready Checklist](#ready-checklist). Do **not** start work items from this
-module until it is promoted to Ready.
+**Status:** Draft, and the remaining gate is a decision rather than a question:
+[ADR-142](../decisions/142-graph-answer-attestation.md) is **Proposed**, not
+Accepted. Owner named 2026-09-07; the ADR-vs-spec-amendment call is answered by
+ADR-142 existing, and it freezes the field shape. Promote this module to
+**Ready** when ADR-142 is Accepted — not before. Do **not** start work items
+until then.
 
 **Origin:** the ripwire borrow assessment
 ([`plans/brainstorms/2026-09-07-ripwire-borrow-assessment.md`](../brainstorms/2026-09-07-ripwire-borrow-assessment.md)),
@@ -99,6 +101,8 @@ Stated precisely so no work item re-builds something shipped:
 
 **Depends on:**
 
+- [ADR-142](../decisions/142-graph-answer-attestation.md) — the decision this
+  module implements. **Proposed**; every work item waits on its acceptance.
 - `crates/anvil-gctx-types` — the egress DTOs the contract extends.
 - `crates/anvil-graph-cache` — `call_graph.rs` edge resolution; `tokens.rs` estimator.
 - [`docs/architecture/graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)
@@ -120,14 +124,15 @@ Change status to **Ready** when:
 - [ ] Purpose and scope are clear — **done**
 - [ ] Dependencies identified — **done**
 - [ ] At least one work item defined — **done** (six, all Draft)
-- [ ] **Owner named**
-- [ ] **ADR call made** — does amending a frozen delivery contract warrant its
-      own ADR, or does it ride as a scoped spec amendment under the existing
-      GCTX ADR set? GATT-001 cannot start until this is answered.
-- [ ] **Field names frozen** — one naming pass across all six tools before any
-      of GATT-002/003/004 lands, so the surface cannot ship half-named. Partial
-      adoption across six tools is worse than none: a caller cannot distinguish
-      a tool with no caps from one that does not report them.
+- [x] **Owner named** — @joshuaboys (2026-09-07)
+- [x] **ADR call made** — it warrants its own ADR:
+      [ADR-142](../decisions/142-graph-answer-attestation.md) binds all six
+      tools plus a rule for future ones, and extends a PV-9-conditioned surface
+- [x] **Field shape frozen** — ADR-142 §1–§5. A shared `Attestation` struct held
+      by every projection DTO, so half-adoption is a compile error rather than a
+      review catch
+- [ ] **ADR-142 Accepted** — the one gate left. Everything above is settled;
+      this module stays Draft until the decision is in effect.
 
 ## Work Items
 
@@ -144,11 +149,13 @@ Change status to **Ready** when:
 
 - **Intent:** Fix, in the delivery contract, what every graph-context answer
   must say about its own limits.
-- **Expected Outcome:** The GCTX spec carries a self-attestation section naming
-  the fields, their meaning per tool, and the rule that governs them; it records
-  the CE-class analysis showing counts-and-flags stay inside the identity-only
-  default (CE-1) and the counts-only egress posture (CE-11), and it holds for
-  both the MCP surface and the ADR-095 CLI secondary.
+- **Expected Outcome:** The GCTX spec carries a self-attestation section
+  implementing [ADR-142](../decisions/142-graph-answer-attestation.md) — the
+  fields, their meaning per tool, and the rule that governs them; it records the
+  CE-class analysis showing counts-and-enums stay inside the identity-only
+  default (CE-1) and the counts-only egress posture (CE-11), states the CE-3
+  post-deny-list counting constraint, and holds for both the MCP surface and the
+  ADR-095 CLI secondary.
 - **Validation:** `pnpm docs:check`
 - **Non-scope:** No code. No GV2 schema change. No new identity or path is
   introduced by any field this section defines.
@@ -191,11 +198,14 @@ Change status to **Ready** when:
 
 - **Intent:** Make every capped answer say how much it left out and which cap
   did it.
-- **Expected Outcome:** Each capped section reports a pre-cap total, a returned
-  count, and the specific cap that bound it, counted separately where more than
-  one can fire. `ImpactSummary` and `AffectedTestsSummary` no longer report a
-  single `truncated` bool covering two different budgets. A parity test
-  enumerates the tools so a future tool cannot ship without disclosure.
+- **Expected Outcome:** Each capped section reports the budget that bound it,
+  a returned count, and a **tagged** total — `Exact` or `AtLeast`, never a bare
+  integer (ADR-142 §3), so a bounded traversal states a floor as a floor instead
+  of walking past the node budget that bound it. `ImpactSummary` and
+  `AffectedTestsSummary` no longer report a single `truncated` bool covering two
+  different budgets; the bool is retained one release as a derived shim. Counts
+  are taken **after** the CE-3 deny-list (ADR-142 §6). A parity test enumerates
+  the tools so a future tool cannot ship without disclosure.
 - **Validation:** `cargo test -p anvil-gctx-types -p anvil-cli`
 - **Non-scope:** Changing any cap's value or the traversal budgets themselves.
 - **Files:** `crates/anvil-gctx-types/src/lib.rs`, `crates/anvil-cli/src/mcp/tools/`
