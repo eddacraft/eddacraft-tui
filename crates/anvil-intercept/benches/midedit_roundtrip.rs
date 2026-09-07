@@ -29,7 +29,7 @@ use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
 #[cfg(unix)]
 use anvil_intercept::midedit::{
     MAX_CONCURRENT_SCAN_BUFFERS, ScanBufferError, ScanBufferMode, ScanBufferRequest,
-    ScanBufferService, scan_buffer_with_pipeline,
+    ScanBufferResponse, ScanBufferService, scan_buffer_with_pipeline,
 };
 #[cfg(unix)]
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
@@ -112,8 +112,10 @@ const CASES: &[BufferCase] = &[
         build: make_typescript_fixture,
     },
     // ADR-031 dimension: binary / binary-like content. Exercises the
-    // `content.contains(&0)` short-circuit at `midedit.rs` line 169 and is
-    // expected to be O(1) regardless of `bytes`.
+    // `content.contains(&0)` short-circuit. The API returns
+    // `Err(ScanBufferError::BinaryContent)` — that is the expected
+    // successful short-circuit, not a harness failure. Cost is O(1)
+    // regardless of `bytes`.
     BufferCase {
         label: "binary_short_circuit",
         bytes: BINARY_BYTES,
@@ -282,6 +284,35 @@ fn report_percentiles(boundary: &str, case: &BufferCase, samples: &mut [Duration
     );
 }
 
+/// `Ok` is the ordinary scan path. `Err(BinaryContent)` is the expected
+/// NUL short-circuit for `binary_short_circuit`. Any other error is a
+/// harness failure.
+#[cfg(unix)]
+fn expect_scan_buffer_outcome(
+    result: Result<ScanBufferResponse, ScanBufferError>,
+    context: &'static str,
+) {
+    match result {
+        Ok(response) => {
+            black_box(response);
+        }
+        Err(ScanBufferError::BinaryContent) => {
+            black_box(ScanBufferError::BinaryContent);
+        }
+        Err(err) => panic!("{context}: {err}"),
+    }
+}
+
+/// JSON-RPC `scan_buffer` maps `BinaryContent` to Invalid params (-32602)
+/// with a binary/NUL reason. That is the measured short-circuit, not a
+/// harness failure.
+#[cfg(unix)]
+fn is_binary_short_circuit_rpc(response: &str) -> bool {
+    response.contains("\"error\"")
+        && response.contains("-32602")
+        && (response.contains("binary content") || response.contains("NUL"))
+}
+
 /// Force-initialise expensive lazies and warm the rule pipeline before the
 /// criterion harness starts measuring. Without this the first sample of the
 /// first case eats the `DEFAULT_COMPILED_PATTERNS` regex compile and the
@@ -292,7 +323,10 @@ fn warm_up(pipeline: &EnforcementPipeline) {
     // One service-side scan per case shape so every code path is JIT-warm.
     for case in CASES {
         let request = make_request("src/realtime/buffer.ts", (case.build)(case.bytes));
-        let _ = scan_buffer_with_pipeline(&request, pipeline).expect("warm-up scan_buffer");
+        expect_scan_buffer_outcome(
+            scan_buffer_with_pipeline(&request, pipeline),
+            "warm-up scan_buffer",
+        );
     }
 }
 
@@ -319,9 +353,10 @@ fn bench_validation_service(c: &mut Criterion) {
         }
         group.bench_function(case.label, |b| {
             b.iter(|| {
-                let response = scan_buffer_with_pipeline(black_box(&request), black_box(&pipeline))
-                    .expect("scan_buffer_with_pipeline");
-                black_box(response);
+                expect_scan_buffer_outcome(
+                    scan_buffer_with_pipeline(black_box(&request), black_box(&pipeline)),
+                    "scan_buffer_with_pipeline",
+                );
             });
         });
     }
@@ -520,8 +555,10 @@ impl RoundtripHarness {
             .expect("read response");
         // `assert!` (not `debug_assert!`) — criterion compiles in release and
         // we want harness-validation failures to show up loudly.
+        // Binary fixtures short-circuit as JSON-RPC Invalid params
+        // (`ScanBufferError::BinaryContent`); that is the measured path.
         assert!(
-            response.contains("\"result\""),
+            response.contains("\"result\"") || is_binary_short_circuit_rpc(&response),
             "unexpected scan_buffer response: {response}",
         );
     }
@@ -565,10 +602,11 @@ fn bench_percentile_sampler(_c: &mut Criterion) {
         let mut service_samples = Vec::with_capacity(samples_target);
         for _ in 0..samples_target {
             let started = Instant::now();
-            let response =
-                scan_buffer_with_pipeline(&request, &pipeline).expect("scan_buffer_with_pipeline");
+            expect_scan_buffer_outcome(
+                scan_buffer_with_pipeline(&request, &pipeline),
+                "scan_buffer_with_pipeline",
+            );
             service_samples.push(started.elapsed());
-            black_box(response);
         }
         print_dimensions("validation.service", case);
         report_percentiles("validation.service", case, &mut service_samples);
