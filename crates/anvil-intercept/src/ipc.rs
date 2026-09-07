@@ -5697,6 +5697,12 @@ fn verify_durable_membership_claim(
 /// `register_on_start` path (and `anvil workspace register --persist`),
 /// which never crosses this dispatcher, so durability is preserved even
 /// where the wire gate is forced strict.
+///
+/// The probe must not treat a too-early read as aliasing. After `fork` and
+/// before `exec`, Linux `/proc/<pid>/exe` still names *this* binary; under
+/// load that window is long enough for a single shot to cache fail-closed
+/// for the daemon's lifetime, which then downgrades every healthy durable
+/// `session.register` (the save-time driver recovery test on main).
 fn peer_authorised_for_durable_membership(peer_pid: Option<u32>) -> bool {
     let Some(peer_pid) = peer_pid else {
         return false;
@@ -5707,18 +5713,12 @@ fn peer_authorised_for_durable_membership(peer_pid: Option<u32>) -> bool {
     if !foreign_exe_reads_faithful() {
         return false;
     }
-    let Some(peer_exe) = peer_exe_path(peer_pid) else {
+    let Some(peer_exe) = canonical_peer_exe(peer_pid) else {
         return false;
     };
     let Ok(daemon_exe) = std::env::current_exe().and_then(std::fs::canonicalize) else {
         return false;
     };
-    // Linux's `/proc/<pid>/exe` and the macOS / Windows image-path reads all
-    // already resolve to a concrete target, but canonicalise defensively so
-    // both sides are normalised the same way; fall back to the raw path if it
-    // no longer resolves (e.g. the binary was replaced on disk) — that simply
-    // fails the equality check, which is the safe answer.
-    let peer_exe = std::fs::canonicalize(&peer_exe).unwrap_or(peer_exe);
     peer_exe == daemon_exe
 }
 
@@ -5778,6 +5778,26 @@ fn foreign_exe_reads_faithful() -> bool {
     *FAITHFUL.get_or_init(probe_foreign_exe_reads_faithful)
 }
 
+/// Ceiling on waiting for a just-spawned canary to finish `exec` before the
+/// faithfulness probe concludes the kernel aliases foreign exe reads.
+///
+/// Almost never paid in full: a healthy spawn returns on the first read that
+/// names the canary image. The budget is for a loaded host where the child
+/// is still on this binary's image for a few milliseconds after `spawn`
+/// returns. Cached once per process, so this is not on the save-time path.
+const FOREIGN_EXE_EXEC_WAIT: Duration = Duration::from_millis(250);
+/// Gap between `/proc/<pid>/exe` polls while waiting for exec.
+const FOREIGN_EXE_EXEC_POLL: Duration = Duration::from_millis(2);
+
+/// Warm [`foreign_exe_reads_faithful`] before the listener accepts connections.
+///
+/// The probe spawns a canary and waits for exec. Doing that lazily on the
+/// first durable `session.register` races the client's 500 ms RPC timeout
+/// and, on a too-early pre-exec read, permanently fail-closes the wire gate.
+pub(crate) fn warm_foreign_exe_faithfulness_probe() {
+    let _ = foreign_exe_reads_faithful();
+}
+
 /// Probe whether foreign peer-exe reads are faithful by spawning a
 /// short-lived canary that is guaranteed *not* to be this binary and
 /// checking that the kernel reports the canary's exe as something other
@@ -5801,7 +5821,15 @@ fn probe_foreign_exe_reads_faithful() -> bool {
         return false;
     };
     let canary_pid = canary.id();
-    let observed = peer_exe_path(canary_pid);
+    // Wait out the fork/exec window. A single immediate read still names this
+    // binary on Linux (and can under load on every platform) and is
+    // indistinguishable from sandbox aliasing until exec replaces the image.
+    let observed = wait_for_execed_foreign_exe(
+        canary_pid,
+        &daemon_exe,
+        FOREIGN_EXE_EXEC_WAIT,
+        FOREIGN_EXE_EXEC_POLL,
+    );
     let _ = canary.kill();
     let _ = canary.wait();
     let Some(observed) = observed else {
@@ -5812,9 +5840,9 @@ fn probe_foreign_exe_reads_faithful() -> bool {
         );
         return false;
     };
-    let observed = std::fs::canonicalize(&observed).unwrap_or(observed);
     // Faithful iff the canary's exe reads back as something other than our
-    // own binary. Equal ⇒ the read was aliased to the reader ⇒ unfaithful.
+    // own binary. Equal after the exec wait ⇒ the read was aliased to the
+    // reader ⇒ unfaithful.
     let faithful = observed != daemon_exe;
     if !faithful {
         tracing::warn!(
@@ -5824,6 +5852,43 @@ fn probe_foreign_exe_reads_faithful() -> bool {
         );
     }
     faithful
+}
+
+/// Canonicalised image path for `peer_pid`, or [`None`] when the platform
+/// reader cannot resolve it.
+fn canonical_peer_exe(peer_pid: u32) -> Option<PathBuf> {
+    let path = peer_exe_path(peer_pid)?;
+    Some(std::fs::canonicalize(&path).unwrap_or(path))
+}
+
+/// Poll [`canonical_peer_exe`] until it names something other than
+/// `daemon_exe`, or `budget` expires.
+///
+/// Returns the last observed path (which may still equal `daemon_exe` on a
+/// kernel that aliases foreign reads) or [`None`] if the pid was never
+/// readable. Callers that need a live canary must keep that child alive
+/// across this wait — the helper does not spawn or reap.
+fn wait_for_execed_foreign_exe(
+    peer_pid: u32,
+    daemon_exe: &Path,
+    budget: Duration,
+    interval: Duration,
+) -> Option<PathBuf> {
+    let deadline = Instant::now() + budget;
+    let mut last = canonical_peer_exe(peer_pid);
+    loop {
+        if let Some(observed) = &last
+            && observed != daemon_exe
+        {
+            return last;
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return last;
+        }
+        std::thread::sleep(interval.min(remaining));
+        last = canonical_peer_exe(peer_pid);
+    }
 }
 
 /// Spawn the short-lived, definitely-not-this-binary process used by
@@ -5836,7 +5901,7 @@ fn probe_foreign_exe_reads_faithful() -> bool {
 /// `C:\Windows\System32\ping.exe`, then env-rooted `SystemRoot` /
 /// `WINDIR` only if the fixed path is missing. Missing absolute binaries
 /// fail closed rather than falling back to PATH. Both children are
-/// killed as soon as their exe has been read.
+/// killed once the probe has a post-exec (or budget-expired) image read.
 fn spawn_faithfulness_canary() -> Option<std::process::Child> {
     #[cfg(windows)]
     {
@@ -7635,6 +7700,68 @@ mod tests {
         );
     }
 
+    /// The faithfulness probe must not treat a just-spawned canary as an
+    /// aliased read of this binary. Before exec, `/proc/<pid>/exe` still
+    /// names us; waiting for a distinct image is what keeps a loaded CI
+    /// runner from permanently fail-closing durable wire registration.
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    #[test]
+    fn wait_for_execed_foreign_exe_observes_canary_not_this_binary() {
+        let Ok(ours) = std::env::current_exe().and_then(std::fs::canonicalize) else {
+            panic!("this process must resolve its own exe");
+        };
+        let Some(mut child) = spawn_faithfulness_canary() else {
+            eprintln!(
+                "[SKIP] wait_for_execed_foreign_exe_observes_canary_not_this_binary: \
+                 no canary binary available"
+            );
+            return;
+        };
+        let peer_pid = child.id();
+        let observed = wait_for_execed_foreign_exe(
+            peer_pid,
+            &ours,
+            FOREIGN_EXE_EXEC_WAIT,
+            FOREIGN_EXE_EXEC_POLL,
+        );
+        let _ = child.kill();
+        let _ = child.wait();
+        let Some(observed) = observed else {
+            panic!("the canary pid must remain readable until exec completes");
+        };
+        if observed == ours {
+            eprintln!(
+                "[SKIP] wait_for_execed_foreign_exe_observes_canary_not_this_binary: \
+                 this environment aliases foreign peer-exe reads to the reader's \
+                 binary (issue #3130)"
+            );
+            return;
+        }
+        assert_ne!(
+            observed, ours,
+            "after exec the canary must not still read as this binary"
+        );
+    }
+
+    #[test]
+    fn wait_for_execed_foreign_exe_zero_budget_does_not_sleep() {
+        let Ok(ours) = std::env::current_exe().and_then(std::fs::canonicalize) else {
+            panic!("this process must resolve its own exe");
+        };
+        let started = Instant::now();
+        let _ = wait_for_execed_foreign_exe(
+            std::process::id(),
+            &ours,
+            Duration::ZERO,
+            Duration::from_millis(50),
+        );
+        assert!(
+            started.elapsed() < Duration::from_millis(50),
+            "a zero exec-wait budget must return without polling, got {:?}",
+            started.elapsed()
+        );
+    }
+
     /// CIB-150: an activation-spine claim whose authenticated peer is a
     /// real same-UID process running a DIFFERENT binary (not the daemon's
     /// `anvil` executable) is downgraded to a live session. Pins the
@@ -7674,6 +7801,17 @@ mod tests {
             return;
         };
         let peer_pid = child.id();
+        let ours = std::env::current_exe()
+            .and_then(std::fs::canonicalize)
+            .expect("this process must resolve its own exe");
+        // Wait for exec before treating "reads as ours" as sandbox aliasing;
+        // a just-spawned canary still names this binary until exec completes.
+        let _ = wait_for_execed_foreign_exe(
+            peer_pid,
+            &ours,
+            FOREIGN_EXE_EXEC_WAIT,
+            FOREIGN_EXE_EXEC_POLL,
+        );
         if peer_exe_reads_as_ours(peer_pid) {
             eprintln!(
                 "[SKIP] dispatch_command_durable_claim_from_non_anvil_peer_is_downgraded: \

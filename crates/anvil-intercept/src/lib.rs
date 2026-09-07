@@ -2638,6 +2638,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             );
         }
 
+        // CIB-160: cache the foreign-exe faithfulness probe before accept.
+        // The probe spawns a canary and must wait for exec; doing that on
+        // the first `session.register` races the client's 500 ms RPC timeout
+        // and a too-early pre-exec `/proc/<pid>/exe` read permanently
+        // fail-closes the durable wire gate.
+        let _ = tokio::task::spawn_blocking(ipc::warm_foreign_exe_faithfulness_probe).await;
+
         #[cfg(unix)]
         let listener = if let Some(socket_path) = opts.ipc_socket_path() {
             ipc::IpcListener::bind_with_scan_buffer_service(socket_path, dispatcher, scan_buffer)
