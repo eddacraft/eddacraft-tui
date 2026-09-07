@@ -654,15 +654,24 @@ fn resolve_socket_connect_dirs_with_env(
     if anvil_home_set {
         return Ok(vec![canonical]);
     }
-    let mut dirs = Vec::with_capacity(3);
+    let mut dirs = Vec::with_capacity(4);
     push_unique_dir(&mut dirs, canonical);
-    if let Some(dir) = home.filter(|d| !d.is_empty()) {
-        push_unique_dir(&mut dirs, PathBuf::from(dir).join(".local/state/anvil"));
+    let state_home = home
+        .filter(|d| !d.is_empty())
+        .map(|d| PathBuf::from(d).join(".local/state/anvil"));
+    if let Some(dir) = state_home.clone() {
+        push_unique_dir(&mut dirs, dir);
     }
     if let Some(dir) = xdg_runtime_dir.filter(|d| !d.is_empty()) {
         push_unique_dir(&mut dirs, PathBuf::from(dir).join("anvil"));
     } else if let Some(dir) = implicit_runtime_dir.filter(|d| !d.as_os_str().is_empty()) {
         push_unique_dir(&mut dirs, dir.join("anvil"));
+    }
+    if let Some(coordinator) = state_home
+        && let Some(advertised) = read_live_endpoint_socket(&coordinator)
+        && let Some(parent) = advertised.parent()
+    {
+        push_unique_dir(&mut dirs, parent.to_path_buf());
     }
     Ok(dirs)
 }
@@ -735,6 +744,13 @@ pub(crate) fn dirs_share_physical_identity(left: &Path, right: &Path) -> bool {
     dir_physical_identity(left) == dir_physical_identity(right)
 }
 
+/// Owner-only live-endpoint record beside the rendezvous coordinator.
+/// Written by ensure under the repair lock; read by connect-candidate
+/// resolution so a later shell whose runtime dir disagrees still finds
+/// the live daemon.
+#[cfg(unix)]
+pub(crate) const LIVE_ENDPOINT_RECORD: &str = "intercept.rendezvous-endpoint";
+
 /// `lstat` identity of a live socket inode. Leaf symlinks are `None` so a
 /// planted socket path is never treated as the same endpoint as its target.
 #[cfg(unix)]
@@ -756,6 +772,42 @@ pub(crate) fn unix_sockets_are_same_physical(left: &Path, right: &Path) -> bool 
         (Some(left_id), Some(right_id)) => left_id == right_id,
         _ => false,
     }
+}
+
+/// Read the owner-only live-endpoint advertisement at `coordinator_dir`.
+/// Missing, symlink, foreign-owned, or group/world-writable records are
+/// ignored.
+#[cfg(unix)]
+pub(crate) fn read_live_endpoint_socket(coordinator_dir: &Path) -> Option<PathBuf> {
+    use std::fs::OpenOptions;
+    use std::io::Read;
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+
+    let path = coordinator_dir.join(LIVE_ENDPOINT_RECORD);
+    let Ok(mut file) = OpenOptions::new()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
+        .open(&path)
+    else {
+        return None;
+    };
+    let meta = file.metadata().ok()?;
+    if !meta.is_file() {
+        return None;
+    }
+    if meta.uid() != nix::unistd::geteuid().as_raw() {
+        return None;
+    }
+    if meta.mode() & 0o022 != 0 {
+        return None;
+    }
+    let mut record = String::new();
+    file.read_to_string(&mut record).ok()?;
+    let socket = record.lines().next()?.trim();
+    if socket.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(socket))
 }
 
 /// Live owner-only intercept socket for **client** connect.
@@ -9357,6 +9409,43 @@ mod tests {
                 "/home/somebody/.local/state/anvil/intercept.sock"
             )]
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn connect_candidates_include_advertised_endpoint_from_state_home() {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let home = dir.path().join("home");
+        let xdg = dir.path().join("xdg-b");
+        let advertised_dir = dir.path().join("xdg-a/anvil");
+        let state_home = home.join(".local/state/anvil");
+        std::fs::create_dir_all(&state_home).expect("state-home");
+        std::fs::create_dir_all(&advertised_dir).expect("advertised dir");
+        let advertised = advertised_dir.join("intercept.sock");
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(state_home.join(LIVE_ENDPOINT_RECORD))
+            .expect("write advertisement");
+        write!(file, "{}\n1\n", advertised.display()).expect("record");
+        drop(file);
+
+        let paths = resolve_socket_connect_candidates_with_env(
+            None,
+            Some(xdg.into_os_string()),
+            Some(home.into_os_string()),
+            None,
+        )
+        .expect("resolve");
+        assert!(
+            paths.iter().any(|p| p == &advertised),
+            "advertised live endpoint must be a connect candidate: {paths:?}"
+        );
+        assert_eq!(paths[0].parent().unwrap().file_name().unwrap(), "anvil");
     }
 
     #[cfg(unix)]

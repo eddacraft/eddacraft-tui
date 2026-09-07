@@ -568,14 +568,28 @@ fn concurrent_ensures_from_disjoint_runtime_dirs_start_exactly_one_daemon() {
         "the single started daemon is alive"
     );
 
-    let status_a = stdout_of(&shell_a.status_human());
-    let status_b = stdout_of(&shell_b.status_human());
+    let status_a = shell_a.status_human();
+    let status_b = shell_b.status_human();
     assert!(
-        status_a.contains(&format!("pid {pid}")),
-        "shell A status must name the shared daemon:\n{status_a}"
+        status_a.status.success(),
+        "shell A status must succeed: stdout={}\nstderr={}",
+        stdout_of(&status_a),
+        stderr_of(&status_a)
     );
     assert!(
-        status_b.contains(&format!("pid {pid}")),
-        "shell B status must name the shared daemon:\n{status_b}"
+        status_b.status.success(),
+        "shell B status must succeed: stdout={}\nstderr={}",
+        stdout_of(&status_b),
+        stderr_of(&status_b)
+    );
+    let status_a_text = stdout_of(&status_a);
+    let status_b_text = stdout_of(&status_b);
+    assert!(
+        status_a_text.contains(&format!("pid {pid}")),
+        "shell A status must name the shared daemon:\n{status_a_text}"
+    );
+    assert!(
+        status_b_text.contains(&format!("pid {pid}")),
+        "shell B status must name the shared daemon:\n{status_b_text}"
     );
 }

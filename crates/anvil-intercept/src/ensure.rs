@@ -1,5 +1,7 @@
 //! Bring a worktree/session to a usable protection readiness state.
 
+#[cfg(unix)]
+use crate::ipc::{LIVE_ENDPOINT_RECORD, read_live_endpoint_socket};
 use std::io;
 use std::path::Path;
 #[cfg(any(unix, windows))]
@@ -50,13 +52,6 @@ impl NoStartReason {
         }
     }
 }
-
-/// Owner-only live-endpoint advertisement beside the rendezvous coordinator
-/// (`$HOME/.local/state/anvil` when `ANVIL_HOME` is unset). Later shells whose
-/// candidate set does not include the winner's canonical bind read this record,
-/// probe the named socket through the owner-only gate, and reuse it.
-#[cfg(unix)]
-const LIVE_ENDPOINT_RECORD: &str = "intercept.rendezvous-endpoint";
 
 /// Whether the calling surface is allowed to launch a daemon.
 ///
@@ -860,40 +855,6 @@ fn write_live_endpoint_record(dir: &Path, socket: &Path, pid: u32) -> io::Result
     }
     std::fs::rename(tmp, dest)?;
     Ok(())
-}
-
-#[cfg(unix)]
-fn read_live_endpoint_socket(coordinator_dir: &Path) -> Option<PathBuf> {
-    use std::fs::OpenOptions;
-    use std::io::Read;
-    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-
-    let path = coordinator_dir.join(LIVE_ENDPOINT_RECORD);
-    let mut file = match OpenOptions::new()
-        .read(true)
-        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
-        .open(&path)
-    {
-        Ok(file) => file,
-        Err(_) => return None,
-    };
-    let meta = file.metadata().ok()?;
-    if !meta.is_file() {
-        return None;
-    }
-    if meta.uid() != nix::unistd::geteuid().as_raw() {
-        return None;
-    }
-    if meta.mode() & 0o022 != 0 {
-        return None;
-    }
-    let mut record = String::new();
-    file.read_to_string(&mut record).ok()?;
-    let socket = record.lines().next()?.trim();
-    if socket.is_empty() {
-        return None;
-    }
-    Some(PathBuf::from(socket))
 }
 
 // ---------------------------------------------------------------------------
@@ -2057,39 +2018,39 @@ mod tests {
     /// `/run/user/<uid>` sibling.
     struct DisjointRuntimeEnvironments {
         _dir: tempfile::TempDir,
-        xdg_a_candidates: Vec<PathBuf>,
-        xdg_b_candidates: Vec<PathBuf>,
+        first_set: Vec<PathBuf>,
+        other_set: Vec<PathBuf>,
         state_home: PathBuf,
     }
 
     fn disjoint_runtime_environments() -> DisjointRuntimeEnvironments {
         let dir = tempfile::tempdir().expect("tempdir");
         let home = dir.path().join("home");
-        let xdg_a = dir.path().join("xdg-a");
-        let xdg_b = dir.path().join("xdg-b");
-        let xdg_a_candidates = crate::ipc::resolve_socket_connect_candidates_with_env(
+        let runtime_one = dir.path().join("xdg-a");
+        let runtime_two = dir.path().join("xdg-b");
+        let first_set = crate::ipc::resolve_socket_connect_candidates_with_env(
             None,
-            Some(xdg_a.into_os_string()),
+            Some(runtime_one.into_os_string()),
             Some(home.clone().into_os_string()),
             None,
         )
-        .expect("xdg-a candidates");
-        let xdg_b_candidates = crate::ipc::resolve_socket_connect_candidates_with_env(
+        .expect("first runtime candidates");
+        let other_set = crate::ipc::resolve_socket_connect_candidates_with_env(
             None,
-            Some(xdg_b.into_os_string()),
+            Some(runtime_two.into_os_string()),
             Some(home.clone().into_os_string()),
             None,
         )
-        .expect("xdg-b candidates");
-        assert_eq!(xdg_a_candidates.len(), 2, "{xdg_a_candidates:?}");
-        assert_eq!(xdg_b_candidates.len(), 2, "{xdg_b_candidates:?}");
-        assert_ne!(xdg_a_candidates[0], xdg_b_candidates[0]);
-        assert_eq!(xdg_a_candidates[1], xdg_b_candidates[1]);
+        .expect("other runtime candidates");
+        assert_eq!(first_set.len(), 2, "{first_set:?}");
+        assert_eq!(other_set.len(), 2, "{other_set:?}");
+        assert_ne!(first_set[0], other_set[0]);
+        assert_eq!(first_set[1], other_set[1]);
         let state_home = home.join(".local/state/anvil");
         DisjointRuntimeEnvironments {
             _dir: dir,
-            xdg_a_candidates,
-            xdg_b_candidates,
+            first_set,
+            other_set,
             state_home,
         }
     }
@@ -2229,10 +2190,10 @@ mod tests {
 
         let outcomes: Vec<EnsureOutcome> = std::thread::scope(|scope| {
             let handles: Vec<_> = [
-                &env.xdg_a_candidates,
-                &env.xdg_b_candidates,
-                &env.xdg_a_candidates,
-                &env.xdg_b_candidates,
+                &env.first_set,
+                &env.other_set,
+                &env.first_set,
+                &env.other_set,
             ]
             .into_iter()
             .map(|candidates| {
@@ -2281,14 +2242,13 @@ mod tests {
         use std::sync::mpsc;
 
         let env = disjoint_runtime_environments();
-        let first =
-            acquire_daemon_rendezvous_repair_lock_for_socket_candidates(&env.xdg_a_candidates)
-                .expect("xdg-a repair lock");
+        let first = acquire_daemon_rendezvous_repair_lock_for_socket_candidates(&env.first_set)
+            .expect("first runtime repair lock");
         let (acquired_tx, acquired_rx) = mpsc::channel();
-        let xdg_b = env.xdg_b_candidates.clone();
+        let other_set = env.other_set.clone();
         let waiter = std::thread::spawn(move || {
-            let second = acquire_daemon_rendezvous_repair_lock_for_socket_candidates(&xdg_b)
-                .expect("xdg-b repair lock");
+            let second = acquire_daemon_rendezvous_repair_lock_for_socket_candidates(&other_set)
+                .expect("other runtime repair lock");
             acquired_tx.send(second).expect("report lock acquisition");
         });
 
@@ -2304,14 +2264,14 @@ mod tests {
             "coordinator lock must live at state-home, not min(runtime): {}",
             state_lock.display()
         );
-        let xdg_a_lock = env.xdg_a_candidates[0]
+        let runtime_lock = env.first_set[0]
             .parent()
             .unwrap()
             .join("intercept.rendezvous-repair.lock");
         assert!(
-            !xdg_a_lock.exists(),
+            !runtime_lock.exists(),
             "runtime dir must not be the coordinator: {}",
-            xdg_a_lock.display()
+            runtime_lock.display()
         );
         drop(first);
         drop(
