@@ -109,7 +109,8 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 - **Status:** Committed — PR #4428 (claim #4423). Closeout: a durable
   membership refresh now restores a dead save-time driver child (new
-  `MembershipChange::Refreshed`, fired outside the registry lock), dead children
+  `MembershipChange::Refreshed`, enqueued under the registry lock so a signal
+  cannot be reordered ahead of the mutation it describes), dead children
   are reaped before liveness probes instead of being reported attached,
   respawns are bounded (three consecutive failures, one-minute backoff, early
   death counts as failure), and the child writes a readiness marker the daemon

@@ -2,10 +2,20 @@
 //! built `anvil` binary.
 //!
 //! Every daemon here is spawned as `anvil intercept start --foreground` with a
-//! per-test `HOME` / `XDG_RUNTIME_DIR` / `ANVIL_HOME` set on the child only, so
-//! the runs are hermetic and never touch a developer's real daemon. The ensure
-//! surface under test is bare `anvil` (ADR-114), which may spawn without a
-//! TTY, so a duplicate daemon is observable as a second PID file.
+//! per-test `HOME` / `XDG_RUNTIME_DIR` / `ANVIL_HOME` set on the child only.
+//! The ensure surface under test is bare `anvil` (ADR-114), which may spawn
+//! without a TTY, so a duplicate daemon is observable as a second PID file.
+//!
+//! One seam is not hermetic and cannot be made so through the binary. The
+//! "plain shell" fixtures deliberately leave `XDG_RUNTIME_DIR` unset, which is
+//! exactly the condition under which the daemon adds the real
+//! `/run/user/<uid>` endpoint as an implicit sibling candidate
+//! (`anvil_intercept::ipc::implicit_xdg_runtime_dir`). A developer daemon bound
+//! there would be probed by those tests, and under all-candidate probing it
+//! would be either reused or counted as a second live endpoint. Rather than
+//! silently touch it, [`refuse_when_a_real_daemon_could_be_probed`] fails the
+//! test with an actionable message. These tests therefore require a host with
+//! no live daemon at the implicit runtime endpoint.
 //!
 //! The "runtime dir set, then unset" order cannot be reproduced through the
 //! binary: a shell without `XDG_RUNTIME_DIR` only probes the fixed
@@ -187,6 +197,7 @@ fn stderr_of(output: &Output) -> String {
 /// its own canonical endpoint.
 #[test]
 fn xdg_shell_ensure_reuses_state_home_daemon_instead_of_starting_a_duplicate() {
+    refuse_when_a_real_daemon_could_be_probed();
     let root = tempfile::tempdir().expect("tempdir");
     let home = root.path().join("home");
     let runtime = root.path().join("runtime");
@@ -254,6 +265,7 @@ fn xdg_shell_ensure_reuses_state_home_daemon_instead_of_starting_a_duplicate() {
 /// reason to start a duplicate.
 #[test]
 fn stale_canonical_socket_with_live_sibling_converges_on_the_sibling() {
+    refuse_when_a_real_daemon_could_be_probed();
     use std::os::unix::net::UnixListener;
 
     let root = tempfile::tempdir().expect("tempdir");
@@ -381,6 +393,24 @@ fn isolated_anvil_homes_keep_distinct_daemons() {
     assert!(
         anvil_intercept_pid_alive(pid_a),
         "stopping home B must never signal home A's daemon"
+    );
+}
+
+/// Refuse to run a fixture that leaves `XDG_RUNTIME_DIR` unset while a real
+/// daemon is bound at the implicit `/run/user/<uid>` endpoint.
+///
+/// Those fixtures cannot mask that candidate through the binary, so probing it
+/// would reach the developer's own daemon. Fail loudly instead of reusing it or
+/// reporting it as a same-scope conflict.
+fn refuse_when_a_real_daemon_could_be_probed() {
+    let uid = nix::unistd::Uid::current().as_raw();
+    let implicit = PathBuf::from(format!("/run/user/{uid}/anvil/intercept.sock"));
+    assert!(
+        !implicit.exists(),
+        "a daemon endpoint exists at {} and this fixture leaves XDG_RUNTIME_DIR \
+         unset, so the run would probe it. Stop that daemon (`anvil intercept \
+         stop`) before running this suite.",
+        implicit.display()
     );
 }
 

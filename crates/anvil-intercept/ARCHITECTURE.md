@@ -167,6 +167,13 @@ owns their cross-component client and capability relationship.
 
 ## Invariants, failure, and fallback
 
+- Membership signals are enqueued while the registry lock is held, so the order
+  a consumer observes matches the order the mutations happened and an unregister
+  racing a heartbeat cannot be seen in reverse. `MembershipHook` implementations
+  are therefore enqueue-only: no spawning, no filesystem or process work, no
+  blocking, and never a call back into the registry. A hook that does any of
+  those stalls every registry operation, including the pre-write path
+  (JREL-003).
 - Unix IPC relies on its owner-only `0700` directory and `0600` socket to limit
   access. The daemon does not perform a server-side Unix caller-UID comparison;
   clients instead validate the connected daemon UID before sending content.
