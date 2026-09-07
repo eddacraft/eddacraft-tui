@@ -227,7 +227,7 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-013: Scope pre-write protection evidence to one worktree
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Priority:** P2
 - **Intent:** Reading protection evidence on the pre-write path costs one worktree's worth of work, not the whole daemon's.
 - **Expected Outcome:** A caller that needs one worktree's attestation can ask for exactly that. The pre-write MCP path no longer materialises every registered session to answer a single-worktree question, so evidence cost stops scaling with unrelated sessions on the host. Existing full-snapshot consumers (`anvil status`, `anvil workspace list`, activation diagnostics) keep their current answers; freshness, attribution and fail-closed behaviour are unchanged by the narrowing.
