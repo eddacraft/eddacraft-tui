@@ -566,6 +566,12 @@ pub fn acquire_daemon_start_lock_for_pid_file(pid_path: &Path) -> io::Result<std
 /// [`RendezvousCoordination::HeldByCaller`] rather than re-opening a lock its
 /// own process holds.
 ///
+/// Because every background cold start now takes this coordinator, not only
+/// doctor repair, each candidate's parent directory is securely established on
+/// every cold start so the coordinator can be located deterministically. A
+/// `/run/user/<uid>/anvil` directory can therefore exist without a socket ever
+/// having been bound there; it is not evidence of daemon activity.
+///
 /// # Errors
 ///
 /// Returns an invalid-input error when no candidate has a parent, or an I/O

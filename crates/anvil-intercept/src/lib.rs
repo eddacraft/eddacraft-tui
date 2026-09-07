@@ -1256,6 +1256,12 @@ pub struct DaemonPidRecord {
 
 impl DaemonPidRecord {
     /// `true` when a freshly read instruction names the same instance.
+    ///
+    /// Callers only reach this with a record that [`plan_stop`] or
+    /// `existing_pid_status` has already classified as a proven live instance,
+    /// so a `None == None` start-time match here is never a fallback for an
+    /// unprovable record: unproven records are routed to `Unknown`/`Unproven`
+    /// before any signal is planned.
     #[must_use]
     fn names_same_instance(&self, pid: u32, start_time: Option<u64>) -> bool {
         self.pid == pid && self.start_time == start_time
