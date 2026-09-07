@@ -3515,15 +3515,15 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     if method == LEGACY_QUERY_STATUS_METHOD
         || method == anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY
     {
-        return dispatch_span.in_scope(|| {
-            handle_query_status_jsonrpc(
-                params,
-                response_id,
-                traceparent,
-                is_notification,
-                status_provider,
-            )
-        });
+        return handle_query_status_jsonrpc(
+            params,
+            response_id,
+            traceparent,
+            is_notification,
+            status_provider,
+        )
+        .instrument(dispatch_span)
+        .await;
     }
 
     // Save-time verbs (DSV-005): `validate_paths` / `workspace_status` /
@@ -3693,7 +3693,10 @@ pub const LEGACY_QUERY_STATUS_METHOD: &str = "query_status";
 /// re-export so the rename does not break external consumers.
 pub const QUERY_STATUS_METHOD: &str = LEGACY_QUERY_STATUS_METHOD;
 
-fn handle_query_status_jsonrpc(
+/// `query_status` builds its snapshot (including driver-map probes) off the
+/// single-threaded runtime worker: a spawn or stop that briefly holds the
+/// driver map lock must not stall save-time validation or new connections.
+async fn handle_query_status_jsonrpc(
     params: &Value,
     response_id: Option<Value>,
     traceparent: Option<&str>,
@@ -3717,7 +3720,20 @@ fn handle_query_status_jsonrpc(
         // computation on the worker thread.
         return None;
     }
-    let snapshot = status_provider.query_status();
+    let provider = Arc::clone(status_provider);
+    let snapshot = match tokio::task::spawn_blocking(move || provider.query_status()).await {
+        Ok(snapshot) => snapshot,
+        Err(err) => {
+            return jsonrpc_request_error(
+                response_id,
+                traceparent,
+                is_notification,
+                -32603,
+                "Internal error",
+                json!({"error": format!("status snapshot task failed: {err}")}),
+            );
+        }
+    };
     let wire = snapshot.to_wire();
     match serde_json::to_value(&wire) {
         Ok(result) => Some(jsonrpc_success(response_id, traceparent, result)),

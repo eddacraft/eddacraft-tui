@@ -815,63 +815,68 @@ impl SupervisorInner {
     }
 
     fn spawn_driver(&self, worktree: &Path) {
-        // The map lock is held for the WHOLE spawn — flag check through
-        // insert — so `stop_all` (which latches the flag, then takes this
-        // lock to snapshot) either prevents this spawn or waits for its
-        // insert and terminates the child. Status probes block for the few
-        // milliseconds a spawn takes; only the consumer task ever spawns, so
-        // there is no spawn-vs-spawn contention. The registry call path is
-        // untouched — the hook uses the queue lock, never this one.
-        let mut drivers = self.drivers.lock().expect("driver map lock poisoned");
-        if self.shutdown.load(std::sync::atomic::Ordering::SeqCst) {
-            return;
-        }
-        // A stop is waiting out terminate/kill with the lock released: do not
-        // start a second child on the same worktree. Sequential drain will
-        // spawn after the stop removes the placeholder, if a later event asks.
-        if drivers.get(worktree).is_some_and(|entry| entry.stopping) {
-            return;
-        }
-        let stem = worktree_artifact_stem(worktree);
-        if self.keep_or_adopt_existing(&mut drivers, worktree, &stem) {
-            return;
-        }
-        let now = Instant::now();
-        let backoff = self.spawn_backoff();
-        // The child is gone: date its lifetime from the best evidence that it
-        // ran — probes plus its own readiness marker, which is still on disk
-        // (it is removed below, just before the next spawn).
-        let marker_proved = drivers
-            .get(worktree)
-            .is_some_and(|entry| self.marker_proves_lived(worktree, entry));
-        let (failures, last_failure) =
-            failure_history(drivers.get(worktree), now, backoff, marker_proved);
-        if failures >= MAX_CONSECUTIVE_SPAWN_FAILURES
-            && last_failure.is_some_and(|at| now.duration_since(at) < backoff)
-        {
-            tracing::warn!(
-                target: "anvil_intercept::save_time_driver",
-                worktree = %worktree.display(),
-                consecutive_failures = failures,
-                backoff_secs = backoff.as_secs(),
-                "save-time driver respawn refused: failure bound reached; driver stays failed until the backoff elapses",
-            );
-            drivers.insert(
-                worktree.to_path_buf(),
-                DriverEntry::failed(failures, last_failure),
-            );
-            remove_artifact(&self.dir.join(format!("{stem}.pid")), "PID file");
-            return;
-        }
+        // Flag check through spawn *decision* is under the map lock; the
+        // fork/exec itself is not. `stop_all` latches shutdown first, and
+        // this path re-checks after the child exists so a spawn that overlapped
+        // shutdown is terminated. Status, unregister, and new connections
+        // must not wait out `current_exe` of a large binary.
+        let prepared = {
+            let mut drivers = self.drivers.lock().expect("driver map lock poisoned");
+            if self.shutdown.load(std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
+            if drivers.get(worktree).is_some_and(|entry| entry.stopping) {
+                return;
+            }
+            let stem = worktree_artifact_stem(worktree);
+            if self.keep_or_adopt_existing(&mut drivers, worktree, &stem) {
+                return;
+            }
+            let now = Instant::now();
+            let backoff = self.spawn_backoff();
+            let marker_proved = drivers
+                .get(worktree)
+                .is_some_and(|entry| self.marker_proves_lived(worktree, entry));
+            let (failures, last_failure) =
+                failure_history(drivers.get(worktree), now, backoff, marker_proved);
+            if failures >= MAX_CONSECUTIVE_SPAWN_FAILURES
+                && last_failure.is_some_and(|at| now.duration_since(at) < backoff)
+            {
+                tracing::warn!(
+                    target: "anvil_intercept::save_time_driver",
+                    worktree = %worktree.display(),
+                    consecutive_failures = failures,
+                    backoff_secs = backoff.as_secs(),
+                    "save-time driver respawn refused: failure bound reached; driver stays failed until the backoff elapses",
+                );
+                drivers.insert(
+                    worktree.to_path_buf(),
+                    DriverEntry::failed(failures, last_failure),
+                );
+                remove_artifact(&self.dir.join(format!("{stem}.pid")), "PID file");
+                return;
+            }
+            remove_artifact(&self.ready_marker_path(worktree), "readiness marker");
+            (stem, now, failures, last_failure)
+        };
+
+        let (stem, now, failures, last_failure) = prepared;
         let findings_log = self.dir.join(format!("{stem}.log"));
         let spawn_log = self.dir.join(format!("{stem}.spawn.log"));
-        // A previous child's readiness marker must never be read as the new
-        // child's evidence: remove it before the spawn, under the map lock.
-        remove_artifact(&self.ready_marker_path(worktree), "readiness marker");
         let spawned = self
             .factory
             .launcher_for(worktree, &findings_log)
             .and_then(|launcher| launcher.spawn_detached(&spawn_log));
+
+        let mut drivers = self.drivers.lock().expect("driver map lock poisoned");
+        if self.shutdown.load(std::sync::atomic::Ordering::SeqCst)
+            || drivers.get(worktree).is_some_and(|entry| entry.stopping)
+        {
+            if let Ok(pid) = spawned {
+                let _ = self.procs.terminate(pid);
+            }
+            return;
+        }
         self.record_spawn_result(
             &mut drivers,
             worktree,
@@ -1307,7 +1312,7 @@ fn worktree_artifact_stem(worktree: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
     /// Records every spawn request; hands out sequential PIDs (or fails).
     struct FakeFactory {
@@ -1340,6 +1345,9 @@ mod tests {
         /// Every `launcher_for` call, including refused ones — the spawn
         /// *attempt* count the JREL-003 failure bound limits.
         factory_calls: AtomicU32,
+        /// Milliseconds `spawn_detached` sleeps before returning a PID, so
+        /// tests can prove the map lock is not held across the fork.
+        spawn_delay_ms: AtomicU64,
     }
 
     struct FakeLauncher {
@@ -1353,6 +1361,10 @@ mod tests {
         fn spawn_detached(&self, log_path: &Path) -> io::Result<u32> {
             if self.fail {
                 return Err(io::Error::other("spawn refused"));
+            }
+            let delay_ms = self.state.spawn_delay_ms.load(Ordering::SeqCst);
+            if delay_ms > 0 {
+                std::thread::sleep(Duration::from_millis(delay_ms));
             }
             let pid = self.state.next_pid.fetch_add(1, Ordering::SeqCst);
             {
@@ -2504,6 +2516,26 @@ mod tests {
         assert!(
             started.elapsed() < STOP_TERMINATE_GRACE,
             "status must not wait out the terminate grace, got {:?}",
+            started.elapsed()
+        );
+        drain.join().expect("drain");
+    }
+
+    #[test]
+    fn save_time_driver_spawn_releases_the_map_lock_during_fork() {
+        let h = harness();
+        let worktree = Path::new("/ws/repo");
+        h.state.spawn_delay_ms.store(80, Ordering::SeqCst);
+        enqueue(&h, MembershipChange::Registered, worktree);
+        let supervisor = h.supervisor.clone();
+        let drain = std::thread::spawn(move || supervisor.process_pending());
+
+        std::thread::sleep(Duration::from_millis(20));
+        let started = Instant::now();
+        let _ = h.supervisor.driver_status(worktree);
+        assert!(
+            started.elapsed() < Duration::from_millis(50),
+            "status must not wait out spawn_detached, got {:?}",
             started.elapsed()
         );
         drain.join().expect("drain");
