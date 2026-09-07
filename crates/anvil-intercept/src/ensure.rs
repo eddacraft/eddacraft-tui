@@ -2,6 +2,10 @@
 
 #[cfg(unix)]
 use crate::ipc::{LIVE_ENDPOINT_RECORD, read_live_endpoint_socket};
+#[cfg(unix)]
+use std::env;
+#[cfg(unix)]
+use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
 #[cfg(any(unix, windows))]
@@ -752,10 +756,28 @@ pub fn acquire_daemon_rendezvous_repair_lock_for_socket_candidates(
     acquire_ensure_lock(&physical.join("intercept.rendezvous-repair.lock"))
 }
 
-/// Prefer physical state-home when it is in the candidate set; otherwise the
-/// first parent (isolated `ANVIL_HOME`, or `HOME` unset).
+/// Prefer physical `$HOME/.local/state/anvil` when that parent is in the
+/// candidate set; otherwise the first parent (isolated `ANVIL_HOME`, or `HOME`
+/// unset).
+///
+/// Suffix matching alone is not enough: `XDG_RUNTIME_DIR` values such as
+/// `/tmp/.../.local/state` produce a parent that also ends with
+/// `.local/state/anvil`. Prefer the actual `$HOME` state-home candidate when
+/// it is present (lexical or physical). When `$HOME` does not match any
+/// candidate, keep a unique suffix match so in-process tests need not mutate
+/// process `HOME`. When `$HOME` is unavailable, or several suffix matches
+/// remain, fall back to the first parent.
 #[cfg(unix)]
 fn select_rendezvous_coordinator_dir(socket_candidates: &[PathBuf]) -> Option<PathBuf> {
+    let home = env::var_os("HOME");
+    select_rendezvous_coordinator_dir_from(socket_candidates, home.as_deref())
+}
+
+#[cfg(unix)]
+fn select_rendezvous_coordinator_dir_from(
+    socket_candidates: &[PathBuf],
+    home: Option<&OsStr>,
+) -> Option<PathBuf> {
     let parents: Vec<PathBuf> = socket_candidates
         .iter()
         .filter_map(|candidate| candidate.parent().map(Path::to_path_buf))
@@ -763,13 +785,23 @@ fn select_rendezvous_coordinator_dir(socket_candidates: &[PathBuf]) -> Option<Pa
     if parents.is_empty() {
         return None;
     }
-    Some(
-        parents
-            .iter()
-            .find(|parent| parent.ends_with(".local/state/anvil"))
-            .cloned()
-            .unwrap_or_else(|| parents[0].clone()),
-    )
+    if let Some(home) = home {
+        let home_state = Path::new(home).join(".local/state/anvil");
+        if let Some(parent) = parents.iter().find(|parent| {
+            parent.as_path() == home_state.as_path()
+                || crate::ipc::dirs_share_physical_identity(parent, &home_state)
+        }) {
+            return Some(parent.clone());
+        }
+    }
+    let suffix_matches: Vec<&PathBuf> = parents
+        .iter()
+        .filter(|parent| parent.ends_with(".local/state/anvil"))
+        .collect();
+    if suffix_matches.len() == 1 {
+        return Some(suffix_matches[0].clone());
+    }
+    Some(parents[0].clone())
 }
 
 #[cfg(unix)]
@@ -2467,6 +2499,53 @@ mod tests {
                 .expect("second lock"),
         );
         waiter.join().expect("repair-lock waiter");
+    }
+
+    /// #4432 review: `XDG_RUNTIME_DIR` ending in `.local/state` must not beat
+    /// the actual `$HOME/.local/state/anvil` candidate.
+    #[test]
+    fn coordinator_prefers_home_state_over_runtime_dir_suffix() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let home = dir.path().join("home");
+        let deceptive_runtime = dir.path().join("xdg/.local/state");
+        let home_state = home.join(".local/state/anvil");
+        let runtime_socket = deceptive_runtime.join("anvil/intercept.sock");
+        let home_socket = home_state.join("intercept.sock");
+        let selected = select_rendezvous_coordinator_dir_from(
+            &[runtime_socket, home_socket],
+            Some(home.as_os_str()),
+        )
+        .expect("coordinator");
+        assert_eq!(selected, home_state);
+    }
+
+    /// In-process tests do not mutate process `HOME`; a unique
+    /// `.local/state/anvil` suffix still selects state-home.
+    #[test]
+    fn coordinator_keeps_unique_suffix_when_home_is_elsewhere() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime_socket = dir.path().join("xdg-a/anvil/intercept.sock");
+        let state_socket = dir.path().join("home/.local/state/anvil/intercept.sock");
+        let elsewhere = dir.path().join("other-home");
+        let selected = select_rendezvous_coordinator_dir_from(
+            &[runtime_socket, state_socket.clone()],
+            Some(elsewhere.as_os_str()),
+        )
+        .expect("coordinator");
+        assert_eq!(selected, state_socket.parent().unwrap());
+    }
+
+    /// When `$HOME` is unavailable, colliding suffixes fall back to the first
+    /// parent rather than an arbitrary `.local/state/anvil` match.
+    #[test]
+    fn coordinator_falls_back_to_first_parent_when_home_is_unavailable_and_suffixes_collide() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let runtime_socket = dir.path().join("xdg/.local/state/anvil/intercept.sock");
+        let home_socket = dir.path().join("home/.local/state/anvil/intercept.sock");
+        let selected =
+            select_rendezvous_coordinator_dir_from(&[runtime_socket.clone(), home_socket], None)
+                .expect("coordinator");
+        assert_eq!(selected, runtime_socket.parent().unwrap());
     }
 
     #[test]

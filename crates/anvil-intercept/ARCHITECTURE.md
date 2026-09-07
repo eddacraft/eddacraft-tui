@@ -198,17 +198,17 @@ owns their cross-component client and capability relationship.
   identity (canonicalized directories; `lstat` device+inode for sockets), so an
   ancestor alias or an `XDG_RUNTIME_DIR` that canonicalizes onto state-home is
   one endpoint, never a false conflict. A planted leaf sibling symlink is still
-  skipped. Isolated `ANVIL_HOME` prefixes remain exclusive single-candidate
-  sets with their own coordinator. A daemon is only ever spawned at this
-  process's canonical path; a later shell whose candidate set does not include
-  that path reuses the advertised socket after an owner-only probe. Every
-  candidate is probed even when the canonical one answers, so two live daemons
-  in one execution scope are reported as a failure naming `anvil doctor --fix`
-  rather than one being chosen silently. Version recycle snapshots the verified PID-file
-  instances with the version probe and signals only those instances; when the
-  snapshot holds more than one distinct live process the version probe cannot be
-  attributed, so automatic and forced recycle report the conflict and stop
-  nothing. A PID file that now names a different instance is a concurrent
+  skipped. Isolated `ANVIL_HOME` prefixes remain exclusive single-candidate sets
+  with their own coordinator. A daemon is only ever spawned at this process's
+  canonical path; a later shell whose candidate set does not include that path
+  reuses the advertised socket after an owner-only probe. Every candidate is
+  probed even when the canonical one answers, so two live daemons in one
+  execution scope are reported as a failure naming `anvil doctor --fix` rather
+  than one being chosen silently. Version recycle snapshots the verified
+  PID-file instances with the version probe and signals only those instances;
+  when the snapshot holds more than one distinct live process the version probe
+  cannot be attributed, so automatic and forced recycle report the conflict and
+  stop nothing. A PID file that now names a different instance is a concurrent
   replacement, which is re-probed and reused when it already reports the CLI
   version, never signalled. Recycle waits every signalled candidate PID, starts
   at the canonical socket, and succeeds only when the replacement answers with
