@@ -335,6 +335,11 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
     // while the live dashboard shows relative ages (CIB-266).
     let now = SystemTime::now();
     let mut lines: Vec<Line> = Vec::new();
+    // Item index matches line index until expansion inserts extra rows
+    // after the selected title. Anchor to the last of those rows so the
+    // finding body stays in view (Up/Down collapses, so there is no
+    // other way to reveal clipped detail).
+    let mut selected_anchor = state.selected_item;
     for (i, change) in state.data.queue.iter().enumerate() {
         let selected = focused && i == state.selected_item;
         let indicator = if selected { ">> " } else { "  " };
@@ -363,6 +368,7 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
 
         if state.expanded && selected {
             lines.extend(queue_expand_lines(change, theme));
+            selected_anchor = lines.len().saturating_sub(1);
         }
     }
 
@@ -371,7 +377,7 @@ fn render_queue_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
     // would scroll the Queue view even though its own selection cursor
     // is parked at 0.
     let scroll = if focused {
-        scroll_offset_for(state.selected_item, lines.len(), inner.height)
+        scroll_offset_for(selected_anchor, lines.len(), inner.height)
     } else {
         0
     };
@@ -657,6 +663,27 @@ mod tests {
     }
 
     #[test]
+    fn scroll_offset_keeps_expanded_block_bottom_in_view() {
+        // 12 one-line rows, last selected, 6 extra expand lines, viewport 8.
+        // Title of last is line 11; expand occupies 12..=17; total 18.
+        let title = 11;
+        let expand_end = 17;
+        let total = 18;
+        let height = 8;
+        let title_only = scroll_offset_for(title, total, height);
+        assert_eq!(
+            title_only, 4,
+            "title-only anchor starts at line 4, clipping expand 12..=17"
+        );
+        let expanded = scroll_offset_for(expand_end, total, height);
+        assert_eq!(expanded, 10);
+        assert!(
+            usize::from(expanded) + usize::from(height) > expand_end,
+            "expanded anchor must keep the last expand line in the viewport"
+        );
+    }
+
+    #[test]
     fn expanded_queue_shows_finding_context() {
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
@@ -690,6 +717,55 @@ mod tests {
         assert!(
             rendered.contains("live candidate"),
             "expanded queue must show recording status, got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn expanded_queue_keeps_finding_body_visible_when_selected_near_end() {
+        let backend = TestBackend::new(80, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.focused_panel = WatchPanel::Queue;
+        state.zoomed = true;
+        state.expanded = true;
+        state.data.queue = (0..12)
+            .map(|i| {
+                let mut item = QueuedNotification::new(
+                    Notification::new(
+                        NotificationClass::Finding,
+                        NotificationPriority::High,
+                        format!("src/file{i}.rs"),
+                        "modified",
+                    ),
+                    "10:30:00",
+                );
+                if i == 11 {
+                    item.rule_id = Some("AP-001".to_string());
+                    item.symbol = Some("run".to_string());
+                }
+                item
+            })
+            .collect();
+        state.selected_item = 11;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render(frame, frame.area(), &state, &theme);
+            })
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("Class:"),
+            "expanded body must stay in view near the end of a long queue, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("AP-001"),
+            "expanded rule id must stay in view near the end of a long queue, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("live candidate"),
+            "expanded recording status must stay in view near the end of a long queue, got:\n{rendered}"
         );
     }
 
