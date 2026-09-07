@@ -149,7 +149,17 @@ acceptance through this intake. Item statuses and counters remain unchanged.
   `cargo test -p eddacraft-anvil-intercept --no-fail-fast` 1241 passed and
   `cargo test -p eddacraft-anvil --no-fail-fast` 4277 passed, with the only
   failures being pre-existing sandbox-environment tests (unset `USER`, uid 0
-  bypassing `chmod` fixtures) in files this change does not touch.
+  bypassing `chmod` fixtures) in files this change does not touch. Council
+  (general + adversarial) findings addressed in the same PR: forced restart now
+  applies the replacement-version gate and reuses a concurrent replacement;
+  ensure probes every candidate and reports two live same-scope daemons as a
+  failure naming `anvil doctor --fix`; recycle refuses to signal when the PID
+  snapshot holds more than one distinct live process. Deferred to JREL-011
+  (lifecycle budget): a bounded wait on the rendezvous coordinator and start
+  lock, and a typed outcome when the coordinator cannot be acquired (today it
+  degrades to the per-install lock with a warning, per warnings-over-blocks).
+  Deferred to JREL-005: surfacing the same-scope conflict through `intercept
+  status` typed output.
 - **Priority:** P1
 - **Intent:** Shell and editor environments converge on the same intended daemon instance.
 - **Expected Outcome:** Discovery, startup, registration, status and recycle agree on one verified instance across runtime/state-home endpoints. Concurrent cold starts or updates cannot produce duplicate daemons or stop a newly started replacement using stale identity. Expected replacement version and readiness are checked; isolated ANVIL_HOME installations remain distinct.

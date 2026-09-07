@@ -184,17 +184,22 @@ owns their cross-component client and capability relationship.
   every candidate through the client owner-only gate before deciding to spawn: a
   live daemon at the sibling endpoint is reused, a stale canonical inode beside
   a live sibling converges on the sibling, and concurrent cold starts from
-  shells that disagree about the canonical endpoint spawn one daemon. A daemon
-  is only ever spawned at the canonical path, and isolated `ANVIL_HOME` prefixes
-  remain exclusive single-candidate sets. Version recycle snapshots the verified
-  PID-file instances with the version probe and signals only those instances; a
-  PID file that now names a different instance is a concurrent replacement,
-  which is re-probed and reused when it already reports the CLI version, never
-  signalled. Recycle waits every signalled candidate PID, starts at the
-  canonical socket, and succeeds only when the replacement answers with exactly
-  the CLI version; a malformed or unproven sibling PID file does not abort that
-  restart. `anvil intercept status` names the PID from the verified record
-  beside the endpoint that answered. `anvil intercept stop` reports every
+  shells that disagree about the canonical endpoint spawn one daemon. Every
+  candidate is probed even when the canonical one answers, so two live daemons
+  in one execution scope are reported as a failure naming `anvil doctor --fix`
+  rather than one being chosen silently. A daemon is only ever spawned at the
+  canonical path, and isolated `ANVIL_HOME` prefixes remain exclusive
+  single-candidate sets. Version recycle snapshots the verified PID-file
+  instances with the version probe and signals only those instances; when the
+  snapshot holds more than one distinct live process the version probe cannot be
+  attributed, so automatic and forced recycle report the conflict and stop
+  nothing. A PID file that now names a different instance is a concurrent
+  replacement, which is re-probed and reused when it already reports the CLI
+  version, never signalled. Recycle waits every signalled candidate PID, starts
+  at the canonical socket, and succeeds only when the replacement answers with
+  exactly the CLI version; a malformed or unproven sibling PID file does not
+  abort that restart. `anvil intercept status` names the PID from the verified
+  record beside the endpoint that answered. `anvil intercept stop` reports every
   candidate, including skipped siblings. A sibling refusal does not change a
   successful canonical outcome, while a canonical PID-instruction refusal is a
   non-zero partial failure and prevents both automatic and forced recycle from

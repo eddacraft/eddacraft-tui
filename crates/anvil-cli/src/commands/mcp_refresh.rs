@@ -445,6 +445,14 @@ fn force_recycle_running(
     hooks: &dyn DaemonRecycleHooks,
     running: RunningDaemon,
 ) -> DaemonRecycleOutcome {
+    // Two live instances behind one version probe cannot be attributed, so
+    // refuse to signal either and report the conflict (JREL-004).
+    if let Some(recovery) = running.conflict_recovery() {
+        return DaemonRecycleOutcome::Failed {
+            before: Some(running.version),
+            recovery,
+        };
+    }
     // The stop is bound to the instances observed by the probe above, so a
     // replacement a concurrent caller started is never signalled (JREL-004).
     let stop = match hooks.stop_daemon(&running) {
@@ -810,6 +818,36 @@ mod tests {
             hooks.calls(),
             vec![RecycleCall::Stop, RecycleCall::Wait(4242)],
             "forced recycle must wait for signalled siblings but never restart after canonical refusal",
+        );
+    }
+
+    #[test]
+    fn daemon_restart_refuses_when_two_live_instances_answer_the_scope() {
+        let mut hooks = RecordingHooks::matching();
+        hooks.running = Some(RunningDaemon {
+            version: "0.9.2-beta".into(),
+            instances: vec![
+                anvil_intercept::DaemonPidRecord {
+                    pid_file: std::path::PathBuf::from("/a/intercept.pid"),
+                    pid: 4242,
+                    start_time: Some(99),
+                },
+                anvil_intercept::DaemonPidRecord {
+                    pid_file: std::path::PathBuf::from("/b/intercept.pid"),
+                    pid: 5151,
+                    start_time: Some(120),
+                },
+            ],
+        });
+        let report = refresh_daemon(DaemonMode::Restart, false, "0.9.2-beta", &hooks);
+        assert!(
+            report.action.contains("more than one live daemon"),
+            "a same-scope conflict must be reported, not restarted over: {}",
+            report.action
+        );
+        assert!(
+            hooks.calls().is_empty(),
+            "nothing may be signalled on a conflict"
         );
     }
 

@@ -387,8 +387,10 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
     // 1. Probes are read-only and always allowed, even for non-spawning
     //    callers: a live daemon at any verified endpoint of this scope is
     //    reused regardless of capability.
-    if any_endpoint_live(params) {
-        return EnsureOutcome::Reused;
+    match live_endpoints(params) {
+        EndpointLiveness::One => return EnsureOutcome::Reused,
+        EndpointLiveness::Conflict { live } => return conflict_outcome(live),
+        EndpointLiveness::None => {}
     }
 
     // 2. No live daemon. Only callers with a consent surface may spawn.
@@ -432,8 +434,10 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
 
     // 4. Re-probe under the locks: a racing caller — from this environment or
     //    a sibling one — may have started a daemon while we waited.
-    if any_endpoint_live(params) {
-        return EnsureOutcome::Reused;
+    match live_endpoints(params) {
+        EndpointLiveness::One => return EnsureOutcome::Reused,
+        EndpointLiveness::Conflict { live } => return conflict_outcome(live),
+        EndpointLiveness::None => {}
     }
 
     // 5. Spawn the detached daemon. Its own IpcListener bind unlinks any stale
@@ -478,16 +482,52 @@ fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
     )
 }
 
-/// `true` when the canonical endpoint or any verified sibling endpoint of this
-/// scope carries a daemon to reuse. Canonical first, so a live canonical never
-/// costs a sibling probe.
+/// How many of this scope's endpoints carry a daemon to reuse.
 #[cfg(any(unix, windows))]
-fn any_endpoint_live(params: &EnsureParams<'_>) -> bool {
-    reuse_if_live(params.probe)
-        || params
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EndpointLiveness {
+    /// No endpoint answers or listens.
+    None,
+    /// Exactly one endpoint carries a daemon: reuse it.
+    One,
+    /// More than one same-scope endpoint carries a daemon. ADR-036 allows one
+    /// daemon per execution scope, so this is reported, never resolved by
+    /// silently picking one (JREL-004).
+    Conflict {
+        /// How many endpoints answered or listened.
+        live: usize,
+    },
+}
+
+/// Probe the canonical endpoint and every verified sibling endpoint of this
+/// scope. Every candidate is probed — a live canonical does not skip the
+/// siblings — so two live daemons in one scope are detected rather than the
+/// first one being chosen.
+#[cfg(any(unix, windows))]
+fn live_endpoints(params: &EnsureParams<'_>) -> EndpointLiveness {
+    let live = usize::from(reuse_if_live(params.probe))
+        + params
             .sibling_probes
             .iter()
-            .any(|sibling| reuse_if_live(*sibling))
+            .filter(|sibling| reuse_if_live(**sibling))
+            .count();
+    match live {
+        0 => EndpointLiveness::None,
+        1 => EndpointLiveness::One,
+        live => EndpointLiveness::Conflict { live },
+    }
+}
+
+/// The bounded-recovery outcome for a same-scope daemon conflict.
+#[cfg(any(unix, windows))]
+fn conflict_outcome(live: usize) -> EnsureOutcome {
+    EnsureOutcome::Failed {
+        recovery: format!(
+            "{live} live daemons answer this execution scope where one is expected; \
+             none was reused or stopped. Run `anvil doctor --fix` to repair the \
+             endpoints, or `anvil intercept stop` then `anvil start`"
+        ),
+    }
 }
 
 /// Poll the probe until a daemon answers or the deadline passes. A
@@ -1545,6 +1585,38 @@ mod tests {
             launcher.spawns(),
             0,
             "a live sibling daemon must be reused, never duplicated"
+        );
+    }
+
+    #[test]
+    fn two_live_same_scope_daemons_are_reported_not_chosen() {
+        let fx = fixture();
+        let canonical = FlagProbe {
+            ready: Arc::new(AtomicBool::new(true)),
+            connected_no_answer: false,
+        };
+        let sibling = FlagProbe {
+            ready: Arc::new(AtomicBool::new(true)),
+            connected_no_answer: false,
+        };
+        let launcher = FakeLauncher::never_binds();
+        let siblings: [&dyn DaemonProbe; 1] = [&sibling];
+        let p = EnsureParams {
+            sibling_probes: &siblings,
+            ..params(&canonical, &launcher, &fx.lock, &fx.log)
+        };
+
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Failed { recovery } => assert!(
+                recovery.contains("2 live daemons") && recovery.contains("anvil doctor --fix"),
+                "the conflict must be named with its bounded recovery: {recovery}"
+            ),
+            other => panic!("a same-scope conflict must be reported, got {other:?}"),
+        }
+        assert_eq!(
+            launcher.spawns(),
+            0,
+            "a conflict must never be resolved by spawning a third daemon"
         );
     }
 

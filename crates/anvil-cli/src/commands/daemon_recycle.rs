@@ -24,6 +24,46 @@ pub(crate) struct RunningDaemon {
     pub instances: Vec<anvil_intercept::DaemonPidRecord>,
 }
 
+impl RunningDaemon {
+    /// The distinct live daemon processes observed across this scope's PID
+    /// files (one process recorded from two candidate directories counts
+    /// once). A version probe answers on one connection only, so a recycle
+    /// may act only when exactly one process is behind it (JREL-004).
+    #[must_use]
+    pub(crate) fn distinct_instance_count(&self) -> usize {
+        let mut seen: Vec<(u32, Option<u64>)> = Vec::new();
+        for record in &self.instances {
+            let key = (record.pid, record.start_time);
+            if !seen.contains(&key) {
+                seen.push(key);
+            }
+        }
+        seen.len()
+    }
+
+    /// The conflict recovery hint when more than one live daemon answers this
+    /// scope, or `None` when at most one does.
+    #[must_use]
+    pub(crate) fn conflict_recovery(&self) -> Option<String> {
+        if self.distinct_instance_count() <= 1 {
+            return None;
+        }
+        let mut pids: Vec<u32> = self.instances.iter().map(|record| record.pid).collect();
+        pids.sort_unstable();
+        pids.dedup();
+        let pids = pids
+            .iter()
+            .map(u32::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(format!(
+            "more than one live daemon answers this scope (PIDs {pids}); the version \
+             probe cannot be attributed to one instance, so nothing was stopped. Run \
+             `anvil doctor --fix` to repair, or `anvil intercept stop` then `anvil start`"
+        ))
+    }
+}
+
 /// Complete result of stopping every per-user daemon candidate.
 #[derive(Debug, Default)]
 pub(crate) struct DaemonStopBatch {
@@ -104,6 +144,15 @@ pub(crate) fn recycle_daemon_if_version_skew(
     if running.version == cli_version {
         return DaemonRecycleOutcome::Skipped {
             version: running.version,
+        };
+    }
+    // Two live instances behind one version probe: the skew seen on one
+    // connection says nothing about the other process, so refuse to signal
+    // either and report the conflict instead (JREL-004).
+    if let Some(recovery) = running.conflict_recovery() {
+        return DaemonRecycleOutcome::Failed {
+            before: Some(running.version),
+            recovery,
         };
     }
 
@@ -506,6 +555,40 @@ mod tests {
     /// caller's probe and its stop. Nothing observed is signalled, and the
     /// replacement at the CLI's version is reused — never stopped, never
     /// duplicated by a second start.
+    #[test]
+    fn recycle_refuses_to_stop_when_two_live_instances_answer_the_scope() {
+        let mut hooks = RecordingHooks::skewed();
+        hooks.running = Some(RunningDaemon {
+            version: "0.5.1-beta".into(),
+            instances: vec![observed_instance(4242, 99), observed_instance(5151, 120)],
+        });
+        let outcome = recycle_daemon_if_version_skew("0.9.2-beta", &hooks);
+        match outcome {
+            DaemonRecycleOutcome::Failed { before, recovery } => {
+                assert_eq!(before.as_deref(), Some("0.5.1-beta"));
+                assert!(
+                    recovery.contains("PIDs 4242, 5151") && recovery.contains("anvil doctor --fix"),
+                    "the conflict must name both instances and the bounded recovery: {recovery}"
+                );
+            }
+            other => panic!("expected a reported conflict, got {other:?}"),
+        }
+        assert!(
+            hooks.calls().is_empty(),
+            "no instance may be signalled when the version probe cannot be attributed"
+        );
+    }
+
+    #[test]
+    fn one_process_recorded_from_two_candidate_directories_is_one_instance() {
+        let running = RunningDaemon {
+            version: "0.5.1-beta".into(),
+            instances: vec![observed_instance(4242, 99), observed_instance(4242, 99)],
+        };
+        assert_eq!(running.distinct_instance_count(), 1);
+        assert!(running.conflict_recovery().is_none());
+    }
+
     #[test]
     fn recycle_reuses_a_concurrent_replacement_at_the_cli_version() {
         let mut hooks = RecordingHooks::skewed();
