@@ -386,8 +386,11 @@ fn bare_anvil_restores_exactly_one_ready_driver_after_child_death() {
                 .filter(|log| log.contains("planted.ts"))
         },
     );
+    // The summary line's wording depends on whether the daemon answered with an
+    // assurance scope, so assert on the verdict itself: the AP-003 finding for
+    // the saved file.
     assert!(
-        log.contains("antipattern finding(s)"),
+        log.contains("AP-003"),
         "the findings log must carry the daemon verdict for the save:\n{log}"
     );
     let entry = harness

@@ -179,27 +179,26 @@ owns their cross-component client and capability relationship.
   through canonical startup and final all-candidate classification. Opposite
   canonical ordering and permitted ancestor aliases therefore cannot create a
   cyclic wait. A live or rebound socket is never removed. The background ensure
-  launcher holds that same repair coordinator before its per-install start
-  lock (doctor's own launch declares the coordinator already held), and
-  verifies every candidate through the client owner-only gate before deciding
-  to spawn: a live daemon at the sibling endpoint is reused, a stale canonical
-  inode beside a live sibling converges on the sibling, and concurrent cold
-  starts from shells that disagree about the canonical endpoint spawn one
-  daemon. A daemon is only ever spawned at the canonical path, and isolated
-  `ANVIL_HOME` prefixes remain exclusive single-candidate sets. Version recycle
-  snapshots the verified PID-file instances with the version probe and signals
-  only those instances; a PID file that now names a different instance is a
-  concurrent replacement, which is re-probed and reused when it already
-  reports the CLI version, never signalled. Recycle waits every signalled
-  candidate PID, starts at the canonical socket, and succeeds only when the
-  replacement answers with exactly the CLI version; a malformed or unproven
-  sibling PID file does not abort that restart. `anvil intercept status` names
-  the PID from the verified record beside the endpoint that answered.
-  `anvil intercept stop` reports every candidate, including skipped siblings. A
-  sibling refusal does not change a successful canonical outcome, while a
-  canonical PID-instruction refusal is a non-zero partial failure and prevents
-  both automatic and forced recycle from starting a replacement daemon after any
-  already-signalled siblings exit.
+  launcher holds that same repair coordinator before its per-install start lock
+  (doctor's own launch declares the coordinator already held), and verifies
+  every candidate through the client owner-only gate before deciding to spawn: a
+  live daemon at the sibling endpoint is reused, a stale canonical inode beside
+  a live sibling converges on the sibling, and concurrent cold starts from
+  shells that disagree about the canonical endpoint spawn one daemon. A daemon
+  is only ever spawned at the canonical path, and isolated `ANVIL_HOME` prefixes
+  remain exclusive single-candidate sets. Version recycle snapshots the verified
+  PID-file instances with the version probe and signals only those instances; a
+  PID file that now names a different instance is a concurrent replacement,
+  which is re-probed and reused when it already reports the CLI version, never
+  signalled. Recycle waits every signalled candidate PID, starts at the
+  canonical socket, and succeeds only when the replacement answers with exactly
+  the CLI version; a malformed or unproven sibling PID file does not abort that
+  restart. `anvil intercept status` names the PID from the verified record
+  beside the endpoint that answered. `anvil intercept stop` reports every
+  candidate, including skipped siblings. A sibling refusal does not change a
+  successful canonical outcome, while a canonical PID-instruction refusal is a
+  non-zero partial failure and prevents both automatic and forced recycle from
+  starting a replacement daemon after any already-signalled siblings exit.
 - Windows IPC uses an owner-only pipe DACL and the server compares the connected
   peer SID with the pipe-owner SID before dispatch.
 - The production `scan_buffer` session-ownership and environment-tag spoof
