@@ -284,19 +284,32 @@ fn report_percentiles(boundary: &str, case: &BufferCase, samples: &mut [Duration
     );
 }
 
-/// `Ok` is the ordinary scan path. `Err(BinaryContent)` is the expected
-/// NUL short-circuit for `binary_short_circuit`. Any other error is a
-/// harness failure.
+#[cfg(unix)]
+impl BufferCase {
+    /// Only the dedicated binary corpus case is allowed to take the NUL
+    /// short-circuit. Other fixtures must stay text so an accidental NUL
+    /// (or a contract regression that starts rejecting them) still fails
+    /// the harness.
+    fn expects_binary_short_circuit(&self) -> bool {
+        self.label == "binary_short_circuit"
+    }
+}
+
+/// `Ok` is the ordinary scan path. `Err(BinaryContent)` is accepted only
+/// when the caller is measuring the dedicated binary fixture. Any other
+/// combination is a harness failure.
 #[cfg(unix)]
 fn expect_scan_buffer_outcome(
     result: Result<ScanBufferResponse, ScanBufferError>,
     context: &'static str,
+    allow_binary_short_circuit: bool,
 ) {
     match result {
-        Ok(response) => {
+        Ok(response) if !allow_binary_short_circuit => {
             black_box(response);
         }
-        Err(ScanBufferError::BinaryContent) => {
+        Ok(_) => panic!("{context}: expected BinaryContent short-circuit, got Ok"),
+        Err(ScanBufferError::BinaryContent) if allow_binary_short_circuit => {
             black_box(ScanBufferError::BinaryContent);
         }
         Err(err) => panic!("{context}: {err}"),
@@ -326,6 +339,7 @@ fn warm_up(pipeline: &EnforcementPipeline) {
         expect_scan_buffer_outcome(
             scan_buffer_with_pipeline(&request, pipeline),
             "warm-up scan_buffer",
+            case.expects_binary_short_circuit(),
         );
     }
 }
@@ -356,6 +370,7 @@ fn bench_validation_service(c: &mut Criterion) {
                 expect_scan_buffer_outcome(
                     scan_buffer_with_pipeline(black_box(&request), black_box(&pipeline)),
                     "scan_buffer_with_pipeline",
+                    case.expects_binary_short_circuit(),
                 );
             });
         });
@@ -397,14 +412,22 @@ fn bench_validation_roundtrip(c: &mut Criterion) {
         let mut client = runtime.block_on(async { harness.connect().await });
 
         // Warm-up RPC so the per-case first-iteration cost is amortised.
-        runtime.block_on(async { harness.run_one(&mut client, &frame).await });
+        runtime.block_on(async {
+            harness
+                .run_one(&mut client, &frame, case.expects_binary_short_circuit())
+                .await
+        });
 
         if case.bytes > 0 {
             group.throughput(Throughput::Bytes(case.bytes as u64));
         }
         group.bench_function(case.label, |b| {
             b.iter(|| {
-                runtime.block_on(harness.run_one(&mut client, &frame));
+                runtime.block_on(harness.run_one(
+                    &mut client,
+                    &frame,
+                    case.expects_binary_short_circuit(),
+                ));
             });
         });
 
@@ -542,7 +565,12 @@ impl RoundtripHarness {
         BufReader::new(stream)
     }
 
-    async fn run_one(&self, client: &mut BufReader<UnixStream>, frame: &str) {
+    async fn run_one(
+        &self,
+        client: &mut BufReader<UnixStream>,
+        frame: &str,
+        allow_binary_short_circuit: bool,
+    ) {
         client
             .get_mut()
             .write_all(frame.as_bytes())
@@ -555,10 +583,17 @@ impl RoundtripHarness {
             .expect("read response");
         // `assert!` (not `debug_assert!`) — criterion compiles in release and
         // we want harness-validation failures to show up loudly.
-        // Binary fixtures short-circuit as JSON-RPC Invalid params
-        // (`ScanBufferError::BinaryContent`); that is the measured path.
+        // The binary fixture short-circuits as JSON-RPC Invalid params
+        // (`ScanBufferError::BinaryContent`); other fixtures must still
+        // return a result so an accidental NUL cannot hide.
+        let got_result = response.contains("\"result\"");
+        let got_binary = is_binary_short_circuit_rpc(&response);
         assert!(
-            response.contains("\"result\"") || is_binary_short_circuit_rpc(&response),
+            if allow_binary_short_circuit {
+                got_binary
+            } else {
+                got_result
+            },
             "unexpected scan_buffer response: {response}",
         );
     }
@@ -605,6 +640,7 @@ fn bench_percentile_sampler(_c: &mut Criterion) {
             expect_scan_buffer_outcome(
                 scan_buffer_with_pipeline(&request, &pipeline),
                 "scan_buffer_with_pipeline",
+                case.expects_binary_short_circuit(),
             );
             service_samples.push(started.elapsed());
         }
@@ -624,12 +660,16 @@ fn bench_percentile_sampler(_c: &mut Criterion) {
             let mut client = harness.connect().await;
 
             // Single warm-up to amortise listener accept-loop priming.
-            harness.run_one(&mut client, &frame).await;
+            harness
+                .run_one(&mut client, &frame, case.expects_binary_short_circuit())
+                .await;
 
             let mut samples = Vec::with_capacity(samples_target);
             for _ in 0..samples_target {
                 let started = Instant::now();
-                harness.run_one(&mut client, &frame).await;
+                harness
+                    .run_one(&mut client, &frame, case.expects_binary_short_circuit())
+                    .await;
                 samples.push(started.elapsed());
             }
             print_dimensions("validation.roundtrip", case);
