@@ -403,23 +403,7 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
     //    canonical (it is the lock doctor's socket repair holds, taken in the
     //    same order: coordinator before any per-install start lock), then the
     //    per-`ANVIL_HOME` start lock serialises same-environment callers.
-    let _rendezvous = params.rendezvous_candidates.and_then(|candidates| {
-        match acquire_daemon_rendezvous_repair_lock_for_socket_candidates(candidates) {
-            Ok(lock) => Some(lock),
-            Err(err) => {
-                // A sibling directory this environment cannot establish must
-                // not block the canonical start; same-environment callers are
-                // still serialised by the start lock below.
-                tracing::warn!(
-                    target: "anvil_intercept::ensure",
-                    error = %err,
-                    "could not hold the daemon rendezvous coordinator; \
-                     serialising on the per-install start lock only"
-                );
-                None
-            }
-        }
-    });
+    let _rendezvous = hold_spawn_rendezvous(params.rendezvous_candidates);
     let _lock = match acquire_ensure_lock(params.lock_path) {
         Ok(lock) => lock,
         Err(err) => {
@@ -480,6 +464,41 @@ fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
         probe.probe(),
         Liveness::Answered | Liveness::ConnectedNoAnswer
     )
+}
+
+/// Hold the cross-candidate rendezvous coordinator across the spawn critical
+/// section, or `None` when the caller already holds it.
+///
+/// A sibling directory this environment cannot establish must not block the
+/// canonical start: same-environment callers remain serialised by the
+/// per-install start lock the caller takes next.
+#[cfg(unix)]
+fn hold_spawn_rendezvous(candidates: Option<&[PathBuf]>) -> Option<std::fs::File> {
+    candidates.and_then(|candidates| {
+        match acquire_daemon_rendezvous_repair_lock_for_socket_candidates(candidates) {
+            Ok(lock) => Some(lock),
+            Err(err) => {
+                tracing::warn!(
+                    target: "anvil_intercept::ensure",
+                    error = %err,
+                    "could not hold the daemon rendezvous coordinator; \
+                     serialising on the per-install start lock only"
+                );
+                None
+            }
+        }
+    })
+}
+
+/// Windows has one pipe location per user, so there is no sibling candidate to
+/// coordinate and no coordinator to hold.
+#[cfg(windows)]
+fn hold_spawn_rendezvous(candidates: Option<&[PathBuf]>) -> Option<std::fs::File> {
+    debug_assert!(
+        candidates.is_none(),
+        "the Windows pipe namespace has no sibling candidate to coordinate"
+    );
+    None
 }
 
 /// How many of this scope's endpoints carry a daemon to reuse.
