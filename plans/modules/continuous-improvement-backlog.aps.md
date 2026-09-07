@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 321/409  |
+| CIB | —     | In Progress | 323/409  |
 
 ## Purpose
 
@@ -13653,10 +13653,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-411: diagram-impact enforcement drops repository-rooted `infra/**` upstreams
 
-- **Status:** Ready — triaged 2026-09-04 from GH
+- **Status:** Merged 2026-09-06 via PR
+  [#4413](https://github.com/eddacraft/anvil-001/pull/4413) (`4cb9256b0`);
+  was Ready — triaged 2026-09-04 from GH
   [#4115](https://github.com/eddacraft/anvil-001/issues/4115) (filed
-  2026-08-24 by the DOCRB-010 clean-room Council; verified still open on
-  `main` today)
+  2026-08-24 by the DOCRB-010 clean-room Council)
 - **Priority:** P1 — a mandatory ADR-123 review gate fails open: a change to a
   declared infrastructure upstream passes without the owning Mermaid document
   being reviewed
@@ -13692,10 +13693,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-412: diagram-impact collectors see only a rename's destination, so a renamed upstream escapes review
 
-- **Status:** Ready — triaged 2026-09-04 from GH
+- **Status:** Merged 2026-09-06 via PR
+  [#4413](https://github.com/eddacraft/anvil-001/pull/4413) (`4cb9256b0`);
+  was Ready — triaged 2026-09-04 from GH
   [#4116](https://github.com/eddacraft/anvil-001/issues/4116) (filed
-  2026-08-24 by the DOCRB-010 clean-room Council; verified still open on
-  `main` today)
+  2026-08-24 by the DOCRB-010 clean-room Council)
 - **Priority:** P1 — ADR-123 explicitly requires diagram-impact review when a
   depicted component or surface is renamed, and the gate cannot see the
   rename's source endpoint
