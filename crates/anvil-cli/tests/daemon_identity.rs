@@ -265,8 +265,9 @@ fn xdg_shell_ensure_reuses_state_home_daemon_instead_of_starting_a_duplicate() {
 /// reason to start a duplicate.
 #[test]
 fn stale_canonical_socket_with_live_sibling_converges_on_the_sibling() {
-    refuse_when_a_real_daemon_could_be_probed();
     use std::os::unix::net::UnixListener;
+
+    refuse_when_a_real_daemon_could_be_probed();
 
     let root = tempfile::tempdir().expect("tempdir");
     let home = root.path().join("home");
