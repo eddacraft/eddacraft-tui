@@ -25,12 +25,13 @@
 
 use std::fmt::Write as _;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anvil_checks::secret::{
     MAX_FILE_SIZE, SecretCheckConfig, compile_secret_patterns, run_secret_check,
     scan_content_with_compiled_patterns, scan_file_with_compiled_patterns,
 };
+use tempfile::TempDir;
 
 /// `SecretFinding` has no `PartialEq`, and adding one to a public wire type
 /// for a test's convenience would be the tail wagging the dog. Its `Debug`
@@ -43,16 +44,32 @@ fn fingerprint(findings: &[anvil_checks::secret::SecretFinding]) -> Vec<String> 
 }
 
 /// A throwaway directory. Named per test so parallel runs cannot collide.
-fn temp_dir(label: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
-        "anvil-sdt007-{label}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos())
-    ));
-    fs::create_dir_all(&path).expect("create temp dir");
-    path
+fn temp_dir(label: &str) -> TempDir {
+    tempfile::Builder::new()
+        .prefix(&format!("anvil-sdt007-{label}-"))
+        .tempdir()
+        .expect("create temp dir")
+}
+
+#[test]
+fn temporary_directory_guard_cleans_up_during_unwind() {
+    let (path_tx, path_rx) = std::sync::mpsc::sync_channel(1);
+    let unwind = std::panic::catch_unwind(|| {
+        let dir = temp_dir("unwind-cleanup");
+        write_at_guard(dir.path(), "huge.ts", &planted_secret());
+        path_tx
+            .send(dir.path().to_path_buf())
+            .expect("record guarded path");
+        panic!("exercise assertion-failure cleanup");
+    });
+
+    assert!(unwind.is_err(), "the cleanup proof must exercise unwinding");
+    let path = path_rx.recv().expect("guarded path was recorded");
+    assert!(
+        !path.exists(),
+        "TempDir must remove the directory while unwinding: {}",
+        path.display()
+    );
 }
 
 /// A credential shape the default catalogue certainly matches, so "no
@@ -110,7 +127,7 @@ fn oversize_file_is_scanned_and_its_planted_secret_is_found() {
         body.len() as u64 > 1024 * 1024,
         "the fixture must exceed the pre-SDT-007 1 MiB cap or it proves nothing"
     );
-    let file = write(&dir, "huge.ts", &body);
+    let file = write(dir.path(), "huge.ts", &body);
 
     let result = run_secret_check(&[file.as_str()], &SecretCheckConfig::default(), None);
 
@@ -122,8 +139,6 @@ fn oversize_file_is_scanned_and_its_planted_secret_is_found() {
         result.files_skipped_oversize.is_empty(),
         "a file under the runaway guard must not be reported unscanned: {result:?}"
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// The file that motivated the whole item.
@@ -143,7 +158,7 @@ fn oversize_lockfile_reaches_its_url_credential_scan() {
         body.len() as u64 > 1024 * 1024,
         "the fixture must exceed the pre-SDT-007 1 MiB cap"
     );
-    let file = write(&dir, "pnpm-lock.yaml", &body);
+    let file = write(dir.path(), "pnpm-lock.yaml", &body);
 
     let result = run_secret_check(&[file.as_str()], &SecretCheckConfig::default(), None);
 
@@ -158,8 +173,6 @@ fn oversize_lockfile_reaches_its_url_credential_scan() {
         result.files_skipped_oversize.is_empty(),
         "the lockfile was read, so nothing is unscanned: {result:?}"
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +185,7 @@ fn oversize_lockfile_reaches_its_url_credential_scan() {
 #[test]
 fn a_file_over_the_runaway_guard_still_blocks_a_clean_pass() {
     let dir = temp_dir("runaway-guard");
-    let file = write_at_guard(&dir, "runaway.ts", &planted_secret());
+    let file = write_at_guard(dir.path(), "runaway.ts", &planted_secret());
 
     let result = run_secret_check(&[file.as_str()], &SecretCheckConfig::default(), None);
 
@@ -195,8 +208,6 @@ fn a_file_over_the_runaway_guard_still_blocks_a_clean_pass() {
         "the message must name the file: {}",
         result.message
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// The guard must sit above the files it exists to let through, and a bound
@@ -261,7 +272,7 @@ fn streamed_and_in_memory_scans_agree_exactly() {
         ("no-trailing-newline.ts", planted_secret()),
         ("crlf.ts", window_sensitive_content().replace('\n', "\r\n")),
     ] {
-        let path = dir.join(name);
+        let path = dir.path().join(name);
         fs::write(&path, &body).expect("write fixture");
         let display = format!("/{name}");
 
@@ -285,8 +296,6 @@ fn streamed_and_in_memory_scans_agree_exactly() {
             "streaming {name} produced a different oversize-line count"
         );
     }
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// A `limit` truncates the scan, and it must truncate it at the same place
@@ -298,7 +307,7 @@ fn streamed_and_in_memory_scans_agree_under_a_finding_limit() {
     let config = SecretCheckConfig::default();
     let (patterns, _) = compile_secret_patterns(&[]);
     let body = window_sensitive_content();
-    let path = dir.join("sample.ts");
+    let path = dir.path().join("sample.ts");
     fs::write(&path, &body).expect("write fixture");
 
     for limit in [0usize, 1, 2, 3, 5, 8] {
@@ -322,8 +331,6 @@ fn streamed_and_in_memory_scans_agree_under_a_finding_limit() {
             "limit {limit}: streaming counted different oversize lines"
         );
     }
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 /// A `#[cfg(test)] mod` body suppresses matches inside it and nothing after
@@ -358,7 +365,7 @@ fn rust_cfg_test_content() -> String {
 #[test]
 fn rust_cfg_test_membership_survives_streaming() {
     let dir = temp_dir("rust-cfg-test");
-    let file = write(&dir, "lib.rs", &rust_cfg_test_content());
+    let file = write(dir.path(), "lib.rs", &rust_cfg_test_content());
 
     let result = run_secret_check(&[file.as_str()], &SecretCheckConfig::default(), None);
 
@@ -381,8 +388,6 @@ fn rust_cfg_test_membership_survives_streaming() {
         "the credential inside the `#[cfg(test)] mod` body must stay suppressed \
          even though it is 200 lines from the module header: {found:?}"
     );
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 fn lockfile_content() -> String {
@@ -407,7 +412,7 @@ fn lockfile_content() -> String {
 #[test]
 fn a_file_that_fails_mid_read_reports_unscanned_not_partial_findings() {
     let dir = temp_dir("mid-read-failure");
-    let path = dir.join("broken.ts");
+    let path = dir.path().join("broken.ts");
     let mut bytes = format!("{}\n", planted_secret()).into_bytes();
     bytes.extend_from_slice(&[0xF8, 0xA1, 0xA1, 0x00, 0xFF, 0xFE]);
     fs::write(&path, &bytes).expect("write file");
@@ -426,8 +431,6 @@ fn a_file_that_fails_mid_read_reports_unscanned_not_partial_findings() {
         "the file must be reported unreadable: {result:?}"
     );
     assert!(!result.passed, "{result:?}");
-
-    let _ = fs::remove_dir_all(dir);
 }
 
 // ---------------------------------------------------------------------------
@@ -460,7 +463,7 @@ fn measure_streaming_scan_rate() {
     let source = window_sensitive_content().repeat(4);
 
     for (name, body) in [("pnpm-lock.yaml", &lockfile), ("sample.ts", &source)] {
-        let path = dir.join(name);
+        let path = dir.path().join(name);
         fs::write(&path, body).expect("write fixture");
         let file = path.to_string_lossy().into_owned();
 
@@ -483,6 +486,4 @@ fn measure_streaming_scan_rate() {
             per_run.as_secs_f64() * 1000.0 * (MAX_FILE_SIZE as f64 / (1024.0 * 1024.0)) / megabytes,
         );
     }
-
-    let _ = fs::remove_dir_all(dir);
 }

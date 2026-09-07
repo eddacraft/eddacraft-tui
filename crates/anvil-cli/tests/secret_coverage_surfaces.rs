@@ -13,25 +13,43 @@
 //! test is an exit-code contract, which no unit test can observe.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
-use std::sync::atomic::{AtomicU32, Ordering};
+
+use tempfile::TempDir;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
 /// A fresh working directory, unique per invocation so concurrent runs of this
 /// binary on one host cannot remove or recreate each other's fixtures.
-fn temp_workdir(tag: &str) -> PathBuf {
-    static SEQ: AtomicU32 = AtomicU32::new(0);
-    let unique = format!(
-        "{}-{}",
-        std::process::id(),
-        SEQ.fetch_add(1, Ordering::Relaxed)
-    );
-    let dir = std::env::temp_dir().join(format!("anvil-sdt-008-{tag}-{unique}"));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(dir.join("src")).expect("create temp workdir");
+fn temp_workdir(tag: &str) -> TempDir {
+    let dir = tempfile::Builder::new()
+        .prefix(&format!("anvil-sdt-008-{tag}-"))
+        .tempdir()
+        .expect("create temp workdir");
+    fs::create_dir_all(dir.path().join("src")).expect("create temp workdir src");
     dir
+}
+
+#[test]
+fn temporary_directory_guard_cleans_up_during_unwind() {
+    let (path_tx, path_rx) = std::sync::mpsc::sync_channel(1);
+    let unwind = std::panic::catch_unwind(|| {
+        let dir = temp_workdir("unwind-cleanup");
+        write_oversize(dir.path(), "src/huge.ts");
+        path_tx
+            .send(dir.path().to_path_buf())
+            .expect("record guarded path");
+        panic!("exercise assertion-failure cleanup");
+    });
+
+    assert!(unwind.is_err(), "the cleanup proof must exercise unwinding");
+    let path = path_rx.recv().expect("guarded path was recorded");
+    assert!(
+        !path.exists(),
+        "TempDir must remove the directory while unwinding: {}",
+        path.display()
+    );
 }
 
 fn anvil(workdir: &Path) -> Command {
@@ -91,9 +109,9 @@ fn stdout_of(out: &std::process::Output) -> String {
 #[test]
 fn audit_fails_and_names_a_file_the_secret_scan_could_not_read() {
     let dir = temp_workdir("audit-unreadable");
-    let rel = write_unreadable(&dir, "src/broken.ts");
+    let rel = write_unreadable(dir.path(), "src/broken.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "audit"])
         .output()
         .expect("failed to invoke anvil");
@@ -118,9 +136,9 @@ fn audit_fails_and_names_a_file_the_secret_scan_could_not_read() {
 #[test]
 fn audit_json_carries_the_coverage_notes() {
     let dir = temp_workdir("audit-json");
-    write_unreadable(&dir, "src/broken.ts");
+    write_unreadable(dir.path(), "src/broken.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "audit", "--format", "json"])
         .output()
         .expect("failed to invoke anvil");
@@ -154,13 +172,13 @@ fn audit_stays_green_when_the_only_exclusion_is_a_skip_extension_match() {
     // is in audit's own scan domain, so it reaches the scanner and is declined
     // there — the exact path that must never redden a repository.
     fs::write(
-        dir.join("src/app.min.js"),
+        dir.path().join("src/app.min.js"),
         "const a=1;const b=\"sk-not-a-real-key-0123456789abcdef\";\n",
     )
     .expect("write fixture");
-    write_clean(&dir, "src/ok.ts");
+    write_clean(dir.path(), "src/ok.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "audit"])
         .output()
         .expect("failed to invoke anvil");
@@ -189,16 +207,16 @@ fn audit_stays_green_when_the_only_exclusion_is_a_skip_extension_match() {
 #[test]
 fn audit_fails_when_a_skip_extension_match_shares_the_tree_with_unread_input() {
     let dir = temp_workdir("audit-mixed");
-    fs::write(dir.join("src/logo.png"), "not really a png\n").expect("write fixture");
+    fs::write(dir.path().join("src/logo.png"), "not really a png\n").expect("write fixture");
     fs::write(
-        dir.join("src/app.min.js"),
+        dir.path().join("src/app.min.js"),
         "const a=1;const b=\"sk-not-a-real-key-0123456789abcdef\";\n",
     )
     .expect("write fixture");
-    write_clean(&dir, "src/ok.ts");
-    write_unreadable(&dir, "src/broken.ts");
+    write_clean(dir.path(), "src/ok.ts");
+    write_unreadable(dir.path(), "src/broken.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "audit"])
         .output()
         .expect("failed to invoke anvil");
@@ -227,10 +245,10 @@ fn audit_fails_when_a_skip_extension_match_shares_the_tree_with_unread_input() {
 #[test]
 fn audit_reports_a_line_skip_without_failing() {
     let dir = temp_workdir("audit-long-line");
-    write_long_line(&dir, "src/wide.ts");
-    write_clean(&dir, "src/ok.ts");
+    write_long_line(dir.path(), "src/wide.ts");
+    write_clean(dir.path(), "src/ok.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "audit"])
         .output()
         .expect("failed to invoke anvil");
@@ -255,9 +273,9 @@ fn audit_reports_a_line_skip_without_failing() {
 #[test]
 fn audit_json_carries_a_line_skip_on_a_passing_run() {
     let dir = temp_workdir("audit-long-line-json");
-    write_long_line(&dir, "src/wide.ts");
+    write_long_line(dir.path(), "src/wide.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "audit", "--format", "json"])
         .output()
         .expect("failed to invoke anvil");
@@ -291,10 +309,10 @@ fn audit_json_carries_a_line_skip_on_a_passing_run() {
 #[test]
 fn audit_still_fails_when_a_file_level_failure_joins_a_line_skip() {
     let dir = temp_workdir("audit-mixed-coverage");
-    write_long_line(&dir, "src/wide.ts");
-    write_unreadable(&dir, "src/broken.ts");
+    write_long_line(dir.path(), "src/wide.ts");
+    write_unreadable(dir.path(), "src/broken.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "audit"])
         .output()
         .expect("failed to invoke anvil");
@@ -317,9 +335,9 @@ fn audit_still_fails_when_a_file_level_failure_joins_a_line_skip() {
 #[test]
 fn check_fails_and_names_a_file_the_secret_scan_could_not_read() {
     let dir = temp_workdir("check-unreadable");
-    write_unreadable(&dir, "src/broken.ts");
+    write_unreadable(dir.path(), "src/broken.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "check", "src/broken.ts"])
         .output()
         .expect("failed to invoke anvil");
@@ -344,9 +362,9 @@ fn check_fails_and_names_a_file_the_secret_scan_could_not_read() {
 #[test]
 fn check_json_carries_the_coverage_notes() {
     let dir = temp_workdir("check-json");
-    write_unreadable(&dir, "src/broken.ts");
+    write_unreadable(dir.path(), "src/broken.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "check", "src/broken.ts", "--format", "json"])
         .output()
         .expect("failed to invoke anvil");
@@ -380,9 +398,9 @@ fn check_json_carries_the_coverage_notes() {
 #[test]
 fn check_reports_a_file_that_is_over_the_scan_limit() {
     let dir = temp_workdir("check-oversize");
-    write_oversize(&dir, "src/huge.ts");
+    write_oversize(dir.path(), "src/huge.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "check", "src/huge.ts"])
         .output()
         .expect("failed to invoke anvil");
@@ -403,13 +421,13 @@ fn check_reports_a_file_that_is_over_the_scan_limit() {
 fn check_stays_green_when_the_only_exclusion_is_a_skip_extension_match() {
     let dir = temp_workdir("check-skip-ext");
     fs::write(
-        dir.join("src/app.min.js"),
+        dir.path().join("src/app.min.js"),
         "const a=1;const b=\"sk-not-a-real-key-0123456789abcdef\";\n",
     )
     .expect("write fixture");
-    write_clean(&dir, "src/ok.ts");
+    write_clean(dir.path(), "src/ok.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "check", "src/app.min.js", "src/ok.ts"])
         .output()
         .expect("failed to invoke anvil");
@@ -433,9 +451,9 @@ fn check_stays_green_when_the_only_exclusion_is_a_skip_extension_match() {
 #[test]
 fn check_over_only_skipped_extensions_reports_nothing_in_scope() {
     let dir = temp_workdir("check-skip-only");
-    fs::write(dir.join("src/logo.png"), "not really a png\n").expect("write fixture");
+    fs::write(dir.path().join("src/logo.png"), "not really a png\n").expect("write fixture");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "check", "src/logo.png"])
         .output()
         .expect("failed to invoke anvil");
@@ -467,10 +485,10 @@ fn check_over_only_skipped_extensions_reports_nothing_in_scope() {
 #[test]
 fn check_fails_when_a_skip_extension_match_is_mixed_with_unread_input() {
     let dir = temp_workdir("check-mixed");
-    fs::write(dir.join("src/logo.png"), "not really a png\n").expect("write fixture");
-    write_unreadable(&dir, "src/broken.ts");
+    fs::write(dir.path().join("src/logo.png"), "not really a png\n").expect("write fixture");
+    write_unreadable(dir.path(), "src/broken.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "check", "src/logo.png", "src/broken.ts"])
         .output()
         .expect("failed to invoke anvil");
@@ -501,9 +519,9 @@ fn check_fails_when_a_skip_extension_match_is_mixed_with_unread_input() {
 #[test]
 fn check_still_fails_over_a_line_skip() {
     let dir = temp_workdir("check-long-line");
-    write_long_line(&dir, "src/wide.ts");
+    write_long_line(dir.path(), "src/wide.ts");
 
-    let out = anvil(&dir)
+    let out = anvil(dir.path())
         .args(["--no-tui", "check", "src/wide.ts"])
         .output()
         .expect("failed to invoke anvil");
