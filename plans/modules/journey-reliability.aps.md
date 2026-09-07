@@ -107,7 +107,7 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-003: Recover and verify the save-time driver
 
-- **Status:** Ready
+- **Status:** In Progress (claim #4423)
 - **Priority:** P1
 - **Intent:** The daily command restores a failed worktree watcher while preserving durable registration.
 - **Expected Outcome:** After child death or initial spawn failure, public bare/start registration paths restore exactly one ready driver or return a bounded failure. Membership refresh alone is not readiness. Ready evidence distinguishes spawned from watches-installed and fresh activity; persistent failure cannot enter an unbounded respawn loop.
@@ -119,7 +119,7 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-004: One daemon identity through start and recycle
 
-- **Status:** Ready
+- **Status:** In Progress (claim #4424)
 - **Priority:** P1
 - **Intent:** Shell and editor environments converge on the same intended daemon instance.
 - **Expected Outcome:** Discovery, startup, registration, status and recycle agree on one verified instance across runtime/state-home endpoints. Concurrent cold starts or updates cannot produce duplicate daemons or stop a newly started replacement using stale identity. Expected replacement version and readiness are checked; isolated ANVIL_HOME installations remain distinct.
