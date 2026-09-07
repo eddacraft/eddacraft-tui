@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 323/409  |
+| CIB | —     | In Progress | 323/410  |
 
 ## Purpose
 
@@ -7505,7 +7505,8 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-267: Pre-push silent pass leftovers — hook PATH and git argv (PUSH-1 rescoped)
 
-- **Status:** Proposed
+- **Status:** Ready — promoted 2026-09-07 by operator instruction to repair the
+  retained L4 advisory; scope remains the docs/argv leftovers below
 - **Priority:** P3 docs / hook argv — not an L4 ship gate
 - **Intent:** After CIB-252 shipped, Dave pack-02 PUSH-1 (silent pre-push
   `exit 0`, silent `l4-validate`, audit-chain witnessed 0/10, partial
@@ -13808,3 +13809,50 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `workspace_admission.rs` during CIB-398); medium on priority — no
   in-the-wild path has been shown for a non-MCP client that is not already
   the same uid with filesystem read access to the secrets it would rebase.
+
+### CIB-415: L4 activation must install acceptance policy or report the layer inactive
+
+- **Status:** Ready — promoted 2026-09-07 by operator instruction after a beta
+  tester reported that L4 never fires
+- **Priority:** P1 honesty — the default activation path can report L4 `On`
+  while both L4 entry points are guaranteed silent no-ops
+- **Intent:** `anvil start` installs a pre-push hook and the status layer grid
+  derives L4 solely from that hook, but `run_pre_push` and `l4-validate`
+  immediately return success when no `anvil/policy.*` exists. Neither
+  `anvil init` nor `start` creates one. This is the retained 2026-08-29
+  CI-log advisory, now corroborated by a beta tester. A second source of
+  confusion is intentional: normal `require: l4_or_l3` rules trust a valid L3
+  witness and therefore do not invoke the L4 engine for commits made through
+  anvil-managed hooks.
+- **Expected Outcome:** a fresh `anvil init` writes a minimal
+  `anvil/policy.yml` matching ADR-037's default branch posture without
+  overwriting any existing policy variant; `anvil status` reports L4 `On`
+  only when an active pre-push hook and a discoverable, parseable acceptance
+  policy are both present, and otherwise reports an actionable non-On state.
+  Public beta/policy guidance gives one deterministic L4 exercise using
+  `require: l4_only`, explains the `l4_or_l3` witness short-circuit, and
+  uses the command's accepted hex-SHA range rather than `HEAD~1..HEAD`.
+- **Non-scope / do not:** do not change `l4_or_l3` decision semantics, the
+  Serena admit-on-internal-error rule, default `on_warn: allow`, or existing
+  repositories merely because `anvil start` is run. Do not overwrite,
+  merge, or normalise an existing `anvil/policy.{yaml,yml,json,toml}`.
+- **Files:** `crates/anvil-cli/src/commands/init.rs`,
+  `crates/anvil-cli/src/commands/status.rs`, shared L4 policy discovery or
+  writer helper as needed, init/status tests, `docs/public/anvil/` policy or
+  beta guidance, and `docs/runbooks/cli-surface.md`
+- **Validation:** focused init test proves a fresh project receives the
+  ADR-037 default and an existing policy is byte-preserved; focused status
+  tests prove hook-without-policy is not `On` and hook-with-policy is `On`;
+  an L4 exercise test proves a known warning reaches the production engine
+  under `l4_only`; `cargo test -p eddacraft-anvil --bin anvil -- init`,
+  `cargo test -p eddacraft-anvil --bin anvil -- status`,
+  `cargo test -p eddacraft-anvil --bin anvil -- l4_validate`,
+  `pnpm docs:check`, and `pnpm format:check`.
+- **Identified From:** CI-log entry `Investigate whether L4 actually fires`
+  (2026-08-29) plus beta-tester report on 2026-09-06.
+- **Coordinates with:** CIB-267 (silent-pass docs and Git hook argv), CIB-251
+  (hook-presence honesty), CIB-346 (default witness hooks), ADR-037 D-5,
+  ADR-038 noise discipline, POLFIT / ADR-129 (acceptance-policy surface)
+- **Confidence:** high — both entry points' no-policy return and status's
+  hook-only derivation are direct source paths; engine/warn-only focused tests
+  pass on 2026-09-06.
