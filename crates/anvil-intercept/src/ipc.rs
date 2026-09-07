@@ -595,7 +595,10 @@ pub fn resolve_socket_path() -> Result<PathBuf, IpcError> {
 /// the bind path is first, then the sibling `XDG_RUNTIME_DIR` /
 /// `$HOME/.local/state` path so Grok (runtime-dir) and Codex (state
 /// home) meet the same daemon. Implicit `/run/user/<uid>` is probed
-/// only when `XDG_RUNTIME_DIR` is unset.
+/// only when `XDG_RUNTIME_DIR` is unset. Duplicate **physical**
+/// parents (ancestor aliases, or an `XDG_RUNTIME_DIR` that
+/// canonicalizes onto state-home) collapse; the first spelling is
+/// kept so bind/start still use this process's canonical path.
 #[cfg(unix)]
 pub fn resolve_socket_connect_candidates() -> Result<Vec<PathBuf>, IpcError> {
     resolve_socket_connect_candidates_with_env(
@@ -666,8 +669,92 @@ fn resolve_socket_connect_dirs_with_env(
 
 #[cfg(unix)]
 fn push_unique_dir(dirs: &mut Vec<PathBuf>, next: PathBuf) {
-    if !dirs.iter().any(|existing| existing == &next) {
-        dirs.push(next);
+    if dirs
+        .iter()
+        .any(|existing| existing == &next || dirs_share_physical_identity(existing, &next))
+    {
+        return;
+    }
+    dirs.push(next);
+}
+
+/// Physical identity of a directory for candidate uniqueness.
+///
+/// Existing paths collapse by `(dev, ino)` after `canonicalize` so ancestor
+/// aliases (`/var/home/u` vs `/home/u`) are one directory. Missing leaves walk
+/// up to the first existing ancestor and compare that inode plus the remaining
+/// components, so an `XDG_RUNTIME_DIR` that canonicalizes onto state-home is
+/// not a second endpoint. Lexical fallback is last resort when nothing exists.
+#[cfg(unix)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DirPhysicalIdentity {
+    Inode {
+        dev: u64,
+        ino: u64,
+    },
+    RelativeToInode {
+        dev: u64,
+        ino: u64,
+        rest: Vec<std::ffi::OsString>,
+    },
+    Lexical(PathBuf),
+}
+
+#[cfg(unix)]
+fn dir_physical_identity(path: &Path) -> DirPhysicalIdentity {
+    if let Some((dev, ino)) = existing_dir_inode(path) {
+        return DirPhysicalIdentity::Inode { dev, ino };
+    }
+    let mut rest = Vec::new();
+    let mut current = path.to_path_buf();
+    loop {
+        let Some(name) = current.file_name().map(std::ffi::OsStr::to_os_string) else {
+            return DirPhysicalIdentity::Lexical(path.to_path_buf());
+        };
+        rest.push(name);
+        if !current.pop() || current.as_os_str().is_empty() {
+            return DirPhysicalIdentity::Lexical(path.to_path_buf());
+        }
+        if let Some((dev, ino)) = existing_dir_inode(&current) {
+            rest.reverse();
+            return DirPhysicalIdentity::RelativeToInode { dev, ino, rest };
+        }
+    }
+}
+
+#[cfg(unix)]
+fn existing_dir_inode(path: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    let canonical = path.canonicalize().ok()?;
+    let meta = std::fs::metadata(&canonical).ok()?;
+    Some((meta.dev(), meta.ino()))
+}
+
+#[cfg(unix)]
+pub(crate) fn dirs_share_physical_identity(left: &Path, right: &Path) -> bool {
+    dir_physical_identity(left) == dir_physical_identity(right)
+}
+
+/// `lstat` identity of a live socket inode. Leaf symlinks are `None` so a
+/// planted socket path is never treated as the same endpoint as its target.
+#[cfg(unix)]
+pub(crate) fn socket_physical_identity(path: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    if meta.file_type().is_symlink() {
+        return None;
+    }
+    Some((meta.dev(), meta.ino()))
+}
+
+#[cfg(unix)]
+pub(crate) fn unix_sockets_are_same_physical(left: &Path, right: &Path) -> bool {
+    match (
+        socket_physical_identity(left),
+        socket_physical_identity(right),
+    ) {
+        (Some(left_id), Some(right_id)) => left_id == right_id,
+        _ => false,
     }
 }
 
@@ -9269,6 +9356,36 @@ mod tests {
             vec![PathBuf::from(
                 "/home/somebody/.local/state/anvil/intercept.sock"
             )]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn connect_candidates_dedupe_xdg_that_canonicalizes_onto_state_home() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let physical_home = dir.path().join("home/u");
+        let alias_home = dir.path().join("alias-home");
+        let state_dir = physical_home.join(".local/state/anvil");
+        std::fs::create_dir_all(&state_dir).expect("state-home");
+        symlink(&physical_home, &alias_home).expect("ancestor alias");
+
+        let paths = resolve_socket_connect_candidates_with_env(
+            None,
+            Some(alias_home.join(".local/state").into_os_string()),
+            Some(physical_home.into_os_string()),
+            None,
+        )
+        .expect("resolve");
+        assert_eq!(
+            paths.len(),
+            1,
+            "XDG under an ancestor alias of HOME must not be a second endpoint: {paths:?}"
+        );
+        assert_eq!(
+            paths[0].file_name().and_then(|n| n.to_str()),
+            Some("intercept.sock")
         );
     }
 

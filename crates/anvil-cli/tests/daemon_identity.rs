@@ -17,6 +17,11 @@
 //! test with an actionable message. These tests therefore require a host with
 //! no live daemon at the implicit runtime endpoint.
 //!
+//! Disjoint-runtime fixtures (two explicit `XDG_RUNTIME_DIR` values, shared
+//! `HOME`, no `ANVIL_HOME`) never touch that implicit sibling: both shells have
+//! a runtime dir set, so `/run/user/<uid>` is not a candidate. That is the
+//! #4432 / option B acceptance case.
+//!
 //! The "runtime dir set, then unset" order cannot be reproduced through the
 //! binary: a shell without `XDG_RUNTIME_DIR` only probes the fixed
 //! `/run/user/<uid>` sibling, which a hermetic test cannot re-root. That order
@@ -481,5 +486,96 @@ fn concurrent_ensures_in_one_environment_start_exactly_one_daemon() {
     assert!(
         !home.join(".local/state/anvil/intercept.pid").exists(),
         "no daemon may appear at the sibling endpoint"
+    );
+}
+
+/// #4432 option B: two shells in one execution scope that disagree about the
+/// canonical endpoint (`XDG_RUNTIME_DIR=/tmp/xdg-a` vs `/tmp/xdg-b`, same
+/// `HOME`, no `ANVIL_HOME`) serialise on the state-home coordinator and produce
+/// exactly one daemon. Both XDG values are set, so `/run/user/<uid>` is not an
+/// implicit candidate.
+#[test]
+fn concurrent_ensures_from_disjoint_runtime_dirs_start_exactly_one_daemon() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let home = root.path().join("home");
+    let xdg_a = root.path().join("xdg-a");
+    let xdg_b = root.path().join("xdg-b");
+    owner_only_dir(&home);
+    owner_only_dir(&xdg_a);
+    owner_only_dir(&xdg_b);
+    let project = seed_project(root.path());
+    let shell_a = Shell {
+        home: home.clone(),
+        runtime_dir: Some(xdg_a.clone()),
+        anvil_home: None,
+    };
+    let shell_b = Shell {
+        home: home.clone(),
+        runtime_dir: Some(xdg_b.clone()),
+        anvil_home: None,
+    };
+    let _cleanup = StopOnDrop(vec![shell_a.clone(), shell_b.clone()]);
+
+    let outputs: Vec<(char, Output)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = ['a', 'b', 'a', 'b']
+            .into_iter()
+            .map(|which| {
+                let shell = if which == 'a' {
+                    shell_a.clone()
+                } else {
+                    shell_b.clone()
+                };
+                let project = project.clone();
+                scope.spawn(move || (which, shell.ensure(&project)))
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+
+    let mut started = 0;
+    let mut running = 0;
+    for (which, output) in &outputs {
+        assert!(
+            output.status.success(),
+            "ensure from shell {which} must succeed: stdout={}\nstderr={}",
+            stdout_of(output),
+            stderr_of(output)
+        );
+        let stdout = stdout_of(output);
+        if stdout.contains("daemon: started") {
+            started += 1;
+        } else if stdout.contains("daemon: running") {
+            running += 1;
+        } else {
+            panic!("unexpected daemon line from shell {which}:\n{stdout}");
+        }
+    }
+    assert_eq!(started, 1, "exactly one caller starts the daemon");
+    assert_eq!(running, 3, "the other callers reuse it");
+
+    let pid_a = pid_file_pid(&shell_a.canonical_dir());
+    let pid_b = pid_file_pid(&shell_b.canonical_dir());
+    let pid_state = pid_file_pid(&home.join(".local/state/anvil"));
+    let live_pids: Vec<u32> = [pid_a, pid_b, pid_state].into_iter().flatten().collect();
+    assert_eq!(
+        live_pids.len(),
+        1,
+        "exactly one PID file across both runtime dirs and state-home: a={pid_a:?} b={pid_b:?} state={pid_state:?}"
+    );
+    let pid = live_pids[0];
+    assert!(
+        anvil_intercept_pid_alive(pid),
+        "the single started daemon is alive"
+    );
+
+    let status_a = stdout_of(&shell_a.status_human());
+    let status_b = stdout_of(&shell_b.status_human());
+    assert!(
+        status_a.contains(&format!("pid {pid}")),
+        "shell A status must name the shared daemon:\n{status_a}"
+    );
+    assert!(
+        status_b.contains(&format!("pid {pid}")),
+        "shell B status must name the shared daemon:\n{status_b}"
     );
 }
