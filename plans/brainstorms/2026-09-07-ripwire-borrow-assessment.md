@@ -17,8 +17,9 @@ per-edge uncertainty. A second idea is arguably worth more than the first: their
 **adversarial eval protocol**, where gold labels are authored from source
 *before* the ranker is run, so the instrument is allowed to say the tool is
 wrong. Anvil's equivalent bench currently runs on a fixture it generates itself.
-**Suggested disposition: Specification** (GCTX answer self-attestation), with
-the eval and cold-path threads tracked, not filed.
+**Disposition: Specification** (GCTX answer self-attestation) — filed 2026-09-07
+as the `graph-answer-attestation` (GATT) module, Draft, with the eval and
+cold-path threads tracked rather than filed.
 **Source:** https://github.com/redhat-et/ripwire (Apache-2.0, C++23, v0.4.0
 released 2026-09-06, last commit 2026-09-06, vendor: Red Hat Emerging
 Technologies). Adoption metrics were not retrievable from this session — no star
@@ -40,9 +41,10 @@ repository at commit dated 2026-09-06 and cross-checked against
 [`docs/reviews/2026-08-16-gctx-dogfood-failure-points.md`](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md),
 `crates/anvil-gctx-types/src/lib.rs`, and `crates/anvil-bench/src/scenarios/token_reduction.rs`.
 
-No APS module is filed by this pass, and no shared module file is edited (CIB is
-multi-writer — see `plans/project-context.md#keeping-plans-current`). Suggested
-filings are named in prose in §9 only.
+No shared module file is edited (CIB is multi-writer — see
+`plans/project-context.md#keeping-plans-current`). One APS module was filed from
+this assessment on the same day — `graph-answer-attestation` (GATT), Draft — and
+§9 records what was filed and what was deliberately left unfiled.
 
 ---
 
@@ -424,14 +426,27 @@ belongs to a retrieval race Anvil should not enter.
 
 ---
 
-## 9. Suggested follow-ups (not filed by this pass)
+## 9. Suggested follow-ups
 
-Named for a bookkeeping or planning pass to file; **no module file, index entry,
-or CIB row is written by this document** (`plans/project-context.md#keeping-plans-current`).
+> **Filing update (2026-09-07):** thread 1 was filed the same day as the
+> `graph-answer-attestation` (GATT) module — Draft, six work items, three Ready
+> gates open. Two corrections were forced by reading the code while planning it,
+> and they narrow the borrow: `anvil_search_symbols` is conjunctive filters with
+> no ranker, so **ranking confidence has nothing to attach to and was dropped**;
+> and `RedactionSummary` already carries a pre-cap `matched` total, so the
+> "count that is really a floor" defect is **already solved** on that tool and
+> the parity work is about the report DTOs instead. Threads 2–5 remain unfiled.
+
+
+
+Thread 1 is filed (see the update above). The rest are named for a bookkeeping
+or planning pass; **no CIB row is written by this document** — CIB is
+multi-writer and is reconciled on a bookkeeping branch only
+(`plans/project-context.md#keeping-plans-current`).
 
 | # | Thread | Suggested home | Notes |
 | --- | --- | --- | --- |
-| 1 | GCTX answer self-attestation contract (confidence + margin, caps with reasons, `est_tokens`, per-edge uncertainty) | New spec section on the GCTX delivery contract + a small module or CIB run | The recommended disposition. Write the low-confidence gate before the field. |
+| 1 | GCTX answer self-attestation contract (caps with reasons, `est_tokens`, per-edge uncertainty) | **Filed 2026-09-07** as [`graph-answer-attestation`](../modules/graph-answer-attestation.aps.md) (GATT), Draft, 0/6 | The recommended disposition. Ranking confidence was dropped on inspection — `anvil_search_symbols` has no ranker, so there is nothing for it to attest to. Gates are written before the fields they guard (GATT-002). |
 | 2 | Real-corpus retrieval eval with source-authored held-out labels | Track — needs a corpus decision first | Replaces nothing; sits beside the existing synthetic `token_reduction` scenario, which stays as a shape regression. |
 | 3 | Publish counterexamples where graph context loses to reading the file | Track — product/positioning call, not an engineering one | Highest-trust, highest-nerve item here. |
 | 4 | Sibling-completeness as a standing Council review question | Council checklist | "Which siblings does this fix not cover?" — no tooling required. |
