@@ -1,18 +1,21 @@
-//! Live-heal re-exec for long-lived `anvil mcp serve --stdio` (MCPLH-002).
+//! Startup re-exec and established-session skew checks for MCP serve.
 //!
-//! Between JSON-RPC messages, detect skew versus the preferred Anvil binary
-//! (first `anvil` on `PATH`, or `ANVIL_MCP_PREFERRED`) and replace this
-//! process via `execve`, keeping stdin/stdout/stderr. Unix first; Windows
-//! demotes to honest skew reporting.
+//! Before the first stdin read, a skewed process may replace itself with the
+//! preferred anvil binary. Once a request has been read, process-local
+//! negotiation and buffered frames make replacement unsafe: the established
+//! process handles the request and emits a targeted reconnect instruction.
+//! See ADR-143.
 //!
-//! Re-exec is never attempted mid-frame or after partial JSON-RPC stdout.
+//! Re-exec is never attempted after a frame has been read.
 //! At most one attempt per process (`ANVIL_MCP_REEXECED`). Kill-switch:
 //! `ANVIL_MCP_NO_REEXEC`.
 
 use std::env;
 use std::ffi::OsStr;
+use std::fmt;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use serde_json::Value;
 
@@ -27,8 +30,8 @@ pub(crate) const PREFERRED_ENV: &str = "ANVIL_MCP_PREFERRED";
 
 /// Process-local anti-loop if `exec` returns (crate forbids `set_var`).
 static REEXEC_ATTEMPTED: AtomicBool = AtomicBool::new(false);
-/// Recovery conditions already surfaced by this process.
-static REPORTED_RECOVERY_HINTS: AtomicU8 = AtomicU8::new(0);
+/// Whether this process already surfaced its one reconnect instruction.
+static RECOVERY_HINT_REPORTED: AtomicBool = AtomicBool::new(false);
 /// Whether this process has observed the install-scoped generation.
 /// First observation is a baseline, not a poke — otherwise a replacement
 /// image with `LAST_SEEN=0` would treat any existing generation file as
@@ -42,7 +45,7 @@ const TRIGGER_METHODS: &[&str] = &["initialize", "tools/list", "tools/call"];
 /// Framing position relative to the current JSON-RPC message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FramePhase {
-    /// A complete frame has been read; no response bytes have been written.
+    /// No partial frame or response is in progress.
     BetweenMessages,
     /// Inside a handler or after a partial stdout write.
     #[allow(dead_code)] // constructed by unit tests that prove the between-message gate
@@ -68,6 +71,7 @@ pub(crate) enum StayReason {
     PreferredUnresolved,
     PlatformDemoted,
     Pinned,
+    EstablishedSession,
 }
 
 impl StayReason {
@@ -79,43 +83,31 @@ impl StayReason {
             Self::KillSwitch => Some(
                 "This MCP process is not the preferred anvil binary. \
                  Re-exec is disabled (ANVIL_MCP_NO_REEXEC). \
-                 Retry a tool call after unsetting that variable, \
-                 or reconnect MCP for this client.",
+                 Unset that variable. Reconnect MCP for this client.",
             ),
             Self::AlreadyReexeced => Some(
-                "Anvil tried to recycle this MCP process in place. \
-                 The session still runs a stale image. \
-                 Retry a tool call after the preferred anvil is first on PATH, \
-                 or reconnect MCP for this client.",
+                "This MCP process already attempted startup recycle and remains stale. \
+                 Put the preferred anvil first on PATH. Reconnect MCP for this client.",
             ),
             Self::PlatformDemoted => Some(
                 "This MCP process is not the preferred anvil binary. \
                  In-place recycle is not available on this platform. \
-                 Retry a tool call after launching via PATH anvil, \
-                 or reconnect MCP for this client.",
+                 Reconnect MCP for this client to use the preferred binary.",
             ),
             Self::PreferredUnresolved => Some(
                 "This MCP process could not resolve the preferred anvil binary. \
-                 Retry a tool call after anvil is first on PATH, \
-                 or reconnect MCP for this client.",
+                 Put anvil first on PATH. Reconnect MCP for this client.",
             ),
             Self::Pinned => Some(
                 "MCP auto-heal is pinned, so this process will not recycle \
                  to the preferred anvil binary. Run `anvil mcp unpin` \
-                 (or unset ANVIL_MCP_PIN) and retry a tool call, \
-                 or reconnect MCP for this client.",
+                 (or unset ANVIL_MCP_PIN). Reconnect MCP for this client.",
             ),
-            Self::NotATrigger | Self::MidFrame | Self::NotSkewed => None,
-        }
-    }
-
-    const fn recovery_hint_bit(self) -> Option<u8> {
-        match self {
-            Self::KillSwitch => Some(1 << 0),
-            Self::AlreadyReexeced => Some(1 << 1),
-            Self::PlatformDemoted => Some(1 << 2),
-            Self::PreferredUnresolved => Some(1 << 3),
-            Self::Pinned => Some(1 << 4),
+            Self::EstablishedSession => Some(
+                "This established MCP session stays on its current anvil binary \
+                 so the request and any pipelined input are not lost. \
+                 Reconnect MCP for this client to use the preferred binary.",
+            ),
             Self::NotATrigger | Self::MidFrame | Self::NotSkewed => None,
         }
     }
@@ -126,7 +118,7 @@ impl StayReason {
 pub(crate) enum CheckKind {
     /// Before the first stdin read (new attach).
     Startup,
-    /// After a complete JSON-RPC frame was parsed.
+    /// After an accepted JSON-RPC frame was handled and any reply was written.
     RpcMethod,
 }
 
@@ -173,8 +165,15 @@ pub(crate) fn decide(probe: &ReexecProbe) -> ReexecDecision {
 
     let skewed = is_skewed(probe.current_exe.as_deref(), probe.preferred.as_deref());
 
-    // A refresh generation bump is an operator poke: re-check preferred
-    // and allow one more recycle even if this image already attempted.
+    if probe.check == CheckKind::RpcMethod {
+        if probe.preferred.is_none() || skewed {
+            return stay(StayReason::EstablishedSession, true);
+        }
+        return stay(StayReason::NotSkewed, false);
+    }
+
+    // A refresh generation bump clears the startup attempt gate. Established
+    // calls returned above and are never replaced after consuming a frame.
     let gate = match (probe.generation_bumped, probe.gate) {
         (true, ReexecGate::AlreadyAttempted) => ReexecGate::Allowed,
         (_, gate) => gate,
@@ -354,8 +353,9 @@ pub(crate) fn maybe_reexec_at_startup() {
     apply_decision(&decide(&probe));
 }
 
-/// Check at a between-message boundary. Does not return if re-exec succeeds.
-pub(crate) fn maybe_reexec_between_messages(message: &Value) {
+/// Re-check skew without replacing a process that has consumed session input.
+/// ADR-143 preserves request, pipeline, and negotiated protocol state.
+pub(crate) fn check_established_session(message: &Value) {
     let method = message.get("method").and_then(Value::as_str);
     if !method.is_some_and(is_trigger_method) {
         return;
@@ -371,7 +371,7 @@ fn apply_decision(decision: &ReexecDecision) {
         ReexecDecision::Reexec { preferred } => exec_preferred(preferred),
         ReexecDecision::Stay { reason, skewed } if *skewed => {
             if let Some(hint) = recovery_hint_once(*reason) {
-                eprintln!("anvil mcp serve: {hint}");
+                report_to_stderr(format_args!("anvil mcp serve: {hint}"));
             }
         }
         ReexecDecision::Stay { .. } => {}
@@ -380,10 +380,19 @@ fn apply_decision(decision: &ReexecDecision) {
 
 fn recovery_hint_once(reason: StayReason) -> Option<&'static str> {
     let hint = reason.recovery_hint()?;
-    let bit = reason
-        .recovery_hint_bit()
-        .expect("a recovery hint must have a deduplication bit");
-    (REPORTED_RECOVERY_HINTS.fetch_or(bit, Ordering::Relaxed) & bit == 0).then_some(hint)
+    (!RECOVERY_HINT_REPORTED.swap(true, Ordering::Relaxed)).then_some(hint)
+}
+
+/// Keep recovery diagnostics off the sole protocol thread. A process emits at
+/// most one reconnect hint, so stderr backpressure can strand at most this
+/// detached best-effort writer, never accepted MCP work.
+fn report_to_stderr(message: fmt::Arguments<'_>) {
+    let message = message.to_string();
+    let _ = std::thread::Builder::new()
+        .name("anvil-mcp-recovery".into())
+        .spawn(move || {
+            let _ = writeln!(io::stderr().lock(), "{message}");
+        });
 }
 
 fn exec_preferred(preferred: &Path) {
@@ -400,15 +409,15 @@ fn exec_preferred(preferred: &Path) {
         REEXEC_ATTEMPTED.store(true, Ordering::SeqCst);
         let err = cmd.exec();
         if let Some(hint) = recovery_hint_once(StayReason::AlreadyReexeced) {
-            eprintln!(
+            report_to_stderr(format_args!(
                 "anvil mcp serve: failed to re-exec {}: {err}. {hint}",
                 preferred.display()
-            );
+            ));
         } else {
-            eprintln!(
+            report_to_stderr(format_args!(
                 "anvil mcp serve: failed to re-exec {}: {err}",
                 preferred.display()
-            );
+            ));
         }
     }
     #[cfg(not(unix))]
@@ -462,21 +471,18 @@ mod tests {
     }
 
     #[test]
-    fn mcp_reexec_generation_bump_rechecks_preferred_and_reexecs_if_skewed() {
+    fn mcp_reexec_generation_bump_requires_reconnect_for_established_session() {
         let mut probe = skewed_probe();
         probe.gate = ReexecGate::AlreadyAttempted;
         probe.generation_bumped = true;
 
-        match decide(&probe) {
-            ReexecDecision::Reexec { preferred } => {
-                assert_eq!(preferred, PathBuf::from("/opt/homebrew/bin/anvil"));
+        assert_eq!(
+            decide(&probe),
+            ReexecDecision::Stay {
+                reason: StayReason::EstablishedSession,
+                skewed: true,
             }
-            stay @ ReexecDecision::Stay { .. } => {
-                panic!(
-                    "generation bump must re-check preferred and re-exec when skewed, got {stay:?}"
-                )
-            }
-        }
+        );
     }
 
     #[test]
@@ -497,6 +503,8 @@ mod tests {
     #[test]
     fn mcp_reexec_anti_loop_does_not_reexec_when_already_reexeced_and_skewed() {
         let mut probe = skewed_probe();
+        probe.method = None;
+        probe.check = CheckKind::Startup;
         probe.gate = ReexecGate::AlreadyAttempted;
 
         let decision = decide(&probe);
@@ -539,9 +547,11 @@ mod tests {
     }
 
     #[test]
-    fn mcp_reexec_between_message_gate_skips_mid_handler() {
+    fn mcp_reexec_generation_change_during_handler_never_reexecs() {
         let mut probe = skewed_probe();
         probe.phase = FramePhase::MidHandler;
+        probe.gate = ReexecGate::AlreadyAttempted;
+        probe.generation_bumped = true;
 
         let decision = decide(&probe);
 
@@ -558,27 +568,26 @@ mod tests {
     fn mcp_reexec_kill_switch_disables_reexec() {
         let mut probe = skewed_probe();
         probe.gate = ReexecGate::KillSwitch;
-
-        let decision = decide(&probe);
-
         assert_eq!(
-            decision,
+            decide(&probe),
             ReexecDecision::Stay {
-                reason: StayReason::KillSwitch,
+                reason: StayReason::EstablishedSession,
                 skewed: true,
-            }
+            },
+            "an established session must use reconnect-only guidance"
         );
     }
 
     #[test]
-    fn mcp_reexec_unix_reexecs_when_skewed_between_messages() {
+    fn mcp_reexec_established_session_stays_when_skewed_between_messages() {
         let probe = skewed_probe();
-        match decide(&probe) {
-            ReexecDecision::Reexec { preferred } => {
-                assert_eq!(preferred, PathBuf::from("/opt/homebrew/bin/anvil"));
+        assert_eq!(
+            decide(&probe),
+            ReexecDecision::Stay {
+                reason: StayReason::EstablishedSession,
+                skewed: true,
             }
-            stay @ ReexecDecision::Stay { .. } => panic!("expected re-exec, got {stay:?}"),
-        }
+        );
     }
 
     #[test]
@@ -586,18 +595,17 @@ mod tests {
         let mut probe = skewed_probe();
         probe.gate = ReexecGate::PlatformDemoted;
 
-        let decision = decide(&probe);
-
         assert_eq!(
-            decision,
+            decide(&probe),
             ReexecDecision::Stay {
-                reason: StayReason::PlatformDemoted,
+                reason: StayReason::EstablishedSession,
                 skewed: true,
-            }
+            },
+            "an established session must use reconnect-only guidance"
         );
-        let hint = StayReason::PlatformDemoted
+        let hint = StayReason::EstablishedSession
             .recovery_hint()
-            .expect("windows demotion must surface a recovery hint");
+            .expect("established session must surface a recovery hint");
         assert!(
             !hint.to_ascii_lowercase().contains("restart your editor"),
             "demotion hint must not lead with editor restart: {hint}"
@@ -612,6 +620,7 @@ mod tests {
             StayReason::PlatformDemoted,
             StayReason::PreferredUnresolved,
             StayReason::Pinned,
+            StayReason::EstablishedSession,
         ] {
             let hint = reason
                 .recovery_hint()
@@ -624,6 +633,10 @@ mod tests {
             assert!(
                 !lower.contains("restart your editor"),
                 "{reason:?} hint must not tell agents to restart the editor: {hint}"
+            );
+            assert!(
+                !lower.contains("retry a tool call"),
+                "{reason:?} hint must not invite request replay: {hint}"
             );
         }
     }
@@ -666,15 +679,51 @@ mod tests {
     }
 
     #[test]
-    fn mcp_reexec_checks_initialize_and_tools_list() {
+    fn mcp_reexec_checks_initialize_and_tools_list_without_replacing_session() {
         for method in ["initialize", "tools/list"] {
             let mut probe = skewed_probe();
             probe.method = Some(method.into());
-            assert!(
-                matches!(decide(&probe), ReexecDecision::Reexec { .. }),
-                "{method} must be a re-exec trigger"
+            assert_eq!(
+                decide(&probe),
+                ReexecDecision::Stay {
+                    reason: StayReason::EstablishedSession,
+                    skewed: true,
+                },
+                "{method} must preserve an established session"
             );
         }
+    }
+
+    #[test]
+    fn mcp_reexec_all_established_gates_require_reconnect() {
+        for gate in [
+            ReexecGate::Allowed,
+            ReexecGate::KillSwitch,
+            ReexecGate::AlreadyAttempted,
+            ReexecGate::PlatformDemoted,
+            ReexecGate::Pinned,
+        ] {
+            let mut probe = skewed_probe();
+            probe.gate = gate;
+            assert_eq!(
+                decide(&probe),
+                ReexecDecision::Stay {
+                    reason: StayReason::EstablishedSession,
+                    skewed: true,
+                },
+                "{gate:?} must not leak startup recovery into an established session"
+            );
+        }
+
+        let mut unresolved = skewed_probe();
+        unresolved.preferred = None;
+        assert_eq!(
+            decide(&unresolved),
+            ReexecDecision::Stay {
+                reason: StayReason::EstablishedSession,
+                skewed: true,
+            }
+        );
     }
 
     #[test]

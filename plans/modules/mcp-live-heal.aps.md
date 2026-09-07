@@ -7,34 +7,40 @@
 **Last reviewed:** 2026-08-17 — Ready wave MCPLH-001..006 and MCPLH-008
 **Released/Shipped** via `v0.9.5-beta` (`5c4b61a7`). MCPLH-007 remains
 Draft until soak evidence and is not that claim.
+
+**Contract amendment (2026-09-07):** [ADR-143](../decisions/143-established-mcp-session-continuity.md)
+supersedes the post-read re-exec parts of the original v1 design. Established
+sessions preserve requests and require a targeted MCP reconnect to change image.
+
 [`plans/specs/2026-08-09-mcp-live-heal-without-harness-restart.md`](../specs/2026-08-09-mcp-live-heal-without-harness-restart.md).
 Exclusive module (feature PRs may flip item `Status:` only; do not bump header
 `N/M` — ADR-053).
 
 ## Purpose
 
-Make multi-client MCP attach reliable after Anvil upgrades **without** requiring
-operators to restart long-lived agent sessions (Grok, Claude Code, Codex,
-Cursor, …).
+Make multi-client MCP attach reliable after anvil upgrades without losing
+accepted requests or requiring a full parent-harness restart.
 
-Live-heal targets the **MCP child** under the harness stdio pipe (re-exec into
-the preferred binary), bulk **config rewrite** to PATH-stable `anvil`, and
-**daemon recycle** when CLI and daemon diverge. Session restart remains a
-residual failure mode only.
+Live-heal uses startup re-exec before the first stdin read, bulk **config
+rewrite** to PATH-stable `anvil`, and **daemon recycle** when CLI and daemon
+diverge. An established MCP child remains usable on its current image and emits
+targeted reconnect guidance.
 
 ## Design authority
 
 | Document | Role |
 | -------- | ---- |
 | [`2026-08-09-mcp-live-heal-without-harness-restart.md`](../specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Accepted design contract for this module (re-exec, refresh cascade, process policy, non-goals) |
+| [ADR-143](../decisions/143-established-mcp-session-continuity.md) | Current established-session continuity contract; supersedes post-read re-exec |
 
-Open questions OQ-1..OQ-6 in that spec may be resolved in-item or via a thin ADR
-if re-exec becomes cross-cutting beyond CLI MCP.
+Open questions OQ-1..OQ-6 in the original spec remain historical unless
+ADR-143 resolves them.
 
 ## In scope
 
 - PATH-stable managed MCP install (never default to versioned Cellar/absolute)
-- Self-heal re-exec of `anvil mcp serve --stdio` between JSON-RPC messages
+- Startup self-heal re-exec before the first stdin read
+- Established-session skew checks with request-preserving reconnect guidance
 - `anvil mcp refresh` (or equivalent): bulk config rewrite, generation poke,
   inventory report
 - Daemon auto-recycle on version skew inside refresh/ensure paths
@@ -64,8 +70,9 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 ## Acceptance criteria (module)
 
 - [ ] Managed MCP installs write PATH `anvil` by default
-- [ ] Long-lived `mcp serve` re-execs to preferred binary without harness restart
-      (Unix v1; Windows demotes honestly if needed)
+- [ ] `mcp serve` may re-exec before its first stdin read; after that boundary,
+      it preserves request/reply identity, buffered input, protocol state, and
+      exactly-once handling while reporting targeted MCP reconnect guidance
 - [ ] One operator command rewrites owned configs, may recycle daemon, signals
       live children, and reports residual skew by parent
 - [ ] status/verify distinguishes config vs daemon vs MCP process vs graph
@@ -102,14 +109,14 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 ### MCPLH-002: Self-heal re-exec in `mcp serve`
 
 - **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
-- **Intent:** Long-lived MCP children recycle themselves to the preferred binary
-  under a live harness stdio pipe so agents need not restart sessions after
-  upgrade.
-- **Expected Outcome:** On `initialize`, `tools/list`, and `tools/call` entry
-  (between frames), detect skew vs preferred binary; `execve` preferred `anvil
-  mcp serve --stdio` at most once per process (anti-loop env); kill-switch
-  `ANVIL_MCP_NO_REEXEC=1`. Never re-exec mid-frame or mid-response. Unix first;
-  Windows demotes to honest skew reporting if re-exec is unsafe.
+- **Historical Outcome:** v0.9.5 attempted to recycle long-lived MCP children to
+  the preferred binary under a live harness stdio pipe.
+- **Current Correction (ADR-143 / JREL-001):** `execve` is safe only at
+  startup, before the first stdin read. On `initialize`, `tools/list`, and
+  `tools/call`, an established session detects skew but handles the consumed
+  request on its current image, preserves pipelined input and negotiated
+  protocol state, and emits one targeted reconnect instruction. The
+  `ANVIL_MCP_NO_REEXEC=1` kill-switch still governs startup replacement.
 - **Files:** `crates/anvil-cli/src/mcp/reexec.rs`,
   `crates/anvil-cli/src/commands/mcp.rs`,
   `crates/anvil-cli/tests/mcp_reexec.rs`,
@@ -229,8 +236,8 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
   `anvil doctor`) without operators memorising `mcp refresh`. Refresh stays
   the emergency verb. People who hate auto-updates can pin easily.
 - **Expected Outcome:** When configs, the CLI, or the daemon are stale, daily
-  paths rewrite owned MCP entries and poke live children. `anvil mcp pin`
-  / `ANVIL_MCP_PIN` freezes daily heal and in-process re-exec; `anvil mcp
+  paths rewrite owned MCP entries and signal live children to re-check. `anvil
+  mcp pin` / `ANVIL_MCP_PIN` freezes daily heal and startup re-exec; `anvil mcp
   unpin` or `ANVIL_MCP_PIN=0` resumes. First-time `NotPresent` install on
   `anvil start` still works while pinned. Emergency `mcp refresh` still
   runs when pinned and says so.
@@ -275,7 +282,7 @@ Large-repo graph progressive ready remains **out of module** (spec §12 / slice 
 
 | Risk | Mitigation |
 | ---- | ---------- |
-| Client drops pipe on re-exec | Between-message only; soak; supervisor fallback |
+| Post-read replacement loses accepted input | Established sessions never re-exec; MCPLH-007 owns any future supervisor |
 | Re-exec loop | Anti-loop env; version identity |
 | Mass-kill temptation | Policy ladder; CIB-242; tests forbid default kill |
 | Conflating graph not_ready with MCP skew | Split claims in MCPLH-005 |

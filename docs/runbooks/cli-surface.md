@@ -1215,10 +1215,12 @@ $ anvil mcp-config --target cursor --transport http --port 7616 --write
 **Purpose:** Manage and serve MCP integrations. **When to use:** `serve` is
 invoked by editors automatically as `anvil mcp serve --stdio`. `install` wires
 the MCP config for a supported client. Daily `anvil`, `anvil start`, and
-`anvil doctor` rewrite drifted owned entries and poke live children when the
-CLI, daemon, or configs are stale. `refresh` is the emergency cascade. `pin` /
-`unpin` freeze or resume that daily self-heal (`ANVIL_MCP_PIN` is the session
-override).
+`anvil doctor` rewrite drifted owned entries and signal live children to
+re-check when the CLI, daemon, or configs are stale. A serve process may re-exec
+before its first stdin read. After that boundary it preserves accepted and
+pipelined requests on the current image and emits one targeted MCP reconnect
+instruction if skew remains. `refresh` is the emergency cascade. `pin` / `unpin`
+freeze or resume daily self-heal (`ANVIL_MCP_PIN` is the session override).
 
 **When to use (`serve`):** To serve anvil's MCP tools over stdin/stdout. Editors
 launch this automatically as `anvil mcp serve --stdio`. `--stdio` is required.
@@ -1240,8 +1242,8 @@ auto-heal; unpin to resume.
 | --------------------------- | --------------------------------------------------------------- |
 | `install --client <client>` | Install Anvil MCP configuration for a client.                   |
 | `serve --stdio`             | Serve anvil MCP tools over stdin/stdout. `--stdio` is required. |
-| `refresh`                   | Emergency bulk rewrite, daemon recycle, and live poke.          |
-| `pin [version]`             | Freeze daily MCP self-heal and in-process recycle.              |
+| `refresh`                   | Emergency bulk rewrite, daemon recycle, and session signal.     |
+| `pin [version]`             | Freeze daily MCP self-heal and startup recycle.                 |
 | `unpin`                     | Resume daily MCP self-heal.                                     |
 
 **`refresh` flags:**

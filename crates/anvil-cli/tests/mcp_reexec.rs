@@ -1,11 +1,11 @@
-//! MCPLH-002: `anvil mcp serve --stdio` re-execs into the preferred binary
-//! between JSON-RPC messages. Unix proves the replacement image via
+//! MCPLH-002 / JREL-001: `anvil mcp serve --stdio` may re-exec before its
+//! first stdin read. An established session preserves accepted and pipelined
+//! requests on its current image and reports targeted reconnect guidance.
+//! Unix proves the startup replacement image via
 //! `/proc/<pid>/exe` when the platform exposes it.
 
 use std::io::{BufRead, BufReader, Read, Write};
-#[cfg(target_os = "linux")]
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
@@ -134,22 +134,9 @@ fn mcp_reexec_anti_loop_holds_when_generation_file_already_exists() {
 fn mcp_reexec_recovery_warning_is_once_per_condition_across_trigger_flow() {
     let (_dir, preferred) = copy_anvil_as_preferred();
     let preferred = preferred.to_str().expect("utf8 preferred");
-    let cases = [
-        (
-            "kill-switch",
-            "1",
-            "",
-            "Re-exec is disabled (ANVIL_MCP_NO_REEXEC).",
-        ),
-        (
-            "already-reexeced",
-            "",
-            "1",
-            "The session still runs a stale image.",
-        ),
-    ];
+    let cases = [("kill-switch", "1", ""), ("already-reexeced", "", "1")];
 
-    for (condition, no_reexec, reexeced, warning) in cases {
+    for (condition, no_reexec, reexeced) in cases {
         let mut child = spawn_serve(&[
             ("ANVIL_MCP_PREFERRED", preferred),
             ("ANVIL_MCP_NO_REEXEC", no_reexec),
@@ -172,9 +159,9 @@ fn mcp_reexec_recovery_warning_is_once_per_condition_across_trigger_flow() {
 
         let stderr = drain_lines(&stderr_rx);
         assert_eq!(
-            stderr.matches(warning).count(),
+            reconnect_instruction_count(&stderr),
             1,
-            "{condition} warning must remain visible but emit once across startup, initialize, and tools/list: {stderr}"
+            "{condition} must emit one reconnect instruction total across startup, initialize, and tools/list: {stderr}"
         );
     }
 }
@@ -217,11 +204,258 @@ fn mcp_reexec_failed_exec_recovery_warning_is_once_across_trigger_flow() {
         "failed re-exec must retain its cause details: {stderr}"
     );
     assert_eq!(
-        stderr
-            .matches("The session still runs a stale image.")
+        reconnect_instruction_count(&stderr),
+        1,
+        "failed re-exec must emit one reconnect instruction total across startup, initialize, and repeated tools/list: {stderr}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn established_session_preserves_pipelined_legacy_and_modern_requests_after_update() {
+    let (_preferred_dir, preferred, replacement) = swappable_preferred();
+    let home = tempfile::tempdir().expect("anvil home");
+    publish_generation(home.path(), 1);
+    let mut child = spawn_serve(&[
+        (
+            "ANVIL_MCP_PREFERRED",
+            preferred.to_str().expect("utf8 preferred"),
+        ),
+        ("ANVIL_HOME", home.path().to_str().expect("utf8 home")),
+        ("ANVIL_MCP_NO_REEXEC", ""),
+        ("ANVIL_MCP_REEXECED", ""),
+    ]);
+    let stdout = child.stdout.take().expect("stdout");
+    let stderr = child.stderr.take().expect("stderr");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    let stderr_rx = spawn_stdout_reader(stderr);
+
+    send_initialize(&mut child, &stdout_rx);
+    replace_preferred(&preferred, &replacement);
+    publish_generation(home.path(), 2);
+
+    let legacy = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {}
+    });
+    let modern = json!({
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/list",
+        "params": {
+            "_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {}
+            }
+        }
+    });
+    {
+        let stdin = child.stdin.as_mut().expect("stdin");
+        writeln!(stdin, "{legacy}").expect("pipeline legacy request");
+        writeln!(stdin, "{modern}").expect("pipeline modern request");
+        stdin.flush().expect("flush pipeline");
+    }
+
+    let legacy_response = recv_json_response(&mut child, &stdout_rx, "legacy");
+    let modern_response = recv_json_response(&mut child, &stdout_rx, "modern");
+    assert_eq!(legacy_response["id"], 2);
+    assert!(legacy_response["result"]["tools"].is_array());
+    for modern_field in ["resultType", "ttlMs", "cacheScope", "_meta"] {
+        assert!(
+            legacy_response["result"].get(modern_field).is_none(),
+            "legacy response must omit modern field {modern_field}: {legacy_response}"
+        );
+    }
+    assert_eq!(modern_response["id"], 3);
+    assert!(modern_response["result"]["tools"].is_array());
+    assert_eq!(modern_response["result"]["resultType"], "complete");
+    assert_eq!(
+        modern_response["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"],
+        "anvil"
+    );
+
+    drop(child.stdin.take());
+    assert!(wait_for_exit(&mut child).success());
+    let stderr = drain_lines(&stderr_rx);
+    assert_eq!(
+        reconnect_instruction_count(&stderr),
+        1,
+        "established session must require one explicit reconnect: {stderr}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn established_session_processes_mutation_once_when_replacement_is_missing() {
+    let workspace = tempfile::tempdir().expect("workspace");
+    let source = workspace.path().join("source.ts");
+    std::fs::write(&source, "const value: any = 1;\n").expect("write fixture");
+    let (_preferred_dir, preferred, _replacement) = swappable_preferred();
+    let mut child = spawn_serve_in(
+        workspace.path(),
+        &[
+            (
+                "ANVIL_MCP_PREFERRED",
+                preferred.to_str().expect("utf8 preferred"),
+            ),
+            ("ANVIL_DEV", "1"),
+            ("ANVIL_MCP_NO_REEXEC", ""),
+            ("ANVIL_MCP_REEXECED", ""),
+        ],
+    );
+    let stdout = child.stdout.take().expect("stdout");
+    let stderr = child.stderr.take().expect("stderr");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    let stderr_rx = spawn_stdout_reader(stderr);
+
+    send_initialize(&mut child, &stdout_rx);
+    std::fs::remove_file(&preferred).expect("remove initial preferred link");
+    send_suppress(&mut child, 2, workspace.path(), "JREL-001 continuity proof");
+    let response = recv_json_response(&mut child, &stdout_rx, "mutation");
+    assert_eq!(response["id"], 2);
+    assert_eq!(response["result"]["isError"], false, "{response}");
+
+    drop(child.stdin.take());
+    assert!(wait_for_exit(&mut child).success());
+    let on_disk = std::fs::read_to_string(&source).expect("read mutated fixture");
+    assert_eq!(
+        on_disk.matches("JREL-001 continuity proof").count(),
+        1,
+        "the accepted mutation must run exactly once: {on_disk}"
+    );
+    let stderr = drain_lines(&stderr_rx);
+    assert_eq!(
+        reconnect_instruction_count(&stderr),
+        1,
+        "failed replacement must leave one explicit reconnect instruction: {stderr}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn established_session_survives_closed_stderr_and_keeps_sequential_requests() {
+    let workspace = tempfile::tempdir().expect("workspace");
+    let source = workspace.path().join("source.ts");
+    std::fs::write(&source, "const value: any = 1;\n").expect("write fixture");
+    let (_preferred_dir, preferred, replacement) = swappable_preferred();
+    let mut child = spawn_serve_in(
+        workspace.path(),
+        &[
+            (
+                "ANVIL_MCP_PREFERRED",
+                preferred.to_str().expect("utf8 preferred"),
+            ),
+            ("ANVIL_DEV", "1"),
+        ],
+    );
+    let stdout = child.stdout.take().expect("stdout");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    let stderr = child.stderr.take().expect("stderr");
+
+    send_initialize(&mut child, &stdout_rx);
+    drop(stderr);
+    replace_preferred(&preferred, &replacement);
+    send_tools_list(&mut child, &stdout_rx);
+    send_suppress(
+        &mut child,
+        3,
+        workspace.path(),
+        "JREL-001 closed stderr continuity",
+    );
+    let response = recv_json_response(&mut child, &stdout_rx, "mutation");
+    assert_eq!(response["id"], 3);
+    assert_eq!(response["result"]["isError"], false, "{response}");
+
+    drop(child.stdin.take());
+    assert!(wait_for_exit(&mut child).success());
+    let on_disk = std::fs::read_to_string(&source).expect("read mutated fixture");
+    assert_eq!(
+        on_disk.matches("JREL-001 closed stderr continuity").count(),
+        1,
+        "the accepted mutation reason must occur exactly once: {on_disk}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn established_session_survives_saturated_stderr_and_keeps_pipelined_requests() {
+    use std::os::fd::OwnedFd;
+    use std::os::unix::net::UnixStream;
+
+    let workspace = tempfile::tempdir().expect("workspace");
+    let source = workspace.path().join("source.ts");
+    std::fs::write(&source, "const value: any = 1;\n").expect("write fixture");
+    let (_preferred_dir, preferred, replacement) = swappable_preferred();
+    let (child_stderr, blocked_reader) = UnixStream::pair().expect("stderr socket pair");
+    let mut saturator = child_stderr.try_clone().expect("clone child stderr");
+    let mut child = spawn_serve_in_with_stderr(
+        workspace.path(),
+        &[
+            (
+                "ANVIL_MCP_PREFERRED",
+                preferred.to_str().expect("utf8 preferred"),
+            ),
+            ("ANVIL_DEV", "1"),
+        ],
+        Stdio::from(OwnedFd::from(child_stderr)),
+    );
+    let stdout = child.stdout.take().expect("stdout");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    send_initialize(&mut child, &stdout_rx);
+    saturator
+        .set_nonblocking(true)
+        .expect("nonblocking stderr filler");
+    let block = [b'x'; 16 * 1024];
+    loop {
+        match saturator.write(&block) {
+            Ok(_) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => break,
+            Err(err) => panic!("saturate stderr: {err}"),
+        }
+    }
+    // UnixStream clones share their file status flags. Restore blocking mode
+    // after filling the shared socket so the child's inherited stderr really
+    // exercises a blocking diagnostic write.
+    saturator
+        .set_nonblocking(false)
+        .expect("restore blocking stderr");
+    replace_preferred(&preferred, &replacement);
+
+    let list = json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {}
+    });
+    let suppress = suppress_request(3, workspace.path(), "JREL-001 saturated stderr continuity");
+    {
+        let stdin = child.stdin.as_mut().expect("stdin");
+        writeln!(stdin, "{list}").expect("pipeline tools/list");
+        writeln!(stdin, "{suppress}").expect("pipeline mutation");
+        stdin.flush().expect("flush pipeline");
+    }
+
+    let list_response = recv_json_response(&mut child, &stdout_rx, "tools/list");
+    let mutation_response = recv_json_response(&mut child, &stdout_rx, "mutation");
+    assert_eq!(list_response["id"], 2);
+    assert!(list_response["result"]["tools"].is_array());
+    assert_eq!(mutation_response["id"], 3);
+    assert_eq!(mutation_response["result"]["isError"], false);
+
+    drop(child.stdin.take());
+    assert!(wait_for_exit(&mut child).success());
+    drop(saturator);
+    drop(blocked_reader);
+    let on_disk = std::fs::read_to_string(&source).expect("read mutated fixture");
+    assert_eq!(
+        on_disk
+            .matches("JREL-001 saturated stderr continuity")
             .count(),
         1,
-        "failed re-exec recovery warning must emit once across startup, initialize, and repeated tools/list: {stderr}"
+        "the accepted mutation reason must occur exactly once: {on_disk}"
     );
 }
 
@@ -239,15 +473,58 @@ fn copy_anvil_as_preferred() -> (tempfile::TempDir, PathBuf) {
     (dir, dest)
 }
 
+#[cfg(unix)]
+fn swappable_preferred() -> (tempfile::TempDir, PathBuf, PathBuf) {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    let dir = tempfile::tempdir().expect("preferred parent");
+    let preferred = dir.path().join("anvil");
+    symlink(ANVIL_BIN, &preferred).expect("link initial preferred");
+    let replacement = dir.path().join("anvil-replacement");
+    std::fs::copy(ANVIL_BIN, &replacement).expect("copy replacement");
+    let mut permissions = std::fs::metadata(&replacement)
+        .expect("replacement metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&replacement, permissions).expect("chmod replacement");
+    (dir, preferred, replacement)
+}
+
+#[cfg(unix)]
+fn replace_preferred(preferred: &Path, replacement: &Path) {
+    use std::os::unix::fs::symlink;
+
+    let next = preferred.with_extension("next");
+    symlink(replacement, &next).expect("link replacement preferred");
+    std::fs::rename(next, preferred).expect("publish preferred update");
+}
+
+fn publish_generation(home: &Path, generation: u64) {
+    std::fs::write(
+        home.join("mcp-refresh.generation"),
+        format!("{generation}\n"),
+    )
+    .expect("publish update generation");
+}
+
 fn spawn_serve(env: &[(&str, &str)]) -> Child {
+    spawn_serve_in(Path::new("."), env)
+}
+
+fn spawn_serve_in(cwd: &Path, env: &[(&str, &str)]) -> Child {
+    spawn_serve_in_with_stderr(cwd, env, Stdio::piped())
+}
+
+fn spawn_serve_in_with_stderr(cwd: &Path, env: &[(&str, &str)], stderr: Stdio) -> Child {
     let mut cmd = Command::new(ANVIL_BIN);
-    cmd.arg("--no-tui")
+    cmd.current_dir(cwd)
+        .arg("--no-tui")
         .arg("mcp")
         .arg("serve")
         .arg("--stdio")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(stderr);
     for (key, value) in env {
         if value.is_empty() {
             cmd.env_remove(key);
@@ -256,6 +533,47 @@ fn spawn_serve(env: &[(&str, &str)]) -> Child {
         }
     }
     cmd.spawn().expect("spawn anvil mcp serve --stdio")
+}
+
+fn suppress_request(id: u64, workspace: &Path, reason: &str) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": "tools/call",
+        "params": {
+            "name": "anvil_suppress",
+            "arguments": {
+                "workspaceRoot": workspace,
+                "filePath": "source.ts",
+                "warningId": "AP-003",
+                "line": 1,
+                "reason": reason
+            }
+        }
+    })
+}
+
+fn send_suppress(child: &mut Child, id: u64, workspace: &Path, reason: &str) {
+    let request = suppress_request(id, workspace, reason);
+    let stdin = child.stdin.as_mut().expect("stdin");
+    writeln!(stdin, "{request}").expect("send mutating request");
+}
+
+fn recv_json_response(
+    child: &mut Child,
+    rx: &Receiver<std::io::Result<String>>,
+    label: &str,
+) -> Value {
+    let line = recv_stdout_line(child, rx);
+    serde_json::from_str(line.trim())
+        .unwrap_or_else(|err| panic!("{label} response must be JSON-RPC JSON, got {line:?}: {err}"))
+}
+
+fn reconnect_instruction_count(stderr: &str) -> usize {
+    stderr
+        .to_ascii_lowercase()
+        .matches("reconnect mcp for this client")
+        .count()
 }
 
 fn send_initialize(child: &mut Child, rx: &Receiver<std::io::Result<String>>) {

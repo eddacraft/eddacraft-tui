@@ -18,6 +18,11 @@ engineering maintenance are recorded in the
   `anvil/policy.*` is `partial`, matching the silent no-op both L4 entry points
   take when no policy exists.
 
+- **MCP updates no longer discard an accepted request.** A skewed MCP process
+  may replace itself before its first stdin read. Once a session is established,
+  it completes accepted and pipelined requests on the current image and asks for
+  a targeted MCP reconnect to use the preferred binary.
+
 - **Protection status now proves a client is actually attached.**
   `anvil mcp serve` registers a live session with the intercept daemon,
   identified from the editor's own MCP handshake. Live pre-write status is

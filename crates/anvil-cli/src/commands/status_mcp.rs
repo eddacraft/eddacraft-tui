@@ -264,9 +264,7 @@ pub(crate) fn render_mcp_skew_guidance(
             group.command, group.skewed_children
         );
     }
-    out.push_str(
-        "    Reconnect MCP for this client, or retry a tool call after: anvil mcp refresh\n",
-    );
+    out.push_str("    Reconnect MCP for this client to load the preferred anvil image.\n");
     out
 }
 
@@ -629,13 +627,16 @@ mod tests {
             "skewed fixture must group by parent: {rendered}"
         );
         assert!(
-            rendered.contains("anvil mcp refresh") || rendered.contains("Reconnect MCP"),
-            "guidance must offer per-parent reconnect or refresh, got: {rendered}"
+            rendered.contains("Reconnect MCP for this client"),
+            "guidance must require a per-client reconnect, got: {rendered}"
+        );
+        let lower = rendered.to_ascii_lowercase();
+        assert!(
+            !lower.contains("retry") && !lower.contains("anvil mcp refresh"),
+            "established-session guidance must not invite replay or imply refresh can replace the accepted image: {rendered}"
         );
         assert!(
-            !rendered
-                .to_ascii_lowercase()
-                .contains("restart all your agents"),
+            !lower.contains("restart all your agents"),
             "must not lead with mass session restart: {rendered}"
         );
 

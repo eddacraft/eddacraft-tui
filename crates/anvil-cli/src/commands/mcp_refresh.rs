@@ -650,8 +650,8 @@ fn emit_report(report: &RefreshReport, json_mode: bool) -> Result<()> {
     }
     if report.processes.skewed > 0 {
         println!(
-            "Anvil tried to recycle MCP in place. Reconnect MCP only for a parent \
-             that still runs a stale image after the next tool call."
+            "Live MCP sessions preserve accepted and pipelined requests on their current image. \
+             Reconnect MCP for each parent that remains stale after its next tool call."
         );
     }
     Ok(())

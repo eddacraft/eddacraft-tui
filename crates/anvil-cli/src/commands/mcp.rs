@@ -31,9 +31,9 @@ enum McpCommand {
     Install(McpInstallArgs),
     /// Serve anvil MCP tools over stdin/stdout for editor and agent clients.
     Serve(McpServeArgs),
-    /// Rewrite owned MCP configs, recycle a skewed daemon, and poke live heal.
+    /// Rewrite owned MCP configs, recycle a skewed daemon, and signal live sessions.
     Refresh(super::mcp_refresh::McpRefreshArgs),
-    /// Freeze daily MCP self-heal and in-process recycle.
+    /// Freeze daily MCP self-heal and startup recycle.
     Pin(McpPinArgs),
     /// Resume daily MCP self-heal.
     Unpin,
@@ -349,9 +349,6 @@ fn run_stdio_server() -> Result<()> {
             continue;
         };
 
-        // Between complete frames only — never after partial JSON-RPC stdout.
-        crate::mcp::reexec::maybe_reexec_between_messages(&message);
-
         // JREL-002 / ADR-141: register this client as attached once the
         // handshake tells us who it is. Done before dispatch so the very
         // first tool call is already covered by live evidence, and only
@@ -370,6 +367,10 @@ fn run_stdio_server() -> Result<()> {
         if let Some(response) = handle_message(&message) {
             write_message(&mut stdout, &response)?;
         }
+
+        // The accepted frame and any reply now belong to this process. Re-check
+        // skew only after dispatch so diagnostics cannot pre-empt the request.
+        crate::mcp::reexec::check_established_session(&message);
 
         if protocol::dispatch::is_exit_notification(&message) {
             break;
