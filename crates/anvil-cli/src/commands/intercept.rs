@@ -2187,6 +2187,7 @@ mod tests {
                 cascaded: false,
                 cascade_since: None,
                 save_time_driver: SaveTimeDriverStatusV1::Attached,
+                save_time_driver_evidence: None,
             },
             WorktreeStatusV1 {
                 worktree: std::path::PathBuf::from("/tmp/failed"),
@@ -2195,6 +2196,7 @@ mod tests {
                 cascaded: false,
                 cascade_since: None,
                 save_time_driver: SaveTimeDriverStatusV1::Failed,
+                save_time_driver_evidence: None,
             },
             WorktreeStatusV1 {
                 worktree: std::path::PathBuf::from("/tmp/absent"),
@@ -2203,6 +2205,7 @@ mod tests {
                 cascaded: false,
                 cascade_since: None,
                 save_time_driver: SaveTimeDriverStatusV1::Absent,
+                save_time_driver_evidence: None,
             },
         ];
 
@@ -2224,6 +2227,7 @@ mod tests {
                 cascaded: false,
                 cascade_since: None,
                 save_time_driver: SaveTimeDriverStatusV1::Failed,
+                save_time_driver_evidence: None,
             },
             WorktreeStatusV1 {
                 worktree: std::path::PathBuf::from("/tmp/wt"),
@@ -2232,6 +2236,7 @@ mod tests {
                 cascaded: false,
                 cascade_since: None,
                 save_time_driver: SaveTimeDriverStatusV1::Attached,
+                save_time_driver_evidence: None,
             },
         ];
 

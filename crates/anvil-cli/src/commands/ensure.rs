@@ -227,7 +227,21 @@ fn format_daemon_outcome(
     crate::commands::daemon_recycle::format_save_time_daemon_outcome(outcome)
 }
 
-fn format_worktree_registration(outcome: WorktreeRegistration) -> String {
+/// JREL-003: the `worktree:` line. The membership wording is unchanged; when
+/// membership succeeded but the daemon reported the save-time driver failed,
+/// the line says so rather than letting a refreshed membership pass as
+/// coverage.
+fn format_worktree_registration(report: registration::WorktreeRegistrationReport) -> String {
+    let driver_failed = report.driver_failed();
+    let line = format_worktree_membership(report.registration);
+    if driver_failed {
+        format!("{line}; save-time driver failed — inspect `anvil intercept status`")
+    } else {
+        line
+    }
+}
+
+fn format_worktree_membership(outcome: WorktreeRegistration) -> String {
     match outcome {
         WorktreeRegistration::Registered => {
             "worktree: registered with the save-time daemon".to_string()

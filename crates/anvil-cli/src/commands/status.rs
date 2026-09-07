@@ -3210,6 +3210,7 @@ mod tests {
                 cascaded: false,
                 cascade_since: None,
                 save_time_driver: SaveTimeDriverStatusV1::Absent,
+                save_time_driver_evidence: None,
             }],
             fences: if fenced {
                 vec![FenceStateV1 {
@@ -3277,6 +3278,7 @@ mod tests {
                 cascaded: false,
                 cascade_since: None,
                 save_time_driver: SaveTimeDriverStatusV1::Absent,
+                save_time_driver_evidence: None,
             },
             WorktreeStatusV1 {
                 worktree: wt_b.to_path_buf(),
@@ -3285,6 +3287,7 @@ mod tests {
                 cascaded: false,
                 cascade_since: None,
                 save_time_driver: SaveTimeDriverStatusV1::Absent,
+                save_time_driver_evidence: None,
             },
         ];
 
@@ -3352,6 +3355,7 @@ mod tests {
             cascaded: false,
             cascade_since: None,
             save_time_driver: drv,
+            save_time_driver_evidence: None,
         };
         snapshot.worktrees = vec![
             entry(attached, "da", SaveTimeDriverStatusV1::Attached),

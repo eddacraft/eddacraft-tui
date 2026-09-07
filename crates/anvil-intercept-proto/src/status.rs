@@ -185,6 +185,35 @@ pub enum SaveTimeDriverStatusV1 {
     Unknown,
 }
 
+/// JREL-003: how much readiness evidence the daemon holds for an
+/// [`SaveTimeDriverStatusV1::Attached`] driver. Ordered weakest to
+/// strongest: a live PID only proves the child was spawned; the child
+/// itself reports when its watches are installed and each time it
+/// processes a save batch. Wire-additive and optional — a pre-JREL-003
+/// daemon omits it, and it is never emitted for a driver that is not
+/// attached.
+///
+/// `#[serde(other)] Unknown` mirrors [`SaveTimeDriverStatusV1::Unknown`]:
+/// a newer daemon's evidence tag deserialises to `Unknown` rather than
+/// failing the snapshot parse. Consumers treat `Unknown` as no stronger
+/// than `Spawned`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SaveTimeDriverEvidenceV1 {
+    /// The child was spawned and its PID is alive; it has not yet reported
+    /// that its watches are installed (initial scan still running).
+    Spawned,
+    /// The child completed its initial scan and installed its file watches.
+    WatchesInstalled,
+    /// The child processed a save batch recently (within the daemon's
+    /// fresh-activity window) — the strongest live evidence available.
+    FreshActivity,
+    /// Forward-compat catch-all for an evidence tag this consumer does not
+    /// recognise. Treated as [`Self::Spawned`] for every decision.
+    #[serde(other)]
+    Unknown,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorktreeStatusV1 {
     pub worktree: PathBuf,
@@ -209,6 +238,12 @@ pub struct WorktreeStatusV1 {
     /// attachment evidence).
     #[serde(default)]
     pub save_time_driver: SaveTimeDriverStatusV1,
+    /// JREL-003: readiness evidence for an attached driver. Only emitted
+    /// when `save_time_driver` is `attached`; absent otherwise and on a
+    /// pre-JREL-003 daemon (`#[serde(default)]` reads the missing key as
+    /// `None`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub save_time_driver_evidence: Option<SaveTimeDriverEvidenceV1>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -597,7 +632,57 @@ mod tests {
             cascaded: false,
             cascade_since: None,
             save_time_driver,
+            save_time_driver_evidence: None,
         }
+    }
+
+    /// JREL-003: evidence tags round-trip as kebab-case, an absent key reads
+    /// as `None`, and a tag from a newer daemon lands on `Unknown`.
+    #[test]
+    fn save_time_driver_evidence_is_optional_and_forward_compatible() {
+        for (state, tag) in [
+            (SaveTimeDriverEvidenceV1::Spawned, "spawned"),
+            (
+                SaveTimeDriverEvidenceV1::WatchesInstalled,
+                "watches-installed",
+            ),
+            (SaveTimeDriverEvidenceV1::FreshActivity, "fresh-activity"),
+        ] {
+            let mut wt = worktree_status(SaveTimeDriverStatusV1::Attached);
+            wt.save_time_driver_evidence = Some(state);
+            let json = serde_json::to_value(&wt).expect("serialise");
+            assert_eq!(json["save_time_driver_evidence"], tag);
+            let back: WorktreeStatusV1 = serde_json::from_value(json).expect("deserialise");
+            assert_eq!(back.save_time_driver_evidence, Some(state));
+        }
+
+        let without = worktree_status(SaveTimeDriverStatusV1::Attached);
+        let json = serde_json::to_value(&without).expect("serialise");
+        assert!(
+            json.get("save_time_driver_evidence").is_none(),
+            "no evidence ⇒ key omitted (wire-additive): {json}"
+        );
+        let legacy: WorktreeStatusV1 = serde_json::from_value(serde_json::json!({
+            "worktree": "/tmp/wt-jrel003",
+            "session_id": "sess-jrel003",
+            "fenced": false,
+            "save_time_driver": "attached",
+        }))
+        .expect("pre-JREL-003 snapshot parses");
+        assert_eq!(legacy.save_time_driver_evidence, None);
+
+        let newer: WorktreeStatusV1 = serde_json::from_value(serde_json::json!({
+            "worktree": "/tmp/wt-jrel003",
+            "session_id": "sess-jrel003",
+            "fenced": false,
+            "save_time_driver": "attached",
+            "save_time_driver_evidence": "telemetry-confirmed",
+        }))
+        .expect("newer evidence tag must not fail the parse");
+        assert_eq!(
+            newer.save_time_driver_evidence,
+            Some(SaveTimeDriverEvidenceV1::Unknown)
+        );
     }
 
     /// DSV-049: the three producer-emitted driver states wire as their

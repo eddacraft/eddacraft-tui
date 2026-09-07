@@ -186,6 +186,7 @@ fn worktree_status(session: &SessionRecord, fenced: bool) -> WorktreeStatusV1 {
         cascaded: false,
         cascade_since: None,
         save_time_driver: anvil_intercept_proto::status::SaveTimeDriverStatusV1::Absent,
+        save_time_driver_evidence: None,
     }
 }
 

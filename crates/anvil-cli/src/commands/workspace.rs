@@ -153,7 +153,9 @@ fn run_register(args: &RegisterArgs, json_mode: bool) -> Result<()> {
     // session-id keying consistent across surfaces.
     match registration::registerable_worktree(&target) {
         Ok(root) => {
-            let outcome = registration::register_worktree_with_daemon(&root);
+            let report = registration::register_worktree_with_daemon(&root);
+            let driver_failed = report.driver_failed();
+            let outcome = report.registration;
             if json_mode {
                 let (label, detail) = registration_fields(&outcome);
                 let persisted = if args.persist {
@@ -170,6 +172,15 @@ fn run_register(args: &RegisterArgs, json_mode: bool) -> Result<()> {
                 return Ok(());
             }
             report_registration(&root, outcome);
+            if driver_failed {
+                // JREL-003: membership succeeded but the daemon reported the
+                // supervised driver failed — say so; the membership line alone
+                // would read as coverage.
+                println!(
+                    "Save-time driver failed for {} — inspect `anvil intercept status`.",
+                    root.display()
+                );
+            }
             // ACTMO-019: `--persist` records the worktree in `register_on_start`
             // independent of the live outcome — it captures the *intent* to
             // protect this worktree on every startup (e.g. the daemon may be
@@ -791,7 +802,7 @@ fn run_register_all(persist: bool, json_mode: bool) -> Result<()> {
                 continue;
             }
         };
-        match registration::register_worktree_with_daemon(&root) {
+        match registration::register_worktree_with_daemon(&root).registration {
             WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {
                 registered += 1;
                 persist_roots.push(root);

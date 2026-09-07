@@ -495,6 +495,13 @@ pub enum MembershipChange {
     /// A worktree left the durable set because the reaper found its directory
     /// gone (e.g. `git worktree remove`).
     Reaped,
+    /// JREL-003: an existing durable session was heartbeated — the public
+    /// re-run path (`anvil`, `anvil start`, `anvil workspace register`)
+    /// after the daemon refused a duplicate `session.register`. Membership
+    /// did not change; the consumer treats it as "ensure the driver for
+    /// this worktree is live" so a dead child is restored without a fresh
+    /// membership gain. Live (non-durable) heartbeats never produce it.
+    Refreshed,
 }
 
 /// ACTMO-014: callback fired with a [`MembershipChange`] and the canonical
@@ -1319,8 +1326,21 @@ impl SessionRegistry {
     /// [`RegistryError::UnknownSession`] if the id is not registered
     /// (or has already been evicted).
     pub fn heartbeat(&self, id: &SessionId, now: Instant) -> Result<(), RegistryError> {
-        let mut inner = self.lock();
-        Self::heartbeat_locked(&mut inner, id, now)
+        let refreshed = {
+            let mut inner = self.lock();
+            Self::heartbeat_locked(&mut inner, id, now)?
+        };
+        self.signal_refreshed(refreshed.as_deref());
+        Ok(())
+    }
+
+    /// JREL-003: fire [`MembershipChange::Refreshed`] for a durable
+    /// heartbeat, outside the registry lock like every other membership
+    /// signal. `None` (a live lease, or no hook) is a no-op.
+    fn signal_refreshed(&self, durable_worktree: Option<&Path>) {
+        if let Some(worktree) = durable_worktree {
+            self.signal_membership(MembershipChange::Refreshed, worktree);
+        }
     }
 
     /// Heartbeat mutation applied to an already-locked guard. Factored
@@ -1328,18 +1348,22 @@ impl SessionRegistry {
     /// peer-ownership check ([`Self::peer_ownership_check`]) and this
     /// mutation under a single lock (Copilot PR #3188 TOCTOU fix),
     /// while the lock-free public [`Self::heartbeat`] keeps its shape.
+    ///
+    /// Returns the canonical worktree when the heartbeated session is a
+    /// durable member, so the caller can signal
+    /// [`MembershipChange::Refreshed`] once the lock is released.
     fn heartbeat_locked(
         inner: &mut Inner,
         id: &SessionId,
         now: Instant,
-    ) -> Result<(), RegistryError> {
+    ) -> Result<Option<PathBuf>, RegistryError> {
         let entry = inner
             .sessions
             .get_mut(id)
             .ok_or_else(|| RegistryError::UnknownSession(id.clone()))?;
         entry.last_heartbeat = now;
         entry.record.last_heartbeat_unix = unix_seconds_now();
-        Ok(())
+        Ok(entry.durable.then(|| entry.record.worktree.clone()))
     }
 
     /// Look up the record owning a worktree, if any. The caller is
@@ -1990,9 +2014,15 @@ impl SessionDispatcher for SessionRegistry {
         // cannot be evicted and re-registered between them (mirrors
         // `update_lineage_anchor`'s all-checks-before-mutation, single-lock
         // pattern).
-        let mut inner = self.lock();
-        SessionRegistry::peer_ownership_check(inner.sessions.get(id), id, peer_pid)?;
-        SessionRegistry::heartbeat_locked(&mut inner, id, Instant::now())
+        let refreshed = {
+            let mut inner = self.lock();
+            SessionRegistry::peer_ownership_check(inner.sessions.get(id), id, peer_pid)?;
+            SessionRegistry::heartbeat_locked(&mut inner, id, Instant::now())?
+        };
+        // JREL-003: signalled after the guard is dropped — the hook must
+        // never run under the registry lock.
+        self.signal_refreshed(refreshed.as_deref());
+        Ok(())
     }
 
     fn unregister(&self, id: &SessionId, peer_pid: Option<u32>) -> Result<bool, RegistryError> {
@@ -2708,6 +2738,81 @@ mod tests {
                 MembershipChange::Reaped,
             ],
         );
+    }
+
+    /// JREL-003: a heartbeat against a durable session fires `Refreshed`
+    /// with the canonical worktree — on both the public `heartbeat` and the
+    /// IPC `SessionDispatcher::heartbeat` path — while a live-lease
+    /// heartbeat never touches the membership hook.
+    #[test]
+    fn membership_hook_fires_refreshed_only_for_durable_heartbeats() {
+        let registry = SessionRegistry::new();
+        let events: Arc<Mutex<Vec<(MembershipChange, PathBuf)>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        assert!(registry.set_membership_hook(Arc::new(move |change, wt| {
+            sink.lock().unwrap().push((change, wt.to_path_buf()));
+        })));
+
+        let durable = make_worktree();
+        let live = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&sid("durable"), durable.path(), Some(&spine_tag()), now)
+            .expect("durable");
+        registry
+            .register(
+                &sid("live"),
+                live.path(),
+                Some(&tag("claude-code", "agent-1", 1_700_000_000)),
+                now,
+            )
+            .expect("live");
+        let canonical = std::fs::canonicalize(durable.path()).expect("canonicalise");
+
+        registry
+            .heartbeat(&sid("durable"), now)
+            .expect("public heartbeat");
+        SessionDispatcher::heartbeat(&registry, &sid("durable"), None)
+            .expect("dispatcher heartbeat");
+        registry
+            .heartbeat(&sid("live"), now)
+            .expect("live heartbeat");
+        SessionDispatcher::heartbeat(&registry, &sid("live"), None).expect("live dispatcher");
+
+        let seen = events.lock().unwrap().clone();
+        assert_eq!(
+            seen,
+            vec![
+                (MembershipChange::Registered, canonical.clone()),
+                (MembershipChange::Refreshed, canonical.clone()),
+                (MembershipChange::Refreshed, canonical),
+            ],
+            "durable heartbeats refresh; live heartbeats are silent"
+        );
+    }
+
+    /// JREL-003: the `Refreshed` signal fires outside the registry lock —
+    /// a hook that re-enters the registry must not deadlock.
+    #[test]
+    fn refreshed_signal_fires_outside_the_registry_lock() {
+        let registry = Arc::new(SessionRegistry::new());
+        let probe = Arc::clone(&registry);
+        let reentered = Arc::new(Mutex::new(false));
+        let flag = Arc::clone(&reentered);
+        assert!(registry.set_membership_hook(Arc::new(move |change, _wt| {
+            if change == MembershipChange::Refreshed {
+                // Re-enter: a lock held across the signal would deadlock here.
+                let _ = probe.active_sessions();
+                *flag.lock().unwrap() = true;
+            }
+        })));
+        let wt = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&sid("d"), wt.path(), Some(&spine_tag()), now)
+            .expect("register");
+        registry.heartbeat(&sid("d"), now).expect("heartbeat");
+        assert!(*reentered.lock().unwrap(), "hook observed the refresh");
     }
 
     /// `pid` / `pgid` / `started_at_unix` update; supplying `None` does

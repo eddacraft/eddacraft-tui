@@ -1310,7 +1310,10 @@ fn run_with_home_and_policy<'a>(
         root,
         home,
         global,
-        registration::register_worktree_with_daemon,
+        // JREL-003: the primitive also restores and waits for the save-time
+        // driver; the activation diagnostic that follows reads its evidence
+        // from the daemon, so only the membership outcome is consumed here.
+        |root| registration::register_worktree_with_daemon(root).registration,
         mcp_install_policy,
         enabled,
         render_mode,

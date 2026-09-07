@@ -7,7 +7,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use anvil_intercept_proto::SessionRecord;
 use anvil_intercept_proto::status::{
     DaemonStatusV1, FenceStateV1, HealthStateV1, IpcStateV1, LatencyMidEditMapV1,
-    SaveTimeDriverStatusV1, WorktreeStatusV1,
+    SaveTimeDriverEvidenceV1, SaveTimeDriverStatusV1, WorktreeStatusV1,
 };
 use anvil_kernel_types::protection_claim::{
     ProtectionClaim, SurfaceClaim, SurfaceClaimState, WorktreeClaimState,
@@ -115,6 +115,11 @@ pub struct WorktreeStatus {
     /// [`anvil_intercept_proto::status::SaveTimeDriverStatusV1`] on the
     /// wire.
     pub save_time_driver: SaveTimeDriverState,
+    /// JREL-003: readiness evidence for an [`SaveTimeDriverState::Attached`]
+    /// driver, overlaid from the supervisor alongside `save_time_driver`.
+    /// `None` unless attached. Maps to
+    /// [`anvil_intercept_proto::status::SaveTimeDriverEvidenceV1`].
+    pub save_time_driver_evidence: Option<crate::save_time_driver::DriverEvidence>,
 }
 
 /// DSV-049: daemon-side mirror of
@@ -183,6 +188,18 @@ impl DaemonStatus {
                         SaveTimeDriverState::Absent => SaveTimeDriverStatusV1::Absent,
                         SaveTimeDriverState::Failed => SaveTimeDriverStatusV1::Failed,
                     },
+                    save_time_driver_evidence: w.save_time_driver_evidence.map(|evidence| {
+                        use crate::save_time_driver::DriverEvidence;
+                        match evidence {
+                            DriverEvidence::Spawned => SaveTimeDriverEvidenceV1::Spawned,
+                            DriverEvidence::WatchesInstalled => {
+                                SaveTimeDriverEvidenceV1::WatchesInstalled
+                            }
+                            DriverEvidence::FreshActivity => {
+                                SaveTimeDriverEvidenceV1::FreshActivity
+                            }
+                        }
+                    }),
                 })
                 .collect(),
             fences: self
@@ -297,6 +314,7 @@ pub fn build_status(
                 // `DaemonStatusProvider::query_status` post-build (the
                 // same post-hoc pattern as `status.telemetry`).
                 save_time_driver: SaveTimeDriverState::Absent,
+                save_time_driver_evidence: None,
             }
         })
         .collect();
@@ -528,14 +546,19 @@ impl StatusProvider for DaemonStatusProvider {
             let snapshot = supervisor.status_snapshot();
             for worktree in &mut status.worktrees {
                 if let Some(driver) = snapshot.get(&worktree.worktree) {
-                    worktree.save_time_driver = match driver {
-                        crate::save_time_driver::DriverStatus::Attached { .. } => {
-                            SaveTimeDriverState::Attached
+                    // JREL-003: the evidence rides alongside the state so a
+                    // consumer can tell a freshly spawned child from one
+                    // whose watches are installed or that just served a save.
+                    let (state, evidence) = match driver {
+                        crate::save_time_driver::DriverStatus::Attached { evidence, .. } => {
+                            (SaveTimeDriverState::Attached, Some(*evidence))
                         }
                         crate::save_time_driver::DriverStatus::Failed => {
-                            SaveTimeDriverState::Failed
+                            (SaveTimeDriverState::Failed, None)
                         }
                     };
+                    worktree.save_time_driver = state;
+                    worktree.save_time_driver_evidence = evidence;
                 }
             }
         }

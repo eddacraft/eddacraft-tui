@@ -1,8 +1,8 @@
 # Save-Time Background Driver — Operator Runbook
 
-| Type    | Authority     | Owner | Status | Freshness                                                               |
-| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------- |
-| Runbook | Authoritative | DSV   | Live   | Filed 2026-07-06 for DSV-051 against ADR-101 and `anvil start --no-mcp` |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                      |
+| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | DSV   | Live   | Last reviewed 2026-09-07 for JREL-003: refresh-driven recovery of a dead driver through the daily command, the bounded respawn policy, and the `<stem>.ready` marker / `save_time_driver_evidence` readiness contract. Filed 2026-07-06 for DSV-051 against ADR-101 and `anvil start --no-mcp` |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                              | Downstream                                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -73,6 +73,17 @@ the canonical path hash:
 - `<stem>.pid` — driver PID and PID start-time discriminator.
 - `<stem>.log` — findings rendered by the driver child.
 - `<stem>.spawn.log` — child stdout/stderr crash capture; not used for findings.
+- `<stem>.ready` — readiness marker written by the child: `watching` once the
+  initial scan completed and the file watches are installed, then `activity`
+  each time a save batch obtained a daemon verdict. The daemon reads it on every
+  status probe and removes it before each spawn, so it never carries a previous
+  child's evidence.
+
+`anvil intercept status --json` reports the marker as
+`save_time_driver_evidence` beside `save_time_driver: "attached"`: `spawned`
+(live PID only, initial scan still running), `watches-installed`, or
+`fresh-activity` (a verdict within the last 60 seconds). The key is omitted
+unless the driver is attached.
 
 The findings log is capped by the driver. A growing `<stem>.log` with recent
 findings is expected; growing `<stem>.spawn.log` usually means the child failed
@@ -109,10 +120,33 @@ anvil intercept status
 ```
 
 Expected result: durable registrations reload and drivers reattach with fresh
-PID records. The daemon does not auto-respawn a driver that dies while the
-daemon is still running; killing a child directly should degrade the worktree to
-`save_time_driver: "failed"` until the daemon is restarted or the worktree is
-registered again.
+PID records.
+
+The daemon never respawns a driver on its own. Killing a child directly degrades
+the worktree to `save_time_driver: "failed"`; the daily command restores it
+without touching the durable registration:
+
+```bash
+anvil            # or: anvil start / anvil workspace register <worktree>
+anvil intercept status --json
+```
+
+Re-running any of these heartbeats the existing membership
+(`worktree: registration refreshed`), and that refresh is what makes the daemon
+spawn exactly one replacement child. The command waits up to one second for the
+daemon to report the driver attached, so its output reflects the restored driver
+rather than the dead one. A refreshed membership is never reported as coverage
+by itself: if the daemon still reports `failed`, bare `anvil` appends
+`save-time driver failed — inspect \`anvil intercept
+status\``to its`worktree:`line and`anvil workspace register` prints the same
+note.
+
+Respawns are bounded. After three failed generations in a row — a refused spawn,
+or a child that died within 60 seconds of being spawned — the daemon refuses
+further respawns until 60 seconds have passed since the last failure, and the
+worktree stays `failed` in the meantime. Inspect `<stem>.spawn.log` for the
+crash capture, then re-run the daily command once the cause is fixed. A child
+that outlived the 60-second window before dying resets the count.
 
 Stopping the daemon terminates supervised drivers. When registered worktrees are
 known, `anvil intercept stop` warns that those worktrees lose protection and

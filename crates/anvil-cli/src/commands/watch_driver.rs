@@ -94,6 +94,48 @@ impl DriverLog {
     }
 }
 
+/// JREL-003: the readiness marker the driver child writes beside its findings
+/// log (`<stem>.ready`) so the supervising daemon can report evidence
+/// stronger than "the PID is alive". Path and content are the
+/// `anvil_intercept::save_time_driver` contract: the supervisor removes the
+/// marker before every spawn and reads it fresh on each status probe.
+#[derive(Debug)]
+pub(crate) struct DriverReadyMarker {
+    path: PathBuf,
+}
+
+impl DriverReadyMarker {
+    /// The marker beside `findings_log` (`<stem>.log` → `<stem>.ready`).
+    pub(crate) fn beside(findings_log: &Path) -> Self {
+        Self {
+            path: findings_log
+                .with_extension(anvil_intercept::save_time_driver::READY_MARKER_EXTENSION),
+        }
+    }
+
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// The initial scan completed and the file watches are installed.
+    pub(crate) fn mark_watching(&self) -> std::io::Result<()> {
+        self.write(anvil_intercept::save_time_driver::READY_MARKER_WATCHING)
+    }
+
+    /// A save batch obtained a save-time verdict; the marker's modification
+    /// time dates the activity.
+    pub(crate) fn mark_activity(&self) -> std::io::Result<()> {
+        self.write(anvil_intercept::save_time_driver::READY_MARKER_ACTIVITY)
+    }
+
+    fn write(&self, content: &str) -> std::io::Result<()> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&self.path, format!("{content}\n"))
+    }
+}
+
 /// The one-line stderr summary emitted when a batch produces new findings.
 /// Stderr is the supervisor's crash-capture channel, so this doubles as a
 /// liveness breadcrumb without duplicating the full finding lines.
@@ -273,6 +315,36 @@ mod tests {
             with_xdg.starts_with("/run/user/1000/anvil/save-time-drivers"),
             "XDG fallback: {}",
             with_xdg.display()
+        );
+    }
+
+    /// JREL-003: the marker sits beside the findings log with the
+    /// supervisor's `<stem>.ready` name — including for a dotted stem — and
+    /// its two contents are the supervisor's readiness constants.
+    #[test]
+    fn watch_save_time_driver_ready_marker_matches_the_supervisor_contract() {
+        use anvil_intercept::save_time_driver::{
+            READY_MARKER_ACTIVITY, READY_MARKER_EXTENSION, READY_MARKER_WATCHING,
+        };
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let log = tmp.path().join("repo.v2-0123456789ab.log");
+        let marker = DriverReadyMarker::beside(&log);
+        assert_eq!(
+            marker.path(),
+            tmp.path()
+                .join(format!("repo.v2-0123456789ab.{READY_MARKER_EXTENSION}"))
+        );
+
+        marker.mark_watching().expect("mark watching");
+        assert_eq!(
+            std::fs::read_to_string(marker.path()).expect("read").trim(),
+            READY_MARKER_WATCHING
+        );
+        marker.mark_activity().expect("mark activity");
+        assert_eq!(
+            std::fs::read_to_string(marker.path()).expect("read").trim(),
+            READY_MARKER_ACTIVITY
         );
     }
 

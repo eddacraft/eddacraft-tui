@@ -1539,6 +1539,12 @@ impl DispatcherInner {
             if let Err(err) = render {
                 tracing::warn!(error = %err, path = %log.path().display(), "failed to append driver findings log");
             }
+            // JREL-003: a daemon verdict is fresh activity for the
+            // supervisor's readiness evidence.
+            let marker = crate::commands::watch_driver::DriverReadyMarker::beside(log.path());
+            if let Err(err) = marker.mark_activity() {
+                tracing::warn!(error = %err, path = %marker.path().display(), "failed to refresh the save-time driver readiness marker");
+            }
             if !response.diagnostics.is_empty() {
                 eprintln!(
                     "{}",
@@ -1734,6 +1740,12 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     } else {
         None
     };
+    // JREL-003: the readiness marker the supervising daemon reads. Written
+    // once the initial scan completes (watches installed); the dispatcher
+    // refreshes it per daemon verdict (fresh activity).
+    let ready_marker = driver_log
+        .as_ref()
+        .map(|log| crate::commands::watch_driver::DriverReadyMarker::beside(log.path()));
     // Driver mode always runs the save-time `check` action (`--action`
     // conflicts with `--save-time-driver` at the clap layer).
     let action = if args.save_time_driver {
@@ -2030,6 +2042,18 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                         {
                             println!(
                                 "[watching] ready — {files_watched} files watched (initial scan complete)"
+                            );
+                        }
+                        if snapshot_count == 1
+                            && let Some(marker) = ready_marker.as_ref()
+                            && let Err(err) = marker.mark_watching()
+                        {
+                            // Loud, not fatal: the daemon then reports no
+                            // more than `spawned` for this child.
+                            tracing::warn!(
+                                error = %err,
+                                path = %marker.path().display(),
+                                "failed to write the save-time driver readiness marker",
                             );
                         }
                         if snapshot_count > 1 {

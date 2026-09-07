@@ -15,10 +15,25 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use anvil_intercept_proto::session::AgentTag;
+use anvil_intercept_proto::status::{
+    DaemonStatusV1, SaveTimeDriverEvidenceV1, SaveTimeDriverStatusV1,
+};
 use anvil_intercept_proto::{SessionId, SessionRecord};
 use serde_json::Value;
 
 use crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT;
+
+/// JREL-003: after durable membership is confirmed, how long the registration
+/// path waits for the daemon's supervisor to report the worktree's save-time
+/// driver attached. Paid in full only on the failing path: the supervisor
+/// spawns (or restores) the child within milliseconds of the membership
+/// signal, so a healthy registration returns on the first snapshot that shows
+/// it. A daemon without driver supervision (`ANVIL_NO_SAVE_TIME_DRIVER`) or a
+/// persistently failing spawn pays the whole budget once, then reports the
+/// honest [`SaveTimeDriverReadiness`].
+const DRIVER_READY_BUDGET: Duration = Duration::from_secs(1);
+/// Gap between status polls while waiting for the driver.
+const DRIVER_READY_INTERVAL: Duration = Duration::from_millis(50);
 
 const REGISTER_METHOD: &str = "session.register";
 const UNREGISTER_METHOD: &str = "session.unregister";
@@ -65,11 +80,87 @@ pub(crate) enum WorktreeRegistration {
     Rejected(String),
 }
 
+/// JREL-003: what the daemon reported about the worktree's supervised
+/// save-time driver once durable membership was confirmed. Membership alone
+/// is never readiness — this is the separate, bounded evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SaveTimeDriverReadiness {
+    /// A supervised driver is attached. `evidence` is the daemon's readiness
+    /// detail when it reports one (`None` from a pre-JREL-003 daemon).
+    Attached {
+        evidence: Option<SaveTimeDriverEvidenceV1>,
+    },
+    /// The daemon reported the driver `failed` — its spawn was refused or
+    /// failed, or the child died and the supervisor's failure bound refused
+    /// a respawn. Bounded: the wait ended, the driver is not coming.
+    Failed,
+    /// No driver entry appeared within the budget: driver supervision is
+    /// disabled on this daemon, or its supervisor did not answer in time.
+    Absent,
+    /// Daemon status could not be read; the message is the last error.
+    Unknown(String),
+}
+
+/// JREL-003: the outcome of [`register_worktree_with_daemon`] — the durable
+/// membership outcome plus, when membership was confirmed, the separate
+/// save-time driver readiness.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct WorktreeRegistrationReport {
+    pub(crate) registration: WorktreeRegistration,
+    /// `Some` only after a confirmed [`WorktreeRegistration::Registered`] or
+    /// [`WorktreeRegistration::Refreshed`].
+    pub(crate) driver: Option<SaveTimeDriverReadiness>,
+}
+
+impl WorktreeRegistrationReport {
+    /// True when the daemon reported the driver `failed` — the one outcome a
+    /// surface should name, since membership succeeded but coverage did not.
+    pub(crate) fn driver_failed(&self) -> bool {
+        matches!(self.driver, Some(SaveTimeDriverReadiness::Failed))
+    }
+}
+
 /// ACTMO-014/015: register a worktree as durable membership with the daemon.
 /// `worktree` may be any spelling of the path; it is canonicalised with
 /// `dunce` before the deterministic activation session id is derived.
-pub(crate) fn register_worktree_with_daemon(worktree: &Path) -> WorktreeRegistration {
+///
+/// JREL-003: a confirmed registration or refresh then waits (bounded by
+/// [`DRIVER_READY_BUDGET`]) for the daemon to report the worktree's save-time
+/// driver attached. A refresh of an existing membership is how the daily
+/// command restores a driver whose child died: the daemon respawns on the
+/// durable heartbeat, and this wait is what turns that into evidence rather
+/// than a race against the next status read.
+pub(crate) fn register_worktree_with_daemon(worktree: &Path) -> WorktreeRegistrationReport {
     let canonical = canonicalise_for_registration(worktree);
+    let registration = register_worktree_membership(&canonical);
+    let driver = matches!(
+        registration,
+        WorktreeRegistration::Registered | WorktreeRegistration::Refreshed
+    )
+    .then(|| {
+        await_save_time_driver(&canonical, || {
+            crate::commands::intercept::query_daemon_status_with_timeout(
+                ACTIVATION_DAEMON_QUERY_TIMEOUT,
+            )
+        })
+    });
+    if let Some(driver) = &driver {
+        tracing::info!(
+            worktree = %canonical.display(),
+            driver = ?driver,
+            "activation: save-time driver readiness after registration",
+        );
+    }
+    WorktreeRegistrationReport {
+        registration,
+        driver,
+    }
+}
+
+/// The durable-membership half of [`register_worktree_with_daemon`], against
+/// an already-canonical worktree.
+fn register_worktree_membership(canonical: &Path) -> WorktreeRegistration {
+    let canonical = canonical.to_path_buf();
     let session_id = activation_session_id(&canonical);
     let request_id = format!("anvil-start-register-{}", session_id.as_str());
 
@@ -276,6 +367,85 @@ where
         last = fetch();
         reads += 1;
     }
+}
+
+/// JREL-003: read daemon status until the worktree's save-time driver is
+/// reported attached, or the budget expires. See [`DRIVER_READY_BUDGET`].
+fn await_save_time_driver<F, E>(canonical: &Path, fetch: F) -> SaveTimeDriverReadiness
+where
+    F: FnMut() -> Result<DaemonStatusV1, E>,
+    E: std::fmt::Display,
+{
+    await_save_time_driver_within(canonical, DRIVER_READY_BUDGET, DRIVER_READY_INTERVAL, fetch)
+}
+
+fn await_save_time_driver_within<F, E>(
+    canonical: &Path,
+    budget: Duration,
+    interval: Duration,
+    mut fetch: F,
+) -> SaveTimeDriverReadiness
+where
+    F: FnMut() -> Result<DaemonStatusV1, E>,
+    E: std::fmt::Display,
+{
+    let started = Instant::now();
+    let deadline = started + budget;
+    let mut reads = 1_usize;
+    let mut last = fetch();
+    loop {
+        // `failed` is NOT final mid-wait: after a refresh the first snapshot
+        // can still show the dead child before the supervisor drains the
+        // refresh and respawns. Only `attached` ends the wait early.
+        if let Ok(status) = &last
+            && let Some(entry) = worktree_driver_entry(status, canonical)
+            && entry.save_time_driver == SaveTimeDriverStatusV1::Attached
+        {
+            return SaveTimeDriverReadiness::Attached {
+                evidence: entry.save_time_driver_evidence,
+            };
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        std::thread::sleep(interval.min(remaining));
+        last = fetch();
+        reads += 1;
+    }
+    let readiness = match &last {
+        Ok(status) => match worktree_driver_entry(status, canonical).map(|w| w.save_time_driver) {
+            Some(SaveTimeDriverStatusV1::Attached) => SaveTimeDriverReadiness::Attached {
+                evidence: worktree_driver_entry(status, canonical)
+                    .and_then(|w| w.save_time_driver_evidence),
+            },
+            Some(SaveTimeDriverStatusV1::Failed) => SaveTimeDriverReadiness::Failed,
+            Some(SaveTimeDriverStatusV1::Absent | SaveTimeDriverStatusV1::Unknown) | None => {
+                SaveTimeDriverReadiness::Absent
+            }
+        },
+        Err(err) => SaveTimeDriverReadiness::Unknown(err.to_string()),
+    };
+    tracing::warn!(
+        worktree = %canonical.display(),
+        status_reads = reads,
+        waited_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+        readiness = ?readiness,
+        "activation: save-time driver was not attached before the readiness budget expired",
+    );
+    readiness
+}
+
+/// The daemon's status entry for `canonical`, matched on canonical identity
+/// like [`durable_membership_present`].
+fn worktree_driver_entry<'a>(
+    status: &'a DaemonStatusV1,
+    canonical: &Path,
+) -> Option<&'a anvil_intercept_proto::status::WorktreeStatusV1> {
+    status
+        .worktrees
+        .iter()
+        .find(|w| canonicalise_for_registration(&w.worktree) == canonical)
 }
 
 /// CIB-252 established that this refusal must be honest rather than report a
@@ -1471,5 +1641,225 @@ mod tests {
             registerable_worktree(outside.path()),
             Err(NotRegisterable::NotAWorktree(_))
         ));
+    }
+
+    // ── JREL-003: bounded save-time driver readiness after registration ──
+
+    fn status_with_driver(
+        worktree: &Path,
+        driver: SaveTimeDriverStatusV1,
+        evidence: Option<SaveTimeDriverEvidenceV1>,
+    ) -> DaemonStatusV1 {
+        use anvil_intercept_proto::status::{
+            HealthStateV1, IpcStateV1, LatencyMidEditMapV1, WorktreeStatusV1,
+        };
+        DaemonStatusV1 {
+            sessions: vec![],
+            worktrees: vec![WorktreeStatusV1 {
+                worktree: worktree.to_path_buf(),
+                session_id: activation_session_id(worktree),
+                fenced: false,
+                cascaded: false,
+                cascade_since: None,
+                save_time_driver: driver,
+                save_time_driver_evidence: evidence,
+            }],
+            fences: vec![],
+            health: HealthStateV1 {
+                uptime_seconds: 1,
+                version: "test".to_owned(),
+                ipc_state: IpcStateV1::Serving,
+            },
+            latency: LatencyMidEditMapV1 { mid_edit: None },
+            cache_entries: None,
+            cache_invalidations_total: None,
+            in_flight_evaluations: None,
+            cache_invalidations_rate_limited: None,
+            telemetry_subscriber_count: None,
+            telemetry_dropped_envelopes: None,
+            generated_at_unix: 0,
+        }
+    }
+
+    #[test]
+    fn driver_wait_returns_on_the_first_attached_snapshot_with_evidence() {
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let mut reads = 0_usize;
+        let started = Instant::now();
+        let readiness = await_save_time_driver_within(
+            &worktree,
+            Duration::from_secs(30),
+            Duration::from_secs(30),
+            || -> Result<DaemonStatusV1, std::convert::Infallible> {
+                reads += 1;
+                Ok(status_with_driver(
+                    &worktree,
+                    SaveTimeDriverStatusV1::Attached,
+                    Some(SaveTimeDriverEvidenceV1::WatchesInstalled),
+                ))
+            },
+        );
+        assert_eq!(reads, 1, "the healthy path must not poll a second time");
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_eq!(
+            readiness,
+            SaveTimeDriverReadiness::Attached {
+                evidence: Some(SaveTimeDriverEvidenceV1::WatchesInstalled),
+            }
+        );
+    }
+
+    #[test]
+    fn driver_wait_outlasts_a_dead_child_snapshot_until_the_respawn_lands() {
+        // After a refresh the first read still shows the dead child as
+        // `failed`; the wait must keep reading until the supervisor's respawn
+        // is visible rather than reporting the stale failure.
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let mut reads = 0_usize;
+        let readiness = await_save_time_driver_within(
+            &worktree,
+            Duration::from_secs(5),
+            Duration::from_millis(5),
+            || -> Result<DaemonStatusV1, std::convert::Infallible> {
+                reads += 1;
+                Ok(if reads < 3 {
+                    status_with_driver(&worktree, SaveTimeDriverStatusV1::Failed, None)
+                } else {
+                    status_with_driver(
+                        &worktree,
+                        SaveTimeDriverStatusV1::Attached,
+                        Some(SaveTimeDriverEvidenceV1::Spawned),
+                    )
+                })
+            },
+        );
+        assert_eq!(reads, 3);
+        assert_eq!(
+            readiness,
+            SaveTimeDriverReadiness::Attached {
+                evidence: Some(SaveTimeDriverEvidenceV1::Spawned),
+            }
+        );
+    }
+
+    #[test]
+    fn driver_wait_reports_failed_absent_and_unknown_within_the_budget() {
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let budget = Duration::from_millis(120);
+        let interval = Duration::from_millis(20);
+
+        let started = Instant::now();
+        let failed = await_save_time_driver_within(
+            &worktree,
+            budget,
+            interval,
+            || -> Result<DaemonStatusV1, std::convert::Infallible> {
+                Ok(status_with_driver(
+                    &worktree,
+                    SaveTimeDriverStatusV1::Failed,
+                    None,
+                ))
+            },
+        );
+        let elapsed = started.elapsed();
+        assert_eq!(failed, SaveTimeDriverReadiness::Failed);
+        assert!(
+            elapsed >= Duration::from_millis(100) && elapsed < Duration::from_secs(10),
+            "a persistent failure is reported after the bounded wait, got {elapsed:?}"
+        );
+
+        // Membership refresh alone is not readiness: an absent driver entry
+        // (supervision disabled) never reads as attached.
+        let absent = await_save_time_driver_within(
+            &worktree,
+            budget,
+            interval,
+            || -> Result<DaemonStatusV1, std::convert::Infallible> {
+                Ok(status_with_driver(
+                    &worktree,
+                    SaveTimeDriverStatusV1::Absent,
+                    None,
+                ))
+            },
+        );
+        assert_eq!(absent, SaveTimeDriverReadiness::Absent);
+
+        let unknown_tag = await_save_time_driver_within(
+            &worktree,
+            budget,
+            interval,
+            || -> Result<DaemonStatusV1, std::convert::Infallible> {
+                Ok(status_with_driver(
+                    &worktree,
+                    SaveTimeDriverStatusV1::Unknown,
+                    None,
+                ))
+            },
+        );
+        assert_eq!(
+            unknown_tag,
+            SaveTimeDriverReadiness::Absent,
+            "a forward-compat unknown state is treated fail-safe as absent"
+        );
+
+        let unreadable = await_save_time_driver_within(
+            &worktree,
+            budget,
+            interval,
+            || -> Result<DaemonStatusV1, String> { Err("daemon status unreadable".to_owned()) },
+        );
+        assert_eq!(
+            unreadable,
+            SaveTimeDriverReadiness::Unknown("daemon status unreadable".to_owned())
+        );
+    }
+
+    #[test]
+    fn driver_wait_matches_the_worktree_on_canonical_identity() {
+        let worktree_dir = tempfile::tempdir().expect("worktree tempdir");
+        let worktree = canonicalise_for_registration(worktree_dir.path());
+        let other = tempfile::tempdir().expect("other worktree");
+        let other = canonicalise_for_registration(other.path());
+        let readiness = await_save_time_driver_within(
+            &worktree,
+            Duration::from_millis(40),
+            Duration::from_millis(10),
+            || -> Result<DaemonStatusV1, std::convert::Infallible> {
+                Ok(status_with_driver(
+                    &other,
+                    SaveTimeDriverStatusV1::Attached,
+                    Some(SaveTimeDriverEvidenceV1::FreshActivity),
+                ))
+            },
+        );
+        assert_eq!(
+            readiness,
+            SaveTimeDriverReadiness::Absent,
+            "another worktree's driver is never borrowed as this one's evidence"
+        );
+    }
+
+    #[test]
+    fn registration_report_names_only_the_failed_driver() {
+        let failed = WorktreeRegistrationReport {
+            registration: WorktreeRegistration::Refreshed,
+            driver: Some(SaveTimeDriverReadiness::Failed),
+        };
+        assert!(failed.driver_failed());
+        for driver in [
+            None,
+            Some(SaveTimeDriverReadiness::Absent),
+            Some(SaveTimeDriverReadiness::Attached { evidence: None }),
+            Some(SaveTimeDriverReadiness::Unknown("x".to_owned())),
+        ] {
+            let report = WorktreeRegistrationReport {
+                registration: WorktreeRegistration::Registered,
+                driver,
+            };
+            assert!(!report.driver_failed(), "{report:?}");
+        }
     }
 }
