@@ -2,14 +2,19 @@
 
 | ID   | Owner       | Status | Progress |
 | ---- | ----------- | ------ | -------- |
-| GATT | @joshuaboys | Draft  | 0/6      |
+| GATT | @joshuaboys | Ready  | 0/6      |
 
-**Status:** Draft, and the remaining gate is a decision rather than a question:
-[ADR-142](../decisions/142-graph-answer-attestation.md) is **Proposed**, not
-Accepted. Owner named 2026-09-07; the ADR-vs-spec-amendment call is answered by
-ADR-142 existing, and it freezes the field shape. Promote this module to
-**Ready** when ADR-142 is Accepted — not before. Do **not** start work items
-until then.
+**Status:** **Ready** (2026-09-07). Every gate is cleared —
+[ADR-142](../decisions/142-graph-answer-attestation.md) is **Accepted**, the
+owner is named, and the field shape is frozen by ADR-142 §1–§5. GATT-001..006
+are Ready and executable in dependency order; GATT-001 is the entry point.
+
+Accepting ADR-142 as drafted settled two open calls: the `truncated` bool is
+**retained for one release** as a derived compatibility shim rather than cut
+(§2), and **CIB-341/342 sequence before this work** (§Mitigations) — honest
+disclosure over a graph that timed out during a full scan tells the user
+precisely that the answer is bad, which is better than lying but is not a
+product. Treat that ordering as binding, not advisory.
 
 **Origin:** the ripwire borrow assessment
 ([`plans/brainstorms/2026-09-07-ripwire-borrow-assessment.md`](../brainstorms/2026-09-07-ripwire-borrow-assessment.md)),
@@ -102,7 +107,7 @@ Stated precisely so no work item re-builds something shipped:
 **Depends on:**
 
 - [ADR-142](../decisions/142-graph-answer-attestation.md) — the decision this
-  module implements. **Proposed**; every work item waits on its acceptance.
+  module implements. **Accepted** 2026-09-07.
 - `crates/anvil-gctx-types` — the egress DTOs the contract extends.
 - `crates/anvil-graph-cache` — `call_graph.rs` edge resolution; `tokens.rs` estimator.
 - [`docs/architecture/graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)
@@ -119,11 +124,11 @@ Stated precisely so no work item re-builds something shipped:
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+All gates cleared 2026-09-07; module promoted to **Ready**.
 
-- [ ] Purpose and scope are clear — **done**
-- [ ] Dependencies identified — **done**
-- [ ] At least one work item defined — **done** (six, all Draft)
+- [x] Purpose and scope are clear
+- [x] Dependencies identified
+- [x] At least one work item defined — six, all Ready
 - [x] **Owner named** — @joshuaboys (2026-09-07)
 - [x] **ADR call made** — it warrants its own ADR:
       [ADR-142](../decisions/142-graph-answer-attestation.md) binds all six
@@ -131,19 +136,19 @@ Change status to **Ready** when:
 - [x] **Field shape frozen** — ADR-142 §1–§5. A shared `Attestation` struct held
       by every projection DTO, so half-adoption is a compile error rather than a
       review catch
-- [ ] **ADR-142 Accepted** — the one gate left. Everything above is settled;
-      this module stays Draft until the decision is in effect.
+- [x] **ADR-142 Accepted** — 2026-09-07 (owner). The decision is in effect and
+      this module is authorised.
 
 ## Work Items
 
 | ID       | Task                                                | Status | Depends on |
 | -------- | --------------------------------------------------- | ------ | ---------- |
-| GATT-001 | Self-attestation contract (spec amendment)          | Draft  | —          |
-| GATT-002 | Disclosure gate harness (written before the fields) | Draft  | GATT-001   |
-| GATT-003 | Per-edge call-resolution fidelity                   | Draft  | GATT-002   |
-| GATT-004 | Cap disclosure parity across the six tools          | Draft  | GATT-002   |
-| GATT-005 | Cost self-report on every projection envelope       | Draft  | GATT-002   |
-| GATT-006 | Teach the consumer to read the disclosures          | Draft  | GATT-003..005 |
+| GATT-001 | Self-attestation contract (spec amendment)          | Ready | —          |
+| GATT-002 | Disclosure gate harness (written before the fields) | Ready | GATT-001   |
+| GATT-003 | Per-edge call-resolution fidelity                   | Ready | GATT-002   |
+| GATT-004 | Cap disclosure parity across the six tools          | Ready | GATT-002   |
+| GATT-005 | Cost self-report on every projection envelope       | Ready | GATT-002   |
+| GATT-006 | Teach the consumer to read the disclosures          | Ready | GATT-003..005 |
 
 ### GATT-001 — Self-attestation contract
 
