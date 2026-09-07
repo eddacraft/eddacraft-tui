@@ -1,7 +1,13 @@
 # JREL attach reconciliation checkpoints
 
-Authority: [JREL](../modules/journey-reliability.aps.md).
-Context: [attach review and proposed evidence contract](../specs/2026-09-06-mcp-attach-reconciliation.md).
+| Type | Authority | Owner | Status | Freshness |
+| --- | --- | --- | --- | --- |
+| Spec | Advisory | JREL | Proposed | Reviewed 2026-09-06 against main `46e52dddecb56b14e23d4a9a520f9b539b1af14f` and PR #4416 head `849723fb7e1ce9bf3fb0167f38427c85cbf19248` |
+
+| Upstream | Downstream |
+| --- | --- |
+| [JREL](../modules/journey-reliability.aps.md), [attach evidence contract](../specs/2026-09-06-mcp-attach-reconciliation.md), [JOURNEY](../modules/release-user-journeys.aps.md) | JREL-002, JREL-003, JREL-004, JREL-005, JREL-010, JREL-011, JREL-012, JOURNEY-014, JOURNEY-015 |
+
 These checkpoints do not create new work items or change existing claims.
 JREL-002 is already being implemented in PR #4416 / claim #4408.
 

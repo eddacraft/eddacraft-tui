@@ -2,7 +2,11 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | --- | --- | --- | --- | --- |
-| Spec | Supporting | JREL | Proposed | Reviewed 2026-09-06 against main `46e52dddecb56b14e23d4a9a520f9b539b1af14f` and PR #4416 head `849723fb7e1ce9bf3fb0167f38427c85cbf19248` |
+| Spec | Advisory | JREL | Proposed | Reviewed 2026-09-06 against main `46e52dddecb56b14e23d4a9a520f9b539b1af14f` and PR #4416 head `849723fb7e1ce9bf3fb0167f38427c85cbf19248` |
+
+| Upstream | Downstream |
+| --- | --- |
+| Operator 2026-09-05 attach note, [JREL](../modules/journey-reliability.aps.md), [JOURNEY](../modules/release-user-journeys.aps.md), [ADR-036](../decisions/036-daemon-scope-discovery-and-boundaries.md), [ADR-094](../decisions/094-worktree-registration-ux.md), [ADR-140](../decisions/140-converged-command-event-contract.md), ADR-141 in PR #4416 | [JREL attach checkpoints](../execution/JREL-attach.actions.md), JREL-002, JREL-004, JREL-005, JREL-010, JREL-011, JREL-012, JOURNEY-014, JOURNEY-015 |
 
 ## Purpose and authority
 
