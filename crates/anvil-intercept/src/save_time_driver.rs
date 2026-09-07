@@ -540,8 +540,7 @@ impl SaveTimeDriverSupervisor {
                         "could not terminate a leftover save-time driver on startup",
                     );
                 }
-                self.inner
-                    .await_child_exit(Path::new("<leftover>"), pid, start_time);
+                self.inner.await_child_exit(&path, pid, start_time);
                 if self.inner.procs.is_alive(pid, start_time) {
                     tracing::warn!(
                         target: "anvil_intercept::save_time_driver",

@@ -743,9 +743,12 @@ pub fn terminate_process_matching(pid: u32, recorded_creation_time: Option<u64>)
         let ok =
             unsafe { GetProcessTimes(process.0, &mut creation, &mut exit, &mut kernel, &mut user) };
         if ok == 0 {
-            // Fail closed: do not terminate a process whose identity we cannot
-            // prove. The PID may already have been recycled.
-            return Err(io::Error::last_os_error());
+            // Fail closed *and* stay quiet: do not terminate a process whose
+            // identity we cannot prove (the PID may already have been recycled).
+            // `GetProcessTimes` also fails when the process exits between
+            // `OpenProcess` and this query; that is the same unread-time case
+            // the docs call a no-op, not a caller-facing error.
+            return Ok(());
         }
         let current =
             (u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime);
@@ -1634,6 +1637,22 @@ mod tests {
         );
 
         drop(child);
+    }
+
+    #[test]
+    fn terminate_process_matching_is_a_noop_when_creation_time_mismatches() {
+        // Same contract as an unread `GetProcessTimes` result: do not terminate,
+        // and do not surface an error that callers would log as a failed kill.
+        let pid = std::process::id();
+        let actual = process_creation_time(pid)
+            .expect("query our creation time")
+            .expect("our process has a creation time");
+        terminate_process_matching(pid, Some(actual.wrapping_add(1)))
+            .expect("mismatched identity is a no-op, not an error");
+        assert!(
+            process_exists(pid).expect("still live"),
+            "mismatch must not terminate this process",
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
