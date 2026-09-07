@@ -4432,7 +4432,7 @@ to redesign once GV2-001..-023 land.
   ship-with-doc verdict on DeepSec
   [#1674](https://github.com/eddacraft/anvil-001/issues/1674)
   ("IPC clients can mint trusted lineage tags"). Operator
-  framing in [`docs/runbooks/v0.7.0-beta-security-note.md`](../../docs/runbooks/v0.7.0-beta-security-note.md)
+  framing in [`docs/archive/runbooks/v0.7.0-beta-security-note.md`](../../docs/archive/runbooks/v0.7.0-beta-security-note.md)
   §M1.
 
 #### MLP2-071: INTD-015 cross-session policy follow-up

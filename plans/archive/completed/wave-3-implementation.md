@@ -1,5 +1,9 @@
 # Wave 3: Policy Engine + Complex Surface Ports — Implementation Plan
 
+> **Historical.** Archived 2026-09-07. Unchecked legacy worksheet — not
+> current execution authority. Live work is tracked in APS modules and
+> [`plans/index.aps.md`](../../index.aps.md).
+
 > **For agentic workers:** Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build KERN Phase 3 (config loader, invariant framework, H1 invariants,

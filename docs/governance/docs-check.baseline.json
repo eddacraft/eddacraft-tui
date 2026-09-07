@@ -619,9 +619,6 @@
     "docs/guides/adapters/workflow-guide.md": [
       "upstream moved since review: plans/modules/open-spec-adapter.aps.md"
     ],
-    "docs/runbooks/v0.7.0-beta-release-runbook.md": [
-      "upstream moved since review: RELEASE-PLAN.md"
-    ],
     "docs/architecture/anvil-architecture-evolution.md": [
       "upstream moved since review: docs/architecture/rust-kernel-spec.md"
     ],

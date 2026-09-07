@@ -1,5 +1,9 @@
 # Wave 1: Foundation + Independent Surfaces — Implementation Plan
 
+> **Historical.** Archived 2026-09-07. Unchecked legacy worksheet — not
+> current execution authority. Live work is tracked in APS modules and
+> [`plans/index.aps.md`](../../index.aps.md).
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development
 > (if subagents available) or superpowers:executing-plans to implement this plan.
 > Steps use checkbox (`- [ ]`) syntax for tracking.

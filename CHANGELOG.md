@@ -1705,7 +1705,7 @@ hints when something blocks promotion.
   `/proc/<pid>/stat` read before the value reaches
   `SessionRegistry::register_with_lineage`. Four regression tests pin the
   contract. This closes the lineage-mint defect originally documented in
-  [`docs/runbooks/v0.7.0-beta-security-note.md`](docs/runbooks/v0.7.0-beta-security-note.md)
+  [`docs/archive/runbooks/v0.7.0-beta-security-note.md`](docs/archive/runbooks/v0.7.0-beta-security-note.md)
   §M1 — the registry still accepts the daemon-re-derived values, but the trust
   shift now happens at the IPC boundary rather than inside the registry. Closes
   [#1674](https://github.com/eddacraft/anvil-001/issues/1674) and MLP2-070.
@@ -2671,19 +2671,3 @@ violations and anti-patterns at save time.
 [0.1.2-beta]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.1
 [0.1.0]: https://github.com/eddacraft/anvil-001/releases/tag/v0.1.0
-
-## v0.7.3-beta
-
-- Release preparation metadata generated.
-
-## v0.7.4-beta
-
-- Release preparation metadata generated.
-
-## v0.8.0-beta
-
-- Release preparation metadata generated.
-
-## v0.8.1-beta
-
-- Release preparation metadata generated.

@@ -1,5 +1,9 @@
 # Wave 4: Integration + Validation — Implementation Plan
 
+> **Historical.** Archived 2026-09-07. Unchecked legacy worksheet — not
+> current execution authority. Live work is tracked in APS modules and
+> [`plans/index.aps.md`](../../index.aps.md).
+
 > **For agentic workers:** Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wire the kernel into usable modes (embedded check + foreground watch),

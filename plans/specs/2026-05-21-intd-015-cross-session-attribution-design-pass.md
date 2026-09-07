@@ -437,7 +437,7 @@ The slice must NOT:
   lines 222-229 — Subscribers MUST default-deny on unknown session ids.
 - [`docs/archive/runbooks/v0.6.0-beta-security-note.md`](../../docs/archive/runbooks/v0.6.0-beta-security-note.md)
   §H2 — per-startup HMAC salt follow-up (folded into this slice).
-- [`docs/runbooks/v0.7.0-beta-security-note.md`](../../docs/runbooks/v0.7.0-beta-security-note.md)
+- [`docs/archive/runbooks/v0.7.0-beta-security-note.md`](../../docs/archive/runbooks/v0.7.0-beta-security-note.md)
   §M1 — lineage-anchor daemon-derivation prerequisite (MLP2-070).
 - `crates/anvil-intercept/src/fanout.rs` — existing filter + contract.
 - PR [#1721](https://github.com/eddacraft/anvil-001/pull/1721) — the

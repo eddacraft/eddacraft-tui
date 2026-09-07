@@ -95,7 +95,7 @@ A repo-wide importer scan on 2026-05-20 found three rationale claims from the
   Reality: no in-repo TS importer. Tier stays `release-blocking` because the
   package is the TS protocol mirror, exercised by byte-parity tests against
   captured Rust fixtures (MLP2-029 / MLP2-030 / MLP2-051c) and gated by
-  `docs/runbooks/v0.7.0-beta-release-runbook.md`. Rationale corrected.
+  `docs/archive/runbooks/v0.7.0-beta-release-runbook.md`. Rationale corrected.
 - **`packages/shared/storage`** — claimed `release-blocking` "Imported by
   `apps/anvil-api`". Reality: zero importers anywhere. Demoted to
   `compatibility-canary`. Created under
