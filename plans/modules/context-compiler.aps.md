@@ -13,9 +13,9 @@
 remains binding: synthesis is advisory and never allow / warn / block.
 Enforcement must keep working if Context Compiler is unavailable.
 
-CCTX-001 is the entry point and is **Done** on this branch pending merge.
-CCTX-002 and CCTX-003 stay Ready and **must not start** until CCTX-001 is
-Merged; they remain serial.
+CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is the next
+serial grain (Ready, not started). CCTX-003 remains Ready behind
+CCTX-001 and CCTX-002.
 
 **Spec:**
 [`plans/specs/2026-09-08-context-compiler.md`](../specs/2026-09-08-context-compiler.md).
@@ -33,7 +33,7 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — Ready promotion; CCTX-001 protocol freeze.
+**Last reviewed:** 2026-09-08 — CCTX-001 Merged via #4456.
 
 ## Purpose
 
@@ -133,13 +133,13 @@ compiler, crate, or flag.
 
 | ID       | Task                                              | Status | Depends on |
 | -------- | ------------------------------------------------- | ------ | ---------- |
-| CCTX-001 | Freeze the internal evaluation protocol           | Done | —          |
+| CCTX-001 | Freeze the internal evaluation protocol           | Merged 2026-09-08 via PR #4456 | —          |
 | CCTX-002 | Freeze the Decision Brief as an advisory contract | Ready  | CCTX-001   |
 | CCTX-003 | Compare baselines against brief variants          | Ready  | CCTX-001, CCTX-002 |
 
 ### CCTX-001: Freeze the internal evaluation protocol
 
-- **Status:** Done
+- **Status:** Merged 2026-09-08 via PR #4456
 - **Intent:** Make the first spike comparable before anyone spends synthesis
   cost.
 - **Expected Outcome:** The spec's §12 protocol is frozen enough to run: one
@@ -156,7 +156,7 @@ compiler, crate, or flag.
 - **Files:** `plans/specs/2026-09-08-context-compiler.md`,
   `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`
 - **Claim:** private GitHub issue #4455
-- **PR:** #4456
+- **PR:** Merged 2026-09-08 via [#4456](https://github.com/eddacraft/anvil-001/pull/4456) (`07db4dd636b20330c24206601ebb398632fc9ce3` on `main`; rebase-merge of `9b19e98a9`)
 - **Confidence:** medium
 
 ### CCTX-002: Freeze the Decision Brief as an advisory contract
