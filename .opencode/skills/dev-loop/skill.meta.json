@@ -19,7 +19,7 @@
   "agentSupport": {
     "scope": "general",
     "agents": [],
-    "notes": "Front door for the canonical agentic loop; routes through dev-loop-router to a native harness adapter and optionally composes dev-loop-differential."
+    "notes": "Front door for the canonical agentic loop; routes through dev-loop-router to a native harness adapter."
   },
   "localChanges": []
 }

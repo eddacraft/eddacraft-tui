@@ -863,7 +863,7 @@
     },
     {
       "path": ".agents/skills/dev-loop/skill.meta.json",
-      "sha256": "14157b1392c7c08928e504890068e3947ae80a11d93459f434c877105497b551",
+      "sha256": "eb7ccd4ea7665db055a0458d64c7a2a8e3085a73cb4c27d826b87b1a7c1452b8",
       "executable": false,
       "kind": "skill",
       "source": "eddacraft/dev-loop",
@@ -2332,7 +2332,7 @@
     },
     {
       "path": ".claude/skills/dev-loop/skill.meta.json",
-      "sha256": "14157b1392c7c08928e504890068e3947ae80a11d93459f434c877105497b551",
+      "sha256": "eb7ccd4ea7665db055a0458d64c7a2a8e3085a73cb4c27d826b87b1a7c1452b8",
       "executable": false,
       "kind": "skill",
       "source": "eddacraft/dev-loop",
@@ -3795,7 +3795,7 @@
     },
     {
       "path": ".grok/skills/dev-loop/skill.meta.json",
-      "sha256": "14157b1392c7c08928e504890068e3947ae80a11d93459f434c877105497b551",
+      "sha256": "eb7ccd4ea7665db055a0458d64c7a2a8e3085a73cb4c27d826b87b1a7c1452b8",
       "executable": false,
       "kind": "skill",
       "source": "eddacraft/dev-loop",
@@ -5258,7 +5258,7 @@
     },
     {
       "path": ".opencode/skills/dev-loop/skill.meta.json",
-      "sha256": "14157b1392c7c08928e504890068e3947ae80a11d93459f434c877105497b551",
+      "sha256": "eb7ccd4ea7665db055a0458d64c7a2a8e3085a73cb4c27d826b87b1a7c1452b8",
       "executable": false,
       "kind": "skill",
       "source": "eddacraft/dev-loop",
