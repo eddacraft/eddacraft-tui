@@ -1,11 +1,11 @@
 # Agent Surface Inventory
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                              |
-| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------ |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                  |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Guide | Authoritative | AICON | Live   | Last reviewed 2026-09-08 against the interim `development-loop` copy from `eddacraft/skills` (`b26b0964df83d7fd36c3c4e35ff94e1867dcb726`) plus tracked `AGENTS.md`, `.claude/`, `.agents/`, `.opencode/`, `.codex/`, and `.grok/` surfaces |
 
-| Upstream                                                                                                           | Downstream                                                               |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Upstream                                                                                                                                               | Downstream                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `AGENTS.md`, `.claude/agents/`, `.claude/commands/`, `.opencode/agents/`, `.codex/config.toml`, `.agents/skills/`, `.grok/skills/`, `eddacraft/skills` | `docs/guides/documentation-governance.md`, `AGENTS.md`, runtime adapters |
 
 Authoritative inventory of the skills, agents, and commands the anvil workflow
@@ -45,7 +45,7 @@ describes the manual cross-check.
 | **Repo-local OpenCode**            | Anvil-specific agent adapter                                                        | `.opencode/agents/`                                                                                                       |
 | **Repo-local Codex**               | Codex-facing project configuration                                                  | `.codex/config.toml`, `.codex/agents/`                                                                                    |
 | **Repo-local Grok Build**          | Native skill emission only; no documented `.grok/agents/` contract                  | `.grok/skills/`                                                                                                           |
-| **Catalogue (`eddacraft/skills`)** | Canonical development-loop / APS / Council skills (interim manual copy)             | `https://github.com/eddacraft/skills` — `skills/eddacraft/`, `agents/eddacraft/`, `profiles/development-loop.json`         |
+| **Catalogue (`eddacraft/skills`)** | Canonical development-loop / APS / Council skills (interim manual copy)             | `https://github.com/eddacraft/skills` — `skills/eddacraft/`, `agents/eddacraft/`, `profiles/development-loop.json`        |
 | **Global (`joshuaboys/code-env`)** | Cross-project skills, agents, commands the user maintains as their personal toolkit | `https://github.com/joshuaboys/code-env` — `.claude/skills/`, `.claude/agents/`, `.claude/commands/`; `.opencode/skills/` |
 | **Runtime-provided surfaces**      | Skills and built-ins installed or supplied by the active agent runtime              | The runtime's discovered skill catalogue; no source file in this repository                                               |
 
@@ -60,66 +60,66 @@ Rust + TypeScript polyglot conventions.
 
 This is an **interim manual copy** of the `development-loop` profile from
 [`eddacraft/skills`](https://github.com/eddacraft/skills) (commit
-`b26b0964df83d7fd36c3c4e35ff94e1867dcb726`) until `eddaskills sync` can vend
-the same selection. Catalogue-only `skill.meta.json` and `evals/` are omitted.
+`b26b0964df83d7fd36c3c4e35ff94e1867dcb726`) until `eddaskills sync` can vend the
+same selection. Catalogue-only `skill.meta.json` and `evals/` are omitted.
 Harness loaders read `SKILL.md` plus adjacent references and scripts.
 
-Tracked identically in `.claude/skills/`, `.agents/skills/`, `.opencode/skills/`,
-and `.grok/skills/`. Each copied skill directory (except the two APS-managed
-skills below) has `.manual-copy.json` stating the interim origin — not an
-eddaskills lock digest.
+Tracked identically in `.claude/skills/`, `.agents/skills/`,
+`.opencode/skills/`, and `.grok/skills/`. Each copied skill directory (except
+the two APS-managed skills below) has `.manual-copy.json` stating the interim
+origin — not an eddaskills lock digest.
 
-**Already present** (APS CLI-managed under `.claude/skills` and `.agents/skills`;
-`.claude` bodies already matched the catalogue. The `.agents` `aps-planning`
-copy had a local work-item-claim overlay — that was aligned to the catalogue so
-all four roots stay byte-identical. Claim-issue rules remain in
+**Already present** (APS CLI-managed under `.claude/skills` and
+`.agents/skills`; `.claude` bodies already matched the catalogue. The `.agents`
+`aps-planning` copy had a local work-item-claim overlay — that was aligned to
+the catalogue so all four roots stay byte-identical. Claim-issue rules remain in
 `plans/project-context.md`. Copies of both skills were added to
 `.opencode/skills` and `.grok/skills`):
 
-| Name           | Canonical source                                      | Notes                                      |
-| -------------- | ----------------------------------------------------- | ------------------------------------------ |
-| `aps-planning` | `eddacraft/skills` `skills/eddacraft/aps-planning/`   | Kept `.aps-managed.json` on existing roots |
-| `plan-doctor`  | `eddacraft/skills` `skills/eddacraft/plan-doctor/`    | Kept `.aps-managed.json` on existing roots |
+| Name           | Canonical source                                    | Notes                                      |
+| -------------- | --------------------------------------------------- | ------------------------------------------ |
+| `aps-planning` | `eddacraft/skills` `skills/eddacraft/aps-planning/` | Kept `.aps-managed.json` on existing roots |
+| `plan-doctor`  | `eddacraft/skills` `skills/eddacraft/plan-doctor/`  | Kept `.aps-managed.json` on existing roots |
 
 **Added from bundles `dev-loop` + `aps` + `council` and profile extras:**
 
-| Name                         | Canonical source |
-| ---------------------------- | ---------------- |
-| `agentic-loop`               | `skills/eddacraft/agentic-loop/` |
-| `dev-loop`                   | `skills/eddacraft/dev-loop/` |
-| `dev-loop-module`            | `skills/eddacraft/dev-loop-module/` |
-| `planning-workflow`          | `skills/eddacraft/planning-workflow/` |
-| `aps-probe`                  | `skills/eddacraft/aps-probe/` |
-| `aps-safety-rails`           | `skills/eddacraft/aps-safety-rails/` |
-| `aps-landing`                | `skills/eddacraft/aps-landing/` |
-| `aps-escalation-queue`       | `skills/eddacraft/aps-escalation-queue/` |
-| `aps-resume`                 | `skills/eddacraft/aps-resume/` |
-| `plan-ready`                 | `skills/eddacraft/plan-ready/` |
-| `grill-design`               | `skills/eddacraft/grill-design/` |
-| `isolate-workspace`          | `skills/eddacraft/isolate-workspace/` |
-| `loop-build-tdd`             | `skills/eddacraft/loop-build-tdd/` |
-| `loop-debug`                 | `skills/eddacraft/loop-debug/` |
-| `evidence-gate`              | `skills/eddacraft/evidence-gate/` |
-| `land-branch`                | `skills/eddacraft/land-branch/` |
-| `address-reviews`            | `skills/eddacraft/address-reviews/` |
-| `verify-loop`                | `skills/eddacraft/verify-loop/` |
-| `loop-retro`                 | `skills/eddacraft/loop-retro/` |
-| `dev-loop-differential`      | `skills/eddacraft/dev-loop-differential/` |
-| `dev-loop-router`            | `skills/eddacraft/dev-loop-router/` |
-| `dev-loop-adapter-claude`    | `skills/eddacraft/dev-loop-adapter-claude/` |
-| `dev-loop-adapter-codex`     | `skills/eddacraft/dev-loop-adapter-codex/` |
-| `dev-loop-adapter-opencode`  | `skills/eddacraft/dev-loop-adapter-opencode/` |
-| `dev-loop-adapter-grok`      | `skills/eddacraft/dev-loop-adapter-grok/` |
-| `dev-loop-executor`          | `skills/eddacraft/dev-loop-executor/` (deprecated shim; keep for older emissions) |
-| `council`                    | `skills/eddacraft/council/` |
-| `agent-messaging`            | `skills/eddacraft/agent-messaging/` |
-| `agent-vault`                | `skills/eddacraft/agent-vault/` |
-| `docs-workflow`              | `skills/eddacraft/docs-workflow/` |
-| `openfeature`                | `skills/eddacraft/openfeature/` |
-| `code-review`                | `skills/eddacraft/code-review/` |
-| `commit`                     | `skills/eddacraft/commit/` |
-| `skill-librarian`            | `skills/eddacraft/skill-librarian/` |
-| `security-and-quality`       | `skills/eddacraft/security-and-quality/` |
+| Name                        | Canonical source                                                                  |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| `agentic-loop`              | `skills/eddacraft/agentic-loop/`                                                  |
+| `dev-loop`                  | `skills/eddacraft/dev-loop/`                                                      |
+| `dev-loop-module`           | `skills/eddacraft/dev-loop-module/`                                               |
+| `planning-workflow`         | `skills/eddacraft/planning-workflow/`                                             |
+| `aps-probe`                 | `skills/eddacraft/aps-probe/`                                                     |
+| `aps-safety-rails`          | `skills/eddacraft/aps-safety-rails/`                                              |
+| `aps-landing`               | `skills/eddacraft/aps-landing/`                                                   |
+| `aps-escalation-queue`      | `skills/eddacraft/aps-escalation-queue/`                                          |
+| `aps-resume`                | `skills/eddacraft/aps-resume/`                                                    |
+| `plan-ready`                | `skills/eddacraft/plan-ready/`                                                    |
+| `grill-design`              | `skills/eddacraft/grill-design/`                                                  |
+| `isolate-workspace`         | `skills/eddacraft/isolate-workspace/`                                             |
+| `loop-build-tdd`            | `skills/eddacraft/loop-build-tdd/`                                                |
+| `loop-debug`                | `skills/eddacraft/loop-debug/`                                                    |
+| `evidence-gate`             | `skills/eddacraft/evidence-gate/`                                                 |
+| `land-branch`               | `skills/eddacraft/land-branch/`                                                   |
+| `address-reviews`           | `skills/eddacraft/address-reviews/`                                               |
+| `verify-loop`               | `skills/eddacraft/verify-loop/`                                                   |
+| `loop-retro`                | `skills/eddacraft/loop-retro/`                                                    |
+| `dev-loop-differential`     | `skills/eddacraft/dev-loop-differential/`                                         |
+| `dev-loop-router`           | `skills/eddacraft/dev-loop-router/`                                               |
+| `dev-loop-adapter-claude`   | `skills/eddacraft/dev-loop-adapter-claude/`                                       |
+| `dev-loop-adapter-codex`    | `skills/eddacraft/dev-loop-adapter-codex/`                                        |
+| `dev-loop-adapter-opencode` | `skills/eddacraft/dev-loop-adapter-opencode/`                                     |
+| `dev-loop-adapter-grok`     | `skills/eddacraft/dev-loop-adapter-grok/`                                         |
+| `dev-loop-executor`         | `skills/eddacraft/dev-loop-executor/` (deprecated shim; keep for older emissions) |
+| `council`                   | `skills/eddacraft/council/`                                                       |
+| `agent-messaging`           | `skills/eddacraft/agent-messaging/`                                               |
+| `agent-vault`               | `skills/eddacraft/agent-vault/`                                                   |
+| `docs-workflow`             | `skills/eddacraft/docs-workflow/`                                                 |
+| `openfeature`               | `skills/eddacraft/openfeature/`                                                   |
+| `code-review`               | `skills/eddacraft/code-review/`                                                   |
+| `commit`                    | `skills/eddacraft/commit/`                                                        |
+| `skill-librarian`           | `skills/eddacraft/skill-librarian/`                                               |
+| `security-and-quality`      | `skills/eddacraft/security-and-quality/`                                          |
 
 Residual: replace this tree with `eddaskills sync` once project vending is
 ready. Do not hand-edit the copied skill bodies.
@@ -129,15 +129,15 @@ ready. Do not hand-edit the copied skill bodies.
 These remain expected from the agent runtime or `joshuaboys/code-env`. `council`
 and `commit` moved to the repo-local table above.
 
-| Name                             | Canonical source                                          | Where anvil references it                                                       |
-| -------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `brainstorming`                  | `code-env/.claude/skills/brainstorming/`                  | `dev-workflow` Stage Map (Idea / spec)                                          |
-| `writing-plans`                  | `code-env/.claude/skills/writing-plans/`                  | `dev-workflow` Stage Map (Plan)                                                 |
-| `using-git-worktrees`            | `code-env/.claude/skills/using-git-worktrees/`            | `dev-workflow` Stage Map (Branch)                                               |
-| `systematic-debugging`           | `code-env/.claude/skills/systematic-debugging/`           | `dev-workflow` Stage Map (Debug)                                                |
-| `verification-before-completion` | `code-env/.claude/skills/verification-before-completion/` | `dev-workflow` Stage Map (Verify)                                               |
-| `finishing-a-branch`             | `code-env/.claude/skills/finishing-a-branch/`             | `dev-workflow` Stage Map (Finish)                                               |
-| `parallel-agents`                | `code-env/.claude/skills/parallel-agents/`                | `dev-workflow` Stage Map (Parallelise)                                          |
+| Name                             | Canonical source                                          | Where anvil references it              |
+| -------------------------------- | --------------------------------------------------------- | -------------------------------------- |
+| `brainstorming`                  | `code-env/.claude/skills/brainstorming/`                  | `dev-workflow` Stage Map (Idea / spec) |
+| `writing-plans`                  | `code-env/.claude/skills/writing-plans/`                  | `dev-workflow` Stage Map (Plan)        |
+| `using-git-worktrees`            | `code-env/.claude/skills/using-git-worktrees/`            | `dev-workflow` Stage Map (Branch)      |
+| `systematic-debugging`           | `code-env/.claude/skills/systematic-debugging/`           | `dev-workflow` Stage Map (Debug)       |
+| `verification-before-completion` | `code-env/.claude/skills/verification-before-completion/` | `dev-workflow` Stage Map (Verify)      |
+| `finishing-a-branch`             | `code-env/.claude/skills/finishing-a-branch/`             | `dev-workflow` Stage Map (Finish)      |
+| `parallel-agents`                | `code-env/.claude/skills/parallel-agents/`                | `dev-workflow` Stage Map (Parallelise) |
 
 ## Agents
 
@@ -178,15 +178,16 @@ full review stage and when full Anvil Council is not applicable.
 | ------------ | --------------------------------------- | ------------------------------------------------------------------------ |
 | `autonomous` | `code-env/.claude/agents/autonomous.md` | `dev-workflow` Stage Map (Parallelise), repo-local `/autonomous` command |
 
-`debugger` is now a repo-local interim projection from `eddacraft/skills`. Existing
-Anvil-tuned agents (`tdd-coach`, Council reviewers, APS roles, `anvil-plan-spec`)
-were **not** overwritten. New catalogue agents were projected only into layouts
-this repo already uses (`.claude/agents/`, `.codex/agents/`, `.opencode/agents/`).
-They were not added to `.github/agents/` (Copilot is not a target for these
-assets) or `.grok/agents/` (no documented native Grok agent-file contract).
+`debugger` is now a repo-local interim projection from `eddacraft/skills`.
+Existing Anvil-tuned agents (`tdd-coach`, Council reviewers, APS roles,
+`anvil-plan-spec`) were **not** overwritten. New catalogue agents were projected
+only into layouts this repo already uses (`.claude/agents/`, `.codex/agents/`,
+`.opencode/agents/`). They were not added to `.github/agents/` (Copilot is not a
+target for these assets) or `.grok/agents/` (no documented native Grok
+agent-file contract).
 
-Several global agents (`code-reviewer`, `architect`, `librarian`, `planner`,
-and others) exist in `code-env` but are not referenced by anvil's documented
+Several global agents (`code-reviewer`, `architect`, `librarian`, `planner`, and
+others) exist in `code-env` but are not referenced by anvil's documented
 workflow. They may still be invoked ad-hoc; this inventory does not enumerate
 optional add-ons.
 

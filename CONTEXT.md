@@ -98,8 +98,8 @@ Check, finding, gate, and surface concepts are documented in the
 
 `flags/` (feature-flag manifest) · `patterns/` (compiled detection patterns) ·
 `policies/` (Rego + fixtures) · `schemas/` · `scripts/` (release, APS, docs
-tooling) · `.claude/` `.agents/` `.opencode/` `.codex/` `.grok/` (agent config) ·
-`infra/` (Pulumi).
+tooling) · `.claude/` `.agents/` `.opencode/` `.codex/` `.grok/` (agent config)
+· `infra/` (Pulumi).
 
 ## Where to go next
 
