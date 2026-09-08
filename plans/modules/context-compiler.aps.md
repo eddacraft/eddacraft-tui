@@ -8,14 +8,16 @@
 | CCTX | @joshuaboys | Ready | 1/3      |
 
 **Status:** **Ready** (2026-09-08). Owner authorised the first spike. Spec
-§12/§13 is frozen enough to run (CCTX-001). Spec §15 open decisions are
-**parked until after the spike** — not resolved, not ADRs. Trust boundary
-remains binding: synthesis is advisory and never allow / warn / block.
-Enforcement must keep working if Context Compiler is unavailable.
+§12/§13 is frozen enough to run (CCTX-001). Spec §9 Decision Brief
+contract is frozen as an advisory eval-fixture contract (CCTX-002). Spec
+§15 open decisions are **parked until after the spike** — not resolved,
+not ADRs. Trust boundary remains binding: synthesis is advisory and
+never allow / warn / block. Enforcement must keep working if Context
+Compiler is unavailable.
 
-CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is the next
-serial grain (Ready, not started). CCTX-003 remains Ready behind
-CCTX-001 and CCTX-002.
+CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is **Done** on
+this branch (Decision Brief contract frozen; Merged after land).
+CCTX-003 remains Ready behind CCTX-001 and CCTX-002.
 
 **Spec:**
 [`plans/specs/2026-09-08-context-compiler.md`](../specs/2026-09-08-context-compiler.md).
@@ -33,7 +35,8 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — CCTX-001 Merged via #4456.
+**Last reviewed:** 2026-09-08 — CCTX-002 Done on this branch (Decision
+Brief contract frozen; §15.6 still parked).
 
 ## Purpose
 
@@ -134,7 +137,7 @@ compiler, crate, or flag.
 | ID       | Task                                              | Status | Depends on |
 | -------- | ------------------------------------------------- | ------ | ---------- |
 | CCTX-001 | Freeze the internal evaluation protocol           | Merged 2026-09-08 via PR #4456 | —          |
-| CCTX-002 | Freeze the Decision Brief as an advisory contract | Ready  | CCTX-001   |
+| CCTX-002 | Freeze the Decision Brief as an advisory contract | Done   | CCTX-001   |
 | CCTX-003 | Compare baselines against brief variants          | Ready  | CCTX-001, CCTX-002 |
 
 ### CCTX-001: Freeze the internal evaluation protocol
@@ -164,19 +167,25 @@ compiler, crate, or flag.
 
 ### CCTX-002: Freeze the Decision Brief as an advisory contract
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Fix what one task-shaped brief must contain, and what it must
   never be allowed to mean.
 - **Expected Outcome:** The Decision Brief contract in spec §9 is the
   declared shape: required fields, claim-level evidence, freshness, and the
   fact / interpretation / uncertainty / recommendation split. The contract
   states that a brief is advisory and is never allow / warn / block.
-- **Validation:** `pnpm docs:check`
+  Frozen enough for CCTX-003 to author V3/V4 fixtures. §15.6 remains
+  parked (GATT versus distinct brief evidence — not forked, not decided).
+- **Validation:** `pnpm docs:check` — pending this PR's evidence gate.
+  `pnpm aps:index:check` and `pnpm aps:drift` also in the gate. Stored
+  progress stays 1/3 (ADR-053; feature PRs do not bump `N/M`).
 - **Non-scope:** No runtime schema, crate, or MCP tool. No change to GCTX
   DTOs or GATT's attestation block. How brief evidence relates to GATT
-  remains an open decision.
-- **Files:** `plans/specs/2026-09-08-context-compiler.md`
+  remains an open decision (§15.6 parked). CCTX-003 not started.
+- **Files:** `plans/specs/2026-09-08-context-compiler.md`,
+  `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`
 - **Dependencies:** CCTX-001
+- **Claim:** private GitHub issue #4458
 - **Confidence:** medium
 
 ### CCTX-003: Compare baselines against brief variants

@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval protocol frozen) | 2026-09-08 — CCTX-001 froze §12/§13 enough to run and parked §15 post-spike; product architecture remains undecided. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
+| Spec | Advisory | CCTX | Draft (eval protocol and Decision Brief contract frozen) | 2026-09-08 — CCTX-002 froze §9 as an advisory eval-fixture contract; CCTX-001 froze §12/§13 enough to run; §15 remains parked post-spike; product architecture remains undecided. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -10,9 +10,14 @@
 
 **Status:** Draft for product architecture. The internal evaluation
 protocol in [§12](#12-first-release-spike) / [§13](#13-success-metrics)
-was frozen 2026-09-08 (CCTX-001) enough to run. Open product decisions in
+was frozen 2026-09-08 (CCTX-001) enough to run. The Decision Brief
+contract in [§9](#9-decision-brief-contract) was frozen 2026-09-08
+(CCTX-002) as an advisory eval-fixture contract, enough for CCTX-003 to
+author V3/V4 fixtures. Open product decisions in
 [§15](#15-open-decisions) are parked until after the spike; they are not
-ADRs and must not be treated as decided.
+ADRs and must not be treated as decided. This freeze does not authorise
+a product compiler, runtime schema, crate, MCP tool, or GCTX DTO change.
+
 **Working name:** Context Compiler.
 **Product:** Anvil.
 **Primary owner:** eddacraft / @joshuaboys.
@@ -210,20 +215,103 @@ this spec is Draft. Verified residents today:
 
 ## 9. Decision Brief Contract
 
-A brief is **advisory**. It is never policy authority. It must include:
+CCTX-002 (2026-09-08) froze this section as the **eval-fixture
+contract** for spike variants 3 and 4. It is the declared shape CCTX-003
+authors against. It is **not** a runtime schema, crate, MCP tool, GCTX
+DTO, or GATT attestation type.
 
-- task interpretation and scope;
-- relevant components;
-- relationships;
-- invariants and applicable policy;
-- likely blast radius;
-- tests and validation;
-- prior ADRs;
-- risks and unknowns;
-- claim-level evidence;
-- freshness (source revision, synthesis version, age, invalidation state);
-- confidence and completeness;
-- drill-down handles to exact source and deeper graph traversal.
+### 9.1 Freeze identity
+
+| Field | Frozen value |
+| ----- | ------------ |
+| Freeze date | 2026-09-08 |
+| Contract owner | CCTX / @joshuaboys |
+| Grain | Advisory Decision Brief for one task. Named sections below are fixture headings, not a JSON schema. |
+| Corpus revision | The §12.1 freeze (`23457dc6d2bf379791d587cf2dfdb5046ce51fc0`) unless a run record names a later owner-dated retarget. |
+| Retarget rule | Later protocol-docs commits do **not** add required fields by silence. Amend this section with an owner-dated note. |
+
+### 9.2 Authority (binding, not parked)
+
+A Decision Brief is **advisory context**. It is never policy authority.
+
+- It is **never** allow, warn, or block.
+- It is **never** a substitute for `anvil_validate_write` or the
+  deterministic policy / check engine.
+- Enforcement must keep working if Context Compiler is unavailable,
+  stale, or wrong.
+- A fluent brief that says an edit is safe does not permit skipping
+  launch validation (corpus task T13).
+
+Every brief, including a CCTX-003 fixture, **must** state this
+prohibition in an `Authority` section. A fixture that omits it, or that
+phrases a recommendation as permission, is invalid. This is the same
+split GCTX already documents in
+[Graph context is not launch validation](../../docs/guides/ai-context-delivery.md#graph-context-is-not-launch-validation)
+and that [§11](#11-trust-and-safety-boundary) binds for this subsystem.
+
+### 9.3 Required envelope
+
+Every brief MUST contain these named sections. Optional extras are
+allowed; omitting a required section is a fixture defect.
+
+| Section | Required content | Notes |
+| ------- | ---------------- | ----- |
+| Task interpretation | Spike task id (`T01`–`T20`), restated prompt, task class from §12.5 | Must match the §12.6 class. Do not invent a task-router architecture ([§15.3](#15-open-decisions) parked). |
+| Scope | What the brief covers and what it refuses | Fail visibly if the prompt is broader than selected evidence. |
+| Authority | Explicit: advisory; never allow / warn / block; enforcement remains `anvil_validate_write` | Wording may vary; the prohibition must be unambiguous. |
+| Relevant components | Named crates, docs, or surfaces the task needs | Each entry is a claim or cites a claim. |
+| Relationships | Caller, dependant, ownership, or contract edges relevant to the task | Graph facts stay facts; interpretation stays labelled. |
+| Invariants and applicable policy | Constraints that would change the edit | Policy text is evidence to read, not EVALCI. |
+| Likely blast radius | Files, crates, tests, or surfaces a change would touch | Missed blast-radius is a §13 metric for T08–T11 and T16–T18. |
+| Tests and validation | Which tests or gates apply, including `anvil_validate_write` when the task is an edit | Never list the brief itself as a validation gate. |
+| Prior ADRs | ADR ids that bind the task, or `none in selected inputs` | Missing ADR at corpus revision → evidence gap, not a substitute. |
+| Risks and unknowns | Parked decisions, conflicts, missing or stale evidence | T15 and T19 must surface the relevant §15 item as uncertainty. |
+| Claims | One or more claim records ([§9.4](#94-claim-level-evidence)) | Unlabelled prose that asserts a material fact is a fixture defect. |
+| Freshness | Fields in [§9.6](#96-freshness) | A brief without freshness is unusable. |
+| Completeness | `complete-for-scope`, `partial`, or `unknown`, plus what was omitted | False completeness is a key risk ([§14](#14-key-risks)). |
+| Confidence | Qualitative note only | Numeric scores are forbidden until [§15.4](#15-open-decisions) is resolved. `unmeasured` is valid. |
+| Drill-down handles | Exact-source paths and, for V4, GCTX tools or `graph://` resources the agent may call | Handles are not permission. V3 may open **only** cited paths. |
+
+A brief is task-shaped. It must not be a universal repository summary.
+
+### 9.4 Claim-level evidence
+
+Every **material claim** is a record. Material means an assertion an
+agent might act on: a fact about the tree, an interpretation of
+evidence, an uncertainty, or a recommended next step.
+
+| Field | Required | Meaning |
+| ----- | -------- | ------- |
+| Id | yes | Stable within the fixture (`1`, `2`, …). |
+| Kind | yes | Exactly one of the four kinds in [§9.5](#95-kind-split). |
+| Statement | yes | One checkable assertion. |
+| Evidence | yes | One or more handles (below). |
+| Depends on | no | Other claim ids this interpretation rests on. |
+
+**Evidence handle (spike).** A claim cites at least one of:
+
+1. A repository path (file, crate, heading, symbol, or test name) at
+   the corpus revision in §12.1.
+2. A GCTX tool or `graph://` resource already listed in §12.2, plus an
+   identity-only locator (symbol, file, or query). Snippet text is off
+   unless the run record states egress consent.
+3. An ADR or spec section on the §12.3 allowlist.
+
+A claim with no handle is invalid. Gold paths in §12.6 are recall keys
+for scoring, not permission, and not a substitute for per-claim
+evidence. Unlisted paths may still appear as gold for recall; V3/V4
+must not treat unlisted paths as brief inputs ([§12.3](#123-selected-docs-adrs-tests-and-policy)).
+
+**GATT (parked, not forked).** This contract does **not** require
+GATT's `Attestation` block, does **not** extend it, and does **not**
+invent a parallel disclosure type. If a fixture quotes a GCTX answer
+that already carries attestation, that is reuse of existing GCTX
+payload, not a CCTX decision to adopt GATT. Whether brief evidence
+should reuse GATT, extend it, or stay a distinct advisory contract
+remains [§15.6](#15-open-decisions). T19 must still report that item as
+**parked**. CCTX-002 does not decide it and does not take it to an ADR.
+
+### 9.5 Kind split
 
 Every material claim must distinguish:
 
@@ -236,10 +324,72 @@ Every material claim must distinguish:
 
 Unlabelled synthesis must not be treated as canonical fact.
 
+Recommendations may suggest a next step or focus. They MUST NOT use
+enforcement vocabulary as a brief decision (`allow`, `warn`, `block`,
+or `gateUnavailable` as if the brief issued it). Citing that
+`anvil_validate_write` remains required is a fact or recommendation
+about process, not the brief returning a gate result.
+
+Parked §15 items that an agent might otherwise "decide" (T15, T19) MUST
+be `Uncertainty` claims. A decided-sounding architecture with no ADR is
+a protocol failure for that run ([§12.7](#127-run-procedure-enough-to-run)
+step 6).
+
+### 9.6 Freshness
+
+A brief is usable only when supporting evidence remains valid for the
+requested source revision. Required freshness fields (see also
+[§10](#10-freshness-and-invalidation) and principle 3):
+
+| Field | Meaning for spike fixtures |
+| ----- | -------------------------- |
+| Source revision | Corpus revision from §12.1 unless the run record says otherwise. |
+| Synthesis version | Fixture identity: dated authoring note plus task id. Not a product version scheme. |
+| Age | Wall time from fixture authoring to eval run, or an `authored-at` timestamp. |
+| Invalidation state | `current`, `stale`, or `partial`. |
+| Evidence dependencies | The handles from §9.4. If a supporting path changed after the corpus revision, mark `stale` or `partial`. |
+
+Fail visibly. A stale or partial brief that admits it is safer than a
+fluent brief that does not. No quiet stale fallback. Hidden stale use
+is an initial-gate failure ([§13](#13-success-metrics)).
+
+§10's product-compiler machinery (source hashes, incremental rebuild,
+knowledge store) is **not** implemented by this freeze. Fixtures record
+the fields; they do not authorise a store ([§15.8](#15-open-decisions)
+parked).
+
+### 9.7 Fixture authoring rules (CCTX-003)
+
+CCTX-003 authors one brief per `(task, V3|V4)` pair against this
+contract.
+
+- Format: Markdown or structured prose using the section names in
+  §9.3. Not a runtime JSON schema.
+- V3: the agent may open **only** paths listed in drill-down handles.
+- V4: drill-down handles may additionally name §12.2 GCTX tools and
+  `graph://` resources. Unbounded repository search remains forbidden.
+- T13: the recommendation must keep enforcement; never skip
+  `anvil_validate_write`.
+- T15 / T19: honest result is visible uncertainty against the parked
+  §15 item. Inventing an ADR is a protocol failure.
+- Size: record a token estimate with the GCTX-020 estimator when
+  available; otherwise `unmeasured` ([§13](#13-success-metrics)).
+- Variants 3 and 4 stay **defined but unmeasured** until those
+  fixtures exist. Do not report them as failed for lack of a compiler.
+
+### 9.8 What this freeze does not decide
+
+All of [§15](#15-open-decisions) remains parked, including **§15.6**
+(GATT versus distinct brief evidence). CCTX-002 does not invent ADRs,
+does not fork GATT, and does not authorise a product compiler, crate,
+feature flag, or MCP tool.
+
 ## 10. Freshness and Invalidation
 
 A brief is usable only when supporting evidence remains valid for the
-requested source revision.
+requested source revision. Spike fixtures record the fields frozen in
+[§9.6](#96-freshness). The list below is the product-compiler intent; it
+is not authorised to implement in this spike.
 
 Require:
 
@@ -292,9 +442,10 @@ comparison; it does not replace that harness.
 | Retarget rule | Later protocol-docs commits do **not** move the corpus. Re-freeze only by owner-dated amendment of this table. |
 
 Eval checkouts are of the corpus revision, not of a later CCTX docs PR.
-Variants 1 and 2 are runnable against that revision. Variants 3 and 4 stay
-**defined but unmeasured** until CCTX-002 freezes the Decision Brief contract
-and CCTX-003 authors per-task fixtures.
+Variants 1 and 2 are runnable against that revision. CCTX-002 froze the
+Decision Brief contract in [§9](#9-decision-brief-contract) (2026-09-08).
+Variants 3 and 4 stay **defined but unmeasured** until CCTX-003 authors
+per-task fixtures against that contract.
 
 ### 12.2 GCTX surface pin
 
@@ -376,8 +527,8 @@ gap and continue; do not substitute a different ADR silently.
 | -- | ---- | --------- | -------------- | ----------------------- |
 | V1 | Ordinary exploration | File search and file reads | GCTX tools, `graph://` resources, a pre-authored brief | Yes |
 | V2 | GCTX-assisted | GCTX tools in §12.2, `graph://`, file reads of paths those tools cited | A pre-authored brief; unbounded search that pretends to be GCTX | Yes |
-| V3 | Brief only | One Decision Brief fixture for the task (shape owned by CCTX-002); open **only** paths cited in that brief | Search, GCTX tools, uncited file reads | Defined; unmeasured until CCTX-002 and CCTX-003 fixtures |
-| V4 | Graph-selected synthesis with drill-down | The same brief fixture **plus** GCTX tools listed in the brief's drill-down handles (and §12.2) | Unbounded repository search; treating the brief as permission | Defined; unmeasured until CCTX-002 and CCTX-003 fixtures |
+| V3 | Brief only | One Decision Brief fixture for the task (shape frozen by CCTX-002 in §9); open **only** paths cited in that brief | Search, GCTX tools, uncited file reads | Defined; unmeasured until CCTX-003 fixtures |
+| V4 | Graph-selected synthesis with drill-down | The same brief fixture **plus** GCTX tools listed in the brief's drill-down handles (and §12.2) | Unbounded repository search; treating the brief as permission | Defined; unmeasured until CCTX-003 fixtures |
 
 All four variants keep `anvil_validate_write` available. Scoring must flag
 **authority leakage**: any run that cites a brief, GCTX answer, or card as
@@ -385,8 +536,9 @@ allow / warn / block fails the leakage check even if the rest of the task
 looks successful.
 
 V3/V4 fixtures are eval artefacts, not a product compiler. CCTX-003 authors
-them against the CCTX-002 contract. Until then, report those variants as
-**unmeasured**, not as failed.
+them against the frozen [§9](#9-decision-brief-contract) contract. Until
+those fixtures exist, report those variants as **unmeasured**, not as
+failed.
 
 ### 12.5 Task classes
 
@@ -454,21 +606,23 @@ across variants.
 7. Persist a dated run record. CCTX-003 owns the comparison report format.
 
 **Budget for a full pass:** 20 tasks × runnable variants. After CCTX-001 that
-is 20 × V1 + 20 × V2. V3/V4 wait on CCTX-002/003.
+is 20 × V1 + 20 × V2. After CCTX-002, V3/V4 still wait on CCTX-003 fixtures.
 
-### 12.8 Residual map for wave 2 (CCTX-002)
+### 12.8 Residual map for wave 3 (CCTX-003)
 
-CCTX-001 does not freeze the Decision Brief contract. Wave 2 must:
+CCTX-002 froze the Decision Brief contract in
+[§9](#9-decision-brief-contract). Wave 3 must:
 
-- freeze §9 required fields, claim-level evidence, freshness, and the
-  fact / interpretation / uncertainty / recommendation split;
-- restate that a brief is advisory and never allow / warn / block;
-- **not** decide §15.6 (GATT versus distinct evidence) — keep that parked or
-  take it to an ADR explicitly;
-- produce no runtime schema, crate, MCP tool, or GCTX DTO change.
-
-CCTX-003 then authors V3/V4 fixtures against that contract, runs the
-comparison, and labels each initial gate passed / failed / unmeasured.
+- author one V3/V4 fixture per corpus task against that contract;
+- run the §12 comparison of baselines against brief variants;
+- distinguish measured baselines (V1/V2) from unmeasured brief variants
+  until those fixtures actually run;
+- report each §13 initial gate as passed, failed, or unmeasured;
+- record zero hidden stale use on whatever was actually run;
+- keep §15 parked, including **§15.6** (GATT versus distinct brief
+  evidence) — do not invent an ADR and do not fork GATT;
+- produce no product compiler, knowledge store, or feature flag;
+- leave enforcement unchanged: a brief is never allow / warn / block.
 
 ## 13. Success Metrics
 
@@ -536,7 +690,7 @@ stays an open product question.
 | 3 | **Task intent representation** — how a task is named well enough to select cards without becoming a second planning system. | Deferred to post-spike. §12.6 freezes eval prompts, not a task-router architecture. |
 | 4 | **Confidence model** — scores, ranks, or discrete labels; nothing that looks measured when it is estimated. | Deferred to post-spike. §13 records unmeasured explicitly; do not mint confidence scores for briefs. |
 | 5 | **Conflict surfacing** — how contradictory sources are shown, given that autonomous resolution is out of scope. | Deferred to post-spike. Fail visibly; do not auto-resolve. |
-| 6 | **Evidence format versus Graph Answer Attestation** — reuse GATT's in-band limits, extend them, or keep brief evidence as a distinct advisory contract. | Deferred to post-spike. CCTX-002 must not fork GATT. T19 tests that agents report this as parked. |
+| 6 | **Evidence format versus Graph Answer Attestation** — reuse GATT's in-band limits, extend them, or keep brief evidence as a distinct advisory contract. | Still parked after CCTX-002. The §9 freeze names evidence handles for eval fixtures and explicitly does **not** require, extend, or fork GATT's `Attestation` block. T19 tests that agents report this as parked. |
 | 7 | **Synthesis models under local-first constraints** — what may run on-box, what may not leave the machine, and how that sits with Anvil's existing data boundary. | Deferred to post-spike. T15 tests visible uncertainty against `docs/public/anvil/operations/security.md`. |
 | 8 | **Knowledge location** — repository-local versus user-local versus daemon-managed. | Deferred to post-spike. No store is authorised by this spike. |
 
