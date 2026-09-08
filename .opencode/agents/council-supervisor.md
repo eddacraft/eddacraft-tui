@@ -1,23 +1,10 @@
 ---
-description: Quality-gates Council reviewer output for specificity, evidence, actionability, and proportionality
+description: "Quality-gates Council reviewer output for specificity, evidence, actionability, and proportionality"
 mode: subagent
-steps: 50
-permissions:
-  - action: read
-    resource: "*"
-    effect: allow
-  - action: glob
-    resource: "*"
-    effect: allow
-  - action: grep
-    resource: "*"
-    effect: allow
-  - action: edit
-    resource: "*"
-    effect: deny
-  - action: shell
-    resource: "*"
-    effect: allow
+permission:
+  edit: deny
+  bash: deny
+  webfetch: ask
 ---
 
 # Council supervisor
@@ -64,4 +51,3 @@ If it fails, respond with `REJECTED` followed by:
 - When a spec was supplied, reject critical/major findings that are not
   `in_contract`.
 - Never rewrite, supplement, or silently discard the reviewer's findings.
-

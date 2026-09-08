@@ -1,0 +1,8 @@
+{
+  "name": "dev-loop-adapter-codex",
+  "origin": {"track": false, "type": "local", "repo": "https://github.com/eddacraft/skills", "path": "skills/eddacraft/dev-loop-adapter-codex", "ref": "main", "lastImportedCommit": null},
+  "status": "canonical",
+  "targets": {"claude": false, "codex": true, "grok": false, "opencode": false, "openclaw": false},
+  "agentSupport": {"scope": "target-specific", "agents": [], "targets": ["codex"], "bindingGroup": "dev-loop-adapter", "notes": "Native Codex choreography."},
+  "localChanges": []
+}

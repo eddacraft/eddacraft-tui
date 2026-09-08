@@ -1,6 +1,7 @@
 ---
 name: council-supervisor
-description: Quality-gates Council reviewer output for specificity, evidence, actionability, and proportionality
+description: "Quality-gates Council reviewer output for specificity, evidence, actionability, and proportionality"
+permissionMode: plan
 ---
 
 # Council supervisor

@@ -1,23 +1,10 @@
 ---
-description: Synthesises Council reviewer outputs into a contract-bound gate and PASS/REPAIR/REWORK/REPLAN/BLOCK decision
+description: "Synthesises Council reviewer outputs into a contract-bound gate and PASS/REPAIR/REWORK/REPLAN/BLOCK decision"
 mode: subagent
-steps: 50
-permissions:
-  - action: read
-    resource: "*"
-    effect: allow
-  - action: glob
-    resource: "*"
-    effect: allow
-  - action: grep
-    resource: "*"
-    effect: allow
-  - action: edit
-    resource: "*"
-    effect: deny
-  - action: shell
-    resource: "*"
-    effect: allow
+permission:
+  edit: deny
+  bash: deny
+  webfetch: ask
 ---
 
 # Council judge
@@ -71,4 +58,3 @@ Return one JSON object only:
 ## Convergence
 
 This verdict ends the Council invocation. After a bounded repair, deterministic evidence and the fresh verifier check the change. Another full Council is exceptional: material redesign/scope change, critical redesign finding, new material verifier concern, explicit policy, or explicit user request.
-

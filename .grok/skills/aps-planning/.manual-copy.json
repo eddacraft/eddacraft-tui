@@ -1,8 +1,0 @@
-{
-  "origin": "manual-copy",
-  "profile": "development-loop",
-  "source": "https://github.com/eddacraft/skills",
-  "sourceCommit": "b26b0964df83d7fd36c3c4e35ff94e1867dcb726",
-  "note": "Interim manual copy until eddaskills project vending is ready. Replace with `eddaskills sync` (profile development-loop). Not an eddaskills-managed install; no generated lock or digest.",
-  "skill": "aps-planning"
-}

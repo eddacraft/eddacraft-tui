@@ -1,0 +1,25 @@
+{
+  "name": "dev-loop-module",
+  "origin": {
+    "track": false,
+    "type": "local",
+    "repo": "https://github.com/eddacraft/skills",
+    "path": "skills/eddacraft/dev-loop-module",
+    "ref": "main",
+    "lastImportedCommit": null
+  },
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "codex": true,
+    "grok": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "Sibling of the canonical dev-loop: one landable module with child slices. Does not replace item-level complete or drain."
+  },
+  "localChanges": []
+}

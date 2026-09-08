@@ -1,23 +1,10 @@
 ---
-description: Resolves material contradictions between Council reviewers and produces a binding, evidence-weighted verdict
+description: "Resolves material contradictions between Council reviewers and produces a binding, evidence-weighted verdict"
 mode: subagent
-steps: 50
-permissions:
-  - action: read
-    resource: "*"
-    effect: allow
-  - action: glob
-    resource: "*"
-    effect: allow
-  - action: grep
-    resource: "*"
-    effect: allow
-  - action: edit
-    resource: "*"
-    effect: deny
-  - action: shell
-    resource: "*"
-    effect: allow
+permission:
+  edit: deny
+  bash: deny
+  webfetch: ask
 ---
 
 # Council debate
@@ -64,4 +51,3 @@ Return one JSON object with no surrounding prose:
 - Do not soften a critical finding to avoid conflict.
 - Cite the decisive evidence in the rationale.
 - The verdict is binding input to `council-judge`.
-

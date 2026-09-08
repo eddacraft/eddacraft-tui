@@ -1,6 +1,7 @@
 ---
 name: council-judge
-description: Synthesises Council reviewer outputs into a contract-bound gate and PASS/REPAIR/REWORK/REPLAN/BLOCK decision
+description: "Synthesises Council reviewer outputs into a contract-bound gate and PASS/REPAIR/REWORK/REPLAN/BLOCK decision"
+permissionMode: plan
 ---
 
 # Council judge

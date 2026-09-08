@@ -1,0 +1,25 @@
+{
+  "name": "aps-escalation-queue",
+  "origin": {
+    "track": false,
+    "type": "local",
+    "repo": "https://github.com/eddacraft/skills",
+    "path": "skills/eddacraft/aps-escalation-queue",
+    "ref": "main",
+    "lastImportedCommit": null
+  },
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "codex": true,
+    "grok": true,
+    "openclaw": false
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "Structured, dependency-ordered escalation queue for dev-loop drain's unattended runs: the agent's batched inbox for the human, where each parked checkpoint or blocker is one closed question with a default, cleared in one ordered sitting via swap-file batch-clear. LAND is serialised so interdependent merge approvals cannot clear out of dependency order. Harvested from the retired APS loop design change #8 / gap G7."
+  },
+  "localChanges": []
+}

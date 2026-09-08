@@ -1,0 +1,8 @@
+{
+  "name": "dev-loop-adapter-grok",
+  "origin": {"track": false, "type": "local", "repo": "https://github.com/eddacraft/skills", "path": "skills/eddacraft/dev-loop-adapter-grok", "ref": "main", "lastImportedCommit": null},
+  "status": "canonical",
+  "targets": {"claude": false, "codex": false, "grok": true, "opencode": false, "openclaw": false},
+  "agentSupport": {"scope": "target-specific", "agents": [], "targets": ["grok"], "bindingGroup": "dev-loop-adapter", "notes": "Native Grok Build choreography."},
+  "localChanges": []
+}

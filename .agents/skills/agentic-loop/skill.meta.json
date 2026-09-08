@@ -1,0 +1,8 @@
+{
+  "name": "agentic-loop",
+  "origin": {"track": false, "type": "local", "repo": "https://github.com/eddacraft/skills", "path": "skills/eddacraft/agentic-loop", "ref": "main", "lastImportedCommit": null},
+  "status": "canonical",
+  "targets": {"claude": true, "codex": true, "grok": true, "opencode": true, "openclaw": false},
+  "agentSupport": {"scope": "general", "agents": [], "notes": "Portable canonical delivery lifecycle; harness-specific choreography lives in uniquely named adapter skills."},
+  "localChanges": []
+}

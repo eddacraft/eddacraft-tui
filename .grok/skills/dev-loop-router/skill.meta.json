@@ -1,0 +1,8 @@
+{
+  "name": "dev-loop-router",
+  "origin": {"track": false, "type": "local", "repo": "https://github.com/eddacraft/skills", "path": "skills/eddacraft/dev-loop-router", "ref": "main", "lastImportedCommit": null},
+  "status": "canonical",
+  "targets": {"claude": true, "codex": true, "grok": true, "opencode": true, "openclaw": false},
+  "agentSupport": {"scope": "general", "agents": [], "notes": "Byte-identical cross-root identity router; harness choreography lives in unique adapter skills."},
+  "localChanges": []
+}

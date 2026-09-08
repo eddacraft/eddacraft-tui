@@ -77,6 +77,9 @@ no scope, write, verification, or merge authority.
 
 ## Loader invariant
 
+The deprecated `dev-loop-executor` shim is held to the same identical-bytes rule
+until it is retired under NEUT-010.
+
 Never create differently authored copies of `dev-loop-router` under the same
 name across roots. Identical projected bytes are the sanctioned exception to the
 measured multi-root duplicate-name hazard. Harness-specific behaviour belongs in

@@ -1,0 +1,5854 @@
+{
+  "version": 1,
+  "catalogue": {
+    "source": "https://github.com/eddacraft/skills.git",
+    "requestedRef": "main",
+    "commit": "d0c510e3712ddc078544ebdefc2939fe457d5dd9"
+  },
+  "adapterVersion": "0.1.0",
+  "selection": {
+    "profiles": [],
+    "bundles": [],
+    "skills": [
+      "eddacraft/address-reviews",
+      "eddacraft/agent-messaging",
+      "eddacraft/agent-vault",
+      "eddacraft/agentic-loop",
+      "eddacraft/anvil-opportunity-assessment",
+      "eddacraft/aps-escalation-queue",
+      "eddacraft/aps-landing",
+      "eddacraft/aps-planning",
+      "eddacraft/aps-probe",
+      "eddacraft/aps-resume",
+      "eddacraft/aps-safety-rails",
+      "eddacraft/code-review",
+      "eddacraft/commit",
+      "eddacraft/council",
+      "eddacraft/dev-loop",
+      "eddacraft/dev-loop-adapter-claude",
+      "eddacraft/dev-loop-adapter-codex",
+      "eddacraft/dev-loop-adapter-grok",
+      "eddacraft/dev-loop-adapter-opencode",
+      "eddacraft/dev-loop-module",
+      "eddacraft/dev-loop-router",
+      "eddacraft/docs-workflow",
+      "eddacraft/evidence-gate",
+      "eddacraft/grill-design",
+      "eddacraft/how",
+      "eddacraft/isolate-workspace",
+      "eddacraft/land-branch",
+      "eddacraft/loop-build-tdd",
+      "eddacraft/loop-debug",
+      "eddacraft/openfeature",
+      "eddacraft/plan-doctor",
+      "eddacraft/plan-ready",
+      "eddacraft/planning-workflow",
+      "eddacraft/security-and-quality",
+      "eddacraft/using-anvil",
+      "eddacraft/verify-loop"
+    ],
+    "agents": [
+      "eddacraft/council-debate",
+      "eddacraft/council-judge",
+      "eddacraft/council-supervisor",
+      "eddacraft/debugger",
+      "eddacraft/dev-loop-verifier",
+      "eddacraft/security-analyst"
+    ],
+    "targets": ["claude-code", "codex", "opencode", "grok"]
+  },
+  "files": [
+    {
+      "path": ".agents/skills/address-reviews/SKILL.md",
+      "sha256": "4330348808767bf9a2b51ca05f6afda6d825c1466cfa34879ab62be121111a3e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/address-reviews/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/address-reviews/references/graphql.md",
+      "sha256": "a253cc297a947ad997a0a6f5a507309a37dd779157b6ea79c5e1dd0195a2a69a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/address-reviews/skill.meta.json",
+      "sha256": "002c73e5f99b6244da28380043c686f18e4975d51d2516e8c27466b2c137ed31",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-messaging/SKILL.md",
+      "sha256": "f28ab9e455484a28da56863fb444559111ecd1cb127b9437680aa95605f7d3d5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-messaging/references/runtime-adapter-contract.md",
+      "sha256": "a5126f9b23689ad081ba3d2d2b24049ae3f5f8903a9c84c67ad09cd699b541ad",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-messaging/references/schema.json",
+      "sha256": "4be1399e234fd37422ef46b98e2745c8484186e021ab29d3a43761e6dd1e50a9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-messaging/references/types.ts",
+      "sha256": "f3c235c4a3679bd1165d7fd65977444ebb633f819eaa3a12eb36e41a4b72c026",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-messaging/scripts/check-queue.sh",
+      "sha256": "a2fa2d72f5daa94ac73a9eb8534a86dfc0b51e458c46567354ea8288bb73057b",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-messaging/scripts/receive-messages.sh",
+      "sha256": "2e7801954bf41812aec4ca210ef5529c668808036835440a46f307d939845fb4",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-messaging/scripts/send-message.sh",
+      "sha256": "4f23761b137e83c80fb79f39fa6e36ae9dbdaa2ef747a7ff526b79ac1c1295f2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-messaging/skill.meta.json",
+      "sha256": "5f9f7e3952a39a1a8fd13f05761bdf70314c357f6cdbe96a29841c0fc4358846",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-vault/SKILL.md",
+      "sha256": "54ee5f27c47279c0c47bf38381fb759c3b4f83b3be1234e031fb2bd158524198",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-vault",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agent-vault/skill.meta.json",
+      "sha256": "79a09977e22024422ca7f1cb9f08a57c888e87f16654c1c1ae4c79c6367fe80c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-vault",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agentic-loop/SKILL.md",
+      "sha256": "5572ddbb48f833e5a75695a2a1e9a09b6b71af0a31b82b208a621e976622b5f3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agentic-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/agentic-loop/skill.meta.json",
+      "sha256": "2c4d3a545302f556d6df416305c8f988881a9895159efc858d595c1bbef8f1b5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agentic-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/anvil-opportunity-assessment/SKILL.md",
+      "sha256": "b934112aa3b58932250224ff329d0d5b75e9a03152017d1934e4472231d8df26",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/anvil-opportunity-assessment",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/anvil-opportunity-assessment/skill.meta.json",
+      "sha256": "73167df4bc9662d3207f5d7291df4963d197d52bec24047734e54ef178b54893",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/anvil-opportunity-assessment",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-escalation-queue/SKILL.md",
+      "sha256": "27dd9f9e3d203bbac71db787be840d70653e733ad66d2181351abb2178da338f",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-escalation-queue",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-escalation-queue/skill.meta.json",
+      "sha256": "24238605b081d82f234ae609f76c926e9ca96ca2c64d2331e1193c1b32625dfa",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-escalation-queue",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-landing/SKILL.md",
+      "sha256": "c141d0fef11d76b91de43bf6d41cc88be0db8d8593f256e307450e9262075a1d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-landing",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-landing/skill.meta.json",
+      "sha256": "69a4b86781c8a3ef52b54746946612d6965ec5d081c321fa4718cc5928d5997d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-landing",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-planning/SKILL.md",
+      "sha256": "838cbadccfeb9014dfc7797039ddf87a1b39cb9c08691d63a825085ea2c473f8",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-planning/references/commit-pr-integration.md",
+      "sha256": "d5360779ed3d859dd5b20b8071fb984f2adcace63fd0afaf026b469e20295ef3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-planning/references/reconciliation-report.md",
+      "sha256": "7d880a55ca6f339ee547a6dbebe19176eefbae21bad9ee076e8d2724ab0b4339",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-planning/skill.meta.json",
+      "sha256": "d1ba16ae5de757577899c4c4b7e4708582f29900b341ee7d7e6907d5f36f874e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-probe/SKILL.md",
+      "sha256": "c40be6fdbb62fe7377609e12fb7c22974dd66b249023d9fbe3193d823a6d99a4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-probe",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-probe/skill.meta.json",
+      "sha256": "7e53131d70820121cf66364c21eebf2ceb723ca9a0268e73685d9c2b9738df79",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-probe",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-resume/SKILL.md",
+      "sha256": "1cef3330350cce2e47b1255c6f4f89b916980eda2829dd870301578d5c6964f1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-resume",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-resume/skill.meta.json",
+      "sha256": "f94e30bd4d41effdff71c33a9c5d597ba0aa19a353410de0a0de9e84c05bf475",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-resume",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-safety-rails/SKILL.md",
+      "sha256": "265abc4d0812391e0e7c7373659287787f71536cbe9d7534dc8db779bfda19de",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-safety-rails",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/aps-safety-rails/skill.meta.json",
+      "sha256": "7bb0bb130895026f591f26f7b9dacbd21b0c2f9db37414f904e6fe426c691a14",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-safety-rails",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/code-review/SKILL.md",
+      "sha256": "40eaf6e2bb35abb86a991c79faf5608d2733571d6a74f3ee5c6a4b037043b473",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/code-review",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/code-review/skill.meta.json",
+      "sha256": "4c05df5948cdadd164fe905fd56e351cacfc3706066af2e7a4747c53c8a5ee76",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/code-review",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/commit/SKILL.md",
+      "sha256": "b2d1dad1fb46dc14265d524d9928c63a8368e2a8b1fbbe5b279476845c1c4c5e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/commit",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/commit/skill.meta.json",
+      "sha256": "8369f84ea7fa112af522cf1a5ab26d1cf8662cac1dd470864a2f30e6c2f33368",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/commit",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/SKILL.md",
+      "sha256": "a03e4da7ef8d6c547e275fb6974662084867b2453e1b7a0707f8e7e0f5bf8fe5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/agents/council-debate.md",
+      "sha256": "ddac71866bff077abc62bcebc3229c8eb62c53dbecbce2455b5fbee2f1cf4097",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/agents/council-judge.md",
+      "sha256": "f51823239606ce8d1763589851bd1739e5f975b28d09fe4471d5c989b934c611",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/agents/council-reviewer.md",
+      "sha256": "a416a80fd0e31f3fcb8cb03b7453e9a7f0816b82e361fe97e5cd669b19331c29",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/agents/council-supervisor.md",
+      "sha256": "0e4bffafa5b0731d59880e51a186357f41ba51034ec29ccf744373159878e35e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/commands/council-full.md",
+      "sha256": "aa55d38dc2ce08732a59deafdabb50f7939071f20c84409f91b4b2f33748c787",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/prompts/_codex-wrapper.md",
+      "sha256": "a5b05e7341e725a943a882f5b1b8fc37a31e9217f9835ea07d0d31080056a487",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/prompts/adversarial-codex.md",
+      "sha256": "3b1a60251b105c67a7d0083d1b1585eb137ce2d55e6dc6be492e5b86e3e5ecc4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/prompts/council-reviewer-codex.md",
+      "sha256": "1616b6ac1a6a084352fcdb46486e4d74dd24149cbf72c1b160b41d1f5ffee776",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/prompts/operations-codex.md",
+      "sha256": "31a93b841f5dbc05716f4ea859420695f288af3fe06ec46f7b10e1e6d45d034e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/prompts/pragmatic-lead-codex.md",
+      "sha256": "b1eccece427ccd1e73193d48e0323bca99784bbdea1d05b488d72fb93cd341dc",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/prompts/security-codex.md",
+      "sha256": "801b8c06304f0b32407819918d626e88610477f3a6756a5af0d7e3aa7a318171",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/references/schema.json",
+      "sha256": "a19680cd14323b6ba42ce94a2fca47033839c837387457303b613e1c0784356d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/references/schema.md",
+      "sha256": "3688c5fddae549556fd7227230e42a77903cacdaea728d2e57a3abdd40a12867",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/scripts/council-codex-reviewer.sh",
+      "sha256": "46bab6956cbb76141aff523270a98e59a3fd4ab06c997bbcc77ab43eb5e7e394",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/scripts/council-evidence.sh",
+      "sha256": "5b82caf1d79946447f4c057164c9e9803f059c16deed9e612095d1e8a4b8ecd2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/scripts/council-finding.sh",
+      "sha256": "bc64f7a03850aadcafb459660a387f257445d985bf6c3b6f03db58a7e2a52c8f",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/scripts/council-publish.sh",
+      "sha256": "204065f36b595bd2521581475fd71d0bc359dd2879d0e6ee0283db31ce68d46e",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/scripts/council-session.sh",
+      "sha256": "edf7d9be0004c91e9fb47bb78def2390ff60ba9891e8a7f119efbd955088d2e2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/council/skill.meta.json",
+      "sha256": "22e4db134e21d85d8eb27d6527228adaf261bb5f68ea4ecb8e8ad40698b40762",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop-adapter-codex/SKILL.md",
+      "sha256": "26974af506e7369703f1a51170f752d157e517002055748dfb905447ab3a1af7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-adapter-codex",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop-adapter-codex/skill.meta.json",
+      "sha256": "e8c94467a2c5864b76a29b0fcf3077b0ef6ce03a14e84e821c51fe5fdf6a5c18",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-adapter-codex",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop-module/SKILL.md",
+      "sha256": "fae9ba2a8876e7c4d0c95ec1cd52a7abdaa09b61fc3ecf3e5f36406133fab6be",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-module",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop-module/skill.meta.json",
+      "sha256": "513ff16a57ec02504e8ade86ea8199e1b56154a583d26f2af958dcfa64a0c2a7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-module",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop-router/SKILL.md",
+      "sha256": "3425502a2d8fce35a893b03682554351a68d8dede855ac9000ee666d5ced4bc3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-router",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop-router/skill.meta.json",
+      "sha256": "2cbb23550058e483f8a83528db5e5acc3e0c5fe5e1b9da46ff8d51f9235c66e9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-router",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/SKILL.md",
+      "sha256": "96c5bdc75e92dd5b839082a617c0ebda2796e5ab6501b1ac5ce989ee0eff7c3a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/claim.schema.json",
+      "sha256": "205459715031b384c2d9f2a4667aad121a3a9ce8d6ae60a47f058297fdc91c73",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/contracts.md",
+      "sha256": "19bc9298aa8d2aa42b6756c98acc8a08a90b2fb6ac6bfbac992619db6070f417",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/coordination-module.md",
+      "sha256": "644b12565369525a21353da04ad048240827d9ea2a9fa115605e5c7cc148bc4a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/dev-loop.policy.template.yaml",
+      "sha256": "c03acdf72f13a4dc697f1dd5320ce9973cf6d39629121ad7ae945474d54bef3e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/differential-handoff.md",
+      "sha256": "dd5021f1dd2b959dc8fe266574ca8818448648f30041c29dc45389d56af48f8a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/differential-routing.schema.json",
+      "sha256": "1965057b1a9d609688174675f9b93d63b82523e8a7b70af909a1e760c112392c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/evidence-bundle.schema.json",
+      "sha256": "2e9ea9bf3ec65772ad8995ceda3fec55079ef69c4fcbe2435db0bdf89aded762",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/harness-identity-check.md",
+      "sha256": "095ea45d2b3bb9942face58a48ed95ba66a31fee21d9c563d6fafb01183b96d2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/policy-contract.md",
+      "sha256": "8568840fa7268b60eb37f9a1c0ad452ddc54288ac2d8e92bc55d254f7b464bb4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/references/run-checkpoint.schema.json",
+      "sha256": "a65ebaef4bb576c5be7aeac3d40e13b4d1dd8a7bcf9b55f251f0f3918dc62d0e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/dev-loop/skill.meta.json",
+      "sha256": "14157b1392c7c08928e504890068e3947ae80a11d93459f434c877105497b551",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/docs-workflow/SKILL.md",
+      "sha256": "528417766f5470eb96b7b3d9ee48dd532369de497d3a1d3ca86b6e731328365d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/docs-workflow",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/docs-workflow/skill.meta.json",
+      "sha256": "8253706bbb5d57e74464bce8b56be6060ada745fb621d8a2111f559fb958d1a7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/docs-workflow",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/evidence-gate/SKILL.md",
+      "sha256": "65c6fcaf49661f4211f4ff4008a3a75954c711f0122969e7378aab2f9b0c1486",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/evidence-gate/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/evidence-gate/references/evidence-menu.md",
+      "sha256": "92e4eb9e46020406f8b8b2f5d3bd390fb91d0179e9ec02035dc76aad29fd8a5a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/evidence-gate/skill.meta.json",
+      "sha256": "fd1d8732e6996d52ad63d5013db5d16fc5e0448994c2b3f5945e583858f5224d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/grill-design/SKILL.md",
+      "sha256": "3d62998f2c2714b8ffcbe648f83239cf9340e71e67b9bc3675666a132e984f79",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/grill-design/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/grill-design/skill.meta.json",
+      "sha256": "5b66f14bf3840693e93fefc6a6c2c23c9bf816379cc12d158609a7b2684e52bf",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/how/SKILL.md",
+      "sha256": "927b3eb727365c3fc9226d3b931b7c55a13ac49673823e5a86c0004c3bca5ec1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/how/references/critic-prompt.md",
+      "sha256": "384dbe2e16b558f7139b22d6b6acdf07f0a36aa4e000d6402e9b00388b52a422",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/how/references/critique-rubric.md",
+      "sha256": "c8d41b6cb38b9240575d5d2b6c11a7b35907a68a204c6dda7461b74cb23098e0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/how/references/explainer-prompt.md",
+      "sha256": "43818573de64a7c43f7fadf9acba33051320d8d6eb3e6a14282255f34bb6d1a0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/how/references/explorer-prompt.md",
+      "sha256": "f7297c80f148f46cf389f3d847c9d14492bbe9a2d20f50a2a790fdcb78f681cd",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/how/skill.meta.json",
+      "sha256": "e02bdd559867107f46be76c951afa091f8e112fd96797274ff07fb91f52cbef2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/isolate-workspace/SKILL.md",
+      "sha256": "7c3f11e0797abb43e5265b7c2a7c7a4c99ec5352ab67a68eb9c30f9bdddc52e2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/isolate-workspace/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/isolate-workspace/references/sandbox-and-setup.md",
+      "sha256": "d47cd66eeaa00e816dfef4c4a1a0df94cb2ac1d8eaaefae3d4292ba05b67db17",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/isolate-workspace/skill.meta.json",
+      "sha256": "453cd1c403ba6b7cbef1a9bf15228ae680d0a6ff445333f2fc8d7378b0147de0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/land-branch/SKILL.md",
+      "sha256": "1815e330c25cb4fdcda6d3685502fcdd1476fe3ecf99e41b4406446e5eeead73",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/land-branch/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/land-branch/skill.meta.json",
+      "sha256": "da28269e83f7fec0909342a9563ef01e5cdd2965d98ae931b3ae606c3ea9ae7a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/loop-build-tdd/SKILL.md",
+      "sha256": "645651344b8a0eaddf9cf32282182787a859774ba92e4a7fb0fbc88916ed2bfe",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/loop-build-tdd/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/loop-build-tdd/skill.meta.json",
+      "sha256": "8cfa67a620d9c3bc41e476dd84477abd0aa14aa775923d2d394f765eb208d75f",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/loop-debug/SKILL.md",
+      "sha256": "34212757dd74ebb682ee881596a34a2195abc983787c5f1697053608a31b3593",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/loop-debug/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/loop-debug/skill.meta.json",
+      "sha256": "0fba29e697253a6a785ffc93adcb559fa0d2076c66c333a8dca2a1195107fcbf",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/openfeature/SKILL.md",
+      "sha256": "0d456c29f694362dba54972d6fb09f73eb04a83c2fbc1e2d57674fc4ef0bd8b8",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/openfeature/references/evaluation-context.md",
+      "sha256": "ddd7ce5342e644a67f96902588e01e2e92a56873ab37b3b97491c6b2d98b4984",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/openfeature/skill.meta.json",
+      "sha256": "7a693d84f727a8ec43b24f2c84c8d4365a0b86552f10f57f841c4eaf1c774d37",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/plan-doctor/SKILL.md",
+      "sha256": "b100c2e42e2cc84da42d5e05f38af53cf8fa85eeb687d01aa1b3fdfe1a1369f0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-doctor",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/plan-doctor/skill.meta.json",
+      "sha256": "6b5666d45633308ff97dfcf0b6ba3c1ba2a16afe78bee60c716f4a1b09046dbc",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-doctor",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/plan-ready/SKILL.md",
+      "sha256": "e4c2014c798892a4d932d0a3812af3ac14d9656e144376339f185d434f5df57c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/plan-ready/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/plan-ready/skill.meta.json",
+      "sha256": "c20d1ec470d0500a38ab92cb643e6e6cb939d753aeaaec771ddb2e33a39ab0d2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/planning-workflow/SKILL.md",
+      "sha256": "6237edba4572be26ed7110f23f9d888b35af1cb523091e72bb4ed9272af42728",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/planning-workflow",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/planning-workflow/skill.meta.json",
+      "sha256": "eec0e8a1d6d6fb9092f2e3e4bbe891d882bdf310618bc52a431c55690d6a98c7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/planning-workflow",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/SKILL.md",
+      "sha256": "878e9958ae4c7502f83c1b5941fd6686ba25e2bc05f143b50397def19c05f60e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/USAGE.md",
+      "sha256": "f635c09ce1cacd0fc97905f443572fd3a5120ae25b0be6295cced5531fb4d7c0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/commands/security-and-quality-all.md",
+      "sha256": "c4a8742e1d822cde96db17842b7ad2242a7bdbbfb300a0168bd8bc88c8d47f05",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/commands/security-and-quality-quality.md",
+      "sha256": "ef7875b1596b395fe545c0b22bc7c9bd0f3179a39ae28a3373cc1013437497ef",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/commands/security-and-quality-scanning.md",
+      "sha256": "fd5039b983049b069587e00c0d7b2a637875c92a2d60cd4b03808d10005d09b6",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/commands/security-and-quality.md",
+      "sha256": "663e42d4b3c86167a35e145349f1cb002a10280a35fde2ca67a301d94f349c24",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/references/alert-tracks.md",
+      "sha256": "96e6e319ff058b3c177772cddb0c5b0e90ad57249a1b047b51522a37988fa19d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/references/report-templates.md",
+      "sha256": "9c88a7bd95f3b15e9e6a89ddc4dbc0f54af694cbd6d66a92aefb64a52733c9b9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/security-and-quality/skill.meta.json",
+      "sha256": "7742b8cd6e00dabd2a7f82852280a7faad8390c1a8018356286c159aa55efc9c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/using-anvil/SKILL.md",
+      "sha256": "a3ce73d118a067ac1d7bd6cacd3e405538d8ea24f56bc19b65aeef23e4b04b2e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/using-anvil/references/architecture.yaml.md",
+      "sha256": "7645b1890de19025c1197c41a79dd6b02d472cc3eb2182cc885577cc60619705",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/using-anvil/skill.meta.json",
+      "sha256": "863e5ff4377ccca490c64b1cd8f2761ea6b6982593c713b69dc61d711fc2df4b",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/verify-loop/SKILL.md",
+      "sha256": "db0bb38f1ed162a6d740711776be6a18873e64df4517217c73e4eb6347d0f1ba",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/verify-loop/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".agents/skills/verify-loop/skill.meta.json",
+      "sha256": "1fe57e49f0b4ff69c55e591d5e1ea319d9a9ca14c83edcaabe9561fe22b61d78",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".claude/agents/council-debate.md",
+      "sha256": "eae55157d9e539abd54e3d797695d1de7a084573cc0fda2dcb01b6d69b0225de",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-debate",
+      "targets": ["claude-code", "grok"],
+      "outputs": {
+        "claude-code": "native",
+        "grok": "compatibility"
+      }
+    },
+    {
+      "path": ".claude/agents/council-judge.md",
+      "sha256": "a56ca198c787f1b5e154bcbcefaf8b49a47dcc3f248544a6c6d599afae7ae449",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-judge",
+      "targets": ["claude-code", "grok"],
+      "outputs": {
+        "claude-code": "native",
+        "grok": "compatibility"
+      }
+    },
+    {
+      "path": ".claude/agents/council-supervisor.md",
+      "sha256": "0720eeca20087a68bc6ce82dd47df8b72285c5b6fdfda1feda5138ea4d1ae367",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-supervisor",
+      "targets": ["claude-code", "grok"],
+      "outputs": {
+        "claude-code": "native",
+        "grok": "compatibility"
+      }
+    },
+    {
+      "path": ".claude/agents/debugger.md",
+      "sha256": "ee66d3ebcf4657989dcce4bdb75538923ab7739a4e0627cdb6824f45ea7adbbd",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/debugger",
+      "targets": ["claude-code", "grok"],
+      "outputs": {
+        "claude-code": "native",
+        "grok": "compatibility"
+      }
+    },
+    {
+      "path": ".claude/agents/dev-loop-verifier.md",
+      "sha256": "f591ef93c58fd661186bab70ac564fd7e70e1c9a98dc1d9e16bf7a6193575155",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/dev-loop-verifier",
+      "targets": ["claude-code", "grok"],
+      "outputs": {
+        "claude-code": "native",
+        "grok": "compatibility"
+      }
+    },
+    {
+      "path": ".claude/agents/security-analyst.md",
+      "sha256": "c840e257fbb708d42a1497d10c0f83d07a099ba882214f9f21275fed4e5696cf",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/security-analyst",
+      "targets": ["claude-code", "grok"],
+      "outputs": {
+        "claude-code": "native",
+        "grok": "compatibility"
+      }
+    },
+    {
+      "path": ".claude/skills/address-reviews/SKILL.md",
+      "sha256": "4330348808767bf9a2b51ca05f6afda6d825c1466cfa34879ab62be121111a3e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/address-reviews/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/address-reviews/references/graphql.md",
+      "sha256": "a253cc297a947ad997a0a6f5a507309a37dd779157b6ea79c5e1dd0195a2a69a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/address-reviews/skill.meta.json",
+      "sha256": "002c73e5f99b6244da28380043c686f18e4975d51d2516e8c27466b2c137ed31",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-messaging/SKILL.md",
+      "sha256": "f28ab9e455484a28da56863fb444559111ecd1cb127b9437680aa95605f7d3d5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-messaging/references/runtime-adapter-contract.md",
+      "sha256": "a5126f9b23689ad081ba3d2d2b24049ae3f5f8903a9c84c67ad09cd699b541ad",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-messaging/references/schema.json",
+      "sha256": "4be1399e234fd37422ef46b98e2745c8484186e021ab29d3a43761e6dd1e50a9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-messaging/references/types.ts",
+      "sha256": "f3c235c4a3679bd1165d7fd65977444ebb633f819eaa3a12eb36e41a4b72c026",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-messaging/scripts/check-queue.sh",
+      "sha256": "a2fa2d72f5daa94ac73a9eb8534a86dfc0b51e458c46567354ea8288bb73057b",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-messaging/scripts/receive-messages.sh",
+      "sha256": "2e7801954bf41812aec4ca210ef5529c668808036835440a46f307d939845fb4",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-messaging/scripts/send-message.sh",
+      "sha256": "4f23761b137e83c80fb79f39fa6e36ae9dbdaa2ef747a7ff526b79ac1c1295f2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-messaging/skill.meta.json",
+      "sha256": "5f9f7e3952a39a1a8fd13f05761bdf70314c357f6cdbe96a29841c0fc4358846",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-vault/SKILL.md",
+      "sha256": "54ee5f27c47279c0c47bf38381fb759c3b4f83b3be1234e031fb2bd158524198",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-vault",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agent-vault/skill.meta.json",
+      "sha256": "79a09977e22024422ca7f1cb9f08a57c888e87f16654c1c1ae4c79c6367fe80c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-vault",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agentic-loop/SKILL.md",
+      "sha256": "5572ddbb48f833e5a75695a2a1e9a09b6b71af0a31b82b208a621e976622b5f3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agentic-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/agentic-loop/skill.meta.json",
+      "sha256": "2c4d3a545302f556d6df416305c8f988881a9895159efc858d595c1bbef8f1b5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agentic-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/anvil-opportunity-assessment/SKILL.md",
+      "sha256": "b934112aa3b58932250224ff329d0d5b75e9a03152017d1934e4472231d8df26",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/anvil-opportunity-assessment",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/anvil-opportunity-assessment/skill.meta.json",
+      "sha256": "73167df4bc9662d3207f5d7291df4963d197d52bec24047734e54ef178b54893",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/anvil-opportunity-assessment",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-escalation-queue/SKILL.md",
+      "sha256": "27dd9f9e3d203bbac71db787be840d70653e733ad66d2181351abb2178da338f",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-escalation-queue",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-escalation-queue/skill.meta.json",
+      "sha256": "24238605b081d82f234ae609f76c926e9ca96ca2c64d2331e1193c1b32625dfa",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-escalation-queue",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-landing/SKILL.md",
+      "sha256": "c141d0fef11d76b91de43bf6d41cc88be0db8d8593f256e307450e9262075a1d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-landing",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-landing/skill.meta.json",
+      "sha256": "69a4b86781c8a3ef52b54746946612d6965ec5d081c321fa4718cc5928d5997d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-landing",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-planning/SKILL.md",
+      "sha256": "838cbadccfeb9014dfc7797039ddf87a1b39cb9c08691d63a825085ea2c473f8",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-planning/references/commit-pr-integration.md",
+      "sha256": "d5360779ed3d859dd5b20b8071fb984f2adcace63fd0afaf026b469e20295ef3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-planning/references/reconciliation-report.md",
+      "sha256": "7d880a55ca6f339ee547a6dbebe19176eefbae21bad9ee076e8d2724ab0b4339",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-planning/skill.meta.json",
+      "sha256": "d1ba16ae5de757577899c4c4b7e4708582f29900b341ee7d7e6907d5f36f874e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-probe/SKILL.md",
+      "sha256": "c40be6fdbb62fe7377609e12fb7c22974dd66b249023d9fbe3193d823a6d99a4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-probe",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-probe/skill.meta.json",
+      "sha256": "7e53131d70820121cf66364c21eebf2ceb723ca9a0268e73685d9c2b9738df79",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-probe",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-resume/SKILL.md",
+      "sha256": "1cef3330350cce2e47b1255c6f4f89b916980eda2829dd870301578d5c6964f1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-resume",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-resume/skill.meta.json",
+      "sha256": "f94e30bd4d41effdff71c33a9c5d597ba0aa19a353410de0a0de9e84c05bf475",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-resume",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-safety-rails/SKILL.md",
+      "sha256": "265abc4d0812391e0e7c7373659287787f71536cbe9d7534dc8db779bfda19de",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-safety-rails",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/aps-safety-rails/skill.meta.json",
+      "sha256": "7bb0bb130895026f591f26f7b9dacbd21b0c2f9db37414f904e6fe426c691a14",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-safety-rails",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/code-review/SKILL.md",
+      "sha256": "40eaf6e2bb35abb86a991c79faf5608d2733571d6a74f3ee5c6a4b037043b473",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/code-review",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/code-review/skill.meta.json",
+      "sha256": "4c05df5948cdadd164fe905fd56e351cacfc3706066af2e7a4747c53c8a5ee76",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/code-review",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/commit/SKILL.md",
+      "sha256": "b2d1dad1fb46dc14265d524d9928c63a8368e2a8b1fbbe5b279476845c1c4c5e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/commit",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/commit/skill.meta.json",
+      "sha256": "8369f84ea7fa112af522cf1a5ab26d1cf8662cac1dd470864a2f30e6c2f33368",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/commit",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/SKILL.md",
+      "sha256": "a03e4da7ef8d6c547e275fb6974662084867b2453e1b7a0707f8e7e0f5bf8fe5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/agents/council-debate.md",
+      "sha256": "ddac71866bff077abc62bcebc3229c8eb62c53dbecbce2455b5fbee2f1cf4097",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/agents/council-judge.md",
+      "sha256": "f51823239606ce8d1763589851bd1739e5f975b28d09fe4471d5c989b934c611",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/agents/council-reviewer.md",
+      "sha256": "a416a80fd0e31f3fcb8cb03b7453e9a7f0816b82e361fe97e5cd669b19331c29",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/agents/council-supervisor.md",
+      "sha256": "0e4bffafa5b0731d59880e51a186357f41ba51034ec29ccf744373159878e35e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/commands/council-full.md",
+      "sha256": "aa55d38dc2ce08732a59deafdabb50f7939071f20c84409f91b4b2f33748c787",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/prompts/_codex-wrapper.md",
+      "sha256": "a5b05e7341e725a943a882f5b1b8fc37a31e9217f9835ea07d0d31080056a487",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/prompts/adversarial-codex.md",
+      "sha256": "3b1a60251b105c67a7d0083d1b1585eb137ce2d55e6dc6be492e5b86e3e5ecc4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/prompts/council-reviewer-codex.md",
+      "sha256": "1616b6ac1a6a084352fcdb46486e4d74dd24149cbf72c1b160b41d1f5ffee776",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/prompts/operations-codex.md",
+      "sha256": "31a93b841f5dbc05716f4ea859420695f288af3fe06ec46f7b10e1e6d45d034e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/prompts/pragmatic-lead-codex.md",
+      "sha256": "b1eccece427ccd1e73193d48e0323bca99784bbdea1d05b488d72fb93cd341dc",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/prompts/security-codex.md",
+      "sha256": "801b8c06304f0b32407819918d626e88610477f3a6756a5af0d7e3aa7a318171",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/references/schema.json",
+      "sha256": "a19680cd14323b6ba42ce94a2fca47033839c837387457303b613e1c0784356d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/references/schema.md",
+      "sha256": "3688c5fddae549556fd7227230e42a77903cacdaea728d2e57a3abdd40a12867",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/scripts/council-codex-reviewer.sh",
+      "sha256": "46bab6956cbb76141aff523270a98e59a3fd4ab06c997bbcc77ab43eb5e7e394",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/scripts/council-evidence.sh",
+      "sha256": "5b82caf1d79946447f4c057164c9e9803f059c16deed9e612095d1e8a4b8ecd2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/scripts/council-finding.sh",
+      "sha256": "bc64f7a03850aadcafb459660a387f257445d985bf6c3b6f03db58a7e2a52c8f",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/scripts/council-publish.sh",
+      "sha256": "204065f36b595bd2521581475fd71d0bc359dd2879d0e6ee0283db31ce68d46e",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/scripts/council-session.sh",
+      "sha256": "edf7d9be0004c91e9fb47bb78def2390ff60ba9891e8a7f119efbd955088d2e2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/council/skill.meta.json",
+      "sha256": "22e4db134e21d85d8eb27d6527228adaf261bb5f68ea4ecb8e8ad40698b40762",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop-adapter-claude/SKILL.md",
+      "sha256": "c1953d85edeb6643eb16efc3fcba9693a5e9a2410d614ade1411a85d8873336d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-adapter-claude",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop-adapter-claude/skill.meta.json",
+      "sha256": "36e7609ba06a012539528a2ac63bca4ce0025af6fa50c4b02c76a50421a1b3c1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-adapter-claude",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop-module/SKILL.md",
+      "sha256": "fae9ba2a8876e7c4d0c95ec1cd52a7abdaa09b61fc3ecf3e5f36406133fab6be",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-module",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop-module/skill.meta.json",
+      "sha256": "513ff16a57ec02504e8ade86ea8199e1b56154a583d26f2af958dcfa64a0c2a7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-module",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop-router/SKILL.md",
+      "sha256": "3425502a2d8fce35a893b03682554351a68d8dede855ac9000ee666d5ced4bc3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-router",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop-router/skill.meta.json",
+      "sha256": "2cbb23550058e483f8a83528db5e5acc3e0c5fe5e1b9da46ff8d51f9235c66e9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-router",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/SKILL.md",
+      "sha256": "96c5bdc75e92dd5b839082a617c0ebda2796e5ab6501b1ac5ce989ee0eff7c3a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/claim.schema.json",
+      "sha256": "205459715031b384c2d9f2a4667aad121a3a9ce8d6ae60a47f058297fdc91c73",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/contracts.md",
+      "sha256": "19bc9298aa8d2aa42b6756c98acc8a08a90b2fb6ac6bfbac992619db6070f417",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/coordination-module.md",
+      "sha256": "644b12565369525a21353da04ad048240827d9ea2a9fa115605e5c7cc148bc4a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/dev-loop.policy.template.yaml",
+      "sha256": "c03acdf72f13a4dc697f1dd5320ce9973cf6d39629121ad7ae945474d54bef3e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/differential-handoff.md",
+      "sha256": "dd5021f1dd2b959dc8fe266574ca8818448648f30041c29dc45389d56af48f8a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/differential-routing.schema.json",
+      "sha256": "1965057b1a9d609688174675f9b93d63b82523e8a7b70af909a1e760c112392c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/evidence-bundle.schema.json",
+      "sha256": "2e9ea9bf3ec65772ad8995ceda3fec55079ef69c4fcbe2435db0bdf89aded762",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/harness-identity-check.md",
+      "sha256": "095ea45d2b3bb9942face58a48ed95ba66a31fee21d9c563d6fafb01183b96d2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/policy-contract.md",
+      "sha256": "8568840fa7268b60eb37f9a1c0ad452ddc54288ac2d8e92bc55d254f7b464bb4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/references/run-checkpoint.schema.json",
+      "sha256": "a65ebaef4bb576c5be7aeac3d40e13b4d1dd8a7bcf9b55f251f0f3918dc62d0e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/dev-loop/skill.meta.json",
+      "sha256": "14157b1392c7c08928e504890068e3947ae80a11d93459f434c877105497b551",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/docs-workflow/SKILL.md",
+      "sha256": "528417766f5470eb96b7b3d9ee48dd532369de497d3a1d3ca86b6e731328365d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/docs-workflow",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/docs-workflow/skill.meta.json",
+      "sha256": "8253706bbb5d57e74464bce8b56be6060ada745fb621d8a2111f559fb958d1a7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/docs-workflow",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/evidence-gate/SKILL.md",
+      "sha256": "65c6fcaf49661f4211f4ff4008a3a75954c711f0122969e7378aab2f9b0c1486",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/evidence-gate/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/evidence-gate/references/evidence-menu.md",
+      "sha256": "92e4eb9e46020406f8b8b2f5d3bd390fb91d0179e9ec02035dc76aad29fd8a5a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/evidence-gate/skill.meta.json",
+      "sha256": "fd1d8732e6996d52ad63d5013db5d16fc5e0448994c2b3f5945e583858f5224d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/grill-design/SKILL.md",
+      "sha256": "3d62998f2c2714b8ffcbe648f83239cf9340e71e67b9bc3675666a132e984f79",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/grill-design/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/grill-design/skill.meta.json",
+      "sha256": "5b66f14bf3840693e93fefc6a6c2c23c9bf816379cc12d158609a7b2684e52bf",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/how/SKILL.md",
+      "sha256": "927b3eb727365c3fc9226d3b931b7c55a13ac49673823e5a86c0004c3bca5ec1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/how/references/critic-prompt.md",
+      "sha256": "384dbe2e16b558f7139b22d6b6acdf07f0a36aa4e000d6402e9b00388b52a422",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/how/references/critique-rubric.md",
+      "sha256": "c8d41b6cb38b9240575d5d2b6c11a7b35907a68a204c6dda7461b74cb23098e0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/how/references/explainer-prompt.md",
+      "sha256": "43818573de64a7c43f7fadf9acba33051320d8d6eb3e6a14282255f34bb6d1a0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/how/references/explorer-prompt.md",
+      "sha256": "f7297c80f148f46cf389f3d847c9d14492bbe9a2d20f50a2a790fdcb78f681cd",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/how/skill.meta.json",
+      "sha256": "e02bdd559867107f46be76c951afa091f8e112fd96797274ff07fb91f52cbef2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/isolate-workspace/SKILL.md",
+      "sha256": "7c3f11e0797abb43e5265b7c2a7c7a4c99ec5352ab67a68eb9c30f9bdddc52e2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/isolate-workspace/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/isolate-workspace/references/sandbox-and-setup.md",
+      "sha256": "d47cd66eeaa00e816dfef4c4a1a0df94cb2ac1d8eaaefae3d4292ba05b67db17",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/isolate-workspace/skill.meta.json",
+      "sha256": "453cd1c403ba6b7cbef1a9bf15228ae680d0a6ff445333f2fc8d7378b0147de0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/land-branch/SKILL.md",
+      "sha256": "1815e330c25cb4fdcda6d3685502fcdd1476fe3ecf99e41b4406446e5eeead73",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/land-branch/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/land-branch/skill.meta.json",
+      "sha256": "da28269e83f7fec0909342a9563ef01e5cdd2965d98ae931b3ae606c3ea9ae7a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/loop-build-tdd/SKILL.md",
+      "sha256": "645651344b8a0eaddf9cf32282182787a859774ba92e4a7fb0fbc88916ed2bfe",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/loop-build-tdd/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/loop-build-tdd/skill.meta.json",
+      "sha256": "8cfa67a620d9c3bc41e476dd84477abd0aa14aa775923d2d394f765eb208d75f",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/loop-debug/SKILL.md",
+      "sha256": "34212757dd74ebb682ee881596a34a2195abc983787c5f1697053608a31b3593",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/loop-debug/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/loop-debug/skill.meta.json",
+      "sha256": "0fba29e697253a6a785ffc93adcb559fa0d2076c66c333a8dca2a1195107fcbf",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/openfeature/SKILL.md",
+      "sha256": "0d456c29f694362dba54972d6fb09f73eb04a83c2fbc1e2d57674fc4ef0bd8b8",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/openfeature/references/evaluation-context.md",
+      "sha256": "ddd7ce5342e644a67f96902588e01e2e92a56873ab37b3b97491c6b2d98b4984",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/openfeature/skill.meta.json",
+      "sha256": "7a693d84f727a8ec43b24f2c84c8d4365a0b86552f10f57f841c4eaf1c774d37",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/plan-doctor/SKILL.md",
+      "sha256": "b100c2e42e2cc84da42d5e05f38af53cf8fa85eeb687d01aa1b3fdfe1a1369f0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-doctor",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/plan-doctor/skill.meta.json",
+      "sha256": "6b5666d45633308ff97dfcf0b6ba3c1ba2a16afe78bee60c716f4a1b09046dbc",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-doctor",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/plan-ready/SKILL.md",
+      "sha256": "e4c2014c798892a4d932d0a3812af3ac14d9656e144376339f185d434f5df57c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/plan-ready/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/plan-ready/skill.meta.json",
+      "sha256": "c20d1ec470d0500a38ab92cb643e6e6cb939d753aeaaec771ddb2e33a39ab0d2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/planning-workflow/SKILL.md",
+      "sha256": "6237edba4572be26ed7110f23f9d888b35af1cb523091e72bb4ed9272af42728",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/planning-workflow",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/planning-workflow/skill.meta.json",
+      "sha256": "eec0e8a1d6d6fb9092f2e3e4bbe891d882bdf310618bc52a431c55690d6a98c7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/planning-workflow",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/SKILL.md",
+      "sha256": "878e9958ae4c7502f83c1b5941fd6686ba25e2bc05f143b50397def19c05f60e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/USAGE.md",
+      "sha256": "f635c09ce1cacd0fc97905f443572fd3a5120ae25b0be6295cced5531fb4d7c0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/commands/security-and-quality-all.md",
+      "sha256": "c4a8742e1d822cde96db17842b7ad2242a7bdbbfb300a0168bd8bc88c8d47f05",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/commands/security-and-quality-quality.md",
+      "sha256": "ef7875b1596b395fe545c0b22bc7c9bd0f3179a39ae28a3373cc1013437497ef",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/commands/security-and-quality-scanning.md",
+      "sha256": "fd5039b983049b069587e00c0d7b2a637875c92a2d60cd4b03808d10005d09b6",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/commands/security-and-quality.md",
+      "sha256": "663e42d4b3c86167a35e145349f1cb002a10280a35fde2ca67a301d94f349c24",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/references/alert-tracks.md",
+      "sha256": "96e6e319ff058b3c177772cddb0c5b0e90ad57249a1b047b51522a37988fa19d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/references/report-templates.md",
+      "sha256": "9c88a7bd95f3b15e9e6a89ddc4dbc0f54af694cbd6d66a92aefb64a52733c9b9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/security-and-quality/skill.meta.json",
+      "sha256": "7742b8cd6e00dabd2a7f82852280a7faad8390c1a8018356286c159aa55efc9c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/using-anvil/SKILL.md",
+      "sha256": "a3ce73d118a067ac1d7bd6cacd3e405538d8ea24f56bc19b65aeef23e4b04b2e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/using-anvil/references/architecture.yaml.md",
+      "sha256": "7645b1890de19025c1197c41a79dd6b02d472cc3eb2182cc885577cc60619705",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/using-anvil/skill.meta.json",
+      "sha256": "863e5ff4377ccca490c64b1cd8f2761ea6b6982593c713b69dc61d711fc2df4b",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/verify-loop/SKILL.md",
+      "sha256": "db0bb38f1ed162a6d740711776be6a18873e64df4517217c73e4eb6347d0f1ba",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/verify-loop/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".claude/skills/verify-loop/skill.meta.json",
+      "sha256": "1fe57e49f0b4ff69c55e591d5e1ea319d9a9ca14c83edcaabe9561fe22b61d78",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["claude-code"],
+      "outputs": {
+        "claude-code": "native"
+      }
+    },
+    {
+      "path": ".codex/agents/council-debate.toml",
+      "sha256": "550788e2a9fe642e38e3582deda1f33f13a53fde25aca4cab2b78318fb90f02f",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-debate",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".codex/agents/council-judge.toml",
+      "sha256": "95b14125bfefd049e663c401d501b6ff6b518ce84fcd24e46fda471852384334",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-judge",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".codex/agents/council-supervisor.toml",
+      "sha256": "9dd2f4da813136f7fe7b752d52dff1f18733450b390828c59ee4ea118666f254",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-supervisor",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".codex/agents/debugger.toml",
+      "sha256": "0bab222aa46016240e635f837e2fe074f4cb41c59accf942012254b8f151d45b",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/debugger",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".codex/agents/dev-loop-verifier.toml",
+      "sha256": "55cf0be5ddd14c99caabe32c25589987dbd4b759feba73686ba67dd7491e97fc",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/dev-loop-verifier",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".codex/agents/security-analyst.toml",
+      "sha256": "b20735db81437f3b45ae81034e150f1b724a64c4c2c4c021b5efb9ec2cf9e72a",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/security-analyst",
+      "targets": ["codex"],
+      "outputs": {
+        "codex": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/address-reviews/SKILL.md",
+      "sha256": "4330348808767bf9a2b51ca05f6afda6d825c1466cfa34879ab62be121111a3e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/address-reviews/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/address-reviews/references/graphql.md",
+      "sha256": "a253cc297a947ad997a0a6f5a507309a37dd779157b6ea79c5e1dd0195a2a69a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/address-reviews/skill.meta.json",
+      "sha256": "002c73e5f99b6244da28380043c686f18e4975d51d2516e8c27466b2c137ed31",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-messaging/SKILL.md",
+      "sha256": "f28ab9e455484a28da56863fb444559111ecd1cb127b9437680aa95605f7d3d5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-messaging/references/runtime-adapter-contract.md",
+      "sha256": "a5126f9b23689ad081ba3d2d2b24049ae3f5f8903a9c84c67ad09cd699b541ad",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-messaging/references/schema.json",
+      "sha256": "4be1399e234fd37422ef46b98e2745c8484186e021ab29d3a43761e6dd1e50a9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-messaging/references/types.ts",
+      "sha256": "f3c235c4a3679bd1165d7fd65977444ebb633f819eaa3a12eb36e41a4b72c026",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-messaging/scripts/check-queue.sh",
+      "sha256": "a2fa2d72f5daa94ac73a9eb8534a86dfc0b51e458c46567354ea8288bb73057b",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-messaging/scripts/receive-messages.sh",
+      "sha256": "2e7801954bf41812aec4ca210ef5529c668808036835440a46f307d939845fb4",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-messaging/scripts/send-message.sh",
+      "sha256": "4f23761b137e83c80fb79f39fa6e36ae9dbdaa2ef747a7ff526b79ac1c1295f2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-messaging/skill.meta.json",
+      "sha256": "5f9f7e3952a39a1a8fd13f05761bdf70314c357f6cdbe96a29841c0fc4358846",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-vault/SKILL.md",
+      "sha256": "54ee5f27c47279c0c47bf38381fb759c3b4f83b3be1234e031fb2bd158524198",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-vault",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agent-vault/skill.meta.json",
+      "sha256": "79a09977e22024422ca7f1cb9f08a57c888e87f16654c1c1ae4c79c6367fe80c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-vault",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agentic-loop/SKILL.md",
+      "sha256": "5572ddbb48f833e5a75695a2a1e9a09b6b71af0a31b82b208a621e976622b5f3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agentic-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/agentic-loop/skill.meta.json",
+      "sha256": "2c4d3a545302f556d6df416305c8f988881a9895159efc858d595c1bbef8f1b5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agentic-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/anvil-opportunity-assessment/SKILL.md",
+      "sha256": "b934112aa3b58932250224ff329d0d5b75e9a03152017d1934e4472231d8df26",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/anvil-opportunity-assessment",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/anvil-opportunity-assessment/skill.meta.json",
+      "sha256": "73167df4bc9662d3207f5d7291df4963d197d52bec24047734e54ef178b54893",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/anvil-opportunity-assessment",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-escalation-queue/SKILL.md",
+      "sha256": "27dd9f9e3d203bbac71db787be840d70653e733ad66d2181351abb2178da338f",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-escalation-queue",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-escalation-queue/skill.meta.json",
+      "sha256": "24238605b081d82f234ae609f76c926e9ca96ca2c64d2331e1193c1b32625dfa",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-escalation-queue",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-landing/SKILL.md",
+      "sha256": "c141d0fef11d76b91de43bf6d41cc88be0db8d8593f256e307450e9262075a1d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-landing",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-landing/skill.meta.json",
+      "sha256": "69a4b86781c8a3ef52b54746946612d6965ec5d081c321fa4718cc5928d5997d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-landing",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-planning/SKILL.md",
+      "sha256": "838cbadccfeb9014dfc7797039ddf87a1b39cb9c08691d63a825085ea2c473f8",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-planning/references/commit-pr-integration.md",
+      "sha256": "d5360779ed3d859dd5b20b8071fb984f2adcace63fd0afaf026b469e20295ef3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-planning/references/reconciliation-report.md",
+      "sha256": "7d880a55ca6f339ee547a6dbebe19176eefbae21bad9ee076e8d2724ab0b4339",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-planning/skill.meta.json",
+      "sha256": "d1ba16ae5de757577899c4c4b7e4708582f29900b341ee7d7e6907d5f36f874e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-probe/SKILL.md",
+      "sha256": "c40be6fdbb62fe7377609e12fb7c22974dd66b249023d9fbe3193d823a6d99a4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-probe",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-probe/skill.meta.json",
+      "sha256": "7e53131d70820121cf66364c21eebf2ceb723ca9a0268e73685d9c2b9738df79",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-probe",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-resume/SKILL.md",
+      "sha256": "1cef3330350cce2e47b1255c6f4f89b916980eda2829dd870301578d5c6964f1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-resume",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-resume/skill.meta.json",
+      "sha256": "f94e30bd4d41effdff71c33a9c5d597ba0aa19a353410de0a0de9e84c05bf475",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-resume",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-safety-rails/SKILL.md",
+      "sha256": "265abc4d0812391e0e7c7373659287787f71536cbe9d7534dc8db779bfda19de",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-safety-rails",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/aps-safety-rails/skill.meta.json",
+      "sha256": "7bb0bb130895026f591f26f7b9dacbd21b0c2f9db37414f904e6fe426c691a14",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-safety-rails",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/code-review/SKILL.md",
+      "sha256": "40eaf6e2bb35abb86a991c79faf5608d2733571d6a74f3ee5c6a4b037043b473",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/code-review",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/code-review/skill.meta.json",
+      "sha256": "4c05df5948cdadd164fe905fd56e351cacfc3706066af2e7a4747c53c8a5ee76",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/code-review",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/commit/SKILL.md",
+      "sha256": "b2d1dad1fb46dc14265d524d9928c63a8368e2a8b1fbbe5b279476845c1c4c5e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/commit",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/commit/skill.meta.json",
+      "sha256": "8369f84ea7fa112af522cf1a5ab26d1cf8662cac1dd470864a2f30e6c2f33368",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/commit",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/SKILL.md",
+      "sha256": "a03e4da7ef8d6c547e275fb6974662084867b2453e1b7a0707f8e7e0f5bf8fe5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/agents/council-debate.md",
+      "sha256": "ddac71866bff077abc62bcebc3229c8eb62c53dbecbce2455b5fbee2f1cf4097",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/agents/council-judge.md",
+      "sha256": "f51823239606ce8d1763589851bd1739e5f975b28d09fe4471d5c989b934c611",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/agents/council-reviewer.md",
+      "sha256": "a416a80fd0e31f3fcb8cb03b7453e9a7f0816b82e361fe97e5cd669b19331c29",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/agents/council-supervisor.md",
+      "sha256": "0e4bffafa5b0731d59880e51a186357f41ba51034ec29ccf744373159878e35e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/commands/council-full.md",
+      "sha256": "aa55d38dc2ce08732a59deafdabb50f7939071f20c84409f91b4b2f33748c787",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/prompts/_codex-wrapper.md",
+      "sha256": "a5b05e7341e725a943a882f5b1b8fc37a31e9217f9835ea07d0d31080056a487",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/prompts/adversarial-codex.md",
+      "sha256": "3b1a60251b105c67a7d0083d1b1585eb137ce2d55e6dc6be492e5b86e3e5ecc4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/prompts/council-reviewer-codex.md",
+      "sha256": "1616b6ac1a6a084352fcdb46486e4d74dd24149cbf72c1b160b41d1f5ffee776",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/prompts/operations-codex.md",
+      "sha256": "31a93b841f5dbc05716f4ea859420695f288af3fe06ec46f7b10e1e6d45d034e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/prompts/pragmatic-lead-codex.md",
+      "sha256": "b1eccece427ccd1e73193d48e0323bca99784bbdea1d05b488d72fb93cd341dc",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/prompts/security-codex.md",
+      "sha256": "801b8c06304f0b32407819918d626e88610477f3a6756a5af0d7e3aa7a318171",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/references/schema.json",
+      "sha256": "a19680cd14323b6ba42ce94a2fca47033839c837387457303b613e1c0784356d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/references/schema.md",
+      "sha256": "3688c5fddae549556fd7227230e42a77903cacdaea728d2e57a3abdd40a12867",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/scripts/council-codex-reviewer.sh",
+      "sha256": "46bab6956cbb76141aff523270a98e59a3fd4ab06c997bbcc77ab43eb5e7e394",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/scripts/council-evidence.sh",
+      "sha256": "5b82caf1d79946447f4c057164c9e9803f059c16deed9e612095d1e8a4b8ecd2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/scripts/council-finding.sh",
+      "sha256": "bc64f7a03850aadcafb459660a387f257445d985bf6c3b6f03db58a7e2a52c8f",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/scripts/council-publish.sh",
+      "sha256": "204065f36b595bd2521581475fd71d0bc359dd2879d0e6ee0283db31ce68d46e",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/scripts/council-session.sh",
+      "sha256": "edf7d9be0004c91e9fb47bb78def2390ff60ba9891e8a7f119efbd955088d2e2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/council/skill.meta.json",
+      "sha256": "22e4db134e21d85d8eb27d6527228adaf261bb5f68ea4ecb8e8ad40698b40762",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop-adapter-grok/SKILL.md",
+      "sha256": "6fac63f248c1985c50a96c3a54cb0ba14e64b2fcd84c64317c1f256bf6a4739d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-adapter-grok",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop-adapter-grok/skill.meta.json",
+      "sha256": "214b1c6b05172b3db75f4ee21e3d0fbd043c34af6ee8ad4e07e03ad3d36361e4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-adapter-grok",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop-module/SKILL.md",
+      "sha256": "fae9ba2a8876e7c4d0c95ec1cd52a7abdaa09b61fc3ecf3e5f36406133fab6be",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-module",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop-module/skill.meta.json",
+      "sha256": "513ff16a57ec02504e8ade86ea8199e1b56154a583d26f2af958dcfa64a0c2a7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-module",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop-router/SKILL.md",
+      "sha256": "3425502a2d8fce35a893b03682554351a68d8dede855ac9000ee666d5ced4bc3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-router",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop-router/skill.meta.json",
+      "sha256": "2cbb23550058e483f8a83528db5e5acc3e0c5fe5e1b9da46ff8d51f9235c66e9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-router",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/SKILL.md",
+      "sha256": "96c5bdc75e92dd5b839082a617c0ebda2796e5ab6501b1ac5ce989ee0eff7c3a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/claim.schema.json",
+      "sha256": "205459715031b384c2d9f2a4667aad121a3a9ce8d6ae60a47f058297fdc91c73",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/contracts.md",
+      "sha256": "19bc9298aa8d2aa42b6756c98acc8a08a90b2fb6ac6bfbac992619db6070f417",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/coordination-module.md",
+      "sha256": "644b12565369525a21353da04ad048240827d9ea2a9fa115605e5c7cc148bc4a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/dev-loop.policy.template.yaml",
+      "sha256": "c03acdf72f13a4dc697f1dd5320ce9973cf6d39629121ad7ae945474d54bef3e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/differential-handoff.md",
+      "sha256": "dd5021f1dd2b959dc8fe266574ca8818448648f30041c29dc45389d56af48f8a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/differential-routing.schema.json",
+      "sha256": "1965057b1a9d609688174675f9b93d63b82523e8a7b70af909a1e760c112392c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/evidence-bundle.schema.json",
+      "sha256": "2e9ea9bf3ec65772ad8995ceda3fec55079ef69c4fcbe2435db0bdf89aded762",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/harness-identity-check.md",
+      "sha256": "095ea45d2b3bb9942face58a48ed95ba66a31fee21d9c563d6fafb01183b96d2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/policy-contract.md",
+      "sha256": "8568840fa7268b60eb37f9a1c0ad452ddc54288ac2d8e92bc55d254f7b464bb4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/references/run-checkpoint.schema.json",
+      "sha256": "a65ebaef4bb576c5be7aeac3d40e13b4d1dd8a7bcf9b55f251f0f3918dc62d0e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/dev-loop/skill.meta.json",
+      "sha256": "14157b1392c7c08928e504890068e3947ae80a11d93459f434c877105497b551",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/docs-workflow/SKILL.md",
+      "sha256": "528417766f5470eb96b7b3d9ee48dd532369de497d3a1d3ca86b6e731328365d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/docs-workflow",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/docs-workflow/skill.meta.json",
+      "sha256": "8253706bbb5d57e74464bce8b56be6060ada745fb621d8a2111f559fb958d1a7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/docs-workflow",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/evidence-gate/SKILL.md",
+      "sha256": "65c6fcaf49661f4211f4ff4008a3a75954c711f0122969e7378aab2f9b0c1486",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/evidence-gate/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/evidence-gate/references/evidence-menu.md",
+      "sha256": "92e4eb9e46020406f8b8b2f5d3bd390fb91d0179e9ec02035dc76aad29fd8a5a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/evidence-gate/skill.meta.json",
+      "sha256": "fd1d8732e6996d52ad63d5013db5d16fc5e0448994c2b3f5945e583858f5224d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/grill-design/SKILL.md",
+      "sha256": "3d62998f2c2714b8ffcbe648f83239cf9340e71e67b9bc3675666a132e984f79",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/grill-design/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/grill-design/skill.meta.json",
+      "sha256": "5b66f14bf3840693e93fefc6a6c2c23c9bf816379cc12d158609a7b2684e52bf",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/how/SKILL.md",
+      "sha256": "927b3eb727365c3fc9226d3b931b7c55a13ac49673823e5a86c0004c3bca5ec1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/how/references/critic-prompt.md",
+      "sha256": "384dbe2e16b558f7139b22d6b6acdf07f0a36aa4e000d6402e9b00388b52a422",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/how/references/critique-rubric.md",
+      "sha256": "c8d41b6cb38b9240575d5d2b6c11a7b35907a68a204c6dda7461b74cb23098e0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/how/references/explainer-prompt.md",
+      "sha256": "43818573de64a7c43f7fadf9acba33051320d8d6eb3e6a14282255f34bb6d1a0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/how/references/explorer-prompt.md",
+      "sha256": "f7297c80f148f46cf389f3d847c9d14492bbe9a2d20f50a2a790fdcb78f681cd",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/how/skill.meta.json",
+      "sha256": "e02bdd559867107f46be76c951afa091f8e112fd96797274ff07fb91f52cbef2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/isolate-workspace/SKILL.md",
+      "sha256": "7c3f11e0797abb43e5265b7c2a7c7a4c99ec5352ab67a68eb9c30f9bdddc52e2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/isolate-workspace/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/isolate-workspace/references/sandbox-and-setup.md",
+      "sha256": "d47cd66eeaa00e816dfef4c4a1a0df94cb2ac1d8eaaefae3d4292ba05b67db17",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/isolate-workspace/skill.meta.json",
+      "sha256": "453cd1c403ba6b7cbef1a9bf15228ae680d0a6ff445333f2fc8d7378b0147de0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/land-branch/SKILL.md",
+      "sha256": "1815e330c25cb4fdcda6d3685502fcdd1476fe3ecf99e41b4406446e5eeead73",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/land-branch/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/land-branch/skill.meta.json",
+      "sha256": "da28269e83f7fec0909342a9563ef01e5cdd2965d98ae931b3ae606c3ea9ae7a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/loop-build-tdd/SKILL.md",
+      "sha256": "645651344b8a0eaddf9cf32282182787a859774ba92e4a7fb0fbc88916ed2bfe",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/loop-build-tdd/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/loop-build-tdd/skill.meta.json",
+      "sha256": "8cfa67a620d9c3bc41e476dd84477abd0aa14aa775923d2d394f765eb208d75f",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/loop-debug/SKILL.md",
+      "sha256": "34212757dd74ebb682ee881596a34a2195abc983787c5f1697053608a31b3593",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/loop-debug/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/loop-debug/skill.meta.json",
+      "sha256": "0fba29e697253a6a785ffc93adcb559fa0d2076c66c333a8dca2a1195107fcbf",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/openfeature/SKILL.md",
+      "sha256": "0d456c29f694362dba54972d6fb09f73eb04a83c2fbc1e2d57674fc4ef0bd8b8",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/openfeature/references/evaluation-context.md",
+      "sha256": "ddd7ce5342e644a67f96902588e01e2e92a56873ab37b3b97491c6b2d98b4984",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/openfeature/skill.meta.json",
+      "sha256": "7a693d84f727a8ec43b24f2c84c8d4365a0b86552f10f57f841c4eaf1c774d37",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/plan-doctor/SKILL.md",
+      "sha256": "b100c2e42e2cc84da42d5e05f38af53cf8fa85eeb687d01aa1b3fdfe1a1369f0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-doctor",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/plan-doctor/skill.meta.json",
+      "sha256": "6b5666d45633308ff97dfcf0b6ba3c1ba2a16afe78bee60c716f4a1b09046dbc",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-doctor",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/plan-ready/SKILL.md",
+      "sha256": "e4c2014c798892a4d932d0a3812af3ac14d9656e144376339f185d434f5df57c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/plan-ready/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/plan-ready/skill.meta.json",
+      "sha256": "c20d1ec470d0500a38ab92cb643e6e6cb939d753aeaaec771ddb2e33a39ab0d2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/planning-workflow/SKILL.md",
+      "sha256": "6237edba4572be26ed7110f23f9d888b35af1cb523091e72bb4ed9272af42728",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/planning-workflow",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/planning-workflow/skill.meta.json",
+      "sha256": "eec0e8a1d6d6fb9092f2e3e4bbe891d882bdf310618bc52a431c55690d6a98c7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/planning-workflow",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/SKILL.md",
+      "sha256": "878e9958ae4c7502f83c1b5941fd6686ba25e2bc05f143b50397def19c05f60e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/USAGE.md",
+      "sha256": "f635c09ce1cacd0fc97905f443572fd3a5120ae25b0be6295cced5531fb4d7c0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/commands/security-and-quality-all.md",
+      "sha256": "c4a8742e1d822cde96db17842b7ad2242a7bdbbfb300a0168bd8bc88c8d47f05",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/commands/security-and-quality-quality.md",
+      "sha256": "ef7875b1596b395fe545c0b22bc7c9bd0f3179a39ae28a3373cc1013437497ef",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/commands/security-and-quality-scanning.md",
+      "sha256": "fd5039b983049b069587e00c0d7b2a637875c92a2d60cd4b03808d10005d09b6",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/commands/security-and-quality.md",
+      "sha256": "663e42d4b3c86167a35e145349f1cb002a10280a35fde2ca67a301d94f349c24",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/references/alert-tracks.md",
+      "sha256": "96e6e319ff058b3c177772cddb0c5b0e90ad57249a1b047b51522a37988fa19d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/references/report-templates.md",
+      "sha256": "9c88a7bd95f3b15e9e6a89ddc4dbc0f54af694cbd6d66a92aefb64a52733c9b9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/security-and-quality/skill.meta.json",
+      "sha256": "7742b8cd6e00dabd2a7f82852280a7faad8390c1a8018356286c159aa55efc9c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/using-anvil/SKILL.md",
+      "sha256": "a3ce73d118a067ac1d7bd6cacd3e405538d8ea24f56bc19b65aeef23e4b04b2e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/using-anvil/references/architecture.yaml.md",
+      "sha256": "7645b1890de19025c1197c41a79dd6b02d472cc3eb2182cc885577cc60619705",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/using-anvil/skill.meta.json",
+      "sha256": "863e5ff4377ccca490c64b1cd8f2761ea6b6982593c713b69dc61d711fc2df4b",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/verify-loop/SKILL.md",
+      "sha256": "db0bb38f1ed162a6d740711776be6a18873e64df4517217c73e4eb6347d0f1ba",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/verify-loop/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".grok/skills/verify-loop/skill.meta.json",
+      "sha256": "1fe57e49f0b4ff69c55e591d5e1ea319d9a9ca14c83edcaabe9561fe22b61d78",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["grok"],
+      "outputs": {
+        "grok": "native"
+      }
+    },
+    {
+      "path": ".opencode/agents/council-debate.md",
+      "sha256": "a8221fd2884be02aa96e22fdc061eaf35ce8a6bd72246a0a543ecb3031469eaa",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-debate",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/agents/council-judge.md",
+      "sha256": "c7c70f9e9834c8f7cc9351f5a8e84832087f8b1bacf5dd90870aa3fc97d649a9",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-judge",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/agents/council-supervisor.md",
+      "sha256": "c392bc9be0085f853e7d7923fe4cd3744f1d92620226c40cd7150a4b14315551",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/council-supervisor",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/agents/debugger.md",
+      "sha256": "062ca5c47e30446d1e59624beb91e83aecf7982fed8f5195a4a2e9c38c47e302",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/debugger",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/agents/dev-loop-verifier.md",
+      "sha256": "147d7fd83f50295512f4471cf436d3be77f67c789cbd2fa02c7805383f452f74",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/dev-loop-verifier",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/agents/security-analyst.md",
+      "sha256": "5364b0e04e4b3510c02eb1847fd3f574e42cec7247b390e217b84a0870b89b31",
+      "executable": false,
+      "kind": "agent",
+      "source": "eddacraft/security-analyst",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/address-reviews/SKILL.md",
+      "sha256": "4330348808767bf9a2b51ca05f6afda6d825c1466cfa34879ab62be121111a3e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/address-reviews/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/address-reviews/references/graphql.md",
+      "sha256": "a253cc297a947ad997a0a6f5a507309a37dd779157b6ea79c5e1dd0195a2a69a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/address-reviews/skill.meta.json",
+      "sha256": "002c73e5f99b6244da28380043c686f18e4975d51d2516e8c27466b2c137ed31",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/address-reviews",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-messaging/SKILL.md",
+      "sha256": "f28ab9e455484a28da56863fb444559111ecd1cb127b9437680aa95605f7d3d5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-messaging/references/runtime-adapter-contract.md",
+      "sha256": "a5126f9b23689ad081ba3d2d2b24049ae3f5f8903a9c84c67ad09cd699b541ad",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-messaging/references/schema.json",
+      "sha256": "4be1399e234fd37422ef46b98e2745c8484186e021ab29d3a43761e6dd1e50a9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-messaging/references/types.ts",
+      "sha256": "f3c235c4a3679bd1165d7fd65977444ebb633f819eaa3a12eb36e41a4b72c026",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-messaging/scripts/check-queue.sh",
+      "sha256": "a2fa2d72f5daa94ac73a9eb8534a86dfc0b51e458c46567354ea8288bb73057b",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-messaging/scripts/receive-messages.sh",
+      "sha256": "2e7801954bf41812aec4ca210ef5529c668808036835440a46f307d939845fb4",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-messaging/scripts/send-message.sh",
+      "sha256": "4f23761b137e83c80fb79f39fa6e36ae9dbdaa2ef747a7ff526b79ac1c1295f2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-messaging/skill.meta.json",
+      "sha256": "5f9f7e3952a39a1a8fd13f05761bdf70314c357f6cdbe96a29841c0fc4358846",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-messaging",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-vault/SKILL.md",
+      "sha256": "54ee5f27c47279c0c47bf38381fb759c3b4f83b3be1234e031fb2bd158524198",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-vault",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agent-vault/skill.meta.json",
+      "sha256": "79a09977e22024422ca7f1cb9f08a57c888e87f16654c1c1ae4c79c6367fe80c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agent-vault",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agentic-loop/SKILL.md",
+      "sha256": "5572ddbb48f833e5a75695a2a1e9a09b6b71af0a31b82b208a621e976622b5f3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agentic-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/agentic-loop/skill.meta.json",
+      "sha256": "2c4d3a545302f556d6df416305c8f988881a9895159efc858d595c1bbef8f1b5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/agentic-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/anvil-opportunity-assessment/SKILL.md",
+      "sha256": "b934112aa3b58932250224ff329d0d5b75e9a03152017d1934e4472231d8df26",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/anvil-opportunity-assessment",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/anvil-opportunity-assessment/skill.meta.json",
+      "sha256": "73167df4bc9662d3207f5d7291df4963d197d52bec24047734e54ef178b54893",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/anvil-opportunity-assessment",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-escalation-queue/SKILL.md",
+      "sha256": "27dd9f9e3d203bbac71db787be840d70653e733ad66d2181351abb2178da338f",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-escalation-queue",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-escalation-queue/skill.meta.json",
+      "sha256": "24238605b081d82f234ae609f76c926e9ca96ca2c64d2331e1193c1b32625dfa",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-escalation-queue",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-landing/SKILL.md",
+      "sha256": "c141d0fef11d76b91de43bf6d41cc88be0db8d8593f256e307450e9262075a1d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-landing",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-landing/skill.meta.json",
+      "sha256": "69a4b86781c8a3ef52b54746946612d6965ec5d081c321fa4718cc5928d5997d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-landing",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-planning/SKILL.md",
+      "sha256": "838cbadccfeb9014dfc7797039ddf87a1b39cb9c08691d63a825085ea2c473f8",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-planning/references/commit-pr-integration.md",
+      "sha256": "d5360779ed3d859dd5b20b8071fb984f2adcace63fd0afaf026b469e20295ef3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-planning/references/reconciliation-report.md",
+      "sha256": "7d880a55ca6f339ee547a6dbebe19176eefbae21bad9ee076e8d2724ab0b4339",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-planning/skill.meta.json",
+      "sha256": "d1ba16ae5de757577899c4c4b7e4708582f29900b341ee7d7e6907d5f36f874e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-planning",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-probe/SKILL.md",
+      "sha256": "c40be6fdbb62fe7377609e12fb7c22974dd66b249023d9fbe3193d823a6d99a4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-probe",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-probe/skill.meta.json",
+      "sha256": "7e53131d70820121cf66364c21eebf2ceb723ca9a0268e73685d9c2b9738df79",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-probe",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-resume/SKILL.md",
+      "sha256": "1cef3330350cce2e47b1255c6f4f89b916980eda2829dd870301578d5c6964f1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-resume",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-resume/skill.meta.json",
+      "sha256": "f94e30bd4d41effdff71c33a9c5d597ba0aa19a353410de0a0de9e84c05bf475",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-resume",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-safety-rails/SKILL.md",
+      "sha256": "265abc4d0812391e0e7c7373659287787f71536cbe9d7534dc8db779bfda19de",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-safety-rails",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/aps-safety-rails/skill.meta.json",
+      "sha256": "7bb0bb130895026f591f26f7b9dacbd21b0c2f9db37414f904e6fe426c691a14",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/aps-safety-rails",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/code-review/SKILL.md",
+      "sha256": "40eaf6e2bb35abb86a991c79faf5608d2733571d6a74f3ee5c6a4b037043b473",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/code-review",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/code-review/skill.meta.json",
+      "sha256": "4c05df5948cdadd164fe905fd56e351cacfc3706066af2e7a4747c53c8a5ee76",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/code-review",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/commit/SKILL.md",
+      "sha256": "b2d1dad1fb46dc14265d524d9928c63a8368e2a8b1fbbe5b279476845c1c4c5e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/commit",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/commit/skill.meta.json",
+      "sha256": "8369f84ea7fa112af522cf1a5ab26d1cf8662cac1dd470864a2f30e6c2f33368",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/commit",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/SKILL.md",
+      "sha256": "a03e4da7ef8d6c547e275fb6974662084867b2453e1b7a0707f8e7e0f5bf8fe5",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/agents/council-debate.md",
+      "sha256": "ddac71866bff077abc62bcebc3229c8eb62c53dbecbce2455b5fbee2f1cf4097",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/agents/council-judge.md",
+      "sha256": "f51823239606ce8d1763589851bd1739e5f975b28d09fe4471d5c989b934c611",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/agents/council-reviewer.md",
+      "sha256": "a416a80fd0e31f3fcb8cb03b7453e9a7f0816b82e361fe97e5cd669b19331c29",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/agents/council-supervisor.md",
+      "sha256": "0e4bffafa5b0731d59880e51a186357f41ba51034ec29ccf744373159878e35e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/commands/council-full.md",
+      "sha256": "aa55d38dc2ce08732a59deafdabb50f7939071f20c84409f91b4b2f33748c787",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/prompts/_codex-wrapper.md",
+      "sha256": "a5b05e7341e725a943a882f5b1b8fc37a31e9217f9835ea07d0d31080056a487",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/prompts/adversarial-codex.md",
+      "sha256": "3b1a60251b105c67a7d0083d1b1585eb137ce2d55e6dc6be492e5b86e3e5ecc4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/prompts/council-reviewer-codex.md",
+      "sha256": "1616b6ac1a6a084352fcdb46486e4d74dd24149cbf72c1b160b41d1f5ffee776",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/prompts/operations-codex.md",
+      "sha256": "31a93b841f5dbc05716f4ea859420695f288af3fe06ec46f7b10e1e6d45d034e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/prompts/pragmatic-lead-codex.md",
+      "sha256": "b1eccece427ccd1e73193d48e0323bca99784bbdea1d05b488d72fb93cd341dc",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/prompts/security-codex.md",
+      "sha256": "801b8c06304f0b32407819918d626e88610477f3a6756a5af0d7e3aa7a318171",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/references/schema.json",
+      "sha256": "a19680cd14323b6ba42ce94a2fca47033839c837387457303b613e1c0784356d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/references/schema.md",
+      "sha256": "3688c5fddae549556fd7227230e42a77903cacdaea728d2e57a3abdd40a12867",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/scripts/council-codex-reviewer.sh",
+      "sha256": "46bab6956cbb76141aff523270a98e59a3fd4ab06c997bbcc77ab43eb5e7e394",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/scripts/council-evidence.sh",
+      "sha256": "5b82caf1d79946447f4c057164c9e9803f059c16deed9e612095d1e8a4b8ecd2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/scripts/council-finding.sh",
+      "sha256": "bc64f7a03850aadcafb459660a387f257445d985bf6c3b6f03db58a7e2a52c8f",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/scripts/council-publish.sh",
+      "sha256": "204065f36b595bd2521581475fd71d0bc359dd2879d0e6ee0283db31ce68d46e",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/scripts/council-session.sh",
+      "sha256": "edf7d9be0004c91e9fb47bb78def2390ff60ba9891e8a7f119efbd955088d2e2",
+      "executable": true,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/council/skill.meta.json",
+      "sha256": "22e4db134e21d85d8eb27d6527228adaf261bb5f68ea4ecb8e8ad40698b40762",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/council",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop-adapter-opencode/SKILL.md",
+      "sha256": "a59980e663c71c3a5596b9c282366a5c195e2c8fbf9875fdf008ea72d40c1536",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-adapter-opencode",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop-adapter-opencode/skill.meta.json",
+      "sha256": "4994d2f7e543111d37285d1a1c20b23e25d56dc29447765b9aa2cd9c5fbf0516",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-adapter-opencode",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop-module/SKILL.md",
+      "sha256": "fae9ba2a8876e7c4d0c95ec1cd52a7abdaa09b61fc3ecf3e5f36406133fab6be",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-module",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop-module/skill.meta.json",
+      "sha256": "513ff16a57ec02504e8ade86ea8199e1b56154a583d26f2af958dcfa64a0c2a7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-module",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop-router/SKILL.md",
+      "sha256": "3425502a2d8fce35a893b03682554351a68d8dede855ac9000ee666d5ced4bc3",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-router",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop-router/skill.meta.json",
+      "sha256": "2cbb23550058e483f8a83528db5e5acc3e0c5fe5e1b9da46ff8d51f9235c66e9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop-router",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/SKILL.md",
+      "sha256": "96c5bdc75e92dd5b839082a617c0ebda2796e5ab6501b1ac5ce989ee0eff7c3a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/claim.schema.json",
+      "sha256": "205459715031b384c2d9f2a4667aad121a3a9ce8d6ae60a47f058297fdc91c73",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/contracts.md",
+      "sha256": "19bc9298aa8d2aa42b6756c98acc8a08a90b2fb6ac6bfbac992619db6070f417",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/coordination-module.md",
+      "sha256": "644b12565369525a21353da04ad048240827d9ea2a9fa115605e5c7cc148bc4a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/dev-loop.policy.template.yaml",
+      "sha256": "c03acdf72f13a4dc697f1dd5320ce9973cf6d39629121ad7ae945474d54bef3e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/differential-handoff.md",
+      "sha256": "dd5021f1dd2b959dc8fe266574ca8818448648f30041c29dc45389d56af48f8a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/differential-routing.schema.json",
+      "sha256": "1965057b1a9d609688174675f9b93d63b82523e8a7b70af909a1e760c112392c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/evidence-bundle.schema.json",
+      "sha256": "2e9ea9bf3ec65772ad8995ceda3fec55079ef69c4fcbe2435db0bdf89aded762",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/harness-identity-check.md",
+      "sha256": "095ea45d2b3bb9942face58a48ed95ba66a31fee21d9c563d6fafb01183b96d2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/policy-contract.md",
+      "sha256": "8568840fa7268b60eb37f9a1c0ad452ddc54288ac2d8e92bc55d254f7b464bb4",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/references/run-checkpoint.schema.json",
+      "sha256": "a65ebaef4bb576c5be7aeac3d40e13b4d1dd8a7bcf9b55f251f0f3918dc62d0e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/dev-loop/skill.meta.json",
+      "sha256": "14157b1392c7c08928e504890068e3947ae80a11d93459f434c877105497b551",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/dev-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/docs-workflow/SKILL.md",
+      "sha256": "528417766f5470eb96b7b3d9ee48dd532369de497d3a1d3ca86b6e731328365d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/docs-workflow",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/docs-workflow/skill.meta.json",
+      "sha256": "8253706bbb5d57e74464bce8b56be6060ada745fb621d8a2111f559fb958d1a7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/docs-workflow",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/evidence-gate/SKILL.md",
+      "sha256": "65c6fcaf49661f4211f4ff4008a3a75954c711f0122969e7378aab2f9b0c1486",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/evidence-gate/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/evidence-gate/references/evidence-menu.md",
+      "sha256": "92e4eb9e46020406f8b8b2f5d3bd390fb91d0179e9ec02035dc76aad29fd8a5a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/evidence-gate/skill.meta.json",
+      "sha256": "fd1d8732e6996d52ad63d5013db5d16fc5e0448994c2b3f5945e583858f5224d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/evidence-gate",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/grill-design/SKILL.md",
+      "sha256": "3d62998f2c2714b8ffcbe648f83239cf9340e71e67b9bc3675666a132e984f79",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/grill-design/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/grill-design/skill.meta.json",
+      "sha256": "5b66f14bf3840693e93fefc6a6c2c23c9bf816379cc12d158609a7b2684e52bf",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/grill-design",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/how/SKILL.md",
+      "sha256": "927b3eb727365c3fc9226d3b931b7c55a13ac49673823e5a86c0004c3bca5ec1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/how/references/critic-prompt.md",
+      "sha256": "384dbe2e16b558f7139b22d6b6acdf07f0a36aa4e000d6402e9b00388b52a422",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/how/references/critique-rubric.md",
+      "sha256": "c8d41b6cb38b9240575d5d2b6c11a7b35907a68a204c6dda7461b74cb23098e0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/how/references/explainer-prompt.md",
+      "sha256": "43818573de64a7c43f7fadf9acba33051320d8d6eb3e6a14282255f34bb6d1a0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/how/references/explorer-prompt.md",
+      "sha256": "f7297c80f148f46cf389f3d847c9d14492bbe9a2d20f50a2a790fdcb78f681cd",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/how/skill.meta.json",
+      "sha256": "e02bdd559867107f46be76c951afa091f8e112fd96797274ff07fb91f52cbef2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/how",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/isolate-workspace/SKILL.md",
+      "sha256": "7c3f11e0797abb43e5265b7c2a7c7a4c99ec5352ab67a68eb9c30f9bdddc52e2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/isolate-workspace/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/isolate-workspace/references/sandbox-and-setup.md",
+      "sha256": "d47cd66eeaa00e816dfef4c4a1a0df94cb2ac1d8eaaefae3d4292ba05b67db17",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/isolate-workspace/skill.meta.json",
+      "sha256": "453cd1c403ba6b7cbef1a9bf15228ae680d0a6ff445333f2fc8d7378b0147de0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/isolate-workspace",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/land-branch/SKILL.md",
+      "sha256": "1815e330c25cb4fdcda6d3685502fcdd1476fe3ecf99e41b4406446e5eeead73",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/land-branch/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/land-branch/skill.meta.json",
+      "sha256": "da28269e83f7fec0909342a9563ef01e5cdd2965d98ae931b3ae606c3ea9ae7a",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/land-branch",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/loop-build-tdd/SKILL.md",
+      "sha256": "645651344b8a0eaddf9cf32282182787a859774ba92e4a7fb0fbc88916ed2bfe",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/loop-build-tdd/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/loop-build-tdd/skill.meta.json",
+      "sha256": "8cfa67a620d9c3bc41e476dd84477abd0aa14aa775923d2d394f765eb208d75f",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-build-tdd",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/loop-debug/SKILL.md",
+      "sha256": "34212757dd74ebb682ee881596a34a2195abc983787c5f1697053608a31b3593",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/loop-debug/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/loop-debug/skill.meta.json",
+      "sha256": "0fba29e697253a6a785ffc93adcb559fa0d2076c66c333a8dca2a1195107fcbf",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/loop-debug",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/openfeature/SKILL.md",
+      "sha256": "0d456c29f694362dba54972d6fb09f73eb04a83c2fbc1e2d57674fc4ef0bd8b8",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/openfeature/references/evaluation-context.md",
+      "sha256": "ddd7ce5342e644a67f96902588e01e2e92a56873ab37b3b97491c6b2d98b4984",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/openfeature/skill.meta.json",
+      "sha256": "7a693d84f727a8ec43b24f2c84c8d4365a0b86552f10f57f841c4eaf1c774d37",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/openfeature",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/plan-doctor/SKILL.md",
+      "sha256": "b100c2e42e2cc84da42d5e05f38af53cf8fa85eeb687d01aa1b3fdfe1a1369f0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-doctor",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/plan-doctor/skill.meta.json",
+      "sha256": "6b5666d45633308ff97dfcf0b6ba3c1ba2a16afe78bee60c716f4a1b09046dbc",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-doctor",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/plan-ready/SKILL.md",
+      "sha256": "e4c2014c798892a4d932d0a3812af3ac14d9656e144376339f185d434f5df57c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/plan-ready/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/plan-ready/skill.meta.json",
+      "sha256": "c20d1ec470d0500a38ab92cb643e6e6cb939d753aeaaec771ddb2e33a39ab0d2",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/plan-ready",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/planning-workflow/SKILL.md",
+      "sha256": "6237edba4572be26ed7110f23f9d888b35af1cb523091e72bb4ed9272af42728",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/planning-workflow",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/planning-workflow/skill.meta.json",
+      "sha256": "eec0e8a1d6d6fb9092f2e3e4bbe891d882bdf310618bc52a431c55690d6a98c7",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/planning-workflow",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/SKILL.md",
+      "sha256": "878e9958ae4c7502f83c1b5941fd6686ba25e2bc05f143b50397def19c05f60e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/USAGE.md",
+      "sha256": "f635c09ce1cacd0fc97905f443572fd3a5120ae25b0be6295cced5531fb4d7c0",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/commands/security-and-quality-all.md",
+      "sha256": "c4a8742e1d822cde96db17842b7ad2242a7bdbbfb300a0168bd8bc88c8d47f05",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/commands/security-and-quality-quality.md",
+      "sha256": "ef7875b1596b395fe545c0b22bc7c9bd0f3179a39ae28a3373cc1013437497ef",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/commands/security-and-quality-scanning.md",
+      "sha256": "fd5039b983049b069587e00c0d7b2a637875c92a2d60cd4b03808d10005d09b6",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/commands/security-and-quality.md",
+      "sha256": "663e42d4b3c86167a35e145349f1cb002a10280a35fde2ca67a301d94f349c24",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/references/alert-tracks.md",
+      "sha256": "96e6e319ff058b3c177772cddb0c5b0e90ad57249a1b047b51522a37988fa19d",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/references/report-templates.md",
+      "sha256": "9c88a7bd95f3b15e9e6a89ddc4dbc0f54af694cbd6d66a92aefb64a52733c9b9",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/security-and-quality/skill.meta.json",
+      "sha256": "7742b8cd6e00dabd2a7f82852280a7faad8390c1a8018356286c159aa55efc9c",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/security-and-quality",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/using-anvil/SKILL.md",
+      "sha256": "a3ce73d118a067ac1d7bd6cacd3e405538d8ea24f56bc19b65aeef23e4b04b2e",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/using-anvil/references/architecture.yaml.md",
+      "sha256": "7645b1890de19025c1197c41a79dd6b02d472cc3eb2182cc885577cc60619705",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/using-anvil/skill.meta.json",
+      "sha256": "863e5ff4377ccca490c64b1cd8f2761ea6b6982593c713b69dc61d711fc2df4b",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/using-anvil",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/verify-loop/SKILL.md",
+      "sha256": "db0bb38f1ed162a6d740711776be6a18873e64df4517217c73e4eb6347d0f1ba",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/verify-loop/references/contracts.md",
+      "sha256": "2d1ec2dc5672c89a7db3059f8af013a40a1e93f36cb9bd2c33dee462b6920ce1",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    },
+    {
+      "path": ".opencode/skills/verify-loop/skill.meta.json",
+      "sha256": "1fe57e49f0b4ff69c55e591d5e1ea319d9a9ca14c83edcaabe9561fe22b61d78",
+      "executable": false,
+      "kind": "skill",
+      "source": "eddacraft/verify-loop",
+      "targets": ["opencode"],
+      "outputs": {
+        "opencode": "native"
+      }
+    }
+  ]
+}

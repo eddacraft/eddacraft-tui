@@ -1,0 +1,8 @@
+{
+  "name": "dev-loop-adapter-claude",
+  "origin": {"track": false, "type": "local", "repo": "https://github.com/eddacraft/skills", "path": "skills/eddacraft/dev-loop-adapter-claude", "ref": "main", "lastImportedCommit": null},
+  "status": "canonical",
+  "targets": {"claude": true, "codex": false, "grok": false, "opencode": false, "openclaw": false},
+  "agentSupport": {"scope": "target-specific", "agents": [], "targets": ["claude"], "bindingGroup": "dev-loop-adapter", "notes": "Native Claude Code choreography."},
+  "localChanges": []
+}

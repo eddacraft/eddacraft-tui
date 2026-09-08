@@ -1,0 +1,53 @@
+version = 1
+targets = ["claude-code", "codex", "opencode", "grok"]
+bundles = []
+skills = [
+  "eddacraft/agentic-loop",
+  "eddacraft/dev-loop",
+  "eddacraft/dev-loop-module",
+  "eddacraft/planning-workflow",
+  "eddacraft/aps-planning",
+  "eddacraft/aps-probe",
+  "eddacraft/aps-safety-rails",
+  "eddacraft/aps-landing",
+  "eddacraft/aps-escalation-queue",
+  "eddacraft/aps-resume",
+  "eddacraft/plan-ready",
+  "eddacraft/plan-doctor",
+  "eddacraft/grill-design",
+  "eddacraft/isolate-workspace",
+  "eddacraft/loop-build-tdd",
+  "eddacraft/loop-debug",
+  "eddacraft/evidence-gate",
+  "eddacraft/land-branch",
+  "eddacraft/address-reviews",
+  "eddacraft/verify-loop",
+  "eddacraft/dev-loop-router",
+  "eddacraft/dev-loop-adapter-claude",
+  "eddacraft/dev-loop-adapter-codex",
+  "eddacraft/dev-loop-adapter-opencode",
+  "eddacraft/dev-loop-adapter-grok",
+  "eddacraft/council",
+  "eddacraft/agent-messaging",
+  "eddacraft/agent-vault",
+  "eddacraft/docs-workflow",
+  "eddacraft/openfeature",
+  "eddacraft/code-review",
+  "eddacraft/commit",
+  "eddacraft/security-and-quality",
+  "eddacraft/using-anvil",
+  "eddacraft/anvil-opportunity-assessment",
+  "eddacraft/how",
+]
+agents = [
+  "eddacraft/council-debate",
+  "eddacraft/council-judge",
+  "eddacraft/council-supervisor",
+  "eddacraft/debugger",
+  "eddacraft/dev-loop-verifier",
+  "eddacraft/security-analyst",
+]
+
+[catalogue]
+source = "https://github.com/eddacraft/skills.git"
+ref = "main"

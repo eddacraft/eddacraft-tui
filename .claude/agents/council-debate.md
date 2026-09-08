@@ -1,6 +1,7 @@
 ---
 name: council-debate
-description: Resolves material contradictions between Council reviewers and produces a binding, evidence-weighted verdict
+description: "Resolves material contradictions between Council reviewers and produces a binding, evidence-weighted verdict"
+permissionMode: plan
 ---
 
 # Council debate

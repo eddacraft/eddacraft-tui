@@ -51,8 +51,12 @@ Before implementation:
 Standard lifecycle:
 
 ```text
-APS Ready -> claim issue -> Worktrunk branch -> Code -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> Complete
+APS Ready -> claim issue -> Worktrunk branch -> /dev-loop -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> Complete
 ```
+
+`/dev-loop` is the implementation orchestrator. Skills are vendored by
+`eddaskills sync` (`eddaskills.toml`). Do not depend on a user-global `code-env`
+or `~/.claude/skills` copy for the loop.
 
 Use Worktrunk-managed worktrees from `main` for task branches. See
 `docs/guides/branching-strategy.md` and `docs/guides/worktree-policy.md`.
