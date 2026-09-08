@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use anvil_checks::secret::{SecretCheckConfig, scan_content_with_stats};
 
 fn audits_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../plans/audits")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../plans/archive/audits")
 }
 
 #[test]
@@ -28,7 +28,7 @@ fn clawpatch_periodic_scan_record_ids_are_not_entropy_findings() {
         let content = std::fs::read_to_string(&path).unwrap_or_else(|err| {
             panic!("read {}: {err}", path.display());
         });
-        let scan_path = format!("plans/audits/{name}");
+        let scan_path = format!("plans/archive/audits/{name}");
         let (findings, _stats) = scan_content_with_stats(&content, &scan_path, &config);
         for finding in findings {
             if finding.pattern_name != "High Entropy String" {
