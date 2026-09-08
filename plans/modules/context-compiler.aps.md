@@ -176,9 +176,11 @@ compiler, crate, or flag.
   states that a brief is advisory and is never allow / warn / block.
   Frozen enough for CCTX-003 to author V3/V4 fixtures. §15.6 remains
   parked (GATT versus distinct brief evidence — not forked, not decided).
-- **Validation:** `pnpm docs:check` — pending this PR's evidence gate.
-  `pnpm aps:index:check` and `pnpm aps:drift` also in the gate. Stored
-  progress stays 1/3 (ADR-053; feature PRs do not bump `N/M`).
+- **Validation:** `pnpm docs:check` — validation passed 2026-09-08 (15/15
+  surfaces). `pnpm aps:index:check` and `pnpm aps:drift` exit 0 (CCTX stored
+  1/3 vs work items 2/3 is expected ADR-053 advisory; pre-existing DPO
+  2/6 vs 4/8 advisory only). `pnpm aps:active-lint` could not run (`aps`
+  not on PATH in this environment).
 - **Non-scope:** No runtime schema, crate, or MCP tool. No change to GCTX
   DTOs or GATT's attestation block. How brief evidence relates to GATT
   remains an open decision (§15.6 parked). CCTX-003 not started.
