@@ -15,8 +15,8 @@ not ADRs. Trust boundary remains binding: synthesis is advisory and
 never allow / warn / block. Enforcement must keep working if Context
 Compiler is unavailable.
 
-CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is **Done** on
-this branch (Decision Brief contract frozen; Merged after land).
+CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is **Done** via
+PR #4459 (Decision Brief contract frozen).
 CCTX-003 remains Ready behind CCTX-001 and CCTX-002.
 
 **Spec:**
@@ -35,7 +35,7 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — CCTX-002 Done on this branch (Decision
+**Last reviewed:** 2026-09-08 — CCTX-002 Done via PR #4459 (Decision
 Brief contract frozen; §15.6 still parked).
 
 ## Purpose
