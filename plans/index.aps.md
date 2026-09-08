@@ -149,7 +149,7 @@ trusted model.
 
 New (2026-09-07): **GATT** — graph answers state their own limits in-band (per-edge call-resolution fidelity, cap disclosure parity, cost self-report). Owner @joshuaboys; **Ready** since 2026-09-07 on [ADR-142](./decisions/142-graph-answer-attestation.md) (**Accepted**). Origin and declined alternatives: [ripwire borrow assessment](./brainstorms/2026-09-07-ripwire-borrow-assessment.md). Affinity with [Graph Trust Surfaces](#graph-trust-surfaces) is intentional; it is **not** a sixth track of that shortlist.
 
-New (2026-09-08): **CCTX** — Context Compiler. Task-shaped **Decision Brief** over the existing graph; synthesis is advisory and never allow/warn/block. Draft for validation on [the spec](./specs/2026-09-08-context-compiler.md); first spike is internal eval (baselines versus brief variants), not a product compiler. Affinity with GATT, CEG, and [Graph Trust Surfaces](#graph-trust-surfaces); it is **not** a sixth track of that shortlist.
+New (2026-09-08): **CCTX** — Context Compiler. Task-shaped **Decision Brief** over the existing graph; synthesis is advisory and never allow / warn / block. Draft for validation on [the spec](./specs/2026-09-08-context-compiler.md); first spike is internal eval (baselines versus brief variants), not a product compiler. Affinity with GATT, CEG, and [Graph Trust Surfaces](#graph-trust-surfaces); it is **not** a sixth track of that shortlist.
 
 ### Hardening & Maintenance
 
