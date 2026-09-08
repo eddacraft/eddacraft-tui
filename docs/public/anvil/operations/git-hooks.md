@@ -21,7 +21,7 @@ verified_against: 0.9.0-beta
 **Time:** 5 minutes
 
 **Outcome:** local commits run the quality gate and L3 witness; pushes run L4
-validation when a parseable `anvil/policy.*` is present
+validation when a parseable `anvil/policy.*` is present.
 
 ## Before you begin
 
