@@ -5,7 +5,7 @@
 
 | ID   | Owner       | Status | Progress |
 | ---- | ----------- | ------ | -------- |
-| CCTX | @joshuaboys | Ready | 0/3      |
+| CCTX | @joshuaboys | Ready | 1/3      |
 
 **Status:** **Ready** (2026-09-08). Owner authorised the first spike. Spec
 §12/§13 is frozen enough to run (CCTX-001). Spec §15 open decisions are
@@ -13,8 +13,9 @@
 remains binding: synthesis is advisory and never allow / warn / block.
 Enforcement must keep working if Context Compiler is unavailable.
 
-CCTX-001 is the entry point. CCTX-002 and CCTX-003 stay Ready but **must
-not start** until CCTX-001 has landed; they remain serial.
+CCTX-001 is the entry point and is **Done** on this branch pending merge.
+CCTX-002 and CCTX-003 stay Ready and **must not start** until CCTX-001 is
+Merged; they remain serial.
 
 **Spec:**
 [`plans/specs/2026-09-08-context-compiler.md`](../specs/2026-09-08-context-compiler.md).
@@ -132,13 +133,13 @@ compiler, crate, or flag.
 
 | ID       | Task                                              | Status | Depends on |
 | -------- | ------------------------------------------------- | ------ | ---------- |
-| CCTX-001 | Freeze the internal evaluation protocol           | In Progress | —          |
+| CCTX-001 | Freeze the internal evaluation protocol           | Done | —          |
 | CCTX-002 | Freeze the Decision Brief as an advisory contract | Ready  | CCTX-001   |
 | CCTX-003 | Compare baselines against brief variants          | Ready  | CCTX-001, CCTX-002 |
 
 ### CCTX-001: Freeze the internal evaluation protocol
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Make the first spike comparable before anyone spends synthesis
   cost.
 - **Expected Outcome:** The spec's §12 protocol is frozen enough to run: one
@@ -146,12 +147,16 @@ compiler, crate, or flag.
   representative real tasks, four variants, six task classes, and the §13
   metrics and initial gates. Numeric thresholds remain unset until baselines
   exist.
-- **Validation:** `pnpm docs:check`
+- **Validation:** `pnpm docs:check` — validation passed 2026-09-08 (15/15
+  surfaces). `pnpm aps:index:check` and `pnpm aps:drift` exit 0 (pre-existing
+  DPO 2/6 vs 4/8 advisory only). `pnpm aps:active-lint` could not run (`aps`
+  not on PATH in this environment).
 - **Non-scope:** No product compiler. No GCTX, GATT, or CEG behaviour change.
   No EVALCI / policy-regression work.
 - **Files:** `plans/specs/2026-09-08-context-compiler.md`,
   `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`
 - **Claim:** private GitHub issue #4455
+- **PR:** #4456
 - **Confidence:** medium
 
 ### CCTX-002: Freeze the Decision Brief as an advisory contract
