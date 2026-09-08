@@ -230,6 +230,13 @@ class LiveScaffoldSmokeTests(unittest.TestCase):
         self.assertEqual(scored["variant"], "V1")
         self.assertNotIn("live_v3_ran", scored)
 
+    def test_missing_events_uses_specific_reason(self) -> None:
+        from score_live_session import score_live_session
+
+        scored = score_live_session({"task": "T01", "variant": "V1"})
+        self.assertEqual(scored["recovery_cost"]["status"], "unmeasured")
+        self.assertIn("no events", scored["recovery_cost"]["reason"].lower())
+
 
 if __name__ == "__main__":
     raise SystemExit(unittest.main())

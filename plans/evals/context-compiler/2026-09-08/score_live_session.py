@@ -25,13 +25,13 @@ from recovery_cost import score_recovery_cost, unmeasured_recovery_cost
 def score_live_session(session: dict[str, Any]) -> dict[str, Any]:
     """Score one live §12.7 session record. Never invents a V3 live run."""
     variant = session.get("variant") or "V1"
-    recovery = score_recovery_cost(session)
     if session.get("events") is None and session.get("recovery_cost_status") != "unmeasured":
-        if recovery["status"] != "unmeasured":
-            recovery = unmeasured_recovery_cost(
-                session.get("reason")
-                or "Live session record has no events; recovery cost unmeasured."
-            )
+        recovery = unmeasured_recovery_cost(
+            session.get("reason")
+            or "Live session record has no events; recovery cost unmeasured."
+        )
+    else:
+        recovery = score_recovery_cost(session)
     return {
         "task": session.get("task"),
         "variant": variant,

@@ -221,7 +221,7 @@ compiler, crate, or flag.
   **unmeasured**; V2/V4 **blocked** (GCTX unavailable — see CCTX-005 / GCTX-in-harness unblocker). Hidden stale use on
   the fixture run: **passed**.
   `python3 -m unittest discover -s plans/evals/context-compiler/2026-09-08 -p 'test_*.py'`
-  — 13 passed (2026-09-08). Live V3 was **not** run. `pnpm aps:active-lint`
+  — 15 passed (2026-09-08). Live V3 was **not** run. `pnpm aps:active-lint`
   could not run (`aps` not on PATH). §15 including §15.6 still parked.
 - **Non-scope:** No compiler, knowledge store, or feature flag. No change to
   enforcement. Does not replace the GCTX-031 `token_reduction` bench.
