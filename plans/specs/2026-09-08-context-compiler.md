@@ -2,11 +2,11 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval protocol, brief contract, and first comparison frozen) | 2026-09-08 — design council [`2026-09-08-cctx-design-council`](../reviews/2026-09-08-cctx-design-council.md) **PASS** (gate WARN) on live §12.7 V1 eval only; product and §15 remain parked. CCTX-003 authored V3/V4 fixtures and the dated comparison report; CCTX-002 froze §9; CCTX-001 froze §12/§13. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
+| Spec | Advisory | CCTX | Draft (eval protocol, brief contract, first comparison frozen; GCTX harness diagnosis) | 2026-09-08 — CCTX-005 Draft unblocker for V2/V4 harness; design council [`2026-09-08-cctx-design-council`](../reviews/2026-09-08-cctx-design-council.md) **PASS** (gate WARN) on live §12.7 V1 eval only; product and §15 remain parked. CCTX-003 authored V3/V4 fixtures and the dated comparison report; CCTX-002 froze §9; CCTX-001 froze §12/§13. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [GCTX delivery contract](../../docs/architecture/graph-context-delivery-spec.md), [AI context delivery](../../docs/guides/ai-context-delivery.md), [GATT](../modules/graph-answer-attestation.aps.md), [CEG](../modules/change-evidence-graph.aps.md), [Graph Trust Surfaces](./2026-07-28-graph-trust-surfaces.md), [GV2](../../docs/architecture/graph-v2-foundation-spec.md), `crates/anvil-graph-cache`, `crates/anvil-gctx-types`, [local data and security](../../docs/public/anvil/operations/security.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate), [CCTX-003 report](../audits/2026-09-08-cctx-003-baseline-comparison.md), [V3/V4 fixtures](../evals/context-compiler/2026-09-08/README.md), [2026-09-08 design council](../reviews/2026-09-08-cctx-design-council.md) |
+| [GCTX delivery contract](../../docs/architecture/graph-context-delivery-spec.md), [AI context delivery](../../docs/guides/ai-context-delivery.md), [GATT](../modules/graph-answer-attestation.aps.md), [CEG](../modules/change-evidence-graph.aps.md), [Graph Trust Surfaces](./2026-07-28-graph-trust-surfaces.md), [GV2](../../docs/architecture/graph-v2-foundation-spec.md), `crates/anvil-graph-cache`, `crates/anvil-gctx-types`, [local data and security](../../docs/public/anvil/operations/security.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate), [CCTX-003 report](../audits/2026-09-08-cctx-003-baseline-comparison.md), [GCTX harness unblocker](../audits/2026-09-08-gctx-in-harness-unblocker.md), [V3/V4 fixtures](../evals/context-compiler/2026-09-08/README.md), [2026-09-08 design council](../reviews/2026-09-08-cctx-design-council.md) |
 
 **Status:** Draft for product architecture. The internal evaluation
 protocol in [§12](#12-first-release-spike) / [§13](#13-success-metrics)
@@ -15,6 +15,9 @@ contract in [§9](#9-decision-brief-contract) was frozen 2026-09-08
 (CCTX-002) as an advisory eval-fixture contract. CCTX-003 (2026-09-08)
 authored V3/V4 fixtures and the dated comparison report
 ([`plans/audits/2026-09-08-cctx-003-baseline-comparison.md`](../audits/2026-09-08-cctx-003-baseline-comparison.md)).
+A later CCTX-005 Draft records why GCTX was unavailable in that harness
+([`plans/audits/2026-09-08-gctx-in-harness-unblocker.md`](../audits/2026-09-08-gctx-in-harness-unblocker.md));
+it does not run V2/V4 and does not start product work.
 Open product decisions in [§15](#15-open-decisions) remain parked after
 the spike; they are not ADRs and must not be treated as decided. The
 2026-09-08 [design council](../reviews/2026-09-08-cctx-design-council.md)
@@ -631,6 +634,11 @@ Post-spike residue — **not started** by CCTX-003:
 - all of [§15](#15-open-decisions) remains parked, including **§15.6**
   (GATT versus distinct brief evidence) — no ADR, no GATT fork;
 - live §12.7 V1 sessions, and V2/V4 when GCTX is in the harness;
+- **GCTX-in-harness diagnosis** (CCTX-005 Draft):
+  [`plans/audits/2026-09-08-gctx-in-harness-unblocker.md`](../audits/2026-09-08-gctx-in-harness-unblocker.md)
+  — why the CCTX-003 cloud harness had no `anvil` binary, no native GCTX
+  MCP tools, and no daemon; smoke checklist and residual ownership.
+  Enablement is **not started**. Do not treat that note as a V2 run;
 - numeric §13 thresholds (still unset; V1/V2 live baselines do not exist);
 - product compiler, knowledge store, feature flag, MCP tool, GCTX DTO
   change, or enforcement change.
@@ -693,7 +701,8 @@ Token savings are evidence of efficiency, not the primary thesis. See
 
 No ADR is filed with this draft. CCTX Ready promotion on 2026-09-08 **parks**
 these calls until after the internal eval spike. CCTX-003 completed that
-spike as an internal eval and **does not unpark** them. Parking is not a
+spike as an internal eval and **does not unpark** them. CCTX-005's
+harness diagnosis also **does not unpark** them. Parking is not a
 decision: do not invent an ADR, do not treat a brief fixture as product
 architecture, and do not silently pick an option while running §12.
 

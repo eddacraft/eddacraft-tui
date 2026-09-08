@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [Context Compiler spec](../../../specs/2026-09-08-context-compiler.md) §9 / §12 / §13 | [CCTX-003 comparison report](../../../audits/2026-09-08-cctx-003-baseline-comparison.md), [CCTX module](../../../modules/context-compiler.aps.md) |
+| [Context Compiler spec](../../../specs/2026-09-08-context-compiler.md) §9 / §12 / §13 | [CCTX-003 comparison report](../../../audits/2026-09-08-cctx-003-baseline-comparison.md), [GCTX harness unblocker](../../../audits/2026-09-08-gctx-in-harness-unblocker.md), [CCTX module](../../../modules/context-compiler.aps.md) |
 
 Internal evaluation artefacts for Context Compiler spike variants **V3** (brief
 only) and **V4** (same brief plus GCTX drill-down). **Not** a product compiler,
@@ -26,6 +26,10 @@ A Decision Brief is **advisory**. It is never allow / warn / block.
 V3 may open **only** paths listed under each brief's V3 drill-down. V4 may also
 call spec §12.2 GCTX tools named in that brief. Gold paths outside the §12.3
 allowlist are recall keys, not V3 selected inputs.
+
+Live V2/V4 remain **blocked** until the
+[GCTX-in-harness unblocker](../../../audits/2026-09-08-gctx-in-harness-unblocker.md)
+smoke checklist passes. Do not substitute V1.
 
 ## Re-score
 
