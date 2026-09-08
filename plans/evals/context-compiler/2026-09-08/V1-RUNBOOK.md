@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [Context Compiler spec](../../specs/2026-09-08-context-compiler.md) §12 / §13, [design council](https://github.com/eddacraft/anvil-001/pull/4465), [CCTX-003 report](../../audits/2026-09-08-cctx-003-baseline-comparison.md) | [Residual map](residual-map.md), [CCTX module](../../modules/context-compiler.aps.md), live run records under [`runs/v1/`](runs/v1/) |
+| [Context Compiler spec](../../../specs/2026-09-08-context-compiler.md) §12 / §13, [design council](https://github.com/eddacraft/anvil-001/pull/4465), [CCTX-003 report](../../../audits/2026-09-08-cctx-003-baseline-comparison.md) | [Residual map](residual-map.md), [CCTX module](../../../modules/context-compiler.aps.md), live run records under [`runs/v1/`](runs/v1/) |
 
 Internal evaluation only. **No product ships.** A Decision Brief is **never**
 allow / warn / block. This runbook does not authorise a compiler, store, crate,

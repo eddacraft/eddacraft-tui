@@ -2,7 +2,7 @@
 
 Dated §12.7 ordinary-exploration sessions. Corpus
 `23457dc6d2bf379791d587cf2dfdb5046ce51fc0`. See the
-[runbook](../V1-RUNBOOK.md) and [residual map](../residual-map.md).
+[runbook](../../V1-RUNBOOK.md) and [residual map](../../residual-map.md).
 
 | Path | Role |
 | ---- | ---- |
