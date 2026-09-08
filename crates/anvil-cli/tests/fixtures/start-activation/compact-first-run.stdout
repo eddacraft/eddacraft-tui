@@ -4,6 +4,7 @@ anvil initialised successfully.
   Plans:     plans/
   Checks:    secret-detection, import-boundaries, antipattern-scan
   Gitignore: .gitignore
+  Policy:    anvil/policy.yml
 
 First scan
 ────────────────────────────────────────
