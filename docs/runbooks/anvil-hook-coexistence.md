@@ -55,13 +55,15 @@ fi
 # <<< anvil-managed <<<
 ```
 
-The `command -v anvil` guard means the hook silently skips if `anvil` is not on
-PATH (e.g. a teammate who has not installed Anvil). Git's hook PATH can differ
-from an interactive shell — on Windows, Git for Windows often has a narrower
-PATH than PowerShell, so `Get-Command anvil` succeeding in pwsh does not mean
-the hook can see `anvil`. Anvil is invoked without `exec` so host commands after
-the marker still run when validation succeeds; a non-zero status exits
-immediately and blocks Git.
+The `command -v anvil` guard means the hook exits 0 if `anvil` is not on PATH
+(e.g. a teammate who has not installed Anvil). The Husky managed block skips
+with no output; bootstrap `shell_template` is also silent; `anvil hooks install`
+file hooks print `anvil not found on PATH, skipping hook` then exit 0. Git's
+hook PATH can differ from an interactive shell — on Windows, Git for Windows
+often has a narrower PATH than PowerShell, so `Get-Command anvil` succeeding in
+pwsh does not mean the hook can see `anvil`. Anvil is invoked without `exec` so
+host commands after the marker still run when validation succeeds; a non-zero
+status exits immediately and blocks Git.
 
 On uninstall Anvil removes only the marker-bounded block. Surrounding user
 content is preserved byte-exact for canonical input (files ending with a single

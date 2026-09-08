@@ -1730,12 +1730,15 @@ wrapper. **When to use:** These are called by git hooks automatically — not
 invoked directly by users. `bootstrap` is the exception: run it after a fresh
 clone to recover hook-runtime files.
 
-**When to use (`pre-push`):** Git invokes this on `git push` as
-`anvil hook pre-push <remote> <url>` with the ref list on stdin. A silent exit 0
-means no policy (or no project-id), a clean allowed range, or the wrapper
-`command -v anvil` guard firing because Git's hook PATH does not contain `anvil`
-(common when Windows Git's hook PATH differs from an interactive PowerShell
-session).
+**When to use (`pre-push`):** Git invokes the hook script on `git push` as
+`pre-push <remote> <url>` with the ref list on stdin. Wrappers that forward
+`"$@"` (bootstrap `shell_template`, Husky) pass those positionals to
+`anvil hook pre-push`; `anvil hooks install` file hooks do not. Anvil itself
+exits 0 with no output when there is no policy (or no project-id) or the range
+is a clean allowed range. The wrapper `command -v anvil` guard also exits 0 when
+Git's hook PATH lacks `anvil` (common when Windows Git's hook PATH differs from
+an interactive PowerShell session): bootstrap and Husky are silent;
+`anvil hooks install` prints `anvil not found on PATH, skipping hook`.
 
 **Synopsis:**
 `anvil hook <pre-commit|pre-push|post-commit|post-merge|post-rewrite|bootstrap>`

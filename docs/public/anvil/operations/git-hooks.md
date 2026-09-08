@@ -64,12 +64,17 @@ be replaced.
 3. **`command -v anvil` guard.** The installed wrapper exits 0 when Git's hook
    PATH does not contain `anvil`. Git's hook environment often has a different
    PATH from an interactive shell. On Windows this commonly shows up as:
-   `Get-Command anvil` works in PowerShell, but `git push` is silent because Git
-   for Windows ran the hook with a PATH that does not include `anvil`.
+   `Get-Command anvil` works in PowerShell, but `git push` still proceeds
+   because Git for Windows ran the hook with a PATH that does not include
+   `anvil`. The skip is always exit 0; output depends on the wrapper: bootstrap
+   `shell_template` and the Husky managed block print nothing;
+   `anvil hooks install` file hooks print
+   `anvil not found on PATH, skipping hook`.
 
-Git invokes the hook as `pre-push <remote> <url>` and writes the ref lines to
-stdin. `anvil hook pre-push` accepts those two positionals; they are
-informational. The stdin contract is unchanged.
+Git invokes the hook _script_ as `pre-push <remote> <url>` and writes the ref
+lines to stdin. Wrappers that forward `"$@"` pass those two positionals to
+`anvil hook pre-push`; `anvil hooks install` file hooks do not. The positionals
+are informational. The stdin contract is unchanged.
 
 ## Inspect status
 

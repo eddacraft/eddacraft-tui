@@ -81,16 +81,21 @@ enum HookCommand {
     /// each commit's L3 witness, and applies per-branch policy from
     /// `anvil/policy.<ext>`.
     ///
-    /// Git invokes this as `anvil hook pre-push <remote> <url>` and
+    /// Git invokes the hook script as `pre-push <remote> <url>` and
     /// writes `<local-ref> <local-sha> <remote-ref> <remote-sha>`
-    /// lines to stdin. The two positionals are accepted and ignored;
-    /// the stdin contract is unchanged.
+    /// lines to stdin. Wrappers that forward `"$@"` (bootstrap
+    /// `shell_template`, Husky) pass those positionals through;
+    /// `anvil hooks install` file hooks do not. The two positionals
+    /// are accepted and ignored; the stdin contract is unchanged.
     ///
-    /// A silent exit 0 means one of: no `anvil/policy.*` (or no
-    /// project-id); a clean allowed range; or the wrapper
-    /// `command -v anvil` guard firing because Git's hook PATH does
-    /// not contain `anvil` (common when Windows Git's hook PATH
-    /// differs from an interactive PowerShell session).
+    /// Anvil itself is silent on exit 0 when there is no
+    /// `anvil/policy.*` (or no project-id), or the pushed range is a
+    /// clean allowed range. The wrapper `command -v anvil` guard
+    /// also exits 0 when Git's hook PATH lacks `anvil` (common when
+    /// Windows Git's hook PATH differs from an interactive
+    /// PowerShell session). That skip is silent for bootstrap and
+    /// Husky; `anvil hooks install` prints `anvil not found on PATH,
+    /// skipping hook`.
     PrePush(PrePushArgs),
     /// post-commit hook — records that the commit succeeded.
     PostCommit(SilentArgs),
@@ -2012,8 +2017,10 @@ mod tests {
             "help must show Git's remote/URL positionals:\n{help}"
         );
         assert!(
-            help.contains("command -v anvil"),
-            "help must name the wrapper PATH guard:\n{help}"
+            help.contains("command -v anvil")
+                && help.contains("anvil not found on PATH")
+                && help.contains("hook script"),
+            "help must name the wrapper PATH guard, install-mode skip line, and hook-script argv:\n{help}"
         );
         assert!(
             help.contains("no `anvil/policy.*`") || help.contains("no policy"),

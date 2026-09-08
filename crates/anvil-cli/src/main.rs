@@ -1777,8 +1777,10 @@ mod tests {
             "help must show Git's remote/URL positionals:\n{help}"
         );
         assert!(
-            help.contains("command -v anvil"),
-            "help must name the wrapper PATH guard:\n{help}"
+            help.contains("command -v anvil")
+                && help.contains("anvil not found on PATH")
+                && help.contains("hook script"),
+            "help must name the wrapper PATH guard, install-mode skip line, and hook-script argv:\n{help}"
         );
         assert!(
             help.contains("no policy") || help.contains("no project-id"),
