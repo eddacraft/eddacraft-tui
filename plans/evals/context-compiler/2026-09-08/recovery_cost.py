@@ -40,14 +40,21 @@ def _norm_path(path: str | None) -> str:
 
 
 def _is_gold(path: str, gold_paths: list[str]) -> bool:
+    """True when ``path`` is a gold file, not a superstring of a gold needle.
+
+    ``start.rs`` matches ``.../start.rs`` and not ``.../restart.rs``.
+    """
     if not path:
         return False
-    lowered = path.lower()
+    path_n = path.replace("\\", "/").lower()
+    base = path_n.rsplit("/", 1)[-1]
     for gold in gold_paths:
-        g = gold.strip().strip("`")
+        g = gold.strip().strip("`").replace("\\", "/").lower()
         if not g:
             continue
-        if g.lower() in lowered or lowered.endswith(g.lower()) or g.lower() in path.lower():
+        if path_n == g or path_n.endswith("/" + g):
+            return True
+        if "/" not in g and base == g:
             return True
     return False
 

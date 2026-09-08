@@ -101,7 +101,47 @@ class RecoveryCostTests(unittest.TestCase):
             "docs/guides/ai-context-delivery.md",
         )
 
-    def test_events_without_tokens_or_time_stay_unmeasured(self) -> None:
+    def test_filename_gold_does_not_match_superstring_path(self) -> None:
+        result = score_recovery_cost(
+            {
+                "task": "T07",
+                "variant": "V1",
+                "gold_paths": ["start.rs"],
+                "events": [
+                    {
+                        "t_ms": 1,
+                        "kind": "read",
+                        "path": "crates/foo/restart.rs",
+                        "tokens": 9,
+                    },
+                    {
+                        "t_ms": 5,
+                        "kind": "read",
+                        "path": "crates/anvil-cli/src/commands/start.rs",
+                        "tokens": 4,
+                    },
+                ],
+            }
+        )
+        self.assertEqual(result["status"], "measured")
+        self.assertEqual(result["wrong_path_events"][0]["path"], "crates/foo/restart.rs")
+        self.assertEqual(result["tokens_after_wrong_path"], 13)
+
+    def test_filename_gold_matches_basename(self) -> None:
+        result = score_recovery_cost(
+            {
+                "gold_paths": ["start.rs"],
+                "events": [
+                    {
+                        "t_ms": 1,
+                        "kind": "read",
+                        "path": "crates/anvil-cli/src/commands/start.rs",
+                        "tokens": 4,
+                    }
+                ],
+            }
+        )
+        self.assertEqual(result["status"], "none")
         result = score_recovery_cost(
             {
                 "task": "T01",
