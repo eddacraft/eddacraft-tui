@@ -2,7 +2,7 @@
 
 | Type    | Authority     | Owner  | Status | Freshness                                  |
 | ------- | ------------- | ------ | ------ | ------------------------------------------ |
-| Runbook | Authoritative | @aneki | Live   | First filed 2026-05-15 alongside ADOPT-001 |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-08 against CIB-267 (Git hook PATH vs interactive shell silent-pass). First filed 2026-05-15 alongside ADOPT-001 |
 
 | Upstream                                                                                                                                                                                                                                                                                | Downstream                                                                                                                                                                                                                                                     |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -56,9 +56,12 @@ fi
 ```
 
 The `command -v anvil` guard means the hook silently skips if `anvil` is not on
-PATH (e.g. a teammate who has not installed Anvil). Anvil is invoked without
-`exec` so host commands after the marker still run when validation succeeds; a
-non-zero status exits immediately and blocks Git.
+PATH (e.g. a teammate who has not installed Anvil). Git's hook PATH can differ
+from an interactive shell — on Windows, Git for Windows often has a narrower
+PATH than PowerShell, so `Get-Command anvil` succeeding in pwsh does not mean
+the hook can see `anvil`. Anvil is invoked without `exec` so host commands after
+the marker still run when validation succeeds; a non-zero status exits
+immediately and blocks Git.
 
 On uninstall Anvil removes only the marker-bounded block. Surrounding user
 content is preserved byte-exact for canonical input (files ending with a single

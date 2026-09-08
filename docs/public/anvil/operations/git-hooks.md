@@ -53,6 +53,24 @@ anvil hooks install --husky
 Do not use `--force` until you have inspected existing hooks and know what would
 be replaced.
 
+## Silent pre-push pass
+
+`git push` can succeed with no anvil output when any of these hold:
+
+1. **No policy (or no project-id).** L4 is a no-op until `anvil/policy.*` and
+   `anvil/project-id` exist. This is designed, not a missed block.
+2. **Clean allowed range.** The pushed commits satisfy policy, so the hook stays
+   silent.
+3. **`command -v anvil` guard.** The installed wrapper exits 0 when Git's hook
+   PATH does not contain `anvil`. Git's hook environment often has a different
+   PATH from an interactive shell. On Windows this commonly shows up as:
+   `Get-Command anvil` works in PowerShell, but `git push` is silent because
+   Git for Windows ran the hook with a PATH that does not include `anvil`.
+
+Git invokes the hook as `pre-push <remote> <url>` and writes the ref lines to
+stdin. `anvil hook pre-push` accepts those two positionals; they are
+informational. The stdin contract is unchanged.
+
 ## Inspect status
 
 ```text

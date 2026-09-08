@@ -79,10 +79,19 @@ enum HookCommand {
     PreCommit(SilentArgs),
     /// L4 pre-push hook — walks the pushed commit range, verifies
     /// each commit's L3 witness, and applies per-branch policy from
-    /// `anvil/policy.<ext>`. Reads git's pre-push stdin contract
-    /// (`<local-ref> <local-sha> <remote-ref> <remote-sha>` per
-    /// line).
-    PrePush(SilentArgs),
+    /// `anvil/policy.<ext>`.
+    ///
+    /// Git invokes this as `anvil hook pre-push <remote> <url>` and
+    /// writes `<local-ref> <local-sha> <remote-ref> <remote-sha>`
+    /// lines to stdin. The two positionals are accepted and ignored;
+    /// the stdin contract is unchanged.
+    ///
+    /// A silent exit 0 means one of: no `anvil/policy.*` (or no
+    /// project-id); a clean allowed range; or the wrapper
+    /// `command -v anvil` guard firing because Git's hook PATH does
+    /// not contain `anvil` (common when Windows Git's hook PATH
+    /// differs from an interactive PowerShell session).
+    PrePush(PrePushArgs),
     /// post-commit hook — records that the commit succeeded.
     PostCommit(SilentArgs),
     /// post-merge hook — appends a DAG-aware witness for merge
@@ -98,6 +107,20 @@ enum HookCommand {
 
 #[derive(Debug, Args, Default)]
 struct SilentArgs {}
+
+/// Git's standard pre-push positionals (`$1` remote, `$2` URL).
+///
+/// Accepted so `shell_template`'s `"$@"` forwarding is not a clap
+/// error. Informational only — the pushed refs still come from stdin.
+#[derive(Debug, Args, Default)]
+struct PrePushArgs {
+    /// Remote name Git passes as the first pre-push positional.
+    #[arg(value_name = "REMOTE")]
+    _remote: Option<String>,
+    /// Remote URL Git passes as the second pre-push positional.
+    #[arg(value_name = "URL")]
+    _url: Option<String>,
+}
 
 #[derive(Debug, Args, Default)]
 struct PostMergeArgs {
@@ -1893,8 +1916,16 @@ fn build_rewrite_witness_line(
 mod tests {
     use super::*;
     use anvil_config::ConfigFormat;
+    use clap::Parser;
     use std::path::PathBuf;
     use tempfile::TempDir;
+
+    #[derive(Parser, Debug)]
+    #[command(name = "hook")]
+    struct HookCli {
+        #[command(subcommand)]
+        command: HookCommand,
+    }
 
     fn make_test_repo() -> (TempDir, PathBuf) {
         let tmp = TempDir::new().unwrap();
@@ -1907,6 +1938,91 @@ mod tests {
         )
         .unwrap();
         (tmp, root)
+    }
+
+    #[test]
+    fn pre_push_accepts_git_remote_and_url_positionals() {
+        // CIB-267: Git's pre-push hook always passes `$1` remote and `$2`
+        // URL. `shell_template` forwards `"$@"`, so clap must accept them.
+        let parsed = HookCli::try_parse_from([
+            "hook",
+            "pre-push",
+            "origin",
+            "https://github.com/eddacraft/anvil.git",
+        ]);
+        assert!(
+            parsed.is_ok(),
+            "git pre-push argv must parse: {:?}",
+            parsed.err().map(|e| e.to_string())
+        );
+        match parsed.expect("parse").command {
+            HookCommand::PrePush(args) => {
+                assert_eq!(args._remote.as_deref(), Some("origin"));
+                assert_eq!(
+                    args._url.as_deref(),
+                    Some("https://github.com/eddacraft/anvil.git")
+                );
+            }
+            other => panic!("expected PrePush, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pre_push_still_parses_with_no_positionals() {
+        let parsed = HookCli::try_parse_from(["hook", "pre-push"]);
+        assert!(
+            parsed.is_ok(),
+            "bare pre-push must keep working: {:?}",
+            parsed.err().map(|e| e.to_string())
+        );
+        match parsed.expect("parse").command {
+            HookCommand::PrePush(args) => {
+                assert!(args._remote.is_none());
+                assert!(args._url.is_none());
+            }
+            other => panic!("expected PrePush, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pre_push_rejects_a_third_positional() {
+        let parsed = HookCli::try_parse_from([
+            "hook",
+            "pre-push",
+            "origin",
+            "https://example.com/repo.git",
+            "extra",
+        ]);
+        assert!(
+            parsed.is_err(),
+            "Git only passes two pre-push positionals; extra argv must stay a clap error"
+        );
+    }
+
+    #[test]
+    fn pre_push_help_names_silent_pass_conditions() {
+        let mut cmd = HookCli::command();
+        let help = cmd
+            .find_subcommand_mut("pre-push")
+            .expect("pre-push subcommand")
+            .render_long_help()
+            .to_string();
+        assert!(
+            help.contains("REMOTE") && help.contains("URL"),
+            "help must show Git's remote/URL positionals:\n{help}"
+        );
+        assert!(
+            help.contains("command -v anvil"),
+            "help must name the wrapper PATH guard:\n{help}"
+        );
+        assert!(
+            help.contains("no `anvil/policy.*`") || help.contains("no policy"),
+            "help must name the no-policy silent pass:\n{help}"
+        );
+        assert!(
+            help.contains("clean allowed range"),
+            "help must name the clean-range silent pass:\n{help}"
+        );
     }
 
     #[test]

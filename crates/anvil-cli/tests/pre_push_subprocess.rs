@@ -71,6 +71,36 @@ fn run_pre_push(repo_root: &Path, stdin: &str) -> std::process::Output {
         .expect("`anvil hook pre-push` subprocess waits")
 }
 
+/// Same as [`run_pre_push`], with Git's standard pre-push positionals
+/// (`remote`, `url`) on argv. CIB-267: clap must accept those args; stdin
+/// remains the ref list.
+fn run_pre_push_with_git_argv(repo_root: &Path, stdin: &str) -> std::process::Output {
+    let home = TempDir::new().expect("isolated home");
+    let mut child = Command::new(ANVIL_BIN)
+        .arg("hook")
+        .arg("pre-push")
+        .arg("origin")
+        .arg("https://example.com/repo.git")
+        .current_dir(repo_root)
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("XDG_CONFIG_HOME", home.path().join(".config"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn `anvil hook pre-push origin <url>`");
+    {
+        let mut child_stdin = child.stdin.take().expect("child stdin piped");
+        child_stdin
+            .write_all(stdin.as_bytes())
+            .expect("write pre-push stdin");
+    }
+    child
+        .wait_with_output()
+        .expect("`anvil hook pre-push origin <url>` subprocess waits")
+}
+
 /// `anvil hook pre-push` against a repo that has a project-id but no
 /// policy file must short-circuit at `load_policy`'s `Ok(None)` arm,
 /// exit 0, emit nothing, and leave the witness chain alone.
@@ -102,6 +132,33 @@ fn pre_push_no_policy_exits_zero_with_no_output() {
     assert!(
         !root.join("anvil").join("witness").exists(),
         "no-policy push must not create `anvil/witness/`",
+    );
+}
+
+/// CIB-267: Git's pre-push hook always passes remote and URL positionals.
+/// `shell_template` forwards `"$@"`, so the production binary must accept
+/// `anvil hook pre-push origin <url>` plus stdin without a clap error.
+#[test]
+fn pre_push_git_remote_and_url_argv_is_not_a_clap_error() {
+    let (_tmp, root) = fixture_repo();
+    let stdin = "refs/heads/main aaa111 refs/heads/main bbb222\n";
+
+    let out = run_pre_push_with_git_argv(&root, stdin);
+
+    assert!(
+        out.status.success(),
+        "git argv plus stdin must not clap-error; got {:?}, stderr = {}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("unexpected argument"),
+        "clap must accept Git's remote/URL positionals; stderr = {stderr:?}"
+    );
+    assert!(
+        out.stderr.is_empty(),
+        "no-policy push with git argv must stay silent; got {stderr:?}"
     );
 }
 

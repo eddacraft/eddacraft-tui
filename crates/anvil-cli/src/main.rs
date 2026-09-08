@@ -1746,6 +1746,51 @@ mod tests {
     }
 
     #[test]
+    fn hook_pre_push_accepts_git_remote_and_url_positionals() {
+        try_parse_cli_from([
+            "anvil",
+            "hook",
+            "pre-push",
+            "origin",
+            "https://github.com/eddacraft/anvil.git",
+        ])
+        .expect("git pre-push argv must parse");
+    }
+
+    #[test]
+    fn hook_pre_push_still_parses_without_positionals() {
+        try_parse_cli_from(["anvil", "hook", "pre-push"]).expect("bare pre-push must parse");
+    }
+
+    #[test]
+    fn hook_pre_push_help_names_silent_pass_conditions() {
+        let mut command = augmented_cli_command();
+        let help = command
+            .find_subcommand_mut("hook")
+            .expect("hook command exists")
+            .find_subcommand_mut("pre-push")
+            .expect("pre-push subcommand exists")
+            .render_long_help()
+            .to_string();
+        assert!(
+            help.contains("REMOTE") && help.contains("URL"),
+            "help must show Git's remote/URL positionals:\n{help}"
+        );
+        assert!(
+            help.contains("command -v anvil"),
+            "help must name the wrapper PATH guard:\n{help}"
+        );
+        assert!(
+            help.contains("no policy") || help.contains("no project-id"),
+            "help must name the no-policy silent pass:\n{help}"
+        );
+        assert!(
+            help.contains("clean allowed range"),
+            "help must name the clean-range silent pass:\n{help}"
+        );
+    }
+
+    #[test]
     fn augmented_parse_preserves_command_dispatch() {
         for args in [
             vec!["anvil", "check"],
