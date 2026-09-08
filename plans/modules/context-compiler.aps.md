@@ -18,8 +18,7 @@ Compiler is unavailable.
 
 CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is **Done** via
 PR #4459 (Decision Brief contract frozen). CCTX-003 is **Complete**
-(fixtures + dated eval report; no product ships). CCTX-005 is **Draft**
-(GCTX-in-harness diagnosis note; V2/V4 enablement not started).
+(fixtures + dated eval report; no product ships).
 
 **Spec:**
 [`plans/specs/2026-09-08-context-compiler.md`](../specs/2026-09-08-context-compiler.md).
@@ -27,16 +26,8 @@ PR #4459 (Decision Brief contract frozen). CCTX-003 is **Complete**
 **Eval report:**
 [`plans/audits/2026-09-08-cctx-003-baseline-comparison.md`](../audits/2026-09-08-cctx-003-baseline-comparison.md).
 
-**GCTX harness unblocker (V2/V4):**
-[`plans/audits/2026-09-08-gctx-in-harness-unblocker.md`](../audits/2026-09-08-gctx-in-harness-unblocker.md).
-
 **Fixtures:**
 [`plans/evals/context-compiler/2026-09-08/`](../evals/context-compiler/2026-09-08/README.md).
-
-**Design council:**
-[`plans/reviews/2026-09-08-cctx-design-council.md`](../reviews/2026-09-08-cctx-design-council.md)
-— **PASS** (gate WARN) on live §12.7 V1 eval only. Product and §15 remain
-parked. Not an ADR.
 
 **Affinity, not membership:** this work sits next to
 [graph-answer-attestation](./graph-answer-attestation.aps.md) (GATT),
@@ -53,8 +44,9 @@ Context Compiler is unavailable, stale, or wrong.
 
 **Last reviewed:** 2026-09-08 — CCTX-005 Draft stub (GCTX harness for
 V2/V4; diagnosis note only; not started); design council PASS (gate WARN)
-on live V1 eval only; CCTX-003 Complete (eval report + V3/V4 fixtures).
-§15 including §15.6 still parked; no product.
+on live V1 eval only; CCTX-003 Complete; T06/T07 structural-partial-brief +
+recovery-cost scoring path recorded as eval residue (no live V3; §15
+including §15.6 still parked; no product).
 
 ## Purpose
 
@@ -148,17 +140,15 @@ Change status to **Ready** when:
 
 ## Work Items
 
-Draft spike plus a Draft harness stub. Aligned with spec §12 (internal
-eval: baselines versus brief variants). No implementation detail; none of
-these items authorise a compiler, crate, or flag. CCTX-005 does not
-authorise installing `anvil` in production snapshots as product work.
+Draft spike only. Aligned with spec §12 (internal eval: baselines versus
+brief variants). No implementation detail; none of these items authorise a
+compiler, crate, or flag.
 
 | ID       | Task                                              | Status | Depends on |
 | -------- | ------------------------------------------------- | ------ | ---------- |
 | CCTX-001 | Freeze the internal evaluation protocol           | Merged 2026-09-08 via PR #4456 | —          |
 | CCTX-002 | Freeze the Decision Brief as an advisory contract | Done   | CCTX-001   |
 | CCTX-003 | Compare baselines against brief variants          | Complete | CCTX-001, CCTX-002 |
-| CCTX-005 | GCTX harness for CCTX V2/V4                       | Draft    | CCTX-003           |
 
 ### CCTX-001: Freeze the internal evaluation protocol
 
@@ -225,12 +215,14 @@ authorise installing `anvil` in production snapshots as product work.
   surfaces). `pnpm aps:index:check` and `pnpm aps:drift` exit 0 (CCTX
   stored 1/3 vs work items 3/3 is expected ADR-053 advisory; pre-existing DPO
   2/6 vs 4/8 advisory only). `python3 plans/evals/context-compiler/2026-09-08/score_fixtures.py`
-  — 20/20 `contract_ok`. Live V1 sessions **unmeasured**; V2/V4 **blocked**
-  (GCTX unavailable). Hidden stale use on the fixture run: **passed**.
-  `pnpm aps:active-lint` could not run (`aps` not on PATH). §15 including
-  §15.6 still parked. Follow-on diagnosis:
-  [`2026-09-08-gctx-in-harness-unblocker.md`](../audits/2026-09-08-gctx-in-harness-unblocker.md)
-  (CCTX-005 Draft; does not complete V2/V4).
+  — 20/20 `contract_ok` (authorship verification, not agent recall). T06/T07
+  documented as structural-partial-brief. Recovery cost is a first-class
+  scorer field (`unmeasured` on the fixture run). Live V1 sessions
+  **unmeasured**; V2/V4 **blocked** (GCTX unavailable — see CCTX-005 / GCTX-in-harness unblocker). Hidden stale use on
+  the fixture run: **passed**.
+  `python3 -m unittest discover -s plans/evals/context-compiler/2026-09-08 -p 'test_*.py'`
+  — 13 passed (2026-09-08). Live V3 was **not** run. `pnpm aps:active-lint`
+  could not run (`aps` not on PATH). §15 including §15.6 still parked.
 - **Non-scope:** No compiler, knowledge store, or feature flag. No change to
   enforcement. Does not replace the GCTX-031 `token_reduction` bench.
   Does not unpark §15.
@@ -239,38 +231,9 @@ authorise installing `anvil` in production snapshots as product work.
   `plans/audits/2026-09-08-cctx-003-baseline-comparison.md`,
   `plans/evals/context-compiler/2026-09-08/`
 - **Dependencies:** CCTX-001, CCTX-002
-- **Claim:** private GitHub issue #4461
+- **Claim:** private GitHub issue #4461; residual follow-on #4467
 - **Confidence:** medium (fixtures and gates labelled honestly; live
   V1/V2 comparison still unmeasured/blocked)
-
-### CCTX-005: GCTX harness for CCTX V2/V4
-
-- **Status:** Draft
-- **Intent:** Make spec §12.2 GCTX tools actually available in the Cursor
-  Cloud (and equivalent) eval harness so live V2/V4 §12.7 sessions can run
-  without substituting V1.
-- **Expected Outcome:** A later Ready pickup uses the
-  [unblocker note](../audits/2026-09-08-gctx-in-harness-unblocker.md)
-  smoke checklist. When every hard row passes, V2/V4 may run against the
-  pinned corpus. Until then they stay **blocked**. This Draft does not
-  start that enablement.
-- **Validation:** Unblocker smoke checklist (binary, native MCP GCTX
-  tools, daemon `ready` at corpus git root, pinned SHA, egress recorded).
-  Not a live 20×V2 pass. `pnpm docs:check` for the diagnosis artefact.
-- **Non-scope:** No product compiler, crate, flag, GCTX DTO, GATT fork, or
-  enforcement change. Does not unpark §15. Does not run fake V2. Does not
-  treat file-search or `anvil gctx egress` as GCTX. Does not implement
-  ADR-095 CLI query verbs. Does not edit CIB-341/342.
-- **Files:** `plans/audits/2026-09-08-gctx-in-harness-unblocker.md`,
-  `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`,
-  `plans/specs/2026-09-08-context-compiler.md`,
-  `plans/audits/2026-09-08-cctx-003-baseline-comparison.md`,
-  `plans/evals/context-compiler/2026-09-08/README.md`
-- **Dependencies:** CCTX-003
-- **Claim:** private GitHub issue #4469 (parking stub; implementing
-  harness PR uses `Fixes #4469`)
-- **Confidence:** medium (diagnosis from live harness probe; enablement
-  not started)
 
 ## Related, not this module
 

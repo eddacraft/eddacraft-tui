@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (internal eval report) | 2026-09-08 — scored against corpus `23457dc6d2bf379791d587cf2dfdb5046ce51fc0`; GCTX tools unavailable in this harness |
+| Spec | Advisory | CCTX | Draft (internal eval report) | 2026-09-08 — T06/T07 structural-partial-brief; recovery-cost field in scoring path; 20/20 `contract_ok` is authorship verification, not agent recall |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -58,12 +58,23 @@ Twenty briefs live under
 One file per task is shared by V3 (cited paths only) and V4 (plus GCTX handles),
 matching spec §9.7 / §12.4.
 
-Mechanical score (2026-09-08): **20/20 `contract_ok`**. Every required §9.3
-section is present. Every parsed claim has a kind in the §9.5 split and at
-least one evidence handle. Every brief has an `Authority` section forbidding
-allow / warn / block. Confidence is qualitative `unmeasured` (spec §15.4
-parked — no numeric scores). T06, T07, and T20 mark invalidation `partial`
-because gold paths sit outside the §12.3 allowlist; that is visible, not hidden.
+Mechanical score (2026-09-08): **20/20 `contract_ok`**. That figure is
+**authorship verification** of the human-written fixtures against frozen spec
+§9. It is **not** agent recall, not live V3 success, and not a V3-beats-V2
+comparison. Live V3 was not run.
+
+Every required §9.3 section is present. Every parsed claim has a kind in the
+§9.5 split and at least one evidence handle. Every brief has an `Authority`
+section forbidding allow / warn / block. Confidence is qualitative
+`unmeasured` (spec §15.4 parked — no numeric scores). T06, T07, and T20 mark
+invalidation `partial` because gold paths sit outside the §12.3 allowlist;
+that is visible, not hidden.
+
+**T06 and T07** are documented **structural-partial-brief** cases: gold
+evidence sits outside spec §12.3, so those paths stay recall keys and were
+**not** added as V3 handles (adding them would violate the frozen allowlist).
+Live V3 cannot be scored as a sufficient brief-only run for T06 or T07. Live
+V3 was not run.
 
 ### Gold-path recall *in the fixture* (not a live agent)
 
@@ -74,7 +85,7 @@ because gold paths sit outside the §12.3 allowlist; that is visible, not hidden
 | contradicted | none observed in scoring |
 
 Recall here is "did the brief mention the gold keys", which is the V3 artefact
-property. It is **not** V1/V2 agent recall.
+property (authorship). It is **not** V1/V2/V3 agent recall.
 
 ### Honest outcomes encoded in fixtures
 
@@ -100,8 +111,8 @@ upper-leaning estimates.
 | T03 | 1424 | T13 | 1254 |
 | T04 | 1482 | T14 | 1197 |
 | T05 | 1278 | T15 | 1285 |
-| T06 | 1364 | T16 | 1350 |
-| T07 | 1354 | T17 | 1204 |
+| T06 | 1435 | T16 | 1350 |
+| T07 | 1425 | T17 | 1204 |
 | T08 | 1647 | T18 | 1426 |
 | T09 | 1352 | T19 | 1276 |
 | T10 | 1239 | T20 | 1277 |
@@ -123,7 +134,7 @@ knowledge store, so no refresh loop was run.
 | Missed blast-radius | **unmeasured** for live T08–T11 and T16–T18 sessions. Fixtures name the gold crates/tests for those tasks |
 | Stale or incorrect claims | No hidden stale use on the fixture run (section 5). Live sessions not run |
 | Drill-down frequency | **unmeasured** (no V3 live session). V3 handles are listed so a future run can count opens |
-| Recovery cost | **unmeasured** |
+| Recovery cost | **unmeasured** on this fixture run (first-class field in `score_fixtures.py` / `score_live_session.py`; missing instrumentation stays `unmeasured`, never silent zero). Live V1 sessions were not run here. |
 | Brief size against budget | Measured as table above. No numeric budget threshold is set (CCTX-001) |
 
 No numeric thresholds are proposed. Spec §13 allows this report to propose them
@@ -138,7 +149,7 @@ unset.
 | Every §12.3 selected input exists at corpus | yes (pre-authoring probe) |
 | Every V3 drill-down path exists at corpus | yes (scorer `v3_handles_missing_at_corpus` empty) |
 | Every fixture pins source revision to that SHA | yes |
-| Quiet stale fallback | none — T06/T07/T20 declare `partial` where gold paths are not selected inputs |
+| Quiet stale fallback | none — T06/T07 are structural-partial-brief; T06/T07/T20 declare `partial` where gold paths are not selected inputs |
 | Claims checked against corpus text (spot) | `ImpactSummary.truncated` still a single bool; `heuristic` still OR-across-edges; `.markdownlintignore` still excludes `plans/**`; ADR-125 CIB-398 nested-root rule still present; CE-1 identity-only default test still present |
 
 **Gate: passed** for the fixture + corpus existence run. Not a claim about
@@ -178,13 +189,22 @@ CCTX-003 completes the authorised Ready spike **as an internal eval**. It does
 flag, MCP tool, GCTX DTO change, GATT implementation, EVALCI, Graph Trust
 Surfaces membership, replacement of GCTX-031 `token_reduction`.
 
+**T06/T07 V3 handle gaps (disposed):** structural-partial-brief, not extra V3
+handles. Gold evidence is outside spec §12.3. Live V3 was not run.
+
+**Recovery cost (instrumented, not measured):** the scoring path records
+recovery cost as a first-class §13 metric. Fixture runs are `unmeasured`. Live
+V1 sessions pass a session JSON to `score_live_session.py` when they exist.
+
+**20/20 `contract_ok`:** authorship verification, not agent recall.
+
 **Eval follow-on (not this PR):** live §12.7 V1 sessions; V2/V4 when GCTX is
 available in the harness (see
 [GCTX-in-harness unblocker](./2026-09-08-gctx-in-harness-unblocker.md);
 CCTX-005 Draft). Then, and only then, any numeric §13 thresholds.
 Design council
 ([`plans/reviews/2026-09-08-cctx-design-council.md`](../reviews/2026-09-08-cctx-design-council.md)):
-**PASS** (gate WARN) on that V1 grain only. Product remains parked.
+**PASS** (gate WARN) on that V1 grain only. Spec §15 stays parked. Product remains parked.
 
 Trust boundary remains binding: synthesis / Decision Brief is advisory only,
 never allow / warn / block.

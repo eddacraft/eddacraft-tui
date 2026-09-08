@@ -76,11 +76,21 @@ def brief(
     v4_gctx: list[str],
     recall_only: list[str],
     invalidation: str = "current",
+    structural_partial: bool = False,
 ) -> str:
     claims_md = "\n\n".join(claims)
     v3 = "\n".join(f"- `{h}`" for h in v3_handles)
     v4 = "\n".join(f"- `{h}`" for h in v4_gctx) or "- (none beyond §12.2 default set)"
     recall = "\n".join(f"- `{h}` — recall key, not a V3 selected input" for h in recall_only) or "- none"
+    structural_note = ""
+    if structural_partial:
+        structural_note = (
+            " This task is a **structural-partial-brief** case: gold evidence "
+            "sits outside spec §12.3 selected inputs, so those paths remain "
+            "recall keys and must **not** be added as V3 drill-down handles. "
+            "Live V3 cannot be scored as a sufficient brief-only run for this "
+            "task. Live V3 was not run."
+        )
     return f"""# Decision Brief {tid}
 
 Eval fixture for spike variants **V3** (brief only) and **V4** (brief plus
@@ -147,7 +157,7 @@ The brief itself is **not** a validation gate.
 
 ## Completeness
 
-**{completeness}.** {completeness_note}
+**{completeness}.** {completeness_note}{structural_note}
 
 ## Confidence
 
@@ -577,6 +587,7 @@ add(
             ".github/workflows/README.md",
         ],
         invalidation="partial",
+        structural_partial=True,
     )
 )
 
@@ -636,6 +647,7 @@ add(
         v4_gctx=["anvil_search_symbols (identity-only locator: start.rs / AKIA fixture)"],
         recall_only=["crates/anvil-cli/src/commands/start.rs", "CIB-392"],
         invalidation="partial",
+        structural_partial=True,
     )
 )
 
@@ -1342,9 +1354,20 @@ def render_all() -> list[tuple[str, str]]:
     files = []
     for task in TASKS:
         invalidation = task.pop("invalidation", "current")
+        structural_partial = task.pop("structural_partial", False)
         tid = task["tid"]
-        files.append((f"{tid}.md", brief(invalidation=invalidation, **task)))
-        task["invalidation"] = invalidation  # restore if reused
+        files.append(
+            (
+                f"{tid}.md",
+                brief(
+                    invalidation=invalidation,
+                    structural_partial=structural_partial,
+                    **task,
+                ),
+            )
+        )
+        task["invalidation"] = invalidation
+        task["structural_partial"] = structural_partial
     return files
 
 

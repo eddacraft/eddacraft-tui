@@ -1,9 +1,9 @@
 {
   "run": {
     "id": "cctx-003-2026-09-08-fixture-score",
-    "at": "2026-09-08T14:27:19Z",
+    "at": "2026-09-08T17:33:02Z",
     "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
-    "corpus_worktree": "/workspace/.worktrees/cctx-003-corpus",
+    "corpus_worktree": ".worktrees/cctx-003-corpus",
     "harness": "cursor-cloud / grok adapter (identity degraded: no GROK_AGENT)",
     "model": "cursor-grok-4.6-high-fast",
     "kind": "fixture-contract-score + availability probe",
@@ -18,25 +18,52 @@
   },
   "v1_live_sessions": {
     "status": "unmeasured",
-    "reason": "No independent ordinary-exploration agent session was run per spec \u00a712.7 (one session per task/variant, no reused memory). A corpus checkout exists and is readable.",
+    "reason": "No independent ordinary-exploration agent session was run per spec \u00a712.7 (one session per task/variant, no reused memory). Corpus checkout at .worktrees/cctx-003-corpus is readable.",
+    "corpus_path": ".worktrees/cctx-003-corpus",
+    "corpus_readable": true,
     "sample": {
       "T01": {
         "probe": "keyword-existence-only",
         "query": "graph context launch validation anvil_validate_write",
+        "gold_file": "docs/guides/ai-context-delivery.md",
         "note": "Not a \u00a712.7 V1 session. Recorded so V1 is not silently skipped.",
-        "corpus_readable": true
+        "corpus_readable": true,
+        "needle_hits": [
+          "graph",
+          "context",
+          "launch",
+          "validation",
+          "anvil_validate_write"
+        ]
       },
       "T05": {
         "probe": "keyword-existence-only",
         "query": "heuristic callers_of call graph",
+        "gold_file": "crates/anvil-graph-cache/src/call_graph.rs",
         "note": "Not a \u00a712.7 V1 session. Recorded so V1 is not silently skipped.",
-        "corpus_readable": true
+        "corpus_readable": true,
+        "needle_hits": [
+          "heuristic",
+          "callers_of",
+          "call",
+          "graph"
+        ]
       },
       "T13": {
         "probe": "keyword-existence-only",
         "query": "anvil_validate_write graph context is not launch validation",
+        "gold_file": "docs/guides/ai-context-delivery.md",
         "note": "Not a \u00a712.7 V1 session. Recorded so V1 is not silently skipped.",
-        "corpus_readable": true
+        "corpus_readable": true,
+        "needle_hits": [
+          "anvil_validate_write",
+          "graph",
+          "context",
+          "is",
+          "not",
+          "launch",
+          "validation"
+        ]
       }
     }
   },
@@ -46,12 +73,26 @@
   },
   "v3_live_sessions": {
     "status": "unmeasured",
-    "reason": "Independent brief-only agent sessions were not run. Fixtures themselves were scored as V3 artefacts (envelope, claims, gold mention, honest T13/T15/T19/T20)."
+    "reason": "Independent brief-only agent sessions were not run. Fixtures themselves were scored as V3 artefacts (envelope, claims, gold mention, honest T13/T15/T19/T20). T06 and T07 are structural-partial-brief cases; live V3 was not run."
   },
   "v4_live_sessions": {
     "status": "blocked",
     "reason": "GCTX unavailable; same fixtures as V3"
   },
+  "recovery_cost": {
+    "status": "unmeasured",
+    "metric": "recovery_cost",
+    "tokens_after_wrong_path": "unmeasured",
+    "time_after_wrong_path_ms": "unmeasured",
+    "re_reads_after_wrong_path": "unmeasured",
+    "wrong_path_events": [],
+    "first_wrong_path_at_ms": null,
+    "reason": "This run scored fixtures only. Live V1 recovery cost is unmeasured until a \u00a712.7 session record is passed to score_live_session.py."
+  },
+  "structural_partial_brief_tasks": [
+    "T06",
+    "T07"
+  ],
   "fixtures": [
     {
       "task": "T01",
@@ -86,7 +127,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T02",
@@ -121,7 +174,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T03",
@@ -155,7 +220,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T04",
@@ -190,7 +267,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T05",
@@ -224,12 +313,24 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T06",
-      "bytes": 4778,
-      "gctx_simple_v1_tokens": 1364,
+      "bytes": 5062,
+      "gctx_simple_v1_tokens": 1435,
       "claims": 3,
       "claim_kinds": [
         "Deterministic fact",
@@ -258,12 +359,32 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": {
+        "status": "structural-partial-brief",
+        "gold_outside_s12_3": [
+          "plans/modules/continuous-improvement-backlog.aps.md",
+          ".markdownlintignore",
+          ".github/workflows/README.md"
+        ],
+        "disposition": "Do not add those gold paths as V3 handles: they are outside spec \u00a712.3 selected inputs. Live V3 cannot be scored as a sufficient brief-only run for this task. Live V3 was not run."
+      },
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T07",
-      "bytes": 4788,
-      "gctx_simple_v1_tokens": 1354,
+      "bytes": 5072,
+      "gctx_simple_v1_tokens": 1425,
       "claims": 3,
       "claim_kinds": [
         "Deterministic fact",
@@ -293,7 +414,27 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": {
+        "status": "structural-partial-brief",
+        "gold_outside_s12_3": [
+          "crates/anvil-cli/src/commands/start.rs",
+          "CIB-392"
+        ],
+        "allowlisted_v3_handle_not_gold": "crates/anvil-cli/tests/mcp_serve_stdio.rs",
+        "disposition": "Gold evidence (start.rs fixture / CIB-392) sits outside spec \u00a712.3. `mcp_serve_stdio.rs` is allowlisted and already a V3 handle; it does not contain the AWS-key fixture fact. Live V3 cannot be scored as a sufficient brief-only run. Live V3 was not run."
+      },
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T08",
@@ -331,7 +472,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T09",
@@ -367,7 +520,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T10",
@@ -401,7 +566,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T11",
@@ -436,7 +613,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T12",
@@ -473,7 +662,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T13",
@@ -509,7 +710,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T14",
@@ -542,7 +755,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T15",
@@ -580,7 +805,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T16",
@@ -615,7 +852,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T17",
@@ -648,7 +897,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T18",
@@ -684,7 +945,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T19",
@@ -722,7 +995,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     },
     {
       "task": "T20",
@@ -758,7 +1043,19 @@
       "v3_handles_missing_at_corpus": [],
       "freshness_pins_corpus": true,
       "numeric_confidence_forbidden": false,
-      "contract_ok": true
+      "structural_partial_brief": null,
+      "recovery_cost": {
+        "status": "unmeasured",
+        "metric": "recovery_cost",
+        "tokens_after_wrong_path": "unmeasured",
+        "time_after_wrong_path_ms": "unmeasured",
+        "re_reads_after_wrong_path": "unmeasured",
+        "wrong_path_events": [],
+        "first_wrong_path_at_ms": null,
+        "reason": "Fixture contract score is not a live \u00a712.7 session; recovery cost is unmeasured, not zero."
+      },
+      "contract_ok": true,
+      "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison."
     }
   ],
   "summary": {
@@ -785,6 +1082,7 @@
       "T20"
     ],
     "contract_fail": [],
+    "contract_ok_meaning": "20/20 contract_ok is authorship verification of the human-written Decision Brief fixtures against frozen spec \u00a79. It is not agent recall, not live V3 success, and not a V3-beats-V2 comparison.",
     "gold_partial": [],
     "authority_leakage_any": false,
     "hidden_stale_candidates": [],
@@ -794,8 +1092,8 @@
       "T03": 1424,
       "T04": 1482,
       "T05": 1278,
-      "T06": 1364,
-      "T07": 1354,
+      "T06": 1435,
+      "T07": 1425,
       "T08": 1647,
       "T09": 1352,
       "T10": 1239,
@@ -810,6 +1108,11 @@
       "T19": 1276,
       "T20": 1277
     },
-    "token_estimator": "gctx-simple-v1 (GCTX-020 port; planning budget, not billed tokens)"
+    "token_estimator": "gctx-simple-v1 (GCTX-020 port; planning budget, not billed tokens)",
+    "recovery_cost": "unmeasured",
+    "structural_partial_brief": [
+      "T06",
+      "T07"
+    ]
   }
 }

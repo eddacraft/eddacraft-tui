@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from math import ceil
 from pathlib import Path
 
+from recovery_cost import unmeasured_recovery_cost
+
 
 def repo_root() -> Path:
     here = Path(__file__).resolve()
@@ -169,6 +171,64 @@ HONEST = {
     "T20": {"answer_no": True},
 }
 
+# 20/20 contract_ok is authorship verification of human-written fixtures.
+# It is not independent-agent recall or live §12.7 success.
+CONTRACT_OK_MEANING = (
+    "20/20 contract_ok is authorship verification of the human-written "
+    "Decision Brief fixtures against frozen spec §9. It is not agent recall, "
+    "not live V3 success, and not a V3-beats-V2 comparison."
+)
+
+# Gold evidence for these tasks sits outside spec §12.3 selected inputs.
+# Adding those paths as V3 handles would violate the allowlist; live V3
+# cannot be a sufficient brief-only case. Documented, not silently skipped.
+STRUCTURAL_PARTIAL_BRIEF = {
+    "T06": {
+        "status": "structural-partial-brief",
+        "gold_outside_s12_3": [
+            "plans/modules/continuous-improvement-backlog.aps.md",
+            ".markdownlintignore",
+            ".github/workflows/README.md",
+        ],
+        "disposition": (
+            "Do not add those gold paths as V3 handles: they are outside spec "
+            "§12.3 selected inputs. Live V3 cannot be scored as a sufficient "
+            "brief-only run for this task. Live V3 was not run."
+        ),
+    },
+    "T07": {
+        "status": "structural-partial-brief",
+        "gold_outside_s12_3": [
+            "crates/anvil-cli/src/commands/start.rs",
+            "CIB-392",
+        ],
+        "allowlisted_v3_handle_not_gold": "crates/anvil-cli/tests/mcp_serve_stdio.rs",
+        "disposition": (
+            "Gold evidence (start.rs fixture / CIB-392) sits outside spec §12.3. "
+            "`mcp_serve_stdio.rs` is allowlisted and already a V3 handle; it does "
+            "not contain the AWS-key fixture fact. Live V3 cannot be scored as a "
+            "sufficient brief-only run. Live V3 was not run."
+        ),
+    },
+}
+
+
+def off_allowlist_gold_in_v3_handles(scored: dict) -> list[str]:
+    """V3 handles must not include gold paths that sit outside spec §12.3."""
+    meta = STRUCTURAL_PARTIAL_BRIEF.get(scored["task"])
+    if not meta:
+        return []
+    handles = scored.get("v3_handles") or []
+    leaked = []
+    for gold in meta["gold_outside_s12_3"]:
+        if gold.startswith("CIB-"):
+            continue
+        for handle in handles:
+            if gold == handle or gold in handle:
+                leaked.append(gold)
+                break
+    return leaked
+
 
 def estimate_gctx_tokens(text: str) -> int:
     """GCTX-020 conservative estimator (gctx-simple-v1) ported from tokens.rs."""
@@ -294,6 +354,23 @@ def score_one(path: Path) -> dict:
         if not (CORPUS / h).exists():
             missing_paths.append(h)
 
+    structural_meta = STRUCTURAL_PARTIAL_BRIEF.get(tid)
+    structural_ok = True
+    if structural_meta:
+        if "structural-partial-brief" not in text.lower().replace("_", "-"):
+            structural_ok = False
+            honest["passed"] = False
+            honest["notes"].append(f"{tid} missing structural-partial-brief label")
+        leaked_handles = off_allowlist_gold_in_v3_handles(
+            {"task": tid, "v3_handles": handles}
+        )
+        if leaked_handles:
+            structural_ok = False
+            honest["passed"] = False
+            honest["notes"].append(
+                f"{tid} V3 handles include off-allowlist gold: {leaked_handles}"
+            )
+
     conf_body = text.split("## Confidence", 1)[-1].split("## ", 1)[0]
     numeric_conf = bool(
         re.search(r"\b(0\.\d+|1\.0|score\s*[:=]\s*\d)", conf_body, re.I)
@@ -312,6 +389,10 @@ def score_one(path: Path) -> dict:
         and freshness_corpus
         and not numeric_conf
         and honest["passed"]
+        and structural_ok
+    )
+    recovery = unmeasured_recovery_cost(
+        "Fixture contract score is not a live §12.7 session; recovery cost is unmeasured, not zero."
     )
     return {
         "task": tid,
@@ -332,7 +413,10 @@ def score_one(path: Path) -> dict:
         "v3_handles_missing_at_corpus": missing_paths,
         "freshness_pins_corpus": freshness_corpus,
         "numeric_confidence_forbidden": numeric_conf,
+        "structural_partial_brief": structural_meta,
+        "recovery_cost": recovery,
         "contract_ok": contract_ok,
+        "contract_ok_meaning": CONTRACT_OK_MEANING,
     }
 
 
@@ -435,18 +519,25 @@ def main() -> int:
         "v2_live_sessions": {"status": "blocked", "reason": "GCTX unavailable"},
         "v3_live_sessions": {
             "status": "unmeasured",
-            "reason": "Independent brief-only agent sessions were not run. Fixtures themselves were scored as V3 artefacts (envelope, claims, gold mention, honest T13/T15/T19/T20).",
+            "reason": "Independent brief-only agent sessions were not run. Fixtures themselves were scored as V3 artefacts (envelope, claims, gold mention, honest T13/T15/T19/T20). T06 and T07 are structural-partial-brief cases; live V3 was not run.",
         },
         "v4_live_sessions": {"status": "blocked", "reason": "GCTX unavailable; same fixtures as V3"},
+        "recovery_cost": unmeasured_recovery_cost(
+            "This run scored fixtures only. Live V1 recovery cost is unmeasured until a §12.7 session record is passed to score_live_session.py."
+        ),
+        "structural_partial_brief_tasks": sorted(STRUCTURAL_PARTIAL_BRIEF),
         "fixtures": results,
         "summary": {
             "contract_pass": contract_pass,
             "contract_fail": contract_fail,
+            "contract_ok_meaning": CONTRACT_OK_MEANING,
             "gold_partial": gold_partial,
             "authority_leakage_any": leakage_any,
             "hidden_stale_candidates": stale_hidden,
             "token_estimates": tokens,
             "token_estimator": "gctx-simple-v1 (GCTX-020 port; planning budget, not billed tokens)",
+            "recovery_cost": "unmeasured",
+            "structural_partial_brief": sorted(STRUCTURAL_PARTIAL_BRIEF),
         },
     }
     out = RUNS / "2026-09-08-fixture-score.json"

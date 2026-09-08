@@ -643,6 +643,19 @@ Post-spike residue — **not started** by CCTX-003:
 - product compiler, knowledge store, feature flag, MCP tool, GCTX DTO
   change, or enforcement change.
 
+**Eval-artefact residue now recorded (still not a live V3 run):**
+
+- T06 and T07 are **structural-partial-brief** cases. Gold evidence sits
+  outside [§12.3](#123-selected-docs-adrs-tests-and-policy), so those
+  paths stay recall keys and must not be added as V3 handles. Live V3
+  cannot be scored as a sufficient brief-only run for those tasks.
+- Recovery cost is a first-class [§13](#13-success-metrics) field in
+  `score_fixtures.py` / `score_live_session.py`. Fixture runs are
+  `unmeasured`; missing live instrumentation stays `unmeasured`, never
+  silent zero.
+- 20/20 `contract_ok` is **authorship verification** of human-written
+  fixtures, not agent recall and not live V3 success.
+
 Design council (2026-09-08):
 [`plans/reviews/2026-09-08-cctx-design-council.md`](../reviews/2026-09-08-cctx-design-council.md).
 **PASS** (gate WARN) on live V1 eval only. Product architecture stays
@@ -666,7 +679,7 @@ propose thresholds after baselines exist.
 | Missed blast-radius | For T08–T11 and T16–T18: omitted gold crates or tests | |
 | Stale or incorrect claims | Claims that contradict the corpus revision | Hidden stale use is a gate failure |
 | Drill-down frequency | File reads or GCTX calls after the first useful action | V3 should be low if the brief was sufficient |
-| Recovery cost | Tokens and time spent after a wrong path, including re-reads | |
+| Recovery cost | Tokens and time spent after a wrong path, including re-reads. Live session JSON → `score_live_session.py`. Fixture runs record the field as `unmeasured`. | Missing events or provider totals → `unmeasured`, never silent zero |
 | Brief size against budget | V3/V4 fixture token estimate using the GCTX-020 estimator when available | Unmeasured until fixtures exist |
 
 **Initial gates** (after a baseline; each reported as passed, failed, or
