@@ -121,10 +121,10 @@ struct SilentArgs {}
 struct PrePushArgs {
     /// Remote name Git passes as the first pre-push positional.
     #[arg(value_name = "REMOTE")]
-    _remote: Option<String>,
+    remote: Option<String>,
     /// Remote URL Git passes as the second pre-push positional.
     #[arg(value_name = "URL")]
-    _url: Option<String>,
+    url: Option<String>,
 }
 
 #[derive(Debug, Args, Default)]
@@ -1962,9 +1962,9 @@ mod tests {
         );
         match parsed.expect("parse").command {
             HookCommand::PrePush(args) => {
-                assert_eq!(args._remote.as_deref(), Some("origin"));
+                assert_eq!(args.remote.as_deref(), Some("origin"));
                 assert_eq!(
-                    args._url.as_deref(),
+                    args.url.as_deref(),
                     Some("https://github.com/eddacraft/anvil.git")
                 );
             }
@@ -1982,8 +1982,8 @@ mod tests {
         );
         match parsed.expect("parse").command {
             HookCommand::PrePush(args) => {
-                assert!(args._remote.is_none());
-                assert!(args._url.is_none());
+                assert!(args.remote.is_none());
+                assert!(args.url.is_none());
             }
             other => panic!("expected PrePush, got {other:?}"),
         }
