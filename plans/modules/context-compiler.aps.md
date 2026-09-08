@@ -42,11 +42,12 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — CCTX-005 Draft stub (GCTX harness for
-V2/V4; diagnosis note only; not started); design council PASS (gate WARN)
-on live V1 eval only; CCTX-003 Complete; T06/T07 structural-partial-brief +
-recovery-cost scoring path recorded as eval residue (no live V3; §15
-including §15.6 still parked; no product).
+**Last reviewed:** 2026-09-08 — CCTX-004 In Progress (live V1 T01–T05);
+CCTX-005 Draft stub (GCTX harness for V2/V4; diagnosis note only; not
+started); design council PASS (gate WARN) on live V1 eval only; CCTX-003
+Complete; T06/T07 structural-partial-brief + recovery-cost scoring path
+recorded as eval residue (no live V3; §15 including §15.6 still parked; no
+product).
 
 ## Purpose
 
@@ -233,6 +234,29 @@ compiler, crate, or flag.
 - **Dependencies:** CCTX-001, CCTX-002
 - **Claim:** private GitHub issue #4461; residual follow-on #4467
 - **Confidence:** medium (fixtures and gates labelled honestly; live
+### CCTX-004: Live §12.7 V1 eval (ordinary exploration × 20)
+
+- **Status:** In Progress
+- **Intent:** Run the missing live V1 baseline that CCTX-003 labelled
+  unmeasured, under the design-council PASS (gate WARN) grain.
+- **Expected Outcome:** A V1 runbook plus durable independent-session
+  records against corpus `23457dc6d2bf379791d587cf2dfdb5046ce51fc0`.
+  Every §13 metric is recorded (billed tokens or honest `unmeasured`).
+  Authority leakage is scored. V2/V4 stay blocked while GCTX is absent,
+  not silent V1 substitutes. A residual map names remaining task IDs.
+  First batch on this claim: T01–T05. No product ships.
+- **Validation:** `pnpm docs:check`; `python3 plans/evals/context-compiler/2026-09-08/score_v1.py`
+  once session JSON exists. Stored module `N/M` is not refreshed on this
+  feature PR (ADR-053).
+- **Non-scope:** No V2/V4. No compiler, store, crate, flag, MCP tool, or
+  GATT fork. Does not unpark §15. Does not bump exclusive-module `N/M`.
+- **Files:** `plans/evals/context-compiler/2026-09-08/`,
+  `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`
+- **Dependencies:** CCTX-003
+- **Claim:** private GitHub issue #4466
+- **Confidence:** medium (live sessions are the measurement; this item
+  does not invent thresholds)
+
   V1/V2 comparison still unmeasured/blocked)
 
 ## Related, not this module
