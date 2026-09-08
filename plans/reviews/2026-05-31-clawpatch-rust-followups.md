@@ -17,7 +17,7 @@ pick them up without prior context.
 **Regenerate the non-test-gap list:**
 
 ```sh
-jq -r '.items[] | select((.evidence[0].path|startswith("crates/")) and (.triage!="test-gap")) | "\(.id)\t\(.severity)/\(.triage)\t\(.evidence[0].path):\(.evidence[0].startLine)\t\(.title)"' plans/audits/2026-05-31-clawpatch-v0.7.3-beta.json
+jq -r '.items[] | select((.evidence[0].path|startswith("crates/")) and (.triage!="test-gap")) | "\(.id)\t\(.severity)/\(.triage)\t\(.evidence[0].path):\(.evidence[0].startLine)\t\(.title)"' plans/archive/audits/2026-05-31-clawpatch-v0.7.3-beta.json
 ```
 
 ## Context for a new session
@@ -84,7 +84,7 @@ contracts). Top files: `crates/anvil-cli/tests/status_json_contract.rs`,
 Full list:
 
 ```sh
-jq -r '.items[] | select((.evidence[0].path|startswith("crates/")) and .triage=="test-gap") | "\(.evidence[0].path):\(.evidence[0].startLine)\t\(.title)"' plans/audits/2026-05-31-clawpatch-v0.7.3-beta.json
+jq -r '.items[] | select((.evidence[0].path|startswith("crates/")) and .triage=="test-gap") | "\(.evidence[0].path):\(.evidence[0].startLine)\t\(.title)"' plans/archive/audits/2026-05-31-clawpatch-v0.7.3-beta.json
 ```
 
 ## Resolution status (2026-05-31)
