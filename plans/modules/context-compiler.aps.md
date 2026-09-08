@@ -5,11 +5,16 @@
 
 | ID   | Owner       | Status | Progress |
 | ---- | ----------- | ------ | -------- |
-| CCTX | @joshuaboys | Draft  | 0/3      |
+| CCTX | @joshuaboys | Ready | 0/3      |
 
-**Status:** **Draft** (2026-09-08). The high-level specification is filed for
-validation. Nothing is authorised to start. The module stays Draft until the
-Ready checklist is ticked; that promotion is the owner's call, not this filing.
+**Status:** **Ready** (2026-09-08). Owner authorised the first spike. Spec
+§12/§13 is frozen enough to run (CCTX-001). Spec §15 open decisions are
+**parked until after the spike** — not resolved, not ADRs. Trust boundary
+remains binding: synthesis is advisory and never allow / warn / block.
+Enforcement must keep working if Context Compiler is unavailable.
+
+CCTX-001 is the entry point. CCTX-002 and CCTX-003 stay Ready but **must
+not start** until CCTX-001 has landed; they remain serial.
 
 **Spec:**
 [`plans/specs/2026-09-08-context-compiler.md`](../specs/2026-09-08-context-compiler.md).
@@ -27,7 +32,7 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — module created.
+**Last reviewed:** 2026-09-08 — Ready promotion; CCTX-001 protocol freeze.
 
 ## Purpose
 
@@ -58,9 +63,9 @@ spike.
 - Incrementally invalidate and rebuild affected knowledge after source
   changes.
 - Emit metrics for cost, freshness, retrieval quality, and task outcomes.
-- For this Draft: freeze the first-spike evaluation protocol and the advisory
-  Decision Brief contract, then compare baselines against brief variants
-  internally.
+- For this Ready spike: freeze the first-spike evaluation protocol and the
+  advisory Decision Brief contract, then compare baselines against brief
+  variants internally. No product compiler.
 
 ## Out of Scope
 
@@ -74,7 +79,8 @@ spike.
 - Cross-customer learning from private source.
 - Fully autonomous conflict resolution between contradictory sources.
 - Membership in the Graph Trust Surfaces five-track shortlist.
-- A product compiler, crate, or feature flag while the module is Draft.
+- A product compiler, crate, or feature flag while the first spike is
+  incomplete. Ready authorises the eval protocol, not a compiler.
 
 ## Interfaces
 
@@ -90,8 +96,9 @@ spike.
   advisory projection surface CCTX selects over, including the existing
   split from launch validation.
 - [GATT](./graph-answer-attestation.aps.md) — affinity for in-band honesty
-  about graph-answer limits. Evidence-format reuse is an open decision, not
-  a dependency that authorises GATT work from here.
+  about graph-answer limits. Evidence-format reuse is parked in spec §15.6
+  (deferred to post-spike), not a dependency that authorises GATT work
+  from here.
 - [CEG](./change-evidence-graph.aps.md) — affinity for Git-backed change
   evidence. CCTX does not consume CEG and must not wait on it.
 - Anvil's existing local-first data boundary
@@ -106,13 +113,15 @@ spike.
 
 Change status to **Ready** when:
 
-- [ ] Purpose and scope are clear
-- [ ] Dependencies identified
-- [ ] At least one work item defined
-- [ ] Owner confirms the spec is validated and the first spike is the right
-      next grain
-- [ ] Open decisions in spec §15 are resolved, parked, or given an ADR
-- [ ] Trust boundary remains explicit: synthesis is never enforcement
+- [x] Purpose and scope are clear
+- [x] Dependencies identified
+- [x] At least one work item defined
+- [x] Owner confirms the spec is validated and the first spike is the right
+      next grain (authorised 2026-09-08 via eddacraft dev coordinator /
+      @joshuaboys)
+- [x] Open decisions in spec §15 are resolved, parked, or given an ADR —
+      **parked** 2026-09-08 as deferred-to-post-spike; no ADRs invented
+- [x] Trust boundary remains explicit: synthesis is never enforcement
       authority
 
 ## Work Items
@@ -123,13 +132,13 @@ compiler, crate, or flag.
 
 | ID       | Task                                              | Status | Depends on |
 | -------- | ------------------------------------------------- | ------ | ---------- |
-| CCTX-001 | Freeze the internal evaluation protocol           | Draft  | —          |
-| CCTX-002 | Freeze the Decision Brief as an advisory contract | Draft  | CCTX-001   |
-| CCTX-003 | Compare baselines against brief variants          | Draft  | CCTX-001, CCTX-002 |
+| CCTX-001 | Freeze the internal evaluation protocol           | In Progress | —          |
+| CCTX-002 | Freeze the Decision Brief as an advisory contract | Ready  | CCTX-001   |
+| CCTX-003 | Compare baselines against brief variants          | Ready  | CCTX-001, CCTX-002 |
 
 ### CCTX-001: Freeze the internal evaluation protocol
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Make the first spike comparable before anyone spends synthesis
   cost.
 - **Expected Outcome:** The spec's §12 protocol is frozen enough to run: one
@@ -140,12 +149,14 @@ compiler, crate, or flag.
 - **Validation:** `pnpm docs:check`
 - **Non-scope:** No product compiler. No GCTX, GATT, or CEG behaviour change.
   No EVALCI / policy-regression work.
-- **Files:** `plans/specs/2026-09-08-context-compiler.md`
+- **Files:** `plans/specs/2026-09-08-context-compiler.md`,
+  `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`
+- **Claim:** private GitHub issue #4455
 - **Confidence:** medium
 
 ### CCTX-002: Freeze the Decision Brief as an advisory contract
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Fix what one task-shaped brief must contain, and what it must
   never be allowed to mean.
 - **Expected Outcome:** The Decision Brief contract in spec §9 is the
@@ -162,7 +173,7 @@ compiler, crate, or flag.
 
 ### CCTX-003: Compare baselines against brief variants
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Learn whether a brief beats ordinary exploration and GCTX
   before building a compiler.
 - **Expected Outcome:** A dated internal eval report records the four §12

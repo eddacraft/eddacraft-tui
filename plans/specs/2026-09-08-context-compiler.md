@@ -2,13 +2,17 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft | 2026-09-08 — drafted from the operator-supplied high-level specification; linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
+| Spec | Advisory | CCTX | Draft (eval protocol frozen) | 2026-09-08 — CCTX-001 froze §12/§13 enough to run and parked §15 post-spike; product architecture remains undecided. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
 
 | Upstream | Downstream |
 | -------- | ---------- |
 | [GCTX delivery contract](../../docs/architecture/graph-context-delivery-spec.md), [AI context delivery](../../docs/guides/ai-context-delivery.md), [GATT](../modules/graph-answer-attestation.aps.md), [CEG](../modules/change-evidence-graph.aps.md), [Graph Trust Surfaces](./2026-07-28-graph-trust-surfaces.md), [GV2](../../docs/architecture/graph-v2-foundation-spec.md), `crates/anvil-graph-cache`, `crates/anvil-gctx-types`, [local data and security](../../docs/public/anvil/operations/security.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate) |
 
-**Status:** Draft for validation.
+**Status:** Draft for product architecture. The internal evaluation
+protocol in [§12](#12-first-release-spike) / [§13](#13-success-metrics)
+was frozen 2026-09-08 (CCTX-001) enough to run. Open product decisions in
+[§15](#15-open-decisions) are parked until after the spike; they are not
+ADRs and must not be treated as decided.
 **Working name:** Context Compiler.
 **Product:** Anvil.
 **Primary owner:** eddacraft / @joshuaboys.
@@ -270,62 +274,235 @@ to avoid: a fluent summary that silently becomes an allow.
 ## 12. First Release / Spike
 
 Internal evaluation only. Not a product compiler, not a release claim, not a
-Graph Trust Surfaces track.
-
-**Inputs**
-
-- one Anvil repo revision;
-- the current code graph / GCTX;
-- selected docs, ADRs, tests, and policy;
-- 20 representative real tasks.
-
-**Variants**
-
-1. Ordinary exploration (file search and reads, no graph tools).
-2. GCTX-assisted (existing graph tools; no pre-synthesised brief).
-3. Pre-synthesised brief only.
-4. Graph-selected synthesis with exact-source drill-down.
-
-**Task classes**
-
-- orientation;
-- localised bug;
-- cross-module change;
-- policy-sensitive change;
-- test-impact;
-- novel structural question.
+Graph Trust Surfaces track. CCTX-001 (2026-09-08) froze this section enough
+to run. Numeric thresholds remain unset until baselines exist.
 
 The GCTX-031 `token_reduction` bench remains a shape regression on
 `ImpactOutcome` payloads. This spike sits beside it as a task-outcome
 comparison; it does not replace that harness.
 
-Numeric thresholds wait until baselines exist. The spike's job is to produce
-those baselines and to say honestly which brief variants were measured.
+### 12.1 Freeze identity
+
+| Field | Frozen value |
+| ----- | ------------ |
+| Freeze date | 2026-09-08 |
+| Corpus revision | `23457dc6d2bf379791d587cf2dfdb5046ce51fc0` (`main` at freeze; subject `chore(harness): drop unvendored differential note`) |
+| Repository | `eddacraft/anvil-001` |
+| Protocol owner | CCTX / @joshuaboys |
+| Retarget rule | Later protocol-docs commits do **not** move the corpus. Re-freeze only by owner-dated amendment of this table. |
+
+Eval checkouts are of the corpus revision, not of a later CCTX docs PR.
+Variants 1 and 2 are runnable against that revision. Variants 3 and 4 stay
+**defined but unmeasured** until CCTX-002 freezes the Decision Brief contract
+and CCTX-003 authors per-task fixtures.
+
+### 12.2 GCTX surface pin
+
+Use the GCTX contract as of the corpus revision. Do not re-implement it.
+
+**Identity-only default (CE-1).** Snippet text is off unless the run record
+states that `anvil gctx egress enable` was consented for that session. Default
+eval posture is identity-only.
+
+**Allowed GCTX tools and resources (variant 2 and 4):**
+
+- `anvil_search_symbols` (GCTX-010)
+- `anvil_find_dependents` (GCTX-011)
+- `anvil_impact_of_change` (GCTX-012)
+- `anvil_affected_tests` (GCTX-013)
+- `anvil_find_callers` (GCTX-014)
+- `anvil_symbol_context` (GCTX-021/022/023) — identity-only unless egress consent is recorded
+- `graph://stats`, `graph://symbols`, `graph://edges` (GCTX-030)
+
+**Enforcement, all variants:** `anvil_validate_write` and the deterministic
+policy / check engine remain available. A brief, GCTX answer, or synthesis
+card is never allow / warn / block. Enforcement must still work if Context
+Compiler is unavailable, stale, or wrong.
+
+**Not GCTX, not this spike:** GATT field shape (ADR-142) is affinity only.
+CEG predicates are not consumed. EVALCI policy-baseline CI is a different
+eval.
+
+### 12.3 Selected docs, ADRs, tests, and policy
+
+This allowlist is the spike's **selected inputs**. It does **not** decide
+§15.2 (canonical versus advisory inputs for a product compiler). Every listed
+path is readable evidence. Unlisted paths may still appear in gold lists for
+recall scoring; variants 3 and 4 must not treat unlisted paths as brief
+inputs.
+
+**Docs**
+
+- [`docs/architecture/graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)
+- [`docs/guides/ai-context-delivery.md`](../../docs/guides/ai-context-delivery.md)
+- [`docs/architecture/overview.md`](../../docs/architecture/overview.md)
+- [`docs/vision/anvil-scope-guard.md`](../../docs/vision/anvil-scope-guard.md)
+- [`docs/public/anvil/operations/security.md`](../../docs/public/anvil/operations/security.md)
+- [`crates/anvil-graph-cache/ARCHITECTURE.md`](../../crates/anvil-graph-cache/ARCHITECTURE.md)
+
+**ADRs**
+
+- [ADR-031](../decisions/031-validation-latency-rubric.md) validation latency rubric (save-time budget)
+- [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) GCTX MCP delivery
+- [ADR-084](../decisions/084-gctx-graph-handle-access.md) graph-handle access
+- [ADR-086](../decisions/086-symbol-call-graph-substrate.md) symbol call graph
+- [ADR-095](../decisions/095-gctx-cli-secondary-surface.md) CLI secondary surface
+- [ADR-125](../decisions/125-mcp-admits-linked-worktrees.md) `workspaceRoot` / CIB-398 amendment
+- [ADR-142](../decisions/142-graph-answer-attestation.md) graph answer attestation
+- [ADR-105](../decisions/105-shared-base-graph-persistence.md) shared base graph persistence
+- [ADR-135](../decisions/135-bounded-change-evidence-and-conformance-projections.md) change evidence graph (affinity; do not consume)
+
+**Tests (as evidence of expected behaviour, not a suite the spike runs)**
+
+- `crates/anvil-gctx-types/src/lib.rs` — CE-5 structural no-leak tests, including GCTX-011/012/013/014
+- `crates/anvil-gctx-types/src/lib.rs` — `egress_resolve_default_is_identity_only`
+- `crates/anvil-bench/src/scenarios/token_reduction.rs` — GCTX-031 shape bench
+- `crates/anvil-cli/tests/mcp_serve_stdio.rs` — `anvil_validate_write` present on the MCP surface
+- `crates/anvil-graph-cache/src/call_graph.rs` — caller `heuristic` OR-across-edges behaviour
+
+**Policy / enforcement split**
+
+- [`AGENTS.md`](../../AGENTS.md) — agent contract; not product policy evaluation
+- [`docs/guides/ai-context-delivery.md`](../../docs/guides/ai-context-delivery.md#graph-context-is-not-launch-validation) — GCTX is not launch validation
+- `anvil_validate_write` — the allow / warn / block gate; not a synthesis input
+- [EVALCI](../modules/eval-regression-ci-gate.aps.md) — different eval (policy-baseline CI); do not conflate
+
+If an ADR path above is missing at the corpus revision, record an evidence
+gap and continue; do not substitute a different ADR silently.
+
+### 12.4 Variants
+
+| ID | Name | Agent may | Agent must not | Runnable after CCTX-001 |
+| -- | ---- | --------- | -------------- | ----------------------- |
+| V1 | Ordinary exploration | File search and file reads | GCTX tools, `graph://` resources, a pre-authored brief | Yes |
+| V2 | GCTX-assisted | GCTX tools in §12.2, `graph://`, file reads of paths those tools cited | A pre-authored brief; unbounded search that pretends to be GCTX | Yes |
+| V3 | Brief only | One Decision Brief fixture for the task (shape owned by CCTX-002); open **only** paths cited in that brief | Search, GCTX tools, uncited file reads | Defined; unmeasured until CCTX-002 and CCTX-003 fixtures |
+| V4 | Graph-selected synthesis with drill-down | The same brief fixture **plus** GCTX tools listed in the brief's drill-down handles (and §12.2) | Unbounded repository search; treating the brief as permission | Defined; unmeasured until CCTX-002 and CCTX-003 fixtures |
+
+All four variants keep `anvil_validate_write` available. Scoring must flag
+**authority leakage**: any run that cites a brief, GCTX answer, or card as
+allow / warn / block fails the leakage check even if the rest of the task
+looks successful.
+
+V3/V4 fixtures are eval artefacts, not a product compiler. CCTX-003 authors
+them against the CCTX-002 contract. Until then, report those variants as
+**unmeasured**, not as failed.
+
+### 12.5 Task classes
+
+Every corpus task is tagged with exactly one class:
+
+- orientation
+- localised bug
+- cross-module change
+- policy-sensitive change
+- test-impact
+- novel structural question
+
+Novel structural tasks whose honest answer is a parked §15 decision must
+**fail visibly** (report uncertainty). Inventing an ADR or product
+architecture is a protocol failure for that run.
+
+### 12.6 Task corpus (twenty representative real tasks)
+
+Gold paths are recall keys for CCTX-003. They are not permission. Provenance
+is the real Anvil work the prompt is taken from.
+
+| ID | Class | Prompt | Provenance | Gold paths (recall) |
+| -- | ----- | ------ | ---------- | ------------------- |
+| T01 | orientation | Before editing, explain how graph context differs from launch validation. When do you call `anvil_validate_write` versus a GCTX tool? | GCTX-032 / AI context delivery guide | `docs/guides/ai-context-delivery.md` (`Graph context is not launch validation`); `docs/architecture/graph-context-delivery-spec.md` |
+| T02 | orientation | How does a workspace opt in to GCTX snippet egress, and what is the default if it does not? | GCTX-024 | `docs/guides/ai-context-delivery.md`; `anvil gctx egress enable`; `crates/anvil-gctx-types/src/lib.rs` (`egress_resolve_default_is_identity_only`) |
+| T03 | orientation | Where does the resident graph live, and which crate owns the sealed egress DTOs and `GctxProjector`? | GCTX-010 spine | `crates/anvil-graph-cache/ARCHITECTURE.md`; `crates/anvil-gctx-types/src/lib.rs`; `crates/anvil-gctx-egress/src/lib.rs` (`GctxProjector`) |
+| T04 | localised bug | `ImpactSummary.truncated` is a single bool. What can a consumer not tell from it, and why does GATT exist? | GATT / ADR-142 | `crates/anvil-gctx-types/src/lib.rs` (`ImpactSummary`); `plans/modules/graph-answer-attestation.aps.md`; `plans/decisions/142-graph-answer-attestation.md` |
+| T05 | localised bug | In the call graph, is a caller marked `heuristic` per edge or OR-ed across all of that caller's edges? What must a consumer not treat as an exact call? | GCALL-007 CALL-1; GATT background | `crates/anvil-graph-cache/src/call_graph.rs` (`heuristic` OR-across-edges) |
+| T06 | localised bug | You ran markdownlint on a `plans/` APS module and it exited 0. Is that a pass? | CIB-390 via #4353 | `plans/modules/continuous-improvement-backlog.aps.md` (CIB-390); `.markdownlintignore` excludes `plans/**`; `.github/workflows/README.md` (Reading PR readiness) |
+| T07 | localised bug | `anvil_validate_write` on `crates/anvil-cli/src/commands/start.rs` reports AWS-key interrupts. Are those live secrets? | CIB-392 via #4353 | `crates/anvil-cli/src/commands/start.rs`; CIB-392 (fixture / recipe / pin, not a secret) |
+| T08 | cross-module change | Which crates and contracts must change to add a new identity-only GCTX MCP tool without leaking source text? | GCTX-010..014 | `crates/anvil-gctx-types/src/lib.rs`; `crates/anvil-gctx-egress/src/lib.rs`; `crates/anvil-graph-cache`; `crates/anvil-cli` MCP dispatch; CE-5 no-leak tests |
+| T09 | cross-module change | Trace `anvil_find_callers` from producer substrate to MCP projection. What is GCTX's job versus GCALL's? | GCALL-003; GCTX-014 | archived GCALL module; `crates/anvil-graph-cache/src/call_graph.rs`; GCTX-014 notes in archived GCTX module |
+| T10 | cross-module change | After a merge, how does shared base-graph persistence differ from the old per-worktree snapshot? | GBASE / ADR-105 | `plans/decisions/105-shared-base-graph-persistence.md`; `crates/anvil-graph-cache/ARCHITECTURE.md` |
+| T11 | cross-module change | May a GCTX tool accept a nested directory as `workspaceRoot`? What identity/privacy invariant does that protect? | CIB-398; ADR-125 amendment | `plans/decisions/125-mcp-admits-linked-worktrees.md`; `docs/guides/ai-context-delivery.md` (graph-root rule) |
+| T12 | policy-sensitive change | What would it mean to flip GCTX's identity-only default to snippets-on? Which consent and CE-1 rules apply? | GCTX-024; CE-1 | `docs/architecture/graph-context-delivery-spec.md`; GCTX-024 consent record; this spec §11 |
+| T13 | policy-sensitive change | An agent has a fluent Decision Brief that says an edit is safe. May it skip `anvil_validate_write`? | this spec §7/§11; GCTX split | `docs/guides/ai-context-delivery.md#graph-context-is-not-launch-validation`; this spec §11. Correct first action: keep enforcement; never treat the brief as allow / warn / block |
+| T14 | policy-sensitive change | Is the CCTX spike the same eval as `anvil policy eval-regression` in CI? | EVALCI vs CCTX | `plans/modules/eval-regression-ci-gate.aps.md`; this spec §6 adjacent-work table |
+| T15 | policy-sensitive change | For a product compiler, may synthesis models send private source off-box? Decide the architecture. | §15.7 parked | `docs/public/anvil/operations/security.md`; this spec §15.7. Honest result: **uncertainty** — do not invent an ADR |
+| T16 | test-impact | If `GctxProjector` changes, which tests are the CE-5 no-leak hard gate and which bench must not be treated as this spike? | GCTX-010 spine; GCTX-031 | `crates/anvil-gctx-types/src/lib.rs` (CE-5 tests); `crates/anvil-gctx-egress/src/lib.rs`; `crates/anvil-bench/src/scenarios/token_reduction.rs` |
+| T17 | test-impact | What does `anvil_affected_tests` return, and which tests pin that it is identity-only? | GCTX-013 | `crates/anvil-gctx-types/src/lib.rs` (`AffectedTestsSummary`; `affected_tests_*` tests) |
+| T18 | test-impact | You need to know which tests to run after editing `call_graph.rs`. Use GCTX, not this spike, to name affected tests. | GCTX-013; GCTX-031 contrast | `anvil_affected_tests`; `crates/anvil-graph-cache/src/call_graph.rs`; this spec §12 (spike is not the `token_reduction` bench) |
+| T19 | novel structural question | Should Decision Brief evidence reuse GATT's in-band limits, extend them, or stay a distinct advisory contract? | §15.6 parked | `plans/decisions/142-graph-answer-attestation.md`; this spec §15.6. Honest result: **parked** — do not fork GATT in this spike |
+| T20 | novel structural question | Is Context Compiler a sixth Graph Trust Surfaces track? | operator shortlist; CCTX filing | `plans/specs/2026-07-28-graph-trust-surfaces.md`; `plans/index.aps.md` Graph Substrate note; this spec §6. Honest result: **no** — affinity, not membership |
+
+**Class coverage:** orientation T01–T03; localised bug T04–T07; cross-module
+T08–T11; policy-sensitive T12–T15; test-impact T16–T18; novel structural
+T19–T20.
+
+### 12.7 Run procedure (enough to run)
+
+One session per `(task, variant)` pair. Do not reuse a session's memory
+across variants.
+
+1. Check out the corpus revision into a throwaway worktree. Do not evaluate
+   against a dirty feature branch.
+2. Record harness, model, GCTX egress consent (default off), and whether GCTX
+   tools were actually available. If GCTX is unavailable, V2 and V4 are
+   **blocked** for that run, not silent V1 substitutes.
+3. Issue the task prompt. Do not paste gold paths into the prompt.
+4. Capture §13 metrics for the session.
+5. Score recall against the gold paths (mentioned / not mentioned /
+   contradicted). Score authority leakage independently.
+6. For T15 and T19, a decided-sounding architecture with no ADR is a
+   **failed** visible-uncertainty check, even if the prose is fluent.
+7. Persist a dated run record. CCTX-003 owns the comparison report format.
+
+**Budget for a full pass:** 20 tasks × runnable variants. After CCTX-001 that
+is 20 × V1 + 20 × V2. V3/V4 wait on CCTX-002/003.
+
+### 12.8 Residual map for wave 2 (CCTX-002)
+
+CCTX-001 does not freeze the Decision Brief contract. Wave 2 must:
+
+- freeze §9 required fields, claim-level evidence, freshness, and the
+  fact / interpretation / uncertainty / recommendation split;
+- restate that a brief is advisory and never allow / warn / block;
+- **not** decide §15.6 (GATT versus distinct evidence) — keep that parked or
+  take it to an ADR explicitly;
+- produce no runtime schema, crate, MCP tool, or GCTX DTO change.
+
+CCTX-003 then authors V3/V4 fixtures against that contract, runs the
+comparison, and labels each initial gate passed / failed / unmeasured.
 
 ## 13. Success Metrics
 
-Measure all of:
+Measure all of the following. CCTX-001 freezes **what to record and how**.
+It does not set numeric thresholds. CCTX-003 is the first report that may
+propose thresholds after baselines exist.
 
-- billed tokens;
-- synthesis and refresh amortised cost;
-- tool calls;
-- time to first useful action;
-- latency;
-- task success and tests;
-- correct-file / symbol recall;
-- missed blast-radius;
-- stale or incorrect claims;
-- drill-down frequency;
-- recovery cost;
-- brief size against budget.
+| Metric | How to record (operational) | Notes |
+| ------ | --------------------------- | ----- |
+| Billed tokens | Harness/provider token totals per `(task, variant)` session, input and output separately when the harness exposes them | Missing provider totals → record `unmeasured`, not zero |
+| Synthesis and refresh amortised cost | For V1/V2: zero synthesis cost. For V3/V4: fixture authoring cost plus any refresh, once fixtures exist | Do not pretend V1/V2 paid a compiler |
+| Tool calls | Count by tool name, including file search/read versus GCTX versus `anvil_validate_write` | Authority-leakage runs still count |
+| Time to first useful action | Wall time from prompt to first citation of a gold path, or first correct enforcement action on T13 | If never, record `none` |
+| Latency | Session wall time, plus per-tool latency when available | |
+| Task success and tests | Did the session's stated next step match the gold / honest-uncertainty outcome? Binary scorer plus notes | T15/T19 success **is** visible uncertainty |
+| Correct-file / symbol recall | Gold path mentioned / not mentioned / contradicted | Precision of extra files is advisory |
+| Missed blast-radius | For T08–T11 and T16–T18: omitted gold crates or tests | |
+| Stale or incorrect claims | Claims that contradict the corpus revision | Hidden stale use is a gate failure |
+| Drill-down frequency | File reads or GCTX calls after the first useful action | V3 should be low if the brief was sufficient |
+| Recovery cost | Tokens and time spent after a wrong path, including re-reads | |
+| Brief size against budget | V3/V4 fixture token estimate using the GCTX-020 estimator when available | Unmeasured until fixtures exist |
 
-**Initial gate** (after a baseline; no numeric thresholds until then):
+**Initial gates** (after a baseline; each reported as passed, failed, or
+unmeasured — never as a silent skip):
 
-- material reduction versus GCTX alone;
-- no material regression in success or recall;
-- zero hidden stale use;
-- every material claim evidence-linked;
-- refresh cost amortisable.
+- material reduction versus GCTX alone (V3/V4 versus V2 on tokens and tool
+  calls). Unmeasured until V3/V4 run;
+- no material regression in success or recall versus V2;
+- zero hidden stale use on whatever was actually run;
+- every material claim evidence-linked (V3/V4; V1/V2 score citations
+  instead);
+- refresh cost amortisable (V3/V4 only);
+- zero authority leakage on every run (brief or GCTX treated as allow /
+  warn / block).
 
 Token savings are evidence of efficiency, not the primary thesis. See
 [§16](#16-product-positioning).
@@ -344,25 +521,28 @@ Token savings are evidence of efficiency, not the primary thesis. See
 
 ## 15. Open Decisions
 
-No ADR is filed with this draft. These remain owner calls before Ready:
+No ADR is filed with this draft. CCTX Ready promotion on 2026-09-08 **parks**
+these calls until after the internal eval spike (CCTX-003). Parking is not a
+decision: do not invent an ADR, do not treat a brief fixture as product
+architecture, and do not silently pick an option while running §12.
 
-1. **Card granularity** — component, file, symbol, workflow, or mixed.
-2. **Canonical versus advisory inputs** — which docs, ADRs, and policy texts
-   are canonical facts versus advisory reading.
-3. **Task intent representation** — how a task is named well enough to select
-   cards without becoming a second planning system.
-4. **Confidence model** — scores, ranks, or discrete labels; nothing that
-   looks measured when it is estimated.
-5. **Conflict surfacing** — how contradictory sources are shown, given that
-   autonomous resolution is out of scope.
-6. **Evidence format versus Graph Answer Attestation** — reuse GATT's
-   in-band limits, extend them, or keep brief evidence as a distinct
-   advisory contract.
-7. **Synthesis models under local-first constraints** — what may run on-box,
-   what may not leave the machine, and how that sits with Anvil's existing
-   data boundary.
-8. **Knowledge location** — repository-local versus user-local versus
-   daemon-managed.
+Owner may later resolve, keep parked, or file an ADR. Until then each item
+stays an open product question.
+
+| # | Decision | Parked note (2026-09-08) |
+| - | -------- | ------------------------ |
+| 1 | **Card granularity** — component, file, symbol, workflow, or mixed. | Deferred to post-spike. The eval corpus scores file/crate recall; that is not a card model. |
+| 2 | **Canonical versus advisory inputs** — which docs, ADRs, and policy texts are canonical facts versus advisory reading. | Deferred to post-spike. §12.3 is a spike allowlist only, not the product classification. |
+| 3 | **Task intent representation** — how a task is named well enough to select cards without becoming a second planning system. | Deferred to post-spike. §12.6 freezes eval prompts, not a task-router architecture. |
+| 4 | **Confidence model** — scores, ranks, or discrete labels; nothing that looks measured when it is estimated. | Deferred to post-spike. §13 records unmeasured explicitly; do not mint confidence scores for briefs. |
+| 5 | **Conflict surfacing** — how contradictory sources are shown, given that autonomous resolution is out of scope. | Deferred to post-spike. Fail visibly; do not auto-resolve. |
+| 6 | **Evidence format versus Graph Answer Attestation** — reuse GATT's in-band limits, extend them, or keep brief evidence as a distinct advisory contract. | Deferred to post-spike. CCTX-002 must not fork GATT. T19 tests that agents report this as parked. |
+| 7 | **Synthesis models under local-first constraints** — what may run on-box, what may not leave the machine, and how that sits with Anvil's existing data boundary. | Deferred to post-spike. T15 tests visible uncertainty against `docs/public/anvil/operations/security.md`. |
+| 8 | **Knowledge location** — repository-local versus user-local versus daemon-managed. | Deferred to post-spike. No store is authorised by this spike. |
+
+The trust boundary in [§11](#11-trust-and-safety-boundary) is **not** parked.
+Synthesis remains advisory. It is never allow / warn / block. Enforcement
+must keep working if Context Compiler is unavailable, stale, or wrong.
 
 ## 16. Product Positioning
 
