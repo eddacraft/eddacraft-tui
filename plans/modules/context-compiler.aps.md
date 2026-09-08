@@ -156,7 +156,10 @@ compiler, crate, or flag.
 - **Files:** `plans/specs/2026-09-08-context-compiler.md`,
   `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`
 - **Claim:** private GitHub issue #4455
-- **PR:** Merged 2026-09-08 via [#4456](https://github.com/eddacraft/anvil-001/pull/4456) (`07db4dd636b20330c24206601ebb398632fc9ce3` on `main`; rebase-merge of `9b19e98a9`)
+- **PR:** Merged 2026-09-08 via
+  [#4456](https://github.com/eddacraft/anvil-001/pull/4456)
+  (`07db4dd636b20330c24206601ebb398632fc9ce3` on `main`; rebase-merge of
+  `9b19e98a9`)
 - **Confidence:** medium
 
 ### CCTX-002: Freeze the Decision Brief as an advisory contract
