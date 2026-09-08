@@ -62,8 +62,8 @@ jobs:
       - name: Preflight and create expiring Neon test branch
         id: create-branch
         env:
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_TEST_PROJECT_ID }}
           NEON_BRANCH_NAME: ${{ steps.branch-metadata.outputs.branch_name }}
           NEON_BRANCH_EXPIRES_AT: ${{ steps.branch-metadata.outputs.expires_at }}
         run: node scripts/ci/create-neon-test-branch.mjs
@@ -78,8 +78,8 @@ jobs:
       - name: Delete ephemeral Neon test branch
         if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
         env:
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_TEST_PROJECT_ID }}
           NEON_BRANCH_ID: ${{ steps.create-branch.outputs.branch_id }}
           NEON_BRANCH_NAME: ${{ steps.create-branch.outputs.branch_name }}
           NEON_BRANCH_EXPIRES_AT: ${{ steps.create-branch.outputs.expires_at }}

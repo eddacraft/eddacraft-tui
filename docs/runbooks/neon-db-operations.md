@@ -1,8 +1,8 @@
 # Neon DB Operations Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                                                                                        |
-| ------- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-05 against `.github/workflows/neon-integration.yml`, `apps/anvil-api/src/__tests__/support/neon-test-database.ts`, and the Neon branch API (CLAWOPEN-011). Prior review 2026-08-31 against APGOV-008 and `apps/anvil-api/src/db/client.ts` |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------- | ------------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-09 for the CI credential rename to `NEON_TEST_API_KEY` / `NEON_TEST_PROJECT_ID`, which keeps the generic `NEON_*` names free for any future production credential; the script-side env var names are unchanged. Prior review 2026-09-05 against `.github/workflows/neon-integration.yml`, `apps/anvil-api/src/__tests__/support/neon-test-database.ts`, and the Neon branch API (CLAWOPEN-011). Prior review 2026-08-31 against APGOV-008 and `apps/anvil-api/src/db/client.ts` |
 
 | Upstream                                                                                                                                                                              | Downstream                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -52,11 +52,12 @@ inserts only run-specific synthetic rows.
    project-scoped key so it can manage branches but cannot delete the project.
    Never reuse a production or organisation-wide administrative key.
 3. In the private `eddacraft/anvil-001` repository, add the key as the Actions
-   secret `NEON_API_KEY`. Do not put its value in repository files, workflow
-   logs, issue comments, or local shell history.
-4. Add the dedicated project's ID as the Actions variable `NEON_PROJECT_ID`.
-   Check the ID against the `anvil-api-test` project before saving it; the
-   variable name alone does not prove the target is non-production.
+   secret `NEON_TEST_API_KEY`. Do not put its value in repository files,
+   workflow logs, issue comments, or local shell history.
+4. Add the dedicated project's ID as the Actions variable
+   `NEON_TEST_PROJECT_ID`. Check the ID against the `anvil-api-test` project
+   before saving it; the variable name alone does not prove the target is
+   non-production.
 5. Manually dispatch `Neon OTP Integration`. A successful run must create a
    branch named `ci-test-clawopen-011-<run>-<attempt>`, pass the live OTP test,
    and leave no branch with that name after cleanup.
@@ -102,7 +103,8 @@ If cleanup fails:
 ### Rotate the API key
 
 1. Create a replacement project-scoped key for `anvil-api-test`.
-2. Replace the `NEON_API_KEY` repository secret without exposing either value.
+2. Replace the `NEON_TEST_API_KEY` repository secret without exposing either
+   value.
 3. Manually dispatch the workflow and verify test success plus branch cleanup.
 4. Revoke the previous key only after the replacement run is green.
 
@@ -111,8 +113,8 @@ If cleanup fails:
 | Symptom                                                | Response                                                                                                                                                           |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Branch provisioning reports a missing database or role | Provision `anvil_test` and `anvil_test_owner` on the dedicated project's default branch; do not loosen the harness identity checks.                                |
-| Project-name preflight fails                           | Confirm `NEON_PROJECT_ID` identifies the dedicated project whose Neon name is exactly `anvil-api-test`; never bypass or broaden the comparison.                    |
-| Neon returns `401` or `403`                            | Confirm the secret is current and project-scoped to the project referenced by `NEON_PROJECT_ID`; rotate it if its status is uncertain.                             |
+| Project-name preflight fails                           | Confirm `NEON_TEST_PROJECT_ID` identifies the dedicated project whose Neon name is exactly `anvil-api-test`; never bypass or broaden the comparison.               |
+| Neon returns `401` or `403`                            | Confirm the secret is current and project-scoped to the project referenced by `NEON_TEST_PROJECT_ID`; rotate it if its status is uncertain.                        |
 | The safety gate rejects the URL or identity            | Check for a direct non-pooled TLS URL and the exact test database, role, project, and branch names. Never substitute production `DATABASE_URL` or bypass the gate. |
 | A fork pull request has no Neon result                 | Expected: credentials are withheld from forks. Reproduce through an authorised internal branch or manual dispatch after reviewing the change.                      |
 | The OTP assertion fails                                | Treat it as a correctness signal. Preserve the run URL and database error summary, verify cleanup, and investigate the production query before rerunning.          |
