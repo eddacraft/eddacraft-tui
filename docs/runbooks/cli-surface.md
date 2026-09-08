@@ -1,7 +1,7 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-09-08 against CIB-267 (`anvil hook pre-push` silent-pass help and Git remote/URL argv). Prior review 2026-08-31 for CIB-382's physical-identity Unix rendezvous repair, complete canonical-refusal JSON, and trusted writable-PID recovery. Also reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
@@ -1731,25 +1731,25 @@ invoked directly by users. `bootstrap` is the exception: run it after a fresh
 clone to recover hook-runtime files.
 
 **When to use (`pre-push`):** Git invokes this on `git push` as
-`anvil hook pre-push <remote> <url>` with the ref list on stdin. A silent
-exit 0 means no policy (or no project-id), a clean allowed range, or the
-wrapper `command -v anvil` guard firing because Git's hook PATH does not
-contain `anvil` (common when Windows Git's hook PATH differs from an
-interactive PowerShell session).
+`anvil hook pre-push <remote> <url>` with the ref list on stdin. A silent exit 0
+means no policy (or no project-id), a clean allowed range, or the wrapper
+`command -v anvil` guard firing because Git's hook PATH does not contain `anvil`
+(common when Windows Git's hook PATH differs from an interactive PowerShell
+session).
 
 **Synopsis:**
 `anvil hook <pre-commit|pre-push|post-commit|post-merge|post-rewrite|bootstrap>`
 
 **Subcommands:**
 
-| Subcommand     | Description                                                                 |
-| -------------- | --------------------------------------------------------------------------- |
-| `pre-commit`   | L3 pre-commit hook — validates the staged diff and appends a witness line.  |
+| Subcommand     | Description                                                                                                                                   |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-commit`   | L3 pre-commit hook — validates the staged diff and appends a witness line.                                                                    |
 | `pre-push`     | L4 pre-push hook — walks the pushed commit range and applies branch policy. Accepts Git's `REMOTE` and `URL` positionals; stdin is unchanged. |
-| `post-commit`  | Records that the commit succeeded.                                          |
-| `post-merge`   | Appends a DAG-aware witness for merge joins.                                |
-| `post-rewrite` | Regenerates witnesses for amended or rebased commits.                       |
-| `bootstrap`    | Recover hook-runtime files in a worktree that hasn't been bootstrapped yet. |
+| `post-commit`  | Records that the commit succeeded.                                                                                                            |
+| `post-merge`   | Appends a DAG-aware witness for merge joins.                                                                                                  |
+| `post-rewrite` | Regenerates witnesses for amended or rebased commits.                                                                                         |
+| `bootstrap`    | Recover hook-runtime files in a worktree that hasn't been bootstrapped yet.                                                                   |
 
 **`bootstrap` flags:**
 

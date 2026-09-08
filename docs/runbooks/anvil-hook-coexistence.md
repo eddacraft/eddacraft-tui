@@ -1,7 +1,7 @@
 # Hook Coexistence — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                  |
-| ------- | ------------- | ------ | ------ | ------------------------------------------ |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                             |
+| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-08 against CIB-267 (Git hook PATH vs interactive shell silent-pass). First filed 2026-05-15 alongside ADOPT-001 |
 
 | Upstream                                                                                                                                                                                                                                                                                | Downstream                                                                                                                                                                                                                                                     |

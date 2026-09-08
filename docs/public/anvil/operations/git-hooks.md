@@ -64,8 +64,8 @@ be replaced.
 3. **`command -v anvil` guard.** The installed wrapper exits 0 when Git's hook
    PATH does not contain `anvil`. Git's hook environment often has a different
    PATH from an interactive shell. On Windows this commonly shows up as:
-   `Get-Command anvil` works in PowerShell, but `git push` is silent because
-   Git for Windows ran the hook with a PATH that does not include `anvil`.
+   `Get-Command anvil` works in PowerShell, but `git push` is silent because Git
+   for Windows ran the hook with a PATH that does not include `anvil`.
 
 Git invokes the hook as `pre-push <remote> <url>` and writes the ref lines to
 stdin. `anvil hook pre-push` accepts those two positionals; they are
