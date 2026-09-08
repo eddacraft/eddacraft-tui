@@ -12,10 +12,27 @@ from datetime import datetime, timezone
 from math import ceil
 from pathlib import Path
 
-CORPUS = Path("/workspace/.worktrees/cctx-003-corpus")
+
+def repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for candidate in here.parents:
+        if (candidate / ".git").exists() or (candidate / "plans" / "index.aps.md").is_file():
+            return candidate
+    raise RuntimeError(f"could not locate repository root from {here}")
+
+
+REPO_ROOT = repo_root()
+CORPUS = REPO_ROOT / ".worktrees" / "cctx-003-corpus"
 CORPUS_SHA = "23457dc6d2bf379791d587cf2dfdb5046ce51fc0"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 RUNS = Path(__file__).resolve().parent / "runs"
+
+
+def corpus_display_path() -> str:
+    try:
+        return str(CORPUS.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(CORPUS)
 
 REQUIRED_SECTIONS = [
     "Task interpretation",
@@ -319,6 +336,14 @@ def score_one(path: Path) -> dict:
     }
 
 
+def _read_corpus_file(rel: str) -> str | None:
+    path = CORPUS / rel
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
 def v1_probe() -> dict:
     """Weak V1 file-search probe: not a §12.7 session. Records whether gold files exist."""
     prompts = {
@@ -326,23 +351,46 @@ def v1_probe() -> dict:
         "T05": "heuristic callers_of call graph",
         "T13": "anvil_validate_write graph context is not launch validation",
     }
+    gold_files = {
+        "T01": "docs/guides/ai-context-delivery.md",
+        "T05": "crates/anvil-graph-cache/src/call_graph.rs",
+        "T13": "docs/guides/ai-context-delivery.md",
+    }
+    corpus_dir_ok = CORPUS.is_dir()
     rows = {}
     for tid, q in prompts.items():
+        rel = gold_files[tid]
+        text = _read_corpus_file(rel) if corpus_dir_ok else None
+        readable = text is not None
         hits = []
-        for needle in q.split():
-            # existence-only: do not claim agent recall
-            if (CORPUS / "docs/guides/ai-context-delivery.md").exists():
-                hits.append("corpus_readable")
-                break
+        if text is not None:
+            lower = text.lower()
+            for needle in q.split():
+                if needle.lower() in lower:
+                    hits.append(needle)
         rows[tid] = {
             "probe": "keyword-existence-only",
             "query": q,
+            "gold_file": rel,
             "note": "Not a §12.7 V1 session. Recorded so V1 is not silently skipped.",
-            "corpus_readable": True,
+            "corpus_readable": readable,
+            "needle_hits": hits,
         }
+    any_readable = any(row["corpus_readable"] for row in rows.values())
+    corpus_display = corpus_display_path()
+    if any_readable:
+        corpus_note = f"Corpus checkout at {corpus_display} is readable."
+    else:
+        corpus_note = f"Corpus worktree missing or unreadable at {corpus_display}."
     return {
         "status": "unmeasured",
-        "reason": "No independent ordinary-exploration agent session was run per spec §12.7 (one session per task/variant, no reused memory). A corpus checkout exists and is readable.",
+        "reason": (
+            "No independent ordinary-exploration agent session was run per spec "
+            "§12.7 (one session per task/variant, no reused memory). "
+            + corpus_note
+        ),
+        "corpus_path": corpus_display,
+        "corpus_readable": any_readable,
         "sample": rows,
     }
 
@@ -376,7 +424,7 @@ def main() -> int:
             "id": "cctx-003-2026-09-08-fixture-score",
             "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "corpus_revision": CORPUS_SHA,
-            "corpus_worktree": str(CORPUS),
+            "corpus_worktree": corpus_display_path(),
             "harness": "cursor-cloud / grok adapter (identity degraded: no GROK_AGENT)",
             "model": "cursor-grok-4.6-high-fast",
             "kind": "fixture-contract-score + availability probe",

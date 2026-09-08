@@ -5,7 +5,7 @@
 
 | ID   | Owner       | Status | Progress |
 | ---- | ----------- | ------ | -------- |
-| CCTX | @joshuaboys | Ready | 3/3      |
+| CCTX | @joshuaboys | Ready | 1/3      |
 
 **Status:** **Ready** (2026-09-08). Owner authorised the first spike. Spec
 §12/§13 is frozen enough to run (CCTX-001). Spec §9 Decision Brief
@@ -210,8 +210,8 @@ compiler, crate, or flag.
   on whatever was actually run. No product ships.
 - **Validation:** `pnpm docs:check` — validation passed 2026-09-08 (15/15
   surfaces). `pnpm aps:index:check` and `pnpm aps:drift` exit 0 (CCTX
-  stored 3/3 matches work items 3/3; pre-existing DPO 2/6 vs 4/8 advisory
-  only). `python3 plans/evals/context-compiler/2026-09-08/score_fixtures.py`
+  stored 1/3 vs work items 3/3 is expected ADR-053 advisory; pre-existing DPO
+  2/6 vs 4/8 advisory only). `python3 plans/evals/context-compiler/2026-09-08/score_fixtures.py`
   — 20/20 `contract_ok`. Live V1 sessions **unmeasured**; V2/V4 **blocked**
   (GCTX unavailable). Hidden stale use on the fixture run: **passed**.
   `pnpm aps:active-lint` could not run (`aps` not on PATH). §15 including
