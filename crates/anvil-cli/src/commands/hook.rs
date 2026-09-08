@@ -1916,7 +1916,7 @@ fn build_rewrite_witness_line(
 mod tests {
     use super::*;
     use anvil_config::ConfigFormat;
-    use clap::Parser;
+    use clap::{CommandFactory, Parser};
     use std::path::PathBuf;
     use tempfile::TempDir;
 
