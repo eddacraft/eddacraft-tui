@@ -2,21 +2,23 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval protocol and Decision Brief contract frozen) | 2026-09-08 — CCTX-002 froze §9 as an advisory eval-fixture contract; CCTX-001 froze §12/§13 enough to run; §15 remains parked post-spike; product architecture remains undecided. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
+| Spec | Advisory | CCTX | Draft (eval protocol, brief contract, and first comparison frozen) | 2026-09-08 — CCTX-003 authored V3/V4 fixtures and the dated comparison report; CCTX-002 froze §9; CCTX-001 froze §12/§13; §15 remains parked after the spike; product architecture remains undecided. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [GCTX delivery contract](../../docs/architecture/graph-context-delivery-spec.md), [AI context delivery](../../docs/guides/ai-context-delivery.md), [GATT](../modules/graph-answer-attestation.aps.md), [CEG](../modules/change-evidence-graph.aps.md), [Graph Trust Surfaces](./2026-07-28-graph-trust-surfaces.md), [GV2](../../docs/architecture/graph-v2-foundation-spec.md), `crates/anvil-graph-cache`, `crates/anvil-gctx-types`, [local data and security](../../docs/public/anvil/operations/security.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate) |
+| [GCTX delivery contract](../../docs/architecture/graph-context-delivery-spec.md), [AI context delivery](../../docs/guides/ai-context-delivery.md), [GATT](../modules/graph-answer-attestation.aps.md), [CEG](../modules/change-evidence-graph.aps.md), [Graph Trust Surfaces](./2026-07-28-graph-trust-surfaces.md), [GV2](../../docs/architecture/graph-v2-foundation-spec.md), `crates/anvil-graph-cache`, `crates/anvil-gctx-types`, [local data and security](../../docs/public/anvil/operations/security.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate), [CCTX-003 report](../audits/2026-09-08-cctx-003-baseline-comparison.md), [V3/V4 fixtures](../evals/context-compiler/2026-09-08/README.md) |
 
 **Status:** Draft for product architecture. The internal evaluation
 protocol in [§12](#12-first-release-spike) / [§13](#13-success-metrics)
 was frozen 2026-09-08 (CCTX-001) enough to run. The Decision Brief
 contract in [§9](#9-decision-brief-contract) was frozen 2026-09-08
-(CCTX-002) as an advisory eval-fixture contract, enough for CCTX-003 to
-author V3/V4 fixtures. Open product decisions in
-[§15](#15-open-decisions) are parked until after the spike; they are not
-ADRs and must not be treated as decided. This freeze does not authorise
-a product compiler, runtime schema, crate, MCP tool, or GCTX DTO change.
+(CCTX-002) as an advisory eval-fixture contract. CCTX-003 (2026-09-08)
+authored V3/V4 fixtures and the dated comparison report
+([`plans/audits/2026-09-08-cctx-003-baseline-comparison.md`](../audits/2026-09-08-cctx-003-baseline-comparison.md)).
+Open product decisions in [§15](#15-open-decisions) remain parked after
+the spike; they are not ADRs and must not be treated as decided. This
+does not authorise a product compiler, runtime schema, crate, MCP tool,
+or GCTX DTO change.
 
 **Working name:** Context Compiler.
 **Product:** Anvil.
@@ -444,8 +446,11 @@ comparison; it does not replace that harness.
 Eval checkouts are of the corpus revision, not of a later CCTX docs PR.
 Variants 1 and 2 are runnable against that revision. CCTX-002 froze the
 Decision Brief contract in [§9](#9-decision-brief-contract) (2026-09-08).
-Variants 3 and 4 stay **defined but unmeasured** until CCTX-003 authors
-per-task fixtures against that contract.
+CCTX-003 authored per-task V3/V4 fixtures against that contract
+([`plans/evals/context-compiler/2026-09-08/`](../evals/context-compiler/2026-09-08/README.md)).
+Live V1 sessions and live V3 agent consumption remain **unmeasured** until
+a §12.7 harness run; V2/V4 are **blocked** when GCTX is unavailable, not
+silent V1 substitutes. See the dated report.
 
 ### 12.2 GCTX surface pin
 
@@ -527,18 +532,19 @@ gap and continue; do not substitute a different ADR silently.
 | -- | ---- | --------- | -------------- | ----------------------- |
 | V1 | Ordinary exploration | File search and file reads | GCTX tools, `graph://` resources, a pre-authored brief | Yes |
 | V2 | GCTX-assisted | GCTX tools in §12.2, `graph://`, file reads of paths those tools cited | A pre-authored brief; unbounded search that pretends to be GCTX | Yes |
-| V3 | Brief only | One Decision Brief fixture for the task (shape frozen by CCTX-002 in §9); open **only** paths cited in that brief | Search, GCTX tools, uncited file reads | Defined; unmeasured until CCTX-003 fixtures |
-| V4 | Graph-selected synthesis with drill-down | The same brief fixture **plus** GCTX tools listed in the brief's drill-down handles (and §12.2) | Unbounded repository search; treating the brief as permission | Defined; unmeasured until CCTX-003 fixtures |
+| V3 | Brief only | One Decision Brief fixture for the task (shape frozen by CCTX-002 in §9); open **only** paths cited in that brief | Search, GCTX tools, uncited file reads | Fixtures authored 2026-09-08; live sessions unmeasured (see CCTX-003 report) |
+| V4 | Graph-selected synthesis with drill-down | The same brief fixture **plus** GCTX tools listed in the brief's drill-down handles (and §12.2) | Unbounded repository search; treating the brief as permission | Fixtures authored 2026-09-08; live GCTX calls blocked when tools are unavailable |
 
 All four variants keep `anvil_validate_write` available. Scoring must flag
 **authority leakage**: any run that cites a brief, GCTX answer, or card as
 allow / warn / block fails the leakage check even if the rest of the task
 looks successful.
 
-V3/V4 fixtures are eval artefacts, not a product compiler. CCTX-003 authors
-them against the frozen [§9](#9-decision-brief-contract) contract. Until
-those fixtures exist, report those variants as **unmeasured**, not as
-failed.
+V3/V4 fixtures are eval artefacts, not a product compiler. CCTX-003
+authored them against the frozen [§9](#9-decision-brief-contract)
+contract. Live V3/V4 agent sessions stay **unmeasured** or **blocked**
+until a §12.7 run actually executes them; lack of a compiler is not a
+fail.
 
 ### 12.5 Task classes
 
@@ -605,24 +611,29 @@ across variants.
    **failed** visible-uncertainty check, even if the prose is fluent.
 7. Persist a dated run record. CCTX-003 owns the comparison report format.
 
-**Budget for a full pass:** 20 tasks × runnable variants. After CCTX-001 that
-is 20 × V1 + 20 × V2. After CCTX-002, V3/V4 still wait on CCTX-003 fixtures.
+**Budget for a full pass:** 20 tasks × runnable variants. After CCTX-003,
+fixtures exist for V3/V4. A full live pass is still 20 × V1 (when run) +
+20 × V2 (when GCTX is available) + 20 × V3 + 20 × V4 (V4 still needs GCTX).
+The 2026-09-08 report recorded fixture scoring plus honest blocked/unmeasured
+labels instead of inventing live sessions.
 
-### 12.8 Residual map for wave 3 (CCTX-003)
+### 12.8 Residual map after CCTX-003
 
-CCTX-002 froze the Decision Brief contract in
-[§9](#9-decision-brief-contract). Wave 3 must:
+CCTX-003 comparison:
+[`plans/audits/2026-09-08-cctx-003-baseline-comparison.md`](../audits/2026-09-08-cctx-003-baseline-comparison.md).
+Fixtures:
+[`plans/evals/context-compiler/2026-09-08/`](../evals/context-compiler/2026-09-08/README.md).
 
-- author one V3/V4 fixture per corpus task against that contract;
-- run the §12 comparison of baselines against brief variants;
-- distinguish measured baselines (V1/V2) from unmeasured brief variants
-  until those fixtures actually run;
-- report each §13 initial gate as passed, failed, or unmeasured;
-- record zero hidden stale use on whatever was actually run;
-- keep §15 parked, including **§15.6** (GATT versus distinct brief
-  evidence) — do not invent an ADR and do not fork GATT;
-- produce no product compiler, knowledge store, or feature flag;
-- leave enforcement unchanged: a brief is never allow / warn / block.
+Post-spike residue — **not started** by CCTX-003:
+
+- all of [§15](#15-open-decisions) remains parked, including **§15.6**
+  (GATT versus distinct brief evidence) — no ADR, no GATT fork;
+- live §12.7 V1 sessions, and V2/V4 when GCTX is in the harness;
+- numeric §13 thresholds (still unset; V1/V2 live baselines do not exist);
+- product compiler, knowledge store, feature flag, MCP tool, GCTX DTO
+  change, or enforcement change.
+
+A brief remains never allow / warn / block.
 
 ## 13. Success Metrics
 
@@ -676,7 +687,8 @@ Token savings are evidence of efficiency, not the primary thesis. See
 ## 15. Open Decisions
 
 No ADR is filed with this draft. CCTX Ready promotion on 2026-09-08 **parks**
-these calls until after the internal eval spike (CCTX-003). Parking is not a
+these calls until after the internal eval spike. CCTX-003 completed that
+spike as an internal eval and **does not unpark** them. Parking is not a
 decision: do not invent an ADR, do not treat a brief fixture as product
 architecture, and do not silently pick an option while running §12.
 

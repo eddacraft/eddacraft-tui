@@ -5,22 +5,29 @@
 
 | ID   | Owner       | Status | Progress |
 | ---- | ----------- | ------ | -------- |
-| CCTX | @joshuaboys | Ready | 1/3      |
+| CCTX | @joshuaboys | Ready | 3/3      |
 
 **Status:** **Ready** (2026-09-08). Owner authorised the first spike. Spec
 §12/§13 is frozen enough to run (CCTX-001). Spec §9 Decision Brief
-contract is frozen as an advisory eval-fixture contract (CCTX-002). Spec
-§15 open decisions are **parked until after the spike** — not resolved,
-not ADRs. Trust boundary remains binding: synthesis is advisory and
-never allow / warn / block. Enforcement must keep working if Context
+contract is frozen as an advisory eval-fixture contract (CCTX-002).
+CCTX-003 comparison report and V3/V4 fixtures are **Complete** on this
+branch. Spec §15 open decisions remain **parked after the spike** — not
+resolved, not ADRs. Trust boundary remains binding: synthesis is advisory
+and never allow / warn / block. Enforcement must keep working if Context
 Compiler is unavailable.
 
 CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is **Done** via
-PR #4459 (Decision Brief contract frozen).
-CCTX-003 remains Ready behind CCTX-001 and CCTX-002.
+PR #4459 (Decision Brief contract frozen). CCTX-003 is **Complete**
+(fixtures + dated eval report; no product ships).
 
 **Spec:**
 [`plans/specs/2026-09-08-context-compiler.md`](../specs/2026-09-08-context-compiler.md).
+
+**Eval report:**
+[`plans/audits/2026-09-08-cctx-003-baseline-comparison.md`](../audits/2026-09-08-cctx-003-baseline-comparison.md).
+
+**Fixtures:**
+[`plans/evals/context-compiler/2026-09-08/`](../evals/context-compiler/2026-09-08/README.md).
 
 **Affinity, not membership:** this work sits next to
 [graph-answer-attestation](./graph-answer-attestation.aps.md) (GATT),
@@ -35,8 +42,8 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — CCTX-002 Done via PR #4459 (Decision
-Brief contract frozen; §15.6 still parked).
+**Last reviewed:** 2026-09-08 — CCTX-003 Complete (eval report + V3/V4
+fixtures; §15 including §15.6 still parked; no product).
 
 ## Purpose
 
@@ -138,7 +145,7 @@ compiler, crate, or flag.
 | -------- | ------------------------------------------------- | ------ | ---------- |
 | CCTX-001 | Freeze the internal evaluation protocol           | Merged 2026-09-08 via PR #4456 | —          |
 | CCTX-002 | Freeze the Decision Brief as an advisory contract | Done   | CCTX-001   |
-| CCTX-003 | Compare baselines against brief variants          | Ready  | CCTX-001, CCTX-002 |
+| CCTX-003 | Compare baselines against brief variants          | Complete | CCTX-001, CCTX-002 |
 
 ### CCTX-001: Freeze the internal evaluation protocol
 
@@ -183,7 +190,8 @@ compiler, crate, or flag.
   not on PATH in this environment).
 - **Non-scope:** No runtime schema, crate, or MCP tool. No change to GCTX
   DTOs or GATT's attestation block. How brief evidence relates to GATT
-  remains an open decision (§15.6 parked). CCTX-003 not started.
+  remains an open decision (§15.6 parked). CCTX-003 Complete on this
+  branch (eval report; no product).
 - **Files:** `plans/specs/2026-09-08-context-compiler.md`,
   `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`
 - **Dependencies:** CCTX-001
@@ -192,7 +200,7 @@ compiler, crate, or flag.
 
 ### CCTX-003: Compare baselines against brief variants
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Learn whether a brief beats ordinary exploration and GCTX
   before building a compiler.
 - **Expected Outcome:** A dated internal eval report records the four §12
@@ -200,11 +208,22 @@ compiler, crate, or flag.
   measured baselines from unmeasured brief variants, reports each initial
   gate as passed, failed, or unmeasured, and records zero hidden stale use
   on whatever was actually run. No product ships.
-- **Validation:** `pnpm docs:check`
+- **Validation:** `pnpm docs:check` — pending this PR closeout. `python3
+  plans/evals/context-compiler/2026-09-08/score_fixtures.py` — 20/20
+  `contract_ok` (2026-09-08). Live V1 sessions **unmeasured**; V2/V4
+  **blocked** (GCTX unavailable). Hidden stale use on the fixture run:
+  **passed**. §15 including §15.6 still parked.
 - **Non-scope:** No compiler, knowledge store, or feature flag. No change to
   enforcement. Does not replace the GCTX-031 `token_reduction` bench.
+  Does not unpark §15.
+- **Files:** `plans/specs/2026-09-08-context-compiler.md`,
+  `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`,
+  `plans/audits/2026-09-08-cctx-003-baseline-comparison.md`,
+  `plans/evals/context-compiler/2026-09-08/`
 - **Dependencies:** CCTX-001, CCTX-002
-- **Confidence:** low
+- **Claim:** private GitHub issue #4461
+- **Confidence:** medium (fixtures and gates labelled honestly; live
+  V1/V2 comparison still unmeasured/blocked)
 
 ## Related, not this module
 
