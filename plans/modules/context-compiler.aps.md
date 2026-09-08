@@ -208,11 +208,14 @@ compiler, crate, or flag.
   measured baselines from unmeasured brief variants, reports each initial
   gate as passed, failed, or unmeasured, and records zero hidden stale use
   on whatever was actually run. No product ships.
-- **Validation:** `pnpm docs:check` — pending this PR closeout. `python3
-  plans/evals/context-compiler/2026-09-08/score_fixtures.py` — 20/20
-  `contract_ok` (2026-09-08). Live V1 sessions **unmeasured**; V2/V4
-  **blocked** (GCTX unavailable). Hidden stale use on the fixture run:
-  **passed**. §15 including §15.6 still parked.
+- **Validation:** `pnpm docs:check` — validation passed 2026-09-08 (15/15
+  surfaces). `pnpm aps:index:check` and `pnpm aps:drift` exit 0 (CCTX
+  stored 3/3 matches work items 3/3; pre-existing DPO 2/6 vs 4/8 advisory
+  only). `python3 plans/evals/context-compiler/2026-09-08/score_fixtures.py`
+  — 20/20 `contract_ok`. Live V1 sessions **unmeasured**; V2/V4 **blocked**
+  (GCTX unavailable). Hidden stale use on the fixture run: **passed**.
+  `pnpm aps:active-lint` could not run (`aps` not on PATH). §15 including
+  §15.6 still parked.
 - **Non-scope:** No compiler, knowledge store, or feature flag. No change to
   enforcement. Does not replace the GCTX-031 `token_reduction` bench.
   Does not unpark §15.

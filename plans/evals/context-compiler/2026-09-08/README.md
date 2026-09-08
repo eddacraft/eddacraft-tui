@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [Context Compiler spec](../../specs/2026-09-08-context-compiler.md) §9 / §12 / §13 | [CCTX-003 comparison report](../../audits/2026-09-08-cctx-003-baseline-comparison.md), [CCTX module](../../modules/context-compiler.aps.md) |
+| [Context Compiler spec](../../../specs/2026-09-08-context-compiler.md) §9 / §12 / §13 | [CCTX-003 comparison report](../../../audits/2026-09-08-cctx-003-baseline-comparison.md), [CCTX module](../../../modules/context-compiler.aps.md) |
 
 Internal evaluation artefacts for Context Compiler spike variants **V3** (brief
 only) and **V4** (same brief plus GCTX drill-down). **Not** a product compiler,
