@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [Context Compiler spec](../specs/2026-09-08-context-compiler.md) §9 / §12 / §13, [V3/V4 fixtures](../evals/context-compiler/2026-09-08/README.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate) |
+| [Context Compiler spec](../specs/2026-09-08-context-compiler.md) §9 / §12 / §13, [V3/V4 fixtures](../evals/context-compiler/2026-09-08/README.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate), [2026-09-08 design council](../reviews/2026-09-08-cctx-design-council.md) |
 
 Internal evaluation only. **No product ships.** This report does not authorise
 a compiler, knowledge store, crate, feature flag, GATT fork, or enforcement
@@ -180,6 +180,9 @@ Surfaces membership, replacement of GCTX-031 `token_reduction`.
 
 **Eval follow-on (not this PR):** live §12.7 V1 sessions; V2/V4 when GCTX is
 available in the harness; then, and only then, any numeric §13 thresholds.
+Design council
+([`plans/reviews/2026-09-08-cctx-design-council.md`](../reviews/2026-09-08-cctx-design-council.md)):
+**PASS** (gate WARN) on that V1 grain only. Product remains unparked.
 
 Trust boundary remains binding: synthesis / Decision Brief is advisory only,
 never allow / warn / block.

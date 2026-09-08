@@ -2,11 +2,11 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval protocol, brief contract, and first comparison frozen) | 2026-09-08 — CCTX-003 authored V3/V4 fixtures and the dated comparison report; CCTX-002 froze §9; CCTX-001 froze §12/§13; §15 remains parked after the spike; product architecture remains undecided. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
+| Spec | Advisory | CCTX | Draft (eval protocol, brief contract, and first comparison frozen) | 2026-09-08 — design council [`2026-09-08-cctx-design-council`](../reviews/2026-09-08-cctx-design-council.md) **PASS** (gate WARN) on live §12.7 V1 eval only; product and §15 remain parked. CCTX-003 authored V3/V4 fixtures and the dated comparison report; CCTX-002 froze §9; CCTX-001 froze §12/§13. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [GCTX delivery contract](../../docs/architecture/graph-context-delivery-spec.md), [AI context delivery](../../docs/guides/ai-context-delivery.md), [GATT](../modules/graph-answer-attestation.aps.md), [CEG](../modules/change-evidence-graph.aps.md), [Graph Trust Surfaces](./2026-07-28-graph-trust-surfaces.md), [GV2](../../docs/architecture/graph-v2-foundation-spec.md), `crates/anvil-graph-cache`, `crates/anvil-gctx-types`, [local data and security](../../docs/public/anvil/operations/security.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate), [CCTX-003 report](../audits/2026-09-08-cctx-003-baseline-comparison.md), [V3/V4 fixtures](../evals/context-compiler/2026-09-08/README.md) |
+| [GCTX delivery contract](../../docs/architecture/graph-context-delivery-spec.md), [AI context delivery](../../docs/guides/ai-context-delivery.md), [GATT](../modules/graph-answer-attestation.aps.md), [CEG](../modules/change-evidence-graph.aps.md), [Graph Trust Surfaces](./2026-07-28-graph-trust-surfaces.md), [GV2](../../docs/architecture/graph-v2-foundation-spec.md), `crates/anvil-graph-cache`, `crates/anvil-gctx-types`, [local data and security](../../docs/public/anvil/operations/security.md) | [CCTX module](../modules/context-compiler.aps.md), [index Graph Substrate row](../index.aps.md#graph-substrate), [CCTX-003 report](../audits/2026-09-08-cctx-003-baseline-comparison.md), [V3/V4 fixtures](../evals/context-compiler/2026-09-08/README.md), [2026-09-08 design council](../reviews/2026-09-08-cctx-design-council.md) |
 
 **Status:** Draft for product architecture. The internal evaluation
 protocol in [§12](#12-first-release-spike) / [§13](#13-success-metrics)
@@ -16,7 +16,9 @@ contract in [§9](#9-decision-brief-contract) was frozen 2026-09-08
 authored V3/V4 fixtures and the dated comparison report
 ([`plans/audits/2026-09-08-cctx-003-baseline-comparison.md`](../audits/2026-09-08-cctx-003-baseline-comparison.md)).
 Open product decisions in [§15](#15-open-decisions) remain parked after
-the spike; they are not ADRs and must not be treated as decided. This
+the spike; they are not ADRs and must not be treated as decided. The
+2026-09-08 [design council](../reviews/2026-09-08-cctx-design-council.md)
+records **PASS** for live §12.7 V1 eval only and does not unpark §15. This
 does not authorise a product compiler, runtime schema, crate, MCP tool,
 or GCTX DTO change.
 
@@ -633,7 +635,10 @@ Post-spike residue — **not started** by CCTX-003:
 - product compiler, knowledge store, feature flag, MCP tool, GCTX DTO
   change, or enforcement change.
 
-A brief remains never allow / warn / block.
+Design council (2026-09-08):
+[`plans/reviews/2026-09-08-cctx-design-council.md`](../reviews/2026-09-08-cctx-design-council.md).
+**PASS** (gate WARN) on live V1 eval only. Product architecture stays
+undecided. A brief remains never allow / warn / block.
 
 ## 13. Success Metrics
 

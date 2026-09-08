@@ -29,6 +29,11 @@ PR #4459 (Decision Brief contract frozen). CCTX-003 is **Complete**
 **Fixtures:**
 [`plans/evals/context-compiler/2026-09-08/`](../evals/context-compiler/2026-09-08/README.md).
 
+**Design council:**
+[`plans/reviews/2026-09-08-cctx-design-council.md`](../reviews/2026-09-08-cctx-design-council.md)
+— **PASS** (gate WARN) on live §12.7 V1 eval only. Product and §15 remain
+parked. Not an ADR.
+
 **Affinity, not membership:** this work sits next to
 [graph-answer-attestation](./graph-answer-attestation.aps.md) (GATT),
 [change-evidence-graph](./change-evidence-graph.aps.md) (CEG), and the
@@ -42,8 +47,9 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — CCTX-003 Complete (eval report + V3/V4
-fixtures; §15 including §15.6 still parked; no product).
+**Last reviewed:** 2026-09-08 — design council PASS (gate WARN) on live V1
+eval only; CCTX-003 Complete (eval report + V3/V4 fixtures; §15 including
+§15.6 still parked; no product).
 
 ## Purpose
 
