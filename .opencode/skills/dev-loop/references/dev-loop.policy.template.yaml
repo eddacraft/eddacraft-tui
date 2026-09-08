@@ -1,0 +1,71 @@
+# dev-loop repository policy — starter template.
+#
+# This is REPOSITORY policy, committed once and shared by the whole team; it is
+# NOT a per-developer file. Individual one-run deviations are session-scoped
+# overrides recorded in the run journal, not separate files.
+#
+# To activate: copy to the repo root as `dev-loop.policy.yaml` (or
+# `plans/dev-loop.policy.yaml`, or a harness config dir). The loop searches
+# those paths and uses the first file carrying a `devLoop` key.
+#
+# Full semantics: skills/dev-loop/references/policy-contract.md
+# The `preset` sets the three checkpoint gates; explicit fields below override it.
+
+devLoop:
+  preset: collaborative # all 3 gates human, PR-only, never self-merges
+  integrationBranch: main
+  isolation:
+    provider: git-worktree # worktrunk | git-worktree | harness — match your setup
+    # Optional for worktrunk: wt | git-wt | absolute executable path.
+    # command: git-wt
+    requireFor: [module, autonomous, parallel]
+  pullRequests:
+    autonomousMerge: false # gate for any auto-merge; keep false until deliberate
+    deleteBranchOnMerge: true
+    allowStacks: true
+  repair:
+    maxCycles: 3
+    stopOnNoProgress: true
+  execution:
+    wallclockMinutes: 240
+    maxConcurrentWriters: 2
+    maxItemsPerWave: 2
+  verifier:
+    aggregateMinutes: 45
+    commandMinutes: 15
+    staleMinutes: 20
+    maxAttempts: 2
+  budget:
+    unit: repair-cycles
+    limit: 3
+  differential:
+    mode: off # external multi-model routing off by default
+
+
+# ── For autonomous backlog draining, swap the block above for: ────────────────
+# devLoop:
+#   preset: autopilot          # design/ready/merge all auto (rails still escalate
+#                              #   contract- and migration-class changes)
+#   integrationBranch: main
+#   pullRequests:
+#     autonomousMerge: true    # REQUIRED before merge can be auto
+#     deleteBranchOnMerge: true
+#   isolation:
+#     provider: git-worktree
+#     # command: git-wt
+#     requireFor: [module, autonomous, parallel]
+#   repair:
+#     maxCycles: 3
+#     stopOnNoProgress: true
+#   execution:
+#     wallclockMinutes: 240
+#     maxConcurrentWriters: 2
+#     maxItemsPerWave: 2
+#   verifier:
+#     aggregateMinutes: 45
+#     commandMinutes: 15
+#     staleMinutes: 20
+#     maxAttempts: 2
+#   budget:
+#     unit: repair-cycles
+#     limit: 3

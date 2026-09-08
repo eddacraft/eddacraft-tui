@@ -32,6 +32,8 @@ pnpm-lock.yaml
 # only churns: oxfmt folds the single-line frontmatter `description:` into a
 # multi-line scalar and rewraps prose, and the next vendoring reverts it.
 .github/agents/
+# Grok Build — tracked development-loop skills; same fenced-template hazard.
+.grok/
 archive/
 # cargo-about Handlebars template — oxfmt parses .hbs as Glimmer and rejects
 # handlebars parent-scope access like {{../name}}. Template is authoritative.

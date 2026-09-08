@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Bus Message Schema",
+  "description": "Schema for agent-to-agent communication messages and signals",
+
+  "definitions": {
+    "negotiationSignal": {
+      "type": "object",
+      "description": "Coordination signal for multi-round agent negotiations",
+      "required": ["id", "topic", "participants", "status", "round"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this negotiation"
+        },
+        "topic": {
+          "type": "string",
+          "description": "The technical decision being debated"
+        },
+        "participants": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Agent names participating in negotiation"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["in_progress", "consensus", "deadlock", "timeout"],
+          "description": "Current state of the negotiation"
+        },
+        "round": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current round number"
+        },
+        "maxRounds": {
+          "type": "integer",
+          "default": 4,
+          "description": "Maximum rounds before declaring deadlock"
+        },
+        "currentTurn": {
+          "type": "string",
+          "description": "Which agent is expected to respond next"
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/negotiationRound"
+          },
+          "description": "Record of all rounds"
+        },
+        "outcome": {
+          "type": "string",
+          "description": "Final consensus statement if reached"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+
+    "negotiationRound": {
+      "type": "object",
+      "required": ["round", "agent", "response", "type"],
+      "properties": {
+        "round": {
+          "type": "integer",
+          "description": "Round number"
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent that responded"
+        },
+        "response": {
+          "type": "string",
+          "description": "Full response text"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["position", "counter", "question", "consensus"],
+          "description": "Type of response"
+        },
+        "summary": {
+          "type": "string",
+          "description": "Extracted key point from response"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+
+    "agentMessage": {
+      "type": "object",
+      "description": "Direct message between agents",
+      "required": ["from", "to", "type", "payload"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique message identifier"
+        },
+        "from": {
+          "type": "string",
+          "description": "Sending agent name"
+        },
+        "to": {
+          "type": "string",
+          "description": "Receiving agent name"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["finding", "question", "recommendation", "alert"],
+          "description": "Message category"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"],
+          "default": "medium"
+        },
+        "payload": {
+          "type": "object",
+          "description": "Message content"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "negotiationId": {
+          "type": "string",
+          "description": "Optional link to a negotiation session"
+        }
+      }
+    },
+
+    "agentTrigger": {
+      "type": "object",
+      "description": "Event trigger for spawning follow-up agents",
+      "required": ["trigger", "source"],
+      "properties": {
+        "trigger": {
+          "type": "string",
+          "description": "Agent to trigger"
+        },
+        "source": {
+          "type": "string",
+          "description": "Agent that emitted the trigger"
+        },
+        "context": {
+          "type": "string",
+          "description": "Context to pass to triggered agent"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["immediate", "queued"],
+          "default": "queued"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

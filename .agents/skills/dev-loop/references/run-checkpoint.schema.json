@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eddacraft.dev/schemas/dev-loop/run-checkpoint.schema.json",
+  "title": "Development Loop Run Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "runId",
+    "target",
+    "mode",
+    "phase",
+    "baseRevision",
+    "repairCyclesUsed",
+    "repairBudget",
+    "lastProgressFingerprint",
+    "execution",
+    "childRuns",
+    "updatedAt",
+    "nextAction"
+  ],
+  "properties": {
+    "version": { "const": 2 },
+    "runId": { "type": "string", "minLength": 1 },
+    "target": { "type": "string", "minLength": 1 },
+    "parentTarget": { "type": ["string", "null"] },
+    "mode": { "enum": ["interactive", "autonomous"] },
+    "phase": {
+      "enum": [
+        "resolving",
+        "claimed",
+        "designing",
+        "implementing",
+        "implemented",
+        "verifying",
+        "verified",
+        "repairing",
+        "review-ready",
+        "landing",
+        "integrated",
+        "blocked"
+      ]
+    },
+    "outcome": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "review-ready",
+        "integrated",
+        "blocked",
+        "repair-budget-exhausted",
+        "needs-plan-update",
+        "claim-conflict",
+        "awaiting-merge-authority"
+      ]
+    },
+    "operator": { "type": ["string", "null"] },
+    "lead": { "type": ["string", "null"], "description": "ADR-0025 name for the run owner. Writers set this; readers prefer it over `orchestrator`." },
+    "orchestrator": { "type": ["string", "null"], "description": "Historical name for lead; retained so existing checkpoints validate. Read only when `lead` is absent or null; never write both to different values." },
+    "executors": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "baseRevision": { "type": "string", "minLength": 1 },
+    "headRevision": { "type": ["string", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "workspace": { "type": ["string", "null"] },
+    "claimRevision": { "type": ["string", "null"] },
+    "pr": { "type": ["string", "null"] },
+    "repairCyclesUsed": { "type": "integer", "minimum": 0 },
+    "repairBudget": { "type": ["integer", "null"], "minimum": 0 },
+    "lastProgressFingerprint": { "type": ["string", "null"] },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "startedAt",
+        "deadline",
+        "maxConcurrentWriters",
+        "maxItemsPerWave"
+      ],
+      "properties": {
+        "scope": { "enum": ["item", "module", "goal", "drain"] },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "deadline": { "type": ["string", "null"], "format": "date-time" },
+        "maxConcurrentWriters": { "type": "integer", "minimum": 1 },
+        "maxItemsPerWave": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "childRuns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["runId", "target", "workspace", "status"],
+        "properties": {
+          "runId": { "type": "string", "minLength": 1 },
+          "target": { "type": "string", "minLength": 1 },
+          "workspace": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["queued", "running", "parked", "completed", "blocked"] }
+        }
+      }
+    },
+    "outstandingFindings": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "verifierRun": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "attempt",
+        "maxAttempts",
+        "maxTurns",
+        "startedAt",
+        "lastProgressAt",
+        "baseRevision",
+        "headRevision",
+        "deadline",
+        "commandTimeoutSeconds",
+        "reportRef"
+      ],
+      "properties": {
+        "taskId": { "type": ["string", "null"] },
+        "agentId": { "type": ["string", "null"] },
+        "status": {
+          "enum": ["queued", "running", "stale", "cancelled", "completed", "blocked"]
+        },
+        "attempt": { "type": "integer", "minimum": 1, "maximum": 2 },
+        "maxAttempts": { "const": 2 },
+        "maxTurns": { "type": "integer", "minimum": 1 },
+        "deadline": { "type": "string", "format": "date-time" },
+        "commandTimeoutSeconds": { "type": "integer", "minimum": 1 },
+        "reportRef": { "type": "string", "minLength": 1 },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "lastProgressAt": { "type": "string", "format": "date-time" },
+        "lastCommand": { "type": ["string", "null"] },
+        "lastEvidence": { "type": ["string", "null"] },
+        "baseRevision": { "type": "string", "minLength": 1 },
+        "headRevision": { "type": "string", "minLength": 1 }
+      }
+    },
+    "modelRouting": { "$ref": "differential-routing.schema.json" },
+    "overrides": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "nextAction": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": {
+        "anyOf": [
+          { "properties": { "mode": { "const": "autonomous" } } },
+          { "properties": { "execution": { "properties": { "scope": { "enum": ["module", "drain"] } } } } }
+        ]
+      },
+      "then": {
+        "properties": {
+          "repairBudget": { "type": "integer" },
+          "execution": {
+            "properties": { "deadline": { "type": "string", "format": "date-time" } }
+          }
+        }
+      }
+    }
+  ]
+}

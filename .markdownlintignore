@@ -22,6 +22,10 @@ pnpm-lock.yaml
 
 # Ignore configuration directories
 .claude/**
+.agents/**
+.opencode/**
+.codex/**
+.grok/**
 .anvil/**
 
 # Ignore archived documents (legacy format, not worth fixing)

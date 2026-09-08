@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eddacraft.dev/schemas/dev-loop/differential-routing.schema.json",
+  "title": "Development Loop Differential Routing",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "requestedMode",
+    "effectiveMode",
+    "minimumProviders",
+    "differentialAchieved",
+    "roles",
+    "providersUsed",
+    "degradations"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "requestedMode": { "$ref": "#/$defs/mode" },
+    "effectiveMode": { "$ref": "#/$defs/mode" },
+    "minimumProviders": { "enum": [2, 3] },
+    "differentialAchieved": {
+      "type": "boolean",
+      "description": "True only when the provider minimum is met, mandatory roles are selected, and every used differentFrom constraint has different-provider separation."
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["worker", "orchestrator", "verifier"],
+      "properties": {
+        "worker": { "$ref": "#/$defs/workerRouting" },
+        "orchestrator": { "$ref": "#/$defs/orchestratorRouting" },
+        "advisor": { "$ref": "#/$defs/advisorRouting" },
+        "verifier": { "$ref": "#/$defs/verifierRouting" }
+      }
+    },
+    "providersUsed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "degradations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "reason", "fallback"],
+        "properties": {
+          "role": { "$ref": "#/$defs/role" },
+          "reason": { "type": "string", "minLength": 1 },
+          "fallback": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "effectiveMode": { "const": "off" } },
+        "required": ["effectiveMode"]
+      },
+      "then": {
+        "properties": {
+          "differentialAchieved": { "const": false },
+          "providersUsed": { "maxItems": 1 },
+          "roles": {
+            "properties": {
+              "advisor": {
+                "properties": {
+                  "separationRequirement": { "const": "off" },
+                  "separation": { "const": "not-applicable" }
+                }
+              },
+              "verifier": {
+                "properties": {
+                  "separationRequirement": { "const": "off" },
+                  "separation": { "const": "not-applicable" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "effectiveMode": { "const": "preferred" } },
+        "required": ["effectiveMode"]
+      },
+      "then": {
+        "properties": {
+          "roles": {
+            "properties": {
+              "advisor": {
+                "properties": {
+                  "separationRequirement": {
+                    "enum": ["preferred", "required"]
+                  },
+                  "separation": {
+                    "enum": ["same-provider", "different-provider", "unknown"]
+                  }
+                }
+              },
+              "verifier": {
+                "properties": {
+                  "separationRequirement": {
+                    "enum": ["preferred", "required"]
+                  },
+                  "separation": {
+                    "enum": ["same-provider", "different-provider", "unknown"]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "effectiveMode": { "const": "required" } },
+        "required": ["effectiveMode"]
+      },
+      "then": {
+        "properties": {
+          "roles": {
+            "properties": {
+              "advisor": {
+                "properties": {
+                  "separationRequirement": { "const": "required" }
+                }
+              },
+              "verifier": {
+                "properties": {
+                  "separationRequirement": { "const": "required" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "differentialAchieved": { "const": true } },
+        "required": ["differentialAchieved"]
+      },
+      "then": {
+        "properties": {
+          "roles": {
+            "properties": {
+              "worker": {
+                "properties": {
+                  "adapter": { "type": "string", "minLength": 1 },
+                  "provider": { "type": "string", "minLength": 1 },
+                  "model": { "type": "string", "minLength": 1 },
+                  "status": { "const": "selected" }
+                }
+              },
+              "orchestrator": {
+                "properties": {
+                  "adapter": { "type": "string", "minLength": 1 },
+                  "provider": { "type": "string", "minLength": 1 },
+                  "model": { "type": "string", "minLength": 1 },
+                  "status": { "const": "selected" }
+                }
+              },
+              "advisor": {
+                "properties": {
+                  "adapter": { "type": "string", "minLength": 1 },
+                  "provider": { "type": "string", "minLength": 1 },
+                  "model": { "type": "string", "minLength": 1 },
+                  "separation": { "const": "different-provider" },
+                  "status": { "const": "selected" }
+                }
+              },
+              "verifier": {
+                "properties": {
+                  "adapter": { "type": "string", "minLength": 1 },
+                  "provider": { "type": "string", "minLength": 1 },
+                  "model": { "type": "string", "minLength": 1 },
+                  "separation": { "const": "different-provider" },
+                  "status": { "const": "selected" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "differentialAchieved": { "const": true },
+          "minimumProviders": { "const": 2 }
+        },
+        "required": ["differentialAchieved", "minimumProviders"]
+      },
+      "then": {
+        "properties": { "providersUsed": { "minItems": 2 } }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "differentialAchieved": { "const": true },
+          "minimumProviders": { "const": 3 }
+        },
+        "required": ["differentialAchieved", "minimumProviders"]
+      },
+      "then": {
+        "properties": { "providersUsed": { "minItems": 3 } }
+      }
+    }
+  ],
+  "$defs": {
+    "mode": { "enum": ["off", "preferred", "required"] },
+    "role": {
+      "description": "ADR-0025 renamed the orchestrator role to lead. Both names validate; structural keys keep the historical spelling so existing routing documents stay valid.",
+      "enum": ["worker", "lead", "orchestrator", "advisor", "verifier"]
+    },
+    "adapter": { "type": ["string", "null"], "minLength": 1 },
+    "provider": { "type": ["string", "null"], "minLength": 1 },
+    "model": { "type": ["string", "null"], "minLength": 1 },
+    "effort": { "type": ["string", "null"], "minLength": 1 },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "baseRouting": {
+      "type": "object",
+      "required": [
+        "role",
+        "weight",
+        "adapter",
+        "provider",
+        "model",
+        "effort",
+        "differentFrom",
+        "separationRequirement",
+        "separation",
+        "status",
+        "capabilities"
+      ]
+    },
+    "workerRouting": {
+      "allOf": [
+        { "$ref": "#/$defs/baseRouting" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": { "const": "worker" },
+            "weight": { "const": "fast" },
+            "adapter": { "$ref": "#/$defs/adapter" },
+            "provider": { "$ref": "#/$defs/provider" },
+            "model": { "$ref": "#/$defs/model" },
+            "effort": { "$ref": "#/$defs/effort" },
+            "differentFrom": { "const": null },
+            "separationRequirement": { "const": "off" },
+            "separation": { "const": "not-applicable" },
+            "status": { "enum": ["selected", "degraded", "unavailable"] },
+            "capabilities": { "$ref": "#/$defs/capabilities" }
+          }
+        }
+      ]
+    },
+    "orchestratorRouting": {
+      "allOf": [
+        { "$ref": "#/$defs/baseRouting" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": { "const": "orchestrator" },
+            "weight": { "const": "balanced" },
+            "adapter": { "$ref": "#/$defs/adapter" },
+            "provider": { "$ref": "#/$defs/provider" },
+            "model": { "$ref": "#/$defs/model" },
+            "effort": { "$ref": "#/$defs/effort" },
+            "differentFrom": { "const": null },
+            "separationRequirement": { "const": "off" },
+            "separation": { "const": "not-applicable" },
+            "status": { "enum": ["selected", "degraded", "unavailable"] },
+            "capabilities": { "$ref": "#/$defs/capabilities" }
+          }
+        }
+      ]
+    },
+    "advisorRouting": {
+      "allOf": [
+        { "$ref": "#/$defs/baseRouting" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": { "const": "advisor" },
+            "weight": { "const": "frontier" },
+            "adapter": { "$ref": "#/$defs/adapter" },
+            "provider": { "$ref": "#/$defs/provider" },
+            "model": { "$ref": "#/$defs/model" },
+            "effort": { "$ref": "#/$defs/effort" },
+            "differentFrom": { "const": "orchestrator" },
+            "separationRequirement": {
+              "enum": ["off", "preferred", "required"]
+            },
+            "separation": {
+              "enum": ["same-provider", "different-provider", "unknown", "not-applicable"]
+            },
+            "status": { "enum": ["selected", "degraded", "unavailable"] },
+            "capabilities": { "$ref": "#/$defs/capabilities" }
+          }
+        }
+      ]
+    },
+    "verifierRouting": {
+      "allOf": [
+        { "$ref": "#/$defs/baseRouting" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": { "const": "verifier" },
+            "weight": { "const": "frontier" },
+            "adapter": { "$ref": "#/$defs/adapter" },
+            "provider": { "$ref": "#/$defs/provider" },
+            "model": { "$ref": "#/$defs/model" },
+            "effort": { "$ref": "#/$defs/effort" },
+            "differentFrom": { "const": "worker" },
+            "separationRequirement": {
+              "enum": ["off", "preferred", "required"]
+            },
+            "separation": {
+              "enum": ["same-provider", "different-provider", "unknown", "not-applicable"]
+            },
+            "status": { "enum": ["selected", "degraded", "unavailable"] },
+            "capabilities": { "$ref": "#/$defs/capabilities" }
+          }
+        }
+      ]
+    }
+  }
+}
