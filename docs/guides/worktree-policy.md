@@ -1,8 +1,8 @@
 # Worktree Policy
 
-| Type  | Authority     | Owner   | Status | Freshness                                                                                                  |
-| ----- | ------------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | OPMODEL | Live   | Last reviewed 2026-05-25 against `docs/guides/branching-strategy.md` and Worktrunk-managed branch workflow |
+| Type  | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                                   |
+| ----- | ------------- | ------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | OPMODEL | Live   | Last reviewed 2026-09-08 for the interim development-loop skill inventory copy; worktree procedure is unaffected. Prior review 2026-05-25 against `docs/guides/branching-strategy.md` and Worktrunk-managed branch workflow |
 
 | Upstream                                                                      | Downstream                                         |
 | ----------------------------------------------------------------------------- | -------------------------------------------------- |
