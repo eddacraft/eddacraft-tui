@@ -182,7 +182,7 @@ Surfaces membership, replacement of GCTX-031 `token_reduction`.
 available in the harness; then, and only then, any numeric §13 thresholds.
 Design council
 ([`plans/reviews/2026-09-08-cctx-design-council.md`](../reviews/2026-09-08-cctx-design-council.md)):
-**PASS** (gate WARN) on that V1 grain only. Product remains unparked.
+**PASS** (gate WARN) on that V1 grain only. Product remains parked.
 
 Trust boundary remains binding: synthesis / Decision Brief is advisory only,
 never allow / warn / block.
