@@ -10,6 +10,8 @@ upstream:
   - crates/anvil-cli/src/commands/auth.rs
   - crates/anvil-cli/src/commands/ensure.rs
   - crates/anvil-cli/src/commands/version.rs
+  - crates/anvil-cli/src/commands/l4_validate.rs
+  - docs/public/anvil/concepts/policy-model.md
 verified_against: 0.9.7-beta
 ---
 
@@ -97,6 +99,7 @@ Pick what matches how you work:
 | Scripted clients  | `anvil start --mcp-client <name>` or `--all-mcp-clients` (headless); or `anvil mcp install --client <name>` |
 | Save-time loop    | [save-time validation](guides/save-time-validation.md) · `anvil watch`                                      |
 | Git hooks         | [git hooks](operations/git-hooks.md) · `anvil hooks install` / `status` / `uninstall`                       |
+| L4 acceptance     | [Exercise L4](concepts/policy-model.md#exercise-l4) · `anvil status` L4 line                                |
 | CI gate           | `anvil gate --profile ci --json` (warnings do not fail the gate unless `--fail-on-warnings`)                |
 | Skills / doctor   | `anvil skill install` · `anvil doctor`                                                                      |
 | Uninstall dry-run | `anvil uninstall --dry-run` vs [uninstall](operations/uninstall.md)                                         |

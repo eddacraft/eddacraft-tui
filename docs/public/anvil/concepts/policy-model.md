@@ -14,9 +14,14 @@ upstream:
   - crates/anvil-policy-engine/src/pack/overlay.rs
   - crates/anvil-cli/src/commands/exception.rs
   - crates/anvil-cli/src/commands/check_catalog.rs
+  - crates/anvil-cli/src/policy_load.rs
+  - crates/anvil-cli/src/commands/init.rs
+  - crates/anvil-cli/src/commands/l4_validate.rs
+  - crates/anvil-cli/src/commands/status.rs
   - plans/decisions/108-policy-authoring-lint-and-agent-guidance.md
   - plans/decisions/129-policy-surface-inventory-and-precedence.md
   - plans/decisions/131-registry-override-explicit-only.md
+  - plans/decisions/037-witness-chain-and-l4-policy.md
 verified_against: 0.9.7-beta
 ---
 
@@ -89,6 +94,39 @@ named rules only and is a stored mode, not a live evaluator control;
 `anvil/policy.*` `on_block` is a commit-acceptance verb. If `enforcement.mode`
 is unset, MCP pre-write is stricter than save-time intercept. Per-key catalogue
 for config fields is the [config reference](../reference/config.md).
+
+## Acceptance policy (L4)
+
+`anvil/policy.*` decides whether a commit or push is accepted. It is not a
+policy pack and it is not `.anvil/policies/`.
+
+Fresh `anvil init` writes `anvil/policy.yml` with the default L4 branch posture
+when no `anvil/policy.{yaml,yml,json,toml}` exists. An existing variant is left
+byte-for-byte unchanged, including under `anvil init --force`. `anvil start` on
+a repo that already has project config does not create one.
+
+`anvil status` reports L4 `on` only when an active file-mode pre-push hook and a
+parseable acceptance policy are both present. A hook without a policy is
+`partial`: both `anvil hook pre-push` and `anvil l4-validate` succeed without
+running the engine.
+
+Default rules use `require: l4_or_l3`. A valid L3 witness from anvil-managed
+commit hooks admits the commit without invoking the L4 engine. That
+short-circuit is intentional.
+
+### Exercise L4
+
+To exercise the engine itself, use `require: l4_only` on a throwaway rule and
+pass a hex-SHA range. Symbolic ranges such as `HEAD~1..HEAD` are refused:
+
+```text
+git rev-parse HEAD~1
+git rev-parse HEAD
+anvil l4-validate <base-sha>..<head-sha> --branch main
+```
+
+A known warning such as AP-001 (`/* eslint-disable */`) reaches the engine.
+Default `on_warn: allow` admits it.
 
 ## Pack lifecycle
 

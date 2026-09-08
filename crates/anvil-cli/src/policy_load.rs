@@ -12,10 +12,33 @@
 //! committed-to-count) are untouched; this changes only how the file is
 //! found.
 
+use std::fs;
 use std::path::Path;
 
 use anvil_l4::Policy;
 use anyhow::{Context, Result};
+
+use crate::util::write_new;
+
+/// ADR-037 D-5 default branch posture for a fresh project.
+///
+/// Omits `required_anvil_version` (optional floor) and
+/// `baseline.cutoff_commit` (`anvil baseline` pins that on adoption).
+/// `on_warn` is left unset so the schema default (`allow`) stands.
+pub(crate) const DEFAULT_ACCEPTANCE_POLICY_YML: &str = "\
+# L4 acceptance policy (ADR-037). First matching branch wins.
+branches:
+  - pattern: main
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+    on_block: reject
+  - pattern: dependabot/*
+    require: l4_only
+    on_no_witness: validate_at_l4
+  - pattern: \"*\"
+    require: l4_or_l3
+    on_no_witness: validate_at_l4
+";
 
 /// Load `anvil/policy.{yaml,yml,json,toml}` if present, yaml-first per
 /// [`anvil_config::DISCOVER_PRECEDENCE`].
@@ -60,6 +83,36 @@ pub(crate) fn policy_variants(repo_root: &Path) -> std::io::Result<Vec<std::path
         }
     }
     Ok(present)
+}
+
+/// True when `anvil/policy.*` exists and parses as an L4 acceptance policy.
+///
+/// Absent, unreadable, or unparseable files are all `false` — status uses
+/// this so L4 cannot claim `On` when both L4 entry points would no-op.
+pub(crate) fn acceptance_policy_is_parseable(repo_root: &Path) -> bool {
+    matches!(load_policy(repo_root), Ok(Some(_)))
+}
+
+/// Write `anvil/policy.yml` when no acceptance-policy variant exists.
+///
+/// Never overwrites, merges, or normalises an existing
+/// `anvil/policy.{yaml,yml,json,toml}` — including under `anvil init --force`.
+/// Returns `Ok(true)` when a new file was written.
+pub(crate) fn seed_default_acceptance_policy(repo_root: &Path) -> Result<bool> {
+    match policy_variants(repo_root) {
+        Ok(variants) if !variants.is_empty() => return Ok(false),
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            return Err(e).context("probe anvil/policy.*");
+        }
+    }
+    let dir = repo_root.join("anvil");
+    fs::create_dir_all(&dir).context("failed to create anvil/")?;
+    let path = dir.join("policy.yml");
+    write_new(&path, DEFAULT_ACCEPTANCE_POLICY_YML.as_bytes())
+        .context("failed to write anvil/policy.yml")?;
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -162,5 +215,79 @@ mod tests {
             .map(|p| p.file_name().unwrap().to_str().unwrap().to_string())
             .collect();
         assert_eq!(names, vec!["policy.yaml", "policy.yml", "policy.toml"]);
+    }
+
+    #[test]
+    fn default_acceptance_policy_parses_as_adr_037_posture() {
+        let p = Policy::parse(
+            DEFAULT_ACCEPTANCE_POLICY_YML,
+            anvil_config::ConfigFormat::Yml,
+            std::path::Path::new("anvil/policy.yml"),
+        )
+        .expect("default policy must parse");
+        assert_eq!(p.branches.len(), 3);
+        assert_eq!(p.branches[0].pattern, "main");
+        assert_eq!(p.branches[0].require, anvil_l4::Requirement::L4OrL3);
+        assert_eq!(
+            p.branches[0].on_no_witness,
+            anvil_l4::OnNoWitness::ValidateAtL4
+        );
+        assert_eq!(p.branches[0].on_block, anvil_l4::OnBlock::Reject);
+        assert_eq!(p.branches[0].on_warn, anvil_l4::OnWarn::Allow);
+        assert_eq!(p.branches[1].pattern, "dependabot/*");
+        assert_eq!(p.branches[1].require, anvil_l4::Requirement::L4Only);
+        assert_eq!(p.branches[2].pattern, "*");
+        assert_eq!(p.branches[2].require, anvil_l4::Requirement::L4OrL3);
+        assert!(p.required_anvil_version.is_none());
+        assert!(p.baseline.cutoff_commit.is_none());
+    }
+
+    #[test]
+    fn seed_writes_policy_yml_when_absent() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert!(seed_default_acceptance_policy(tmp.path()).unwrap());
+        let path = tmp.path().join("anvil/policy.yml");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            DEFAULT_ACCEPTANCE_POLICY_YML
+        );
+        assert!(acceptance_policy_is_parseable(tmp.path()));
+        assert!(!seed_default_acceptance_policy(tmp.path()).unwrap());
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            DEFAULT_ACCEPTANCE_POLICY_YML,
+            "second seed must be a no-op"
+        );
+    }
+
+    #[test]
+    fn seed_preserves_every_existing_policy_variant_byte_for_byte() {
+        for (name, body) in [
+            ("policy.yaml", "CUSTOM-YAML\n"),
+            ("policy.yml", "CUSTOM-YML\n"),
+            ("policy.json", "{\"custom\":true}\n"),
+            ("policy.toml", "custom = true\n"),
+        ] {
+            let tmp = repo_with(&[(name, body)]);
+            assert!(
+                !seed_default_acceptance_policy(tmp.path()).unwrap(),
+                "{name} must not be replaced"
+            );
+            assert_eq!(
+                std::fs::read_to_string(tmp.path().join("anvil").join(name)).unwrap(),
+                body,
+                "{name} bytes must be preserved"
+            );
+            assert!(
+                !tmp.path().join("anvil/policy.yml").exists() || name == "policy.yml",
+                "must not create policy.yml beside {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn unparseable_policy_is_not_parseable() {
+        let tmp = repo_with(&[("policy.yml", "this is not a policy\n")]);
+        assert!(!acceptance_policy_is_parseable(tmp.path()));
     }
 }

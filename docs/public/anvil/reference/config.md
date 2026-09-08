@@ -6,6 +6,7 @@ description:
 owner: DOCDEF
 upstream:
   - crates/anvil-cli/src/commands/init.rs
+  - crates/anvil-cli/src/policy_load.rs
   - crates/anvil-config/src/gate_section.rs
   - crates/anvil-config/src/migrations.rs
   - crates/anvil-config/src/discover.rs
@@ -51,8 +52,11 @@ checks:
   - "antipattern-scan"
 ```
 
-Those four keys are the complete default document. Other keys in this catalogue
-are added by later commands, migrate, or hand-edit.
+Those four keys are the complete default **project config** document. Other keys
+in this catalogue are added by later commands, migrate, or hand-edit. Fresh
+`anvil init` also writes `anvil/policy.yml` (acceptance policy, not this file)
+when no `anvil/policy.{yaml,yml,json,toml}` exists. See
+[acceptance policy](../concepts/policy-model.md#acceptance-policy-l4).
 
 ## Top-level keys
 

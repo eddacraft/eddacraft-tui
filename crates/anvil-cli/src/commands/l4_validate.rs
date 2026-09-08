@@ -723,6 +723,55 @@ mod tests {
         assert_eq!(outcome.exit_code, None);
     }
 
+    /// CIB-415: a known warning (AP-001) must reach the production engine
+    /// under `require: l4_only`. Default `l4_or_l3` would short-circuit on
+    /// a valid L3 witness; `l4_only` is the deterministic exercise. The
+    /// range is hex SHAs — `HEAD~1..HEAD` is refused before git runs.
+    #[test]
+    fn l4_only_known_warning_reaches_production_engine() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = setup_repo(&tmp);
+        write_policy(
+            &root,
+            "branches:\n  - pattern: \"*\"\n    require: l4_only\n    on_no_witness: validate_at_l4\n",
+        );
+        let base = git_commit(&root, "base", "ok\n", "ok.txt");
+        let head = git_commit(&root, "warn", AP_001_BODY, "leak.ts");
+        assert!(
+            anvil_hook::is_hex_sha(&base) && anvil_hook::is_hex_sha(&head),
+            "exercise range must be hex SHAs, not HEAD~1..HEAD"
+        );
+
+        let args = L4ValidateArgs {
+            range: format!("{base}..{head}"),
+            branch: Some("main".to_owned()),
+            repo: Some(root.clone()),
+        };
+        let engine = crate::l4_engine::default_engine();
+        let outcome = run_with_engine(&args, &GlobalArgs::default(), engine.as_ref()).unwrap();
+        let warned = outcome
+            .commits
+            .iter()
+            .find(|c| c.commit_sha == head)
+            .unwrap_or_else(|| panic!("head {head} must be in the hex-SHA range"));
+        let CommitVerdict::Block { diagnostics } = &warned.verdict else {
+            panic!(
+                "l4_only must invoke the engine; expected Block carrier, got {:?}",
+                warned.verdict
+            );
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.rule_id == "AP-001" && d.severity == Severity::Warn),
+            "AP-001 warning must reach the production engine: {diagnostics:?}"
+        );
+        assert_eq!(
+            outcome.exit_code, None,
+            "default on_warn: allow admits a warn-only finding"
+        );
+    }
+
     /// MLP2-046: missing project-id no-ops the binary (same Serena
     /// rule as pre-push hook). Returns an empty outcome with no
     /// exit code.

@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-09-08 against CIB-267 (`anvil hook pre-push` silent-pass help and Git remote/URL argv). Prior review 2026-08-31 for CIB-382's physical-identity Unix rendezvous repair, complete canonical-refusal JSON, and trusted writable-PID recovery. Also reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-09-08 for CIB-415 (`anvil init` seeds `anvil/policy.yml`, `anvil status` L4 honesty, `l4-validate` hex-SHA range) and CIB-267 (`anvil hook pre-push` silent-pass help and Git remote/URL argv). Prior review 2026-08-31 for CIB-382's physical-identity Unix rendezvous repair, complete canonical-refusal JSON, and trusted writable-PID recovery. Also reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -609,7 +609,9 @@ $ anvil exception verify --json
 
 **Class:** User-explicit **Purpose:** Show project status and health. **When to
 use:** Daily check of Anvil's protection state for the current repo. Also useful
-in CI as a health probe.
+in CI as a health probe. The L4 row is `on` only when an active file-mode
+pre-push hook and a parseable `anvil/policy.*` are both present; a hook without
+policy is `partial`.
 
 **Synopsis:** `anvil status [--verify] [--why]`
 
@@ -759,7 +761,10 @@ $ anvil welcome
 **When to use:** To create the canonical `.anvil.<ext>` configuration
 (`.anvil.yaml` by default; the wizard can pick JSON/TOML) in a repo that doesn't
 have one yet (an existing config, including a legacy `.anvilrc`, makes init bail
-without `--force`; `--force` replaces it and removes a legacy `.anvilrc`).
+without `--force`; `--force` replaces it and removes a legacy `.anvilrc`). Fresh
+init also writes `anvil/policy.yml` when no `anvil/policy.{yaml,yml,json,toml}`
+exists. `--force` does not overwrite, merge, or normalise an existing acceptance
+policy.
 
 **Synopsis:** `anvil init [--force]`
 
@@ -1110,17 +1115,20 @@ $ anvil workspace install-hook --print
 **Class:** Background (CI lane) **Purpose:** Validate commits against policy
 using the L4 rule engine. **When to use:** In CI pipelines that don't sit inside
 git's pre-push hook and need to validate an explicit commit range against
-`anvil/policy.yml`.
+`anvil/policy.yml`. Without a parseable policy the command is a silent success
+(same as the pre-push hook). Default `require: l4_or_l3` admits a commit that
+already has a valid L3 witness without invoking the engine. Use
+`require: l4_only` on a throwaway rule to exercise the engine.
 
 **Synopsis:** `anvil l4-validate <RANGE> [--branch <name>] [--repo <PATH>]`
 
 **Flags:**
 
-| Flag              | Description                                                                     |
-| ----------------- | ------------------------------------------------------------------------------- |
-| `RANGE`           | Commit range: `<base>..<head>` or bare `<head>` SHA (ancestry walk).            |
-| `--branch <name>` | Branch name for policy resolution. Defaults to `git symbolic-ref --short HEAD`. |
-| `--repo <PATH>`   | Repo root override. Defaults to the current working directory.                  |
+| Flag              | Description                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| `RANGE`           | Hex-SHA range: `<base>..<head>` or a bare `<head>` SHA. Symbolic forms such as `HEAD~1..HEAD` fail. |
+| `--branch <name>` | Branch name for policy resolution. Defaults to `git symbolic-ref --short HEAD`.                     |
+| `--repo <PATH>`   | Repo root override. Defaults to the current working directory.                                      |
 
 **Exit codes:** 0 (clean), 2 (one or more commits blocked), 3 (engine
 unavailable on every commit), 1 (error)
@@ -1128,8 +1136,10 @@ unavailable on every commit), 1 (error)
 **Examples:**
 
 ```
-$ anvil l4-validate origin/main..HEAD
-$ anvil l4-validate HEAD~5 --branch feature/my-branch
+$ git rev-parse HEAD~1
+$ git rev-parse HEAD
+$ anvil l4-validate <40-char-base>..<40-char-head>
+$ anvil l4-validate <40-char-head> --branch feature/my-branch
 $ anvil l4-validate abc123..def456 --repo /path/to/repo
 ```
 

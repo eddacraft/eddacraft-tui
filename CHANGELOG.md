@@ -13,6 +13,11 @@ engineering maintenance are recorded in the
 
 ### Changed
 
+- **`anvil status` reports L4 `on` only when a pre-push hook and a parseable
+  acceptance policy are both present.** A file-mode hook without
+  `anvil/policy.*` is `partial`, matching the silent no-op both L4 entry points
+  take when no policy exists.
+
 - **Protection status now proves a client is actually attached.**
   `anvil mcp serve` registers a live session with the intercept daemon,
   identified from the editor's own MCP handshake. Live pre-write status is
@@ -29,6 +34,12 @@ engineering maintenance are recorded in the
   runtime watch and concurrency entry points have been retired.
 
 ### Added
+
+- **Fresh `anvil init` writes `anvil/policy.yml`.** The file matches the default
+  L4 branch posture (main and `*` require `l4_or_l3`; `dependabot/*` requires
+  `l4_only`). Existing `anvil/policy.{yaml,yml,json,toml}` files are left
+  unchanged, including under `--force`. `anvil start` does not create a policy
+  on a repo that already has project config.
 
 - **`anvil start` installs managed skills for chosen MCP clients.** Ticking a
   client (or passing `--mcp-client`) now writes the bundled skills at that

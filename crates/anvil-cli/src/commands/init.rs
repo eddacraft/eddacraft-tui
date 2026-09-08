@@ -55,6 +55,9 @@ pub(crate) struct GeneratedConfig {
     pub config_path: PathBuf,
     /// Whether `.gitignore` was updated with anvil's entries.
     pub gitignore_updated: bool,
+    /// Whether a fresh `anvil/policy.yml` was written. False when any
+    /// `anvil/policy.{yaml,yml,json,toml}` already existed (CIB-415).
+    pub policy_written: bool,
 }
 
 // Canonical snake_case key space (ADR-120 pt 3 / UCFG-003): serde's default
@@ -429,9 +432,15 @@ pub(crate) fn generate_config_with_force(
             .with_context(|| format!("failed to create {}/", config.planning_dir))?;
     }
 
+    // CIB-415: seed L4 acceptance policy only when no variant exists.
+    // `--force` still must not overwrite, merge, or normalise an
+    // existing `anvil/policy.{yaml,yml,json,toml}`.
+    let policy_written = crate::policy_load::seed_default_acceptance_policy(root)?;
+
     Ok(GeneratedConfig {
         config_path: path,
         gitignore_updated,
+        policy_written,
     })
 }
 
@@ -549,7 +558,8 @@ fn print_success(
             planning_dir,
             checks,
             invocation,
-            generated.gitignore_updated
+            generated.gitignore_updated,
+            generated.policy_written,
         )
     );
 }
@@ -568,6 +578,7 @@ fn success_message(
     checks: &[String],
     invocation: InitInvocation,
     gitignore_updated: bool,
+    policy_written: bool,
 ) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
@@ -578,6 +589,9 @@ fn success_message(
     let _ = writeln!(out, "  Checks:    {}", checks.join(", "));
     if gitignore_updated {
         let _ = writeln!(out, "  Gitignore: .gitignore");
+    }
+    if policy_written {
+        let _ = writeln!(out, "  Policy:    anvil/policy.yml");
     }
     if invocation == InitInvocation::Standalone {
         let _ = writeln!(out);
@@ -707,6 +721,7 @@ mod tests {
             &["secret-detection".to_string()],
             InitInvocation::Standalone,
             true,
+            false,
         );
         let next = msg
             .lines()
@@ -730,6 +745,7 @@ mod tests {
             &["secret-detection".to_string()],
             InitInvocation::FromStart,
             true,
+            false,
         );
         assert!(
             !msg.contains("Next:"),
@@ -758,6 +774,7 @@ mod tests {
             &checks,
             InitInvocation::Standalone,
             true,
+            false,
         );
         let from_start = success_message(
             ".anvil.yaml",
@@ -765,6 +782,7 @@ mod tests {
             &checks,
             InitInvocation::FromStart,
             true,
+            false,
         );
         assert!(
             standalone.starts_with(&from_start),
@@ -784,6 +802,7 @@ mod tests {
             &["secret-detection".to_string()],
             InitInvocation::Standalone,
             true,
+            false,
         );
         assert!(
             msg.lines().any(|l| l.contains(".gitignore")),
@@ -805,10 +824,27 @@ mod tests {
             &["secret-detection".to_string()],
             InitInvocation::Standalone,
             false,
+            false,
         );
         assert!(
             !msg.contains(".gitignore") && !msg.contains("Gitignore:"),
             "success summary must not claim a gitignore update when none happened:\n{msg}"
+        );
+    }
+
+    #[test]
+    fn success_message_omits_policy_when_not_written() {
+        let msg = success_message(
+            ".anvil.yaml",
+            "plans",
+            &["secret-detection".to_string()],
+            InitInvocation::Standalone,
+            false,
+            false,
+        );
+        assert!(
+            !msg.contains("anvil/policy.yml") && !msg.contains("Policy:"),
+            "success summary must not claim a policy write when none happened:\n{msg}"
         );
     }
 
@@ -830,6 +866,7 @@ mod tests {
             &AnvilConfig::default().checks,
             InitInvocation::Standalone,
             generated.gitignore_updated,
+            generated.policy_written,
         );
         assert!(
             msg.contains(".gitignore"),
@@ -965,6 +1002,85 @@ mod tests {
 
         let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert!(gitignore.lines().any(|l| l.trim() == ".anvil/"));
+
+        let policy = dir.path().join("anvil/policy.yml");
+        assert!(policy.exists(), "fresh init must write anvil/policy.yml");
+        assert_eq!(
+            fs::read_to_string(&policy).unwrap(),
+            crate::policy_load::DEFAULT_ACCEPTANCE_POLICY_YML
+        );
+    }
+
+    #[test]
+    fn init_writes_policy_when_absent_and_names_it_in_summary() {
+        let dir = tempfile::tempdir().unwrap();
+        let generated = generate_config(&AnvilConfig::default(), dir.path()).expect("generate");
+        assert!(generated.policy_written);
+        assert!(dir.path().join("anvil/policy.yml").exists());
+        let msg = success_message(
+            ".anvil.yaml",
+            "plans",
+            &AnvilConfig::default().checks,
+            InitInvocation::Standalone,
+            generated.gitignore_updated,
+            generated.policy_written,
+        );
+        assert!(
+            msg.contains("anvil/policy.yml"),
+            "success summary must name the written policy:\n{msg}"
+        );
+    }
+
+    #[test]
+    fn init_does_not_overwrite_existing_policy_variants() {
+        for (name, body) in [
+            ("policy.yaml", "KEEP-YAML\n"),
+            ("policy.yml", "KEEP-YML\n"),
+            ("policy.json", "{\"keep\":true}\n"),
+            ("policy.toml", "keep = true\n"),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            fs::create_dir_all(dir.path().join("anvil")).unwrap();
+            let path = dir.path().join("anvil").join(name);
+            fs::write(&path, body).unwrap();
+            let generated = generate_config(&AnvilConfig::default(), dir.path()).expect("generate");
+            assert!(
+                !generated.policy_written,
+                "{name}: seed must report no write"
+            );
+            assert_eq!(
+                fs::read_to_string(&path).unwrap(),
+                body,
+                "{name} must be byte-preserved"
+            );
+            if name != "policy.yml" {
+                assert!(
+                    !dir.path().join("anvil/policy.yml").exists(),
+                    "must not create policy.yml beside existing {name}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn init_force_does_not_overwrite_existing_policy() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("anvil")).unwrap();
+        let custom = "KEEP-FORCE\n";
+        fs::write(dir.path().join("anvil/policy.yml"), custom).unwrap();
+        fs::write(
+            dir.path().join(".anvil.yaml"),
+            "schema_version: \"1.0.0\"\n",
+        )
+        .unwrap();
+        let args = InitArgs { force: true };
+        let global = no_tui_global();
+        run_in(&args, &global, dir.path(), InitInvocation::Standalone).expect("force init");
+        assert_eq!(
+            fs::read_to_string(dir.path().join("anvil/policy.yml")).unwrap(),
+            custom,
+            "--force must not replace an existing acceptance policy"
+        );
     }
 
     // CIB-171: generate_config exposes the path it actually wrote so the

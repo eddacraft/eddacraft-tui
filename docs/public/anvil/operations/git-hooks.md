@@ -9,6 +9,8 @@ upstream:
   - crates/anvil-cli/src/commands/hooks.rs
   - crates/anvil-hook/src/lib.rs
   - crates/anvil-hook/src/coexistence.rs
+  - crates/anvil-cli/src/policy_load.rs
+  - crates/anvil-cli/src/commands/status.rs
 verified_against: 0.9.0-beta
 ---
 
@@ -19,7 +21,7 @@ verified_against: 0.9.0-beta
 **Time:** 5 minutes
 
 **Outcome:** local commits run the quality gate and L3 witness; pushes run L4
-validation
+validation when a parseable `anvil/policy.*` is present
 
 ## Before you begin
 
@@ -43,6 +45,11 @@ Pre-commit still runs `anvil gate --progress` and also runs
 anvil hooks install --pre-commit-only
 anvil hooks install --pre-push-only
 ```
+
+Pre-push L4 validation runs only when `anvil/policy.*` is present and parseable.
+Fresh `anvil init` writes a default. `anvil status` reports L4 `on` only when
+that file and an active pre-push hook are both present. To force the L4 engine
+to run, see [Exercise L4](../concepts/policy-model.md#exercise-l4).
 
 If the repository uses Husky:
 

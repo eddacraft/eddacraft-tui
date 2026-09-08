@@ -1082,7 +1082,7 @@ fn build_legible_snapshot(
     root: &Path,
     save_time: SaveTimePosture,
 ) -> LegibleSnapshot {
-    let layers = derive_layers(data, diag);
+    let layers = derive_layers(data, diag, root);
     let protection = derive_protection(diag, &layers);
     let daemon = read_daemon_summary(diag);
     let witness = read_witness_summary(root);
@@ -1104,7 +1104,11 @@ fn build_legible_snapshot(
 
 /// Map per-layer signals from the activation diagnostic and gathered
 /// hook data into the L0–L5 status grid.
-fn derive_layers(data: &StatusData, diag: &activation::ActivationDiagnostic) -> LayerSummary {
+fn derive_layers(
+    data: &StatusData,
+    diag: &activation::ActivationDiagnostic,
+    repo_root: &Path,
+) -> LayerSummary {
     let l0_mcp = if diag.mcp_pre_write_wired_or_live() {
         LayerState::On
     } else if diag.mcp.is_empty() {
@@ -1125,7 +1129,7 @@ fn derive_layers(data: &StatusData, diag: &activation::ActivationDiagnostic) -> 
     };
 
     let l3_commit = hook_layer_state(data, "pre-commit");
-    let l4_push = hook_layer_state(data, "pre-push");
+    let l4_push = l4_layer_state(data, repo_root);
 
     // L5 audit ships as a GitHub Action cron; local CLI cannot
     // observe it. Future ADTRUST-003 can confirm the workflow file
@@ -1139,6 +1143,20 @@ fn derive_layers(data: &StatusData, diag: &activation::ActivationDiagnostic) -> 
         l3_commit,
         l4_push,
         l5_audit,
+    }
+}
+
+/// CIB-415: L4 is `On` only when a file-mode pre-push hook is active
+/// **and** a discoverable, parseable acceptance policy exists. A hook
+/// without policy is a silent no-op at both L4 entry points, so the
+/// grid reports `partial` rather than claiming the layer is live.
+fn l4_layer_state(data: &StatusData, repo_root: &Path) -> LayerState {
+    match hook_layer_state(data, "pre-push") {
+        LayerState::On if crate::policy_load::acceptance_policy_is_parseable(repo_root) => {
+            LayerState::On
+        }
+        LayerState::On => LayerState::Partial,
+        other => other,
     }
 }
 
@@ -2268,6 +2286,55 @@ mod tests {
         assert_eq!(hook_layer_state(&data, "pre-push"), LayerState::Off);
     }
 
+    fn file_mode_pre_push_hook() -> HookStatus {
+        HookStatus {
+            name: "pre-push".to_string(),
+            active: true,
+            path: ".husky/pre-push".to_string(),
+        }
+    }
+
+    /// CIB-415: a file-mode pre-push hook without a parseable policy
+    /// must not claim L4 On — both entry points no-op.
+    #[test]
+    fn l4_hook_without_policy_is_partial() {
+        let dir = make_temp_dir();
+        let data = bare_status_data(vec![file_mode_pre_push_hook()]);
+        assert_eq!(l4_layer_state(&data, &dir), LayerState::Partial);
+        cleanup(&dir);
+    }
+
+    /// CIB-415: hook + parseable policy is the only L4 On path.
+    #[test]
+    fn l4_hook_with_parseable_policy_is_on() {
+        let dir = make_temp_dir();
+        crate::policy_load::seed_default_acceptance_policy(&dir).unwrap();
+        let data = bare_status_data(vec![file_mode_pre_push_hook()]);
+        assert_eq!(l4_layer_state(&data, &dir), LayerState::On);
+        cleanup(&dir);
+    }
+
+    /// CIB-415: a discoverable but unparseable policy is not On.
+    #[test]
+    fn l4_hook_with_unparseable_policy_is_partial() {
+        let dir = make_temp_dir();
+        std::fs::create_dir_all(dir.join("anvil")).unwrap();
+        std::fs::write(dir.join("anvil/policy.yml"), "not-a-policy\n").unwrap();
+        let data = bare_status_data(vec![file_mode_pre_push_hook()]);
+        assert_eq!(l4_layer_state(&data, &dir), LayerState::Partial);
+        cleanup(&dir);
+    }
+
+    /// Policy alone does not activate L4; the pre-push hook is required.
+    #[test]
+    fn l4_policy_without_hook_is_off() {
+        let dir = make_temp_dir();
+        crate::policy_load::seed_default_acceptance_policy(&dir).unwrap();
+        let data = bare_status_data(Vec::new());
+        assert_eq!(l4_layer_state(&data, &dir), LayerState::Off);
+        cleanup(&dir);
+    }
+
     /// CIB-251: file-mode active still claims On even when config-mode also present.
     #[test]
     fn hook_layer_state_file_mode_active_is_on() {
@@ -3011,7 +3078,7 @@ mod tests {
             insights_hint: None,
             whats_new_hint: None,
         };
-        let layers = derive_layers(&data, &diag);
+        let layers = derive_layers(&data, &diag, Path::new("."));
         let claim = derive_protection(&diag, &layers);
         assert_eq!(claim, WorktreeClaimState::PreWriteDaemon);
     }
