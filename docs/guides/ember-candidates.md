@@ -1,8 +1,8 @@
 # Ember Candidate Review Workflow
 
-| Type  | Authority | Owner   | Status | Freshness                                    |
-| ----- | --------- | ------- | ------ | -------------------------------------------- |
-| Guide | Derived   | EMBERRS | Live   | Last reviewed 2026-09-05 against EMBERRS-001 |
+| Type  | Authority | Owner   | Status | Freshness                                                                                                                                                           |
+| ----- | --------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | EMBERRS | Live   | Last reviewed 2026-09-09 for the EMBERRS-001 status reconciliation; the availability and opt-in guidance is unaffected. Prior review 2026-09-05 against EMBERRS-001 |
 
 | Upstream                                                                                                     | Downstream                                |
 | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
