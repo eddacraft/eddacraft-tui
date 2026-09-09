@@ -9,7 +9,7 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "^7.2.10"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.6",
