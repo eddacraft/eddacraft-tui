@@ -292,10 +292,10 @@ updated in the same commit. Recorded 2026-06-26 (`gctx-simple-v1` estimator):
 
 | fixture       | files | affected | deps | whole-repo (tok) | neighbourhood (tok) | graph (tok) | ↓ vs whole-repo | ↓ vs neighbourhood |
 | ------------- | ----- | -------- | ---- | ---------------- | ------------------- | ----------- | --------------- | ------------------ |
-| `small_lib`   | 8     | 4        | 7    | 2,163            | 2,163               | 410         | 81.0%           | 81.0%              |
-| `layered_app` | 20    | 5        | 10   | 8,614            | 4,738               | 520         | 94.0%           | 89.0%              |
-| `wide_fanout` | 12    | 6        | 10   | 7,548            | 6,919               | 570         | 92.5%           | 91.8%              |
-| **mean**      |       |          |      |                  |                     |             | **89.2%**       | **87.3%**          |
+| `small_lib`   | 8     | 4        | 7    | 2,163            | 2,163               | 429         | 80.2%           | 80.2%              |
+| `layered_app` | 20    | 5        | 10   | 8,614            | 4,738               | 539         | 93.7%           | 88.6%              |
+| `wide_fanout` | 12    | 6        | 10   | 7,548            | 6,919               | 589         | 92.2%           | 91.5%              |
+| **mean**      |       |          |      |                  |                     |             | **88.7%**       | **86.8%**          |
 
 These figures bound the reduction for **identity-style change-impact queries**
 on synthetic fixtures — the regime GCTX's identity surface targets — not a

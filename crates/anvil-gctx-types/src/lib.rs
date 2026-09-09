@@ -208,7 +208,7 @@ pub struct BoundEntry {
 /// could not resolve or fit, not what privacy removed. Every field is a count,
 /// a closed enum, or a version string (CE-1 / CE-11). Counts are taken after
 /// the CE-3 deny-list.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Attestation {
     /// Fired bounds. Empty when nothing capped. A section that was not bounded
     /// contributes no entry.
@@ -219,16 +219,6 @@ pub struct Attestation {
     /// Estimator version that produced [`Self::est_tokens`]. Travels with the
     /// number so it stays comparable and reads as an estimate.
     pub estimator_version: String,
-}
-
-impl Default for Attestation {
-    fn default() -> Self {
-        Self {
-            bounds: Vec::new(),
-            est_tokens: 0,
-            estimator_version: String::new(),
-        }
-    }
 }
 
 impl Attestation {
