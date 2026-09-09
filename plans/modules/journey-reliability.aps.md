@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 1/13 |
+| JREL | Josh | high | In Progress | 4/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -84,7 +84,11 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-001: Lossless MCP upgrade and session continuity
 
-- **Status:** Ready
+- **Status:** Merged — PR #4497 (claim #4406). Startup-only re-exec preserves
+  established request/reply identity, pipelined input and exactly-once
+  mutations; established sessions remain on their current image and receive
+  deduplicated reconnect guidance when a preferred replacement cannot be
+  resolved. ADR-144 records the continuity boundary.
 - **Priority:** P0
 - **Intent:** An established MCP session survives a runtime update without losing accepted work.
 - **Expected Outcome:** An update between requests or during a call preserves request/reply identity and protocol negotiation; pipelined input is not discarded, mutations are not repeated, and a failed update leaves a usable session. If transparent replacement cannot be proven, existing sessions explicitly require reconnect while pre-session replacement remains safe.
@@ -108,7 +112,7 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-003: Recover and verify the save-time driver
 
-- **Status:** Committed — PR #4428 (claim #4423). Closeout: a durable
+- **Status:** Merged — PR #4428 (claim #4423). Closeout: a durable
   membership refresh now restores a dead save-time driver child (new
   `MembershipChange::Refreshed`, enqueued under the registry lock so a signal
   cannot be reordered ahead of the mutation it describes), dead children
@@ -155,7 +159,7 @@ acceptance through this intake. Item statuses and counters remain unchanged.
 
 ### JREL-004: One daemon identity through start and recycle
 
-- **Status:** Committed — PR #4428 (claim #4424). Closeout: ensure probes the
+- **Status:** Merged — PR #4428 (claim #4424). Closeout: ensure probes the
   canonical endpoint then validated sibling endpoints before spawning and
   serialises spawn under the existing CIB-382 rendezvous coordinator; recycle
   signals only the instances it observed, re-probes when nothing was signalled
