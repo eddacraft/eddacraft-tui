@@ -12,7 +12,10 @@ use anvil_gctx_types::{
     SearchSymbolsQuery, SnippetResult, SymbolContextProjection, SymbolContextRedactionSummary,
     SymbolSummary, TestEvidence,
 };
-use anvil_graph_cache::{CallEdgeFidelity, DependencyGraph, SymbolGraph, estimate_gctx_envelope};
+use anvil_graph_cache::{
+    CallEdgeFidelity, DependencyGraph, MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES, SymbolGraph,
+    estimate_gctx_envelope,
+};
 use anvil_kernel_types::{
     ByteRange, EdgeType, SymbolIdentity, SymbolKind, SymbolNode, Visibility, content_hash,
 };
@@ -1837,9 +1840,21 @@ fn with_cost_self_report<T: Serialize>(
     let Some((tokens, version)) = estimate_gctx_envelope(&json) else {
         return envelope;
     };
-    let att = attestation(&mut envelope);
-    att.est_tokens = tokens;
-    att.estimator_version = version.to_string();
+    {
+        let att = attestation(&mut envelope);
+        att.est_tokens = tokens;
+        att.estimator_version = version.to_string();
+    }
+    // Adding cost fields can push a near-cap envelope over the estimator
+    // max. Omit rather than advertise a cost the final payload could not
+    // have been estimated under (GATT-005).
+    if let Ok(final_json) = serde_json::to_string(&envelope)
+        && final_json.len() > MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES
+    {
+        let att = attestation(&mut envelope);
+        att.est_tokens = 0;
+        att.estimator_version.clear();
+    }
     envelope
 }
 
