@@ -7719,7 +7719,7 @@ mod tests {
 
     /// Probe warm-up and the live gate must share one daemon image path
     /// (issue #4449). Re-resolving `current_exe` per call can diverge after
-    /// an in-place binary replace. Pointer identity proves the OnceLock,
+    /// an in-place binary replace. Pointer identity proves the `OnceLock`,
     /// not a pair of live reads that happen to match.
     #[test]
     fn canonical_daemon_exe_is_cached_for_the_process() {
