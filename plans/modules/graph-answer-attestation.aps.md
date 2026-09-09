@@ -128,7 +128,7 @@ All gates cleared 2026-09-07; module promoted to **Ready**.
 
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
-- [x] At least one work item defined — six, all Ready
+- [x] At least one work item defined — six (statuses live in the table below)
 - [x] **Owner named** — @joshuaboys (2026-09-07)
 - [x] **ADR call made** — it warrants its own ADR:
       [ADR-142](../decisions/142-graph-answer-attestation.md) binds all six
