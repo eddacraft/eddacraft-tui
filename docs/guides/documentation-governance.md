@@ -301,9 +301,11 @@ for operational procedures.
 
 The vendored `docs-workflow` skill is the router for docs edits and closeout.
 Code-changing `/dev-loop` / `agentic-loop` runs must also settle docs-owed via
-`pnpm docs:redate --since <base>` when declared Upstreams move (see that skill's
-Evidence stage). The skill classifies the request, loads the right rules, and
-requires closeout.
+`pnpm docs:redate --since <base>` when declared Upstreams move (see
+[`agentic-loop` Evidence](../../.agents/skills/agentic-loop/SKILL.md#5-evidence)
+and
+[`dev-loop` Docs Freshness](../../.agents/skills/dev-loop/SKILL.md#docs-freshness-code-changing-runs)).
+The skill classifies the request, loads the right rules, and requires closeout.
 
 | Intent                     | Route                                                    |
 | -------------------------- | -------------------------------------------------------- |
