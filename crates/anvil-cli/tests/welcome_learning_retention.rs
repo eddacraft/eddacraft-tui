@@ -49,7 +49,7 @@ fn occurrence_count(bytes: &[u8], needle: &[u8]) -> usize {
 }
 
 #[cfg(unix)]
-fn run_welcome_and_quit(workspace: &Path, home: &Path) -> PtyRun {
+fn run_welcome_script(workspace: &Path, home: &Path, actions: &[(&[u8], &[u8])]) -> PtyRun {
     let size = nix::pty::Winsize {
         ws_row: 30,
         ws_col: 120,
@@ -80,7 +80,7 @@ fn run_welcome_and_quit(workspace: &Path, home: &Path) -> PtyRun {
 
     let mut bytes = Vec::new();
     let mut buffer = [0_u8; 4096];
-    let mut quit_sent = false;
+    let mut next_action = 0;
     let deadline = Instant::now() + Duration::from_secs(30);
     let status = loop {
         match master.read(&mut buffer) {
@@ -91,15 +91,13 @@ fn run_welcome_and_quit(workspace: &Path, home: &Path) -> PtyRun {
             Err(error) => panic!("read PTY output: {error}"),
         }
 
-        if !quit_sent
+        if let Some((needle, input)) = actions.get(next_action)
             && occurrence_count(&bytes, b"\x1b[?1049h") >= 1
-            && bytes
-                .windows(b"esc/q quit".len())
-                .any(|window| window == b"esc/q quit")
+            && bytes.windows(needle.len()).any(|window| window == *needle)
         {
-            master.write_all(b"q").expect("quit onboarding");
-            master.flush().expect("flush quit key");
-            quit_sent = true;
+            master.write_all(input).expect("send scripted input");
+            master.flush().expect("flush scripted input");
+            next_action += 1;
         }
 
         if let Some(status) = child.try_wait().expect("poll welcome child") {
@@ -127,6 +125,11 @@ fn run_welcome_and_quit(workspace: &Path, home: &Path) -> PtyRun {
         status,
         transcript: String::from_utf8_lossy(&bytes).into_owned(),
     }
+}
+
+#[cfg(unix)]
+fn run_welcome_and_quit(workspace: &Path, home: &Path) -> PtyRun {
+    run_welcome_script(workspace, home, &[(b"esc/q quit", b"q")])
 }
 
 #[cfg(unix)]
@@ -173,6 +176,45 @@ fn first_run_in_repo_b_preserves_repo_a_learning_when_user_quits_immediately() {
         std::fs::read(&progress_path).expect("repo A learning must remain"),
         learned_in_repo_a,
         "a missing project marker in repo B must not reset user-global learning"
+    );
+    assert!(
+        !repo_b.path().join(".anvil/first-run").exists(),
+        "quitting first-run setup must leave it deferred rather than completed"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn repo_b_learning_path_shows_repo_a_completion() {
+    let home = tempfile::tempdir().expect("isolated user home");
+    let repo_b = tempfile::tempdir().expect("repo B");
+    std::fs::create_dir(repo_b.path().join(".git")).expect("repo B git marker");
+
+    let progress_path = home.path().join(".anvil/tutorial-progress.json");
+    std::fs::create_dir_all(progress_path.parent().expect("progress parent"))
+        .expect("create progress parent");
+    std::fs::write(&progress_path, br#"{"completed_paths":["Architecture"]}"#)
+        .expect("seed repo A completion");
+
+    let result = run_welcome_script(
+        repo_b.path(),
+        home.path(),
+        &[(b"esc/q quit", b"\x1b[B\r"), (b"(redo)", b"q")],
+    );
+
+    assert!(
+        result.status.success(),
+        "welcome tutorial quit failed:\n{}",
+        result.transcript
+    );
+    assert!(
+        result.transcript.contains("(redo)"),
+        "the welcome learning-path picker must render retained completion:\n{}",
+        result.transcript
+    );
+    assert!(
+        !repo_b.path().join(".anvil/first-run").exists(),
+        "quitting the tutorial picker must leave first-run setup deferred"
     );
 }
 

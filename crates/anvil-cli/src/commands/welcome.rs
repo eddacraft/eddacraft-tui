@@ -327,10 +327,14 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let mut terminal = crate::tui::setup_terminal()?;
     let theme = EddaCraftTheme;
 
+    let mut onboarding_completed = false;
     let result = if first_run {
         match run_onboarding(&mut terminal, &theme) {
             Ok(outcome) => {
-                if follow_onboarding_choice(&mut terminal, &theme, global.verbose, outcome)? {
+                let continue_to_hub =
+                    follow_onboarding_choice(&mut terminal, &theme, global.verbose, outcome)?;
+                onboarding_completed = outcome.completes_first_run(continue_to_hub);
+                if continue_to_hub {
                     run_welcome_hub(&mut terminal, &theme, global.verbose)
                 } else {
                     Ok(())
@@ -345,9 +349,13 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // Always teardown terminal, even on error.
     let teardown_result = crate::tui::teardown_terminal(&mut terminal);
 
-    // Write marker on first run only — don't clobber an existing marker's
-    // creation timestamp on subsequent launches.
+    // A project becomes a returning-user project only after the first-run
+    // flow completed successfully. Quitting or failing leaves setup deferred
+    // and must not turn a runtime-health marker into completion evidence.
     if first_run
+        && onboarding_completed
+        && result.is_ok()
+        && teardown_result.is_ok()
         && !project_writes_gated
         && let Err(err) = create_first_run_marker(&marker_path)
     {
@@ -411,6 +419,12 @@ enum OnboardingOutcome {
     Skip,
     /// User pressed quit — exit the entire program.
     Quit,
+}
+
+impl OnboardingOutcome {
+    fn completes_first_run(self, follow_on_flow_completed: bool) -> bool {
+        self != Self::Quit && follow_on_flow_completed
+    }
 }
 
 /// Next screen after a first-run onboarding choice.
@@ -1231,16 +1245,44 @@ fn run_tutorial_with_fix(
     tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
     verbose: bool,
 ) -> anyhow::Result<SurfaceExit> {
-    use crate::commands::tutorial::autoplay::AutoplaySandbox;
-
     let workspace_root = crate::util::workspace_root()?;
+    let progress_path = crate::commands::tutorial::progress_file_path()?;
     bind_welcome_tutorial_workspace(tutorial_state, &workspace_root)?;
+    let progress = crate::commands::tutorial::load_progress_into_state(
+        tutorial_state,
+        &progress_path,
+        &workspace_root,
+    );
+
+    let exit =
+        run_welcome_tutorial_loop(terminal, theme, tutorial_state, verbose, &workspace_root)?;
+
+    if crate::commands::tutorial::should_persist_progress(tutorial_state) {
+        crate::commands::tutorial::save_progress_from_state(
+            &progress_path,
+            &progress,
+            tutorial_state,
+            &workspace_root,
+        )?;
+    }
+
+    Ok(exit)
+}
+
+fn run_welcome_tutorial_loop(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+    tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
+    verbose: bool,
+    workspace_root: &std::path::Path,
+) -> anyhow::Result<SurfaceExit> {
+    use crate::commands::tutorial::autoplay::AutoplaySandbox;
 
     // Try to start a file watcher for live verification (WELCOME-013).
     // If unavailable, the tutorial enters static mode (all steps become
     // informational press-enter-to-continue, commands are not executed).
     let mut autoplay_sandbox: Option<AutoplaySandbox> = None;
-    let mut watcher = restart_tutorial_watcher(tutorial_state, &workspace_root);
+    let mut watcher = restart_tutorial_watcher(tutorial_state, workspace_root);
 
     loop {
         let file_rx = watcher.as_ref().map(|(rx, _)| rx);
@@ -1260,15 +1302,15 @@ fn run_tutorial_with_fix(
             tutorial_state.recover_from_autoplay_failure(format!(
                 "The hands-free demo stopped: {failure}. Your repo was not touched — pick a path to continue."
             ));
-            bind_welcome_tutorial_workspace(tutorial_state, &workspace_root)?;
-            watcher = restart_tutorial_watcher(tutorial_state, &workspace_root);
+            bind_welcome_tutorial_workspace(tutorial_state, workspace_root)?;
+            watcher = restart_tutorial_watcher(tutorial_state, workspace_root);
             continue;
         }
 
         if tutorial_state.take_autoplay_teardown_requested() {
             drop(autoplay_sandbox.take());
-            bind_welcome_tutorial_workspace(tutorial_state, &workspace_root)?;
-            watcher = restart_tutorial_watcher(tutorial_state, &workspace_root);
+            bind_welcome_tutorial_workspace(tutorial_state, workspace_root)?;
+            watcher = restart_tutorial_watcher(tutorial_state, workspace_root);
             continue;
         }
 
@@ -1303,7 +1345,7 @@ fn run_tutorial_with_fix(
                 theme,
                 tutorial_state,
                 autoplay_sandbox.as_ref(),
-                &workspace_root,
+                workspace_root,
             ) {
                 Ok(anvil_tui::surfaces::tutorial::watch_demo::WatchDemoOutcome::Continue) => {
                     tutorial_state.advance_step();
@@ -1326,7 +1368,7 @@ fn run_tutorial_with_fix(
             watcher = if tutorial_state.autoplay_session_active() {
                 None
             } else {
-                try_start_tutorial_watcher(&workspace_root)
+                try_start_tutorial_watcher(workspace_root)
             };
             continue;
         }
@@ -2985,5 +3027,14 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn first_run_completion_distinguishes_quit_from_explicit_choices() {
+        assert!(OnboardingOutcome::Configured.completes_first_run(true));
+        assert!(OnboardingOutcome::Tutorial.completes_first_run(true));
+        assert!(OnboardingOutcome::Skip.completes_first_run(true));
+        assert!(!OnboardingOutcome::Quit.completes_first_run(false));
+        assert!(!OnboardingOutcome::Tutorial.completes_first_run(false));
     }
 }

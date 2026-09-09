@@ -25,7 +25,7 @@ pub struct TutorialArgs {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
-struct TutorialProgress {
+pub(crate) struct TutorialProgress {
     completed_paths: Vec<String>,
     /// In-progress sessions scoped to their canonical absolute workspace root.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -104,7 +104,6 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let progress_path = progress_file_path()?;
     let workspace_root = crate::util::workspace_root()?;
 
-    let progress = load_progress(&progress_path);
     let mut state = TutorialState::new();
     // CIB-349: `anvil tutorial` is ungated (same class as welcome). Wire
     // the sign-in bridge so Policy / Architecture command steps cannot
@@ -115,15 +114,7 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     );
     state.bind_working_root(&workspace_root)?;
 
-    // Populate completed paths so the selector shows checkmarks.
-    let completed: Vec<TutorialPath> = progress
-        .completed_paths
-        .iter()
-        .filter_map(|s| TutorialPath::from_label(s))
-        .collect();
-    state.set_completed_paths(completed);
-
-    resume_workspace_session(&mut state, &progress, &workspace_root);
+    let progress = load_progress_into_state(&mut state, &progress_path, &workspace_root);
 
     // Start a file watcher for live verification on watched steps
     // (WELCOME-013). Falls back to keyboard-only mode if the watcher
@@ -357,7 +348,7 @@ fn run_watch_demo_for_tutorial(
     }
 }
 
-fn should_persist_progress(state: &TutorialState) -> bool {
+pub(crate) fn should_persist_progress(state: &TutorialState) -> bool {
     !state.autoplay_session_active()
 }
 
@@ -418,11 +409,32 @@ fn reset_progress(path: &PathBuf, json_mode: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn load_progress(path: &PathBuf) -> TutorialProgress {
+fn load_progress(path: &Path) -> TutorialProgress {
     std::fs::read_to_string(path)
         .ok()
         .and_then(|content| serde_json::from_str(&content).ok())
         .unwrap_or_default()
+}
+
+/// Load user-global tutorial progress into a state bound to one workspace.
+///
+/// Welcome and the standalone tutorial share this boundary so either entry
+/// point renders completed paths and resumes only the current repository's
+/// interrupted session.
+pub(crate) fn load_progress_into_state(
+    state: &mut TutorialState,
+    path: &Path,
+    workspace_root: &Path,
+) -> TutorialProgress {
+    let progress = load_progress(path);
+    let completed = progress
+        .completed_paths
+        .iter()
+        .filter_map(|label| TutorialPath::from_label(label))
+        .collect();
+    state.set_completed_paths(completed);
+    resume_workspace_session(state, &progress, workspace_root);
+    progress
 }
 
 /// JOURNEY-012: whether this user has completed at least one tutorial path.
@@ -447,9 +459,7 @@ pub(crate) fn any_path_completed() -> bool {
 /// treating it as "not completed" would resurrect the pointer for someone who
 /// had finished.
 pub(crate) fn any_path_completed_in(path: &Path) -> bool {
-    !load_progress(&path.to_path_buf())
-        .completed_paths
-        .is_empty()
+    !load_progress(path).completed_paths.is_empty()
 }
 
 fn workspace_session_key(workspace_root: &Path) -> Option<String> {
@@ -471,7 +481,7 @@ fn resume_workspace_session(
     }
 }
 
-fn save_progress_from_state(
+pub(crate) fn save_progress_from_state(
     path: &Path,
     existing: &TutorialProgress,
     state: &TutorialState,
