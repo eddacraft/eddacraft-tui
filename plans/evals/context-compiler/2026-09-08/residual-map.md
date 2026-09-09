@@ -26,11 +26,11 @@ residual is the done bar for a first PR.
 
 | ID | Class | Live V1 | Owner | Notes |
 | -- | ----- | ------- | ----- | ----- |
-| T01 | orientation | claimed | CCTX-004 #4466 / this PR (T01–T05) | |
-| T02 | orientation | claimed | CCTX-004 #4466 / this PR (T01–T05) | |
-| T03 | orientation | claimed | CCTX-004 #4466 / this PR (T01–T05) | |
-| T04 | localised bug | claimed | CCTX-004 #4466 / this PR (T01–T05) | GATT / `ImpactSummary.truncated` |
-| T05 | localised bug | claimed | CCTX-004 #4466 / this PR (T01–T05) | CALL-1 heuristic OR-across-edges |
+| T01 | orientation | claimed | CCTX-004 #4466 | |
+| T02 | orientation | claimed | CCTX-004 #4466 | |
+| T03 | orientation | claimed | CCTX-004 #4466 | |
+| T04 | localised bug | claimed | CCTX-004 #4466 | GATT / `ImpactSummary.truncated` |
+| T05 | localised bug | claimed | CCTX-004 #4466 | CALL-1 heuristic OR-across-edges |
 | T06 | localised bug | available | — | Sibling batch candidate |
 | T07 | localised bug | available | — | Sibling batch candidate |
 | T08 | cross-module change | available | — | Blast-radius scoring applies |
