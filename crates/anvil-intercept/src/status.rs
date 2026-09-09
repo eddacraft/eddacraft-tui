@@ -979,12 +979,7 @@ mod tests {
 
         let registry = Arc::new(SessionRegistry::new());
         registry
-            .register(
-                &SessionId::new("s-a"),
-                &canonical,
-                None,
-                Instant::now(),
-            )
+            .register(&SessionId::new("s-a"), &canonical, None, Instant::now())
             .expect("register");
 
         let fence_path = tmp.path().join("fence.json");
