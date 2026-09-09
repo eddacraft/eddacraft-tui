@@ -1,0 +1,92 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/anvil-cctx-v1-corpus-A",
+  "harness": "grok-build / independent explore subagent",
+  "model": "grok-4.6",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "task": "T03",
+  "session_id": "cctx-v1-batch-A-T03-2026-09-09",
+  "started_at": "2026-09-09T14:17:00Z",
+  "ended_at": "2026-09-09T14:18:32Z",
+  "wall_time_s": 92,
+  "tool_calls": [
+    {
+      "name": "read_file",
+      "count": 16
+    },
+    {
+      "name": "grep",
+      "count": 8
+    },
+    {
+      "name": "list_dir",
+      "count": 2
+    }
+  ],
+  "search_queries": [
+    "GctxProjector",
+    "resident graph",
+    "sealed egress",
+    "struct GctxProjector",
+    "anvil-gctx-types (Cargo.toml)",
+    "anvil-graph-cache"
+  ],
+  "files_read": [
+    "plans/modules/context-compiler.aps.md",
+    "crates/anvil-gctx-types/src/lib.rs",
+    "crates/anvil-gctx-types/Cargo.toml",
+    "crates/anvil-gctx-egress/src/lib.rs",
+    "crates/anvil-gctx-egress/Cargo.toml",
+    "crates/anvil-graph-cache/ARCHITECTURE.md",
+    "crates/anvil-graph-cache/src/lib.rs",
+    "crates/anvil-intercept/src/kernel_cache.rs",
+    "docs/architecture/graph-context-delivery-spec.md",
+    "docs/architecture/kernel-as-built.md",
+    "docs/guides/ai-context-delivery.md",
+    "plans/decisions/084-gctx-graph-handle-access.md",
+    "CONTEXT.md"
+  ],
+  "first_useful_action": {
+    "at_s": 18,
+    "path": "plans/modules/context-compiler.aps.md",
+    "note": "Named the resident graph crate and the sealed-egress DTO crate in one Interfaces block; projector crate still needed a later struct search."
+  },
+  "answer": "The resident graph is owned by `crates/anvil-graph-cache` (package `eddacraft-anvil-graph-cache`). That crate is the parser-free semantic-graph store for the intercept daemon: `SymbolGraph` plus derived `DependencyGraph`, incremental `update_file` mutation, trust annotation, snapshots, and `GraphRegistry` (`crates/anvil-graph-cache/src/lib.rs`, `crates/anvil-graph-cache/ARCHITECTURE.md`). At runtime it is held warm per worktree in the `anvil-intercept` daemon as `KernelGraphCache` (`crates/anvil-intercept/src/kernel_cache.rs`); ADR-084 states the MCP server is graph-less and never builds or holds this graph. Wire/node types such as `SymbolNode` / `SymbolIdentity` live in `anvil-kernel-types`; graph mutation and algorithms stay in `anvil-graph-cache`. Sealed egress DTOs and `GctxProjector` are split across two ADR-084 crates, not one. `crates/anvil-gctx-types` (`eddacraft-anvil-gctx-types`) owns the sealed, graph-free egress DTOs (`SymbolSummary`, query/projection types, `GctxError`, and the CE-5 no-leak test) and must not depend on `anvil-graph-cache`. `crates/anvil-gctx-egress` (`eddacraft-anvil-gctx-egress`) owns `GctxProjector` (`pub struct GctxProjector` in `crates/anvil-gctx-egress/src/lib.rs`), the single CE-5 choke point that builds those DTOs from the warm graph. Daemon save-time handlers in `crates/anvil-intercept/src/save_time.rs` call the projector; they do not own it. This matches the CCTX Interfaces note in `plans/modules/context-compiler.aps.md` (resident graph in `crates/anvil-graph-cache`; sealed egress DTOs in `crates/anvil-gctx-types`) and the crate split in `plans/decisions/084-gctx-graph-handle-access.md`.",
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "Did not treat GCTX answers, briefs, or synthesis as allow/warn/block; write-gate remains anvil_validate_write / the policy engine conceptually only."
+  },
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No GCTX tools used; no forbidden eval/gold-path reads."
+  },
+  "protocol_violations": [],
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "crates/anvil-graph-cache/ARCHITECTURE.md",
+      "crates/anvil-gctx-types/src/lib.rs",
+      "GctxProjector"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

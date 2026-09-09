@@ -42,12 +42,13 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — CCTX-002 Merged via PR #4459; CCTX-004 In Progress (live V1 T01–T05);
-CCTX-005 Draft stub (GCTX harness for V2/V4; diagnosis note only; not
-started); design council PASS (gate WARN) on live V1 eval only; CCTX-003
-Complete; T06/T07 structural-partial-brief + recovery-cost scoring path
-recorded as eval residue (no live V3; §15 including §15.6 still parked; no
-product).
+**Last reviewed:** 2026-09-09 — CCTX-004 In Progress (live V1 T01–T05 recorded
+on `eval/cctx-v1-batch-A`; T06–T20 already recorded by sibling batches;
+stored `N/M` not bumped); CCTX-002 Merged via PR #4459; CCTX-005 Draft stub
+(GCTX harness for V2/V4; diagnosis note only; not started); design council
+PASS (gate WARN) on live V1 eval only; CCTX-003 Complete; T06/T07
+structural-partial-brief + recovery-cost scoring path recorded as eval
+residue (no live V3; §15 including §15.6 still parked; no product).
 
 ## Purpose
 
@@ -238,6 +239,8 @@ compiler, crate, or flag.
 - **Dependencies:** CCTX-001, CCTX-002
 - **Claim:** private GitHub issue #4461; residual follow-on #4467
 - **Confidence:** medium (fixtures and gates labelled honestly; live
+  V1/V2 comparison still unmeasured/blocked)
+
 ### CCTX-004: Live §12.7 V1 eval (ordinary exploration × 20)
 
 - **Status:** In Progress
@@ -251,7 +254,10 @@ compiler, crate, or flag.
   First batch on this claim: T01–T05. No product ships.
 - **Validation:** `pnpm docs:check`; `python3 plans/evals/context-compiler/2026-09-08/score_v1.py`
   once session JSON exists. Stored module `N/M` is not refreshed on this
-  feature PR (ADR-053).
+  feature PR (ADR-053). Live V1 T01–T05 recorded 2026-09-09
+  (`runs/v1/T01.json`…`T05.json`, `batch-t01-t05.json`); T01/T02 gold
+  recall is honest **partial**; T03–T05 **mentioned**; no leakage; billed
+  tokens `unmeasured`; V2/V4 remain blocked.
 - **Non-scope:** No V2/V4. No compiler, store, crate, flag, MCP tool, or
   GATT fork. Does not unpark §15. Does not bump exclusive-module `N/M`.
 - **Files:** `plans/evals/context-compiler/2026-09-08/`,
@@ -260,8 +266,6 @@ compiler, crate, or flag.
 - **Claim:** private GitHub issue #4466
 - **Confidence:** medium (live sessions are the measurement; this item
   does not invent thresholds)
-
-  V1/V2 comparison still unmeasured/blocked)
 
 ## Related, not this module
 

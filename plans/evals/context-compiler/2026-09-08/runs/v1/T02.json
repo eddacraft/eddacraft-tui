@@ -1,0 +1,86 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/anvil-cctx-v1-corpus-A",
+  "harness": "grok-build / independent explore subagent",
+  "model": "grok-4.6",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "task": "T02",
+  "session_id": "cctx-v1-batch-A-T02-2026-09-09",
+  "started_at": "2026-09-09T14:17:00Z",
+  "ended_at": "2026-09-09T14:18:19Z",
+  "wall_time_s": 79,
+  "tool_calls": [
+    {
+      "name": "grep",
+      "count": 6
+    },
+    {
+      "name": "read_file",
+      "count": 15
+    }
+  ],
+  "search_queries": [
+    "snippet egress",
+    "gctx.*egress|egress.*gctx|snippet_egress",
+    "resolve_snippet_egress|gctx.egress",
+    "fn resolve_snippet_egress",
+    "gctx egress",
+    "include_source|includeSource"
+  ],
+  "files_read": [
+    "docs/public/anvil/operations/security.md",
+    "crates/anvil-cli/assets/skills/anvil-developer-functions/references/tool-reference.md",
+    "docs/architecture/graph-context-delivery-spec.md",
+    "crates/anvil-intercept/src/egress_consent.rs",
+    "flags/manifest.json",
+    "crates/anvil-cli/assets/skills/anvil-developer-functions/SKILL.md",
+    "docs/public/anvil/integrations/mcp.md",
+    "docs/guides/ai-context-delivery.md",
+    "crates/anvil-intercept/src/save_time.rs",
+    "crates/anvil-gctx-types/src/lib.rs"
+  ],
+  "first_useful_action": {
+    "at_s": 25,
+    "path": "docs/public/anvil/operations/security.md",
+    "note": "Public security page states identity-only default and the per-workspace `anvil gctx egress enable` / `disable` opt-in."
+  },
+  "answer": "A workspace opts in to GCTX source-snippet egress with an explicit operator action, not a repo-controlled file. The product command is `anvil gctx egress enable` (confirmation, or `--yes` non-interactively). That writes per-workspace consent under operator-owned state (`$ANVIL_HOME/gctx-egress/`, else `$XDG_STATE_HOME/anvil/gctx-egress/`, else `~/.local/state/anvil/gctx-egress/`), keyed by workspace path. `anvil gctx egress status` reports the effective decision and source (`env` / `config` / `default`); `anvil gctx egress disable` removes consent and returns to identity-only. Consent is never taken from a worktree path; the legacy `anvil/witness/gctx-egress.json` record is not honoured (`crates/anvil-intercept/src/egress_consent.rs`). Snippets still require a second gate on the request: only `anvil_symbol_context` can emit source text, and only when `includeSource: true` is set. Either gate missing yields identity-only locations (and a `snippetEgressHint` if source was requested while egress is off). See `docs/guides/ai-context-delivery.md` and `crates/anvil-cli/assets/skills/anvil-developer-functions/references/tool-reference.md`. Process env `ANVIL_GCTX_EGRESS` overrides persisted consent on every call (`crates/anvil-gctx-types/src/lib.rs` `resolve_snippet_egress`): unset uses persisted consent; `1` permits snippets for this process (still per-request `includeSource`); `0` is a kill-switch that turns the whole graph-context surface off (`disabled`), not the snippet-safe default. The named flag `gctx.egress` in `flags/manifest.json` has `defaultVariant: \"disabled\"` (CE-9). If the workspace does not opt in (no consent record, env unset or not `1`): the default is identity-only (PV-9 CE-1). Tools and `graph://` resources still return symbol identities, workspace-relative paths, and edges; they do not return source text. An unreadable consent file fails closed to identity-only. `ANVIL_GCTX_EGRESS=0` is not that default.",
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "Did not treat GCTX tools, briefs, or synthesis cards as allow/warn/block. Write-gate tools were not invoked."
+  },
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No GCTX/MCP graph tools used; search stayed in the corpus worktree."
+  },
+  "protocol_violations": [],
+  "score": {
+    "gold_recall": "partial",
+    "gold_mentioned": [
+      "docs/guides/ai-context-delivery.md",
+      "egress enable"
+    ],
+    "gold_not_mentioned": [
+      "egress_resolve_default_is_identity_only"
+    ],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/anvil-cctx-v1-corpus-A",
+  "harness": "grok-build / independent explore subagent",
+  "model": "grok-4.6",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "task": "T04",
+  "session_id": "cctx-v1-batch-A-T04-2026-09-09",
+  "started_at": "2026-09-09T14:17:00Z",
+  "ended_at": "2026-09-09T14:18:08Z",
+  "wall_time_s": 68,
+  "tool_calls": [
+    {
+      "name": "grep",
+      "count": 5
+    },
+    {
+      "name": "read_file",
+      "count": 11
+    }
+  ],
+  "search_queries": [
+    "ImpactSummary",
+    "truncated",
+    "GATT",
+    "ImpactSummary\\.truncated|summary\\.truncated|truncated: bool"
+  ],
+  "files_read": [
+    "crates/anvil-gctx-types/src/lib.rs",
+    "plans/decisions/142-graph-answer-attestation.md",
+    "plans/modules/graph-answer-attestation.aps.md",
+    "crates/anvil-gctx-egress/src/lib.rs"
+  ],
+  "first_useful_action": {
+    "at_s": 22,
+    "path": "crates/anvil-gctx-types/src/lib.rs",
+    "note": "ImpactSummary.truncated doc names the two-budget OR and the missing pre-cap figure."
+  },
+  "answer": "`ImpactSummary.truncated` is one flag on the counts-only blast-radius summary. Its own comment in `crates/anvil-gctx-types/src/lib.rs` says it is true when either the affected-symbol set or the dependent-closure walk hit its node budget; the returned sets are then a deterministic path-ordered prefix, not a silent full cutoff. A consumer therefore cannot tell: (1) Which budget fired. The same bool covers two distinct caps. Egress sets one `truncated` in `collect_impact_with_budget` (`crates/anvil-gctx-egress/src/lib.rs`): it becomes true when the affected-symbol heap exceeds `max_affected` / `MAX_AFFECTED_SYMBOLS`, and again independently when the reverse-impact BFS hits `MAX_DEPENDENTS_WALK`. `project_impact` copies that single bit onto `ImpactSummary.truncated`. True can mean \u201csymbol prefix only\u201d, \u201cwalk stopped\u201d, or both. (2) How much was left out. `ImpactSummary` counts only what was returned (`affected_symbols`, `dependent_files`, `known_tests`). There is no pre-cap matched/total to compare against, unlike `anvil_search_symbols` (`matched`, `returned`, `truncated`). ADR-142 notes that on a bounded traversal the true total is unknowable without finishing the walk the budget exists to prevent, so a bare integer would either lie or defeat the cap. Those two gaps are why GATT exists. Anvil already discloses privacy (`RedactionSummary`) and assurance (`workspace_assurance` / ADR-084 degradation). The third class \u2014 what the answer could not resolve or could not fit \u2014 is good on search and thin on the highest-stakes tools. GATT (`plans/modules/graph-answer-attestation.aps.md`, implementing Accepted ADR-142 `plans/decisions/142-graph-answer-attestation.md`) is the in-band self-attestation contract so a consumer can distinguish a complete answer from a bounded one without reading Anvil\u2019s source. Concretely GATT (and ADR-142 \u00a71\u2013\u00a75) require a shared `Attestation` on every GCTX projection, not another bool: named, separately counted bounds (section + which budget + `returned` + tagged `total` as `Exact(n)` or `AtLeast(n)`). GATT-004 is the item that stops `ImpactSummary` / `AffectedTestsSummary` from covering two budgets with one flag; `truncated` is kept one release as a derived shim (`true` iff any bound entry exists). Per-edge call-resolution fidelity (GATT-003): `call_graph.rs` already computes per-edge ambiguity then OR-s it into a caller-level `heuristic`, so one unresolvable call marks the whole caller. Cost self-report (GATT-005): `estimate_gctx_tokens` already drives the snippet budget but is not reported. The product claim is that blast-radius output can be checked. \u201cThese twelve symbols are affected\u201d currently does not say which of two budgets stopped the walk, that three edges were guesses, or what the answer cost. GATT exists to put those limits in-band, identically across the six tools and `graph://`, as counts and closed enums only.",
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No brief, GCTX answer, or synthesis card was treated as allow/warn/block. GATT/ADR-142 were used as corpus architecture, not as a write-policy engine."
+  },
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No off-tree search, no GCTX tools, no control-path reads; worktree HEAD matched the required SHA."
+  },
+  "protocol_violations": [],
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "ImpactSummary",
+      "plans/decisions/142-graph-answer-attestation.md",
+      "truncated"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

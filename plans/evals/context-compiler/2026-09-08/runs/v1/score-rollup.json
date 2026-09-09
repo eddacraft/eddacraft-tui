@@ -1,13 +1,181 @@
 {
   "run": {
     "id": "cctx-004-2026-09-08-v1-score",
-    "at": "2026-09-09T07:17:47Z",
+    "at": "2026-09-09T14:23:07Z",
     "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
     "kind": "live-v1-session-score",
     "scorer": "score_v1.py"
   },
-  "n_records": 15,
+  "n_records": 20,
   "tasks": [
+    {
+      "task": "T01",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T01.json",
+      "score": {
+        "gold_recall": "partial",
+        "gold_mentioned": [
+          "docs/guides/ai-context-delivery.md",
+          "Graph context is not launch validation",
+          "anvil_validate_write"
+        ],
+        "gold_not_mentioned": [
+          "docs/architecture/graph-context-delivery-spec.md"
+        ],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 75,
+      "first_useful_action": {
+        "at_s": 20,
+        "path": "docs/guides/ai-context-delivery.md",
+        "note": "Authoritative section \u201cGraph context is not launch validation\u201d defines the two MCP halves and when to call each."
+      }
+    },
+    {
+      "task": "T02",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T02.json",
+      "score": {
+        "gold_recall": "partial",
+        "gold_mentioned": [
+          "docs/guides/ai-context-delivery.md",
+          "egress enable"
+        ],
+        "gold_not_mentioned": [
+          "egress_resolve_default_is_identity_only"
+        ],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 79,
+      "first_useful_action": {
+        "at_s": 25,
+        "path": "docs/public/anvil/operations/security.md",
+        "note": "Public security page states identity-only default and the per-workspace `anvil gctx egress enable` / `disable` opt-in."
+      }
+    },
+    {
+      "task": "T03",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T03.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "crates/anvil-graph-cache/ARCHITECTURE.md",
+          "crates/anvil-gctx-types/src/lib.rs",
+          "GctxProjector"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 92,
+      "first_useful_action": {
+        "at_s": 18,
+        "path": "plans/modules/context-compiler.aps.md",
+        "note": "Named the resident graph crate and the sealed-egress DTO crate in one Interfaces block; projector crate still needed a later struct search."
+      }
+    },
+    {
+      "task": "T04",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T04.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "ImpactSummary",
+          "plans/decisions/142-graph-answer-attestation.md",
+          "truncated"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 68,
+      "first_useful_action": {
+        "at_s": 22,
+        "path": "crates/anvil-gctx-types/src/lib.rs",
+        "note": "ImpactSummary.truncated doc names the two-budget OR and the missing pre-cap figure."
+      }
+    },
+    {
+      "task": "T05",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T05.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "crates/anvil-graph-cache/src/call_graph.rs",
+          "heuristic",
+          "OR-ed"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 87,
+      "first_useful_action": {
+        "at_s": 16,
+        "path": "crates/anvil-graph-cache/src/call_graph.rs",
+        "note": "Defines CallerResult.heuristic, documents GCALL-007 CALL-1, and OR-s fan-out across a caller\u2019s edges in callers_of."
+      }
+    },
     {
       "task": "T06",
       "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T06.json",

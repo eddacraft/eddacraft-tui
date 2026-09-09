@@ -1,0 +1,118 @@
+{
+  "run": {
+    "id": "cctx-v1-batch-A-t01-t05-2026-09-09",
+    "at": "2026-09-09T14:23:07Z",
+    "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+    "variant": "V1",
+    "kind": "live-v1-batch-rollup",
+    "branch": "eval/cctx-v1-batch-A",
+    "fixes": "#4466"
+  },
+  "tasks": [
+    {
+      "task": "T01",
+      "session_id": "cctx-v1-batch-A-T01-2026-09-09",
+      "wall_time_s": 75,
+      "gold_recall": "partial",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 20,
+        "path": "docs/guides/ai-context-delivery.md",
+        "note": "Authoritative section “Graph context is not launch validation” defines the two MCP halves and when to call each."
+      },
+      "notes": "Gold miss: docs/architecture/graph-context-delivery-spec.md not opened."
+    },
+    {
+      "task": "T02",
+      "session_id": "cctx-v1-batch-A-T02-2026-09-09",
+      "wall_time_s": 79,
+      "gold_recall": "partial",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 25,
+        "path": "docs/public/anvil/operations/security.md",
+        "note": "Public security page states identity-only default and the per-workspace `anvil gctx egress enable` / `disable` opt-in."
+      },
+      "notes": "Gold miss: egress_resolve_default_is_identity_only identifier not named; resolve_snippet_egress was."
+    },
+    {
+      "task": "T03",
+      "session_id": "cctx-v1-batch-A-T03-2026-09-09",
+      "wall_time_s": 92,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 18,
+        "path": "plans/modules/context-compiler.aps.md",
+        "note": "Named the resident graph crate and the sealed-egress DTO crate in one Interfaces block; projector crate still needed a later struct search."
+      },
+      "notes": null
+    },
+    {
+      "task": "T04",
+      "session_id": "cctx-v1-batch-A-T04-2026-09-09",
+      "wall_time_s": 68,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 22,
+        "path": "crates/anvil-gctx-types/src/lib.rs",
+        "note": "ImpactSummary.truncated doc names the two-budget OR and the missing pre-cap figure."
+      },
+      "notes": null
+    },
+    {
+      "task": "T05",
+      "session_id": "cctx-v1-batch-A-T05-2026-09-09",
+      "wall_time_s": 87,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 16,
+        "path": "crates/anvil-graph-cache/src/call_graph.rs",
+        "note": "Defines CallerResult.heuristic, documents GCALL-007 CALL-1, and OR-s fan-out across a caller’s edges in callers_of."
+      },
+      "notes": null
+    }
+  ],
+  "summary": {
+    "n": 5,
+    "all_success": true,
+    "all_mentioned": false,
+    "partial": ["T01", "T02"],
+    "leakage_any": false,
+    "billed_tokens": "unmeasured",
+    "gctx_available": false,
+    "v2_v4": "blocked"
+  }
+}

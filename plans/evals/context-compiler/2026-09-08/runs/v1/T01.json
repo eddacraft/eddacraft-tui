@@ -1,0 +1,83 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/anvil-cctx-v1-corpus-A",
+  "harness": "grok-build / independent explore subagent",
+  "model": "grok-4.6",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "task": "T01",
+  "session_id": "cctx-v1-batch-A-T01-2026-09-09",
+  "started_at": "2026-09-09T14:17:00Z",
+  "ended_at": "2026-09-09T14:18:15Z",
+  "wall_time_s": 75,
+  "tool_calls": [
+    {
+      "name": "grep",
+      "count": 4
+    },
+    {
+      "name": "list_dir",
+      "count": 1
+    },
+    {
+      "name": "read_file",
+      "count": 7
+    }
+  ],
+  "search_queries": [
+    "anvil_validate_write",
+    "graph context",
+    "launch validation",
+    "anvil_query_boundary"
+  ],
+  "files_read": [
+    "docs/guides/ai-context-delivery.md",
+    "crates/anvil-cli/assets/skills/anvil-developer-functions/references/tool-reference.md",
+    "AGENTS.md",
+    "crates/anvil-cli/assets/skills/anvil-developer-functions/SKILL.md"
+  ],
+  "first_useful_action": {
+    "at_s": 20,
+    "path": "docs/guides/ai-context-delivery.md",
+    "note": "Authoritative section \u201cGraph context is not launch validation\u201d defines the two MCP halves and when to call each."
+  },
+  "answer": "Anvil\u2019s MCP surface is two separate halves. Do not treat a graph answer as a write decision. Graph context is read-only projection. Tools and graph:// resources answer questions about the codebase (symbols, dependents, callers, blast radius, neighbourhood) so an assistant can reason from a map instead of reading whole files. They return context, never a decision, and never block. They do not change code. Setup and behaviour live in docs/guides/ai-context-delivery.md. The six identity-only graph tools are anvil_search_symbols, anvil_find_dependents, anvil_find_callers, anvil_impact_of_change, anvil_affected_tests, and anvil_symbol_context. Results are advisory and optional. Launch validation is the pre-write enforcement gate. The user-facing entry point is anvil_validate_write (team shorthand \u201cRMCP validation\u201d names the Rust MCP host, not a second product). Call it before applying a write. It scores the proposed content against secrets, regex anti-patterns, and boundary rules and returns a four-valued decision: block (authoritative \u2014 do not write), warn (findings present but enforcement lets the write proceed \u2014 surface and continue), gateUnavailable (gate could not run \u2014 surface and proceed), allow (passed). crates/anvil-cli/assets/skills/anvil-developer-functions/SKILL.md adds anvil_apply_patch as the lean sibling for unified diffs; honour the same decision table. allow is not proof that anvil check (regex plus AST) would be clean. When to call which: reach for GCTX tools when you need to understand code (locate a symbol, who imports a file, who calls a function, what might break, which tests to run). Reach for anvil_validate_write (or anvil_apply_patch) when you are about to change code. They are complementary: pull graph context to plan an edit, then validate the edit before writing. A typical sequence in the same guide is search \u2192 impact \u2192 affected tests \u2192 edit \u2192 anvil_validate_write on the new content. AGENTS.md matches this split: graph-context tools (it also names anvil_status and anvil_query_boundary alongside the six) to understand code, bounded and never blocking; anvil_validate_write / anvil_apply_patch before a write, honouring block and surfacing warn.",
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "Product docs name anvil_validate_write as the write gate; no eval brief, GCTX result, or synthesis card was treated as allow/warn/block."
+  },
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "First grep hit the authoritative guide; later reads confirmed the skill and AGENTS split."
+  },
+  "protocol_violations": [],
+  "score": {
+    "gold_recall": "partial",
+    "gold_mentioned": [
+      "docs/guides/ai-context-delivery.md",
+      "Graph context is not launch validation",
+      "anvil_validate_write"
+    ],
+    "gold_not_mentioned": [
+      "docs/architecture/graph-context-delivery-spec.md"
+    ],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

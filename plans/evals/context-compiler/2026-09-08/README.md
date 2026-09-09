@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval artefacts) | 2026-09-08 — V3/V4 briefs (CCTX-003) plus live V1 runbook (CCTX-004); T06/T07 structural-partial-brief + recovery-cost scoring; corpus `23457dc6d2bf379791d587cf2dfdb5046ce51fc0` |
+| Spec | Advisory | CCTX | Draft (eval artefacts) | 2026-09-09 — V3/V4 briefs (CCTX-003) plus live V1 runbook and T01–T20 session records (CCTX-004 batch-A plus sibling batches B–D); corpus `23457dc6d2bf379791d587cf2dfdb5046ce51fc0` |
 
 | Upstream | Downstream |
 | -------- | ---------- |
