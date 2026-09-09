@@ -10,11 +10,14 @@ pub(crate) struct FirstRunMarker {
     version: String,
 }
 
-/// Return the path to the first-run marker file inside `.anvil/`.
-pub fn first_run_marker_path() -> anyhow::Result<PathBuf> {
-    Ok(crate::util::workspace_root()?
-        .join(".anvil")
-        .join("first-run"))
+/// Return the first-run marker for an already-resolved project root.
+///
+/// Guided setup can select a different repository from the one that launched
+/// welcome, so its completion evidence must follow that selected identity
+/// rather than resolving the process working directory again.
+#[must_use]
+pub(crate) fn first_run_marker_path_in(root: &Path) -> PathBuf {
+    root.join(".anvil").join("first-run")
 }
 
 /// Check whether this is a first run (marker file does not exist).
@@ -79,13 +82,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn first_run_marker_path_is_anchored() {
-        let path = first_run_marker_path().unwrap();
-        assert!(
-            path.is_absolute(),
-            "marker path should be absolute, got: {path:?}"
+    fn first_run_marker_path_in_uses_the_supplied_project() {
+        let root = tempfile::tempdir().unwrap();
+        assert_eq!(
+            first_run_marker_path_in(root.path()),
+            root.path().join(".anvil/first-run")
         );
-        assert!(path.ends_with(".anvil/first-run"));
     }
 
     #[test]

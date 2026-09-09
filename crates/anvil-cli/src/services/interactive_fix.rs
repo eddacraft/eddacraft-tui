@@ -26,6 +26,28 @@ pub fn apply_fix_request(
     request: &FixRequest,
     doctor_checks: Option<&mut [DiagnosticCheck]>,
 ) -> FixOutcome {
+    apply_fix_request_at(request, doctor_checks, Path::new("."), false)
+}
+
+/// Apply a request relative to an explicit project root.
+///
+/// Welcome uses this after guided setup because the selected repository may
+/// differ from the process working directory. Other command surfaces retain
+/// the current-directory wrapper above.
+pub(crate) fn apply_fix_request_in(
+    request: &FixRequest,
+    doctor_checks: Option<&mut [DiagnosticCheck]>,
+    root: &Path,
+) -> FixOutcome {
+    apply_fix_request_at(request, doctor_checks, root, true)
+}
+
+fn apply_fix_request_at(
+    request: &FixRequest,
+    doctor_checks: Option<&mut [DiagnosticCheck]>,
+    root: &Path,
+    guard_project_root: bool,
+) -> FixOutcome {
     match request {
         FixRequest::DoctorCheck { index } => {
             let Some(checks) = doctor_checks else {
@@ -47,13 +69,23 @@ pub fn apply_fix_request(
             file,
             line,
             warning_id,
-        } => apply_line_transform(Path::new(file), file, *line, None, |source| {
-            apply_antipattern_fix(source, warning_id).map_err(|()| {
-                format!("No deterministic auto-fix available for {warning_id} on this line")
+        } => {
+            let path = match fix_target(file, root, guard_project_root) {
+                Ok(path) => path,
+                Err(reason) => return FixOutcome::Refused { reason },
+            };
+            apply_line_transform(&path, file, *line, None, |source| {
+                apply_antipattern_fix(source, warning_id).map_err(|()| {
+                    format!("No deterministic auto-fix available for {warning_id} on this line")
+                })
             })
-        }),
+        }
         FixRequest::AuditConsoleStatement { file, line } => {
-            apply_line_removal(file, *line, |source| {
+            let path = match fix_target(file, root, guard_project_root) {
+                Ok(path) => path,
+                Err(reason) => return FixOutcome::Refused { reason },
+            };
+            apply_line_removal(&path, file, *line, |source| {
                 if is_auto_fixable_console_statement(source) {
                     Ok(())
                 } else {
@@ -61,6 +93,18 @@ pub fn apply_fix_request(
                 }
             })
         }
+    }
+}
+
+fn fix_target(
+    file: &str,
+    root: &Path,
+    guard_project_root: bool,
+) -> Result<std::path::PathBuf, String> {
+    if guard_project_root {
+        guarded_fix_target(file, root)
+    } else {
+        Ok(root.join(file))
     }
 }
 
@@ -229,11 +273,11 @@ fn apply_line_transform(
 }
 
 fn apply_line_removal(
+    path: &Path,
     file: &str,
     line: usize,
     validate: impl FnOnce(&str) -> Result<(), String>,
 ) -> FixOutcome {
-    let path = Path::new(file);
     let Ok(content) = std::fs::read_to_string(path) else {
         return FixOutcome::Failed {
             reason: format!("Failed to read {file}"),
@@ -478,6 +522,47 @@ mod tests {
             None,
         );
         assert!(matches!(outcome, FixOutcome::Refused { .. }));
+    }
+
+    #[test]
+    fn scoped_apply_refuses_targets_outside_the_selected_project() {
+        let outside = tempfile::tempdir().expect("outside dir");
+        let victim = outside.path().join("victim.ts");
+        let original = "const value: any = source;\n";
+        std::fs::write(&victim, original).expect("write victim");
+        let root = tempfile::tempdir().expect("selected project");
+        let request = FixRequest::AntiPatternWarning {
+            file: victim.to_string_lossy().into_owned(),
+            line: 1,
+            warning_id: "AP-003".to_string(),
+        };
+
+        let outcome = apply_fix_request_in(&request, None, root.path());
+
+        assert!(matches!(outcome, FixOutcome::Refused { .. }), "{outcome:?}");
+        assert_eq!(std::fs::read_to_string(victim).expect("victim"), original);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scoped_apply_refuses_a_symlink_swapped_target() {
+        let outside = tempfile::tempdir().expect("outside dir");
+        let victim = outside.path().join("victim.ts");
+        let original = "const value: any = source;\n";
+        std::fs::write(&victim, original).expect("write victim");
+        let root = tempfile::tempdir().expect("selected project");
+        std::os::unix::fs::symlink(&victim, root.path().join("selected.ts"))
+            .expect("swap target to symlink");
+        let request = FixRequest::AntiPatternWarning {
+            file: "selected.ts".to_string(),
+            line: 1,
+            warning_id: "AP-003".to_string(),
+        };
+
+        let outcome = apply_fix_request_in(&request, None, root.path());
+
+        assert!(matches!(outcome, FixOutcome::Refused { .. }), "{outcome:?}");
+        assert_eq!(std::fs::read_to_string(victim).expect("victim"), original);
     }
 
     // ── WOW-005: preview_fix_request / apply_previewed_fix_request ──────

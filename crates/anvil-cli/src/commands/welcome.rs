@@ -1,4 +1,5 @@
 use std::io::IsTerminal;
+use std::path::{Path, PathBuf};
 
 use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::fix_request::FixRequest;
@@ -8,10 +9,10 @@ use eddacraft_tui::theme::EddaCraftTheme;
 
 use crate::GlobalArgs;
 use crate::services::first_run::{
-    create_first_run_marker, delete_first_run_marker, first_run_marker_path, is_first_run,
+    create_first_run_marker, delete_first_run_marker, first_run_marker_path_in, is_first_run,
     should_skip_welcome,
 };
-use crate::services::interactive_fix::{FixOutcome, apply_fix_request};
+use crate::services::interactive_fix::{FixOutcome, apply_fix_request, apply_fix_request_in};
 use crate::tui::SurfaceExit;
 
 /// Draw a loading message and wait for `duration`, processing resize events
@@ -52,9 +53,10 @@ fn timed_loading(
 /// CIB-351: starts on the path picker with no discovery scan threaded in.
 /// WOW-004 completion re-scan is still wired so a chosen path can measure
 /// a delta later; a failed re-scan means no delta.
-fn tutorial_state_for_learning_path() -> anvil_tui::surfaces::tutorial::TutorialState {
+fn tutorial_state_for_learning_path(root: &Path) -> anvil_tui::surfaces::tutorial::TutorialState {
     let mut state = anvil_tui::surfaces::tutorial::TutorialState::new();
-    state.set_completion_rescan(|| scan_project().ok());
+    let rescan_root = root.to_path_buf();
+    state.set_completion_rescan(move || Some(scan_project(&rescan_root)));
     // CIB-248: the autoplay demo runs its check in-process, so it never
     // re-enters the licence-gated `anvil check` CLI with a sandbox HOME that
     // hides the user's credentials.
@@ -73,8 +75,9 @@ fn tutorial_state_for_learning_path() -> anvil_tui::surfaces::tutorial::Tutorial
 /// the scan results through on top of the path-picker wiring.
 fn tutorial_state_with_scan(
     results: anvil_tui::surfaces::tutorial::discovery::ScanResults,
+    root: &Path,
 ) -> anvil_tui::surfaces::tutorial::TutorialState {
-    let mut state = tutorial_state_for_learning_path();
+    let mut state = tutorial_state_for_learning_path(root);
     state.set_scan_results(results);
     state
 }
@@ -164,15 +167,13 @@ fn run_first_win_reroute(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     results: &mut anvil_tui::surfaces::tutorial::discovery::ScanResults,
+    root: &Path,
 ) -> anyhow::Result<FirstWinFlow> {
     use crate::services::interactive_fix::{apply_previewed_fix_request, preview_fix_request};
 
-    // The scan roots findings at the process cwd (`scan_project`), so the
-    // preview/apply containment guard uses the same root.
-    let root = std::env::current_dir()?;
     let project_writes_gated = crate::install_root::project_writes_gated();
     let Some(mut state) = build_first_win_state(results, project_writes_gated, |request| {
-        preview_fix_request(request, &root)
+        preview_fix_request(request, root)
     }) else {
         return Ok(FirstWinFlow::Continue);
     };
@@ -185,7 +186,7 @@ fn run_first_win_reroute(
             // still matches the previewed text exactly (TOCTOU guard), so the
             // diff the user consented to is the only change that can land.
             let outcome = match state.offer.as_ref() {
-                Some(offer) => apply_previewed_fix_request(&request, &offer.preview.before, &root),
+                Some(offer) => apply_previewed_fix_request(&request, &offer.preview.before, root),
                 None => FixOutcome::Failed {
                     reason: "No previewed fix to apply".to_string(),
                 },
@@ -230,7 +231,8 @@ pub struct WelcomeArgs {
 // json document branch (issue #3947) pushed it over the line budget.
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
-    let marker_path = first_run_marker_path()?;
+    let launch_root = crate::util::workspace_root()?;
+    let marker_path = first_run_marker_path_in(&launch_root);
 
     // DISTRIB-006 (ADR-060): the first-run marker lives at `<root>/.anvil/first-run`
     // (project-local). Under a gated ANVIL_HOME the candidate must not write or
@@ -312,7 +314,7 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     if global.no_tui || !std::io::stdout().is_terminal() {
         print_plain_welcome(start_prompts_sign_in());
         // INSIGHTS-005: the nudge rides the plain closing output too.
-        print_welcome_insights_hint(project_writes_gated);
+        print_welcome_insights_hint(project_writes_gated, &launch_root);
         // Telemetry disclosure rides the plain closing output too. On this
         // branch stdout may be piped: the notice prints, but notice-shown is
         // persisted only when a human could actually see it (stdout is a
@@ -328,14 +330,21 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let theme = EddaCraftTheme;
 
     let mut onboarding_completed = false;
+    let mut active_root = launch_root.clone();
     let result = if first_run {
-        match run_onboarding(&mut terminal, &theme) {
+        match run_onboarding(&mut terminal, &theme, &launch_root) {
             Ok(outcome) => {
-                let follow =
-                    follow_onboarding_choice(&mut terminal, &theme, global.verbose, outcome)?;
+                active_root = outcome.project_root(&launch_root).to_path_buf();
+                let follow = follow_onboarding_choice(
+                    &mut terminal,
+                    &theme,
+                    global.verbose,
+                    &outcome,
+                    &active_root,
+                )?;
                 onboarding_completed = outcome.completes_first_run(follow.completes_first_run());
                 if follow.continue_to_hub() {
-                    run_welcome_hub(&mut terminal, &theme, global.verbose)
+                    run_welcome_hub(&mut terminal, &theme, global.verbose, &active_root)
                 } else {
                     Ok(())
                 }
@@ -343,7 +352,7 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             Err(e) => Err(e),
         }
     } else {
-        run_welcome_hub(&mut terminal, &theme, global.verbose)
+        run_welcome_hub(&mut terminal, &theme, global.verbose, &active_root)
     };
 
     // Always teardown terminal, even on error.
@@ -357,11 +366,11 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         && result.is_ok()
         && teardown_result.is_ok()
         && !project_writes_gated
-        && let Err(err) = create_first_run_marker(&marker_path)
+        && let Err(err) = create_first_run_marker(&first_run_marker_path_in(&active_root))
     {
         eprintln!(
             "[welcome] warning: failed to create first-run marker at {}: {err}",
-            marker_path.display()
+            first_run_marker_path_in(&active_root).display()
         );
     }
 
@@ -372,7 +381,7 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // scrollback once the TUI session ends.
     println!("{}", welcome_next_step(start_prompts_sign_in()));
     // INSIGHTS-005: the first-week nudge rides the closing output too.
-    print_welcome_insights_hint(project_writes_gated);
+    print_welcome_insights_hint(project_writes_gated, &active_root);
     // The telemetry disclosure must strictly precede any first beacon; the
     // TUI path just ran on a real terminal, so the notice both prints and
     // is recorded as shown.
@@ -394,11 +403,9 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 /// Resolving the hint consumes the once-per-week marker, so this is only ever
 /// called on a surface that actually prints it (both `welcome` closing paths
 /// do).
-fn print_welcome_insights_hint(project_writes_gated: bool) {
-    let root =
-        crate::util::workspace_root().unwrap_or_else(|_| std::path::Path::new(".").to_path_buf());
+fn print_welcome_insights_hint(project_writes_gated: bool, root: &Path) {
     if let Some(hint) = crate::insights::first_week_hint::first_week_insights_hint(
-        &root,
+        root,
         chrono::Utc::now(),
         project_writes_gated,
     ) {
@@ -409,10 +416,10 @@ fn print_welcome_insights_hint(project_writes_gated: bool) {
 
 /// Outcome of the first-run onboarding flow, used by the caller to decide
 /// what to show next.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum OnboardingOutcome {
     /// User completed guided setup or config already existed — proceed normally.
-    Configured,
+    Configured(PathBuf),
     /// User chose to skip to tutorial — start tutorial immediately.
     Tutorial,
     /// User chose to skip entirely — go to welcome hub.
@@ -422,8 +429,15 @@ enum OnboardingOutcome {
 }
 
 impl OnboardingOutcome {
-    fn completes_first_run(self, follow_on_flow_completed: bool) -> bool {
-        self != Self::Quit && follow_on_flow_completed
+    fn completes_first_run(&self, follow_on_flow_completed: bool) -> bool {
+        !matches!(self, Self::Quit) && follow_on_flow_completed
+    }
+
+    fn project_root<'a>(&'a self, launch_root: &'a Path) -> &'a Path {
+        match self {
+            Self::Configured(root) => root,
+            Self::Tutorial | Self::Skip | Self::Quit => launch_root,
+        }
     }
 }
 
@@ -443,10 +457,10 @@ enum OnboardingNext {
     Quit,
 }
 
-fn onboarding_next_screen(outcome: OnboardingOutcome) -> OnboardingNext {
+fn onboarding_next_screen(outcome: &OnboardingOutcome) -> OnboardingNext {
     match outcome {
         OnboardingOutcome::Tutorial => OnboardingNext::PathPicker,
-        OnboardingOutcome::Configured => OnboardingNext::DiscoveryThenFirstWin,
+        OnboardingOutcome::Configured(_) => OnboardingNext::DiscoveryThenFirstWin,
         OnboardingOutcome::Skip => OnboardingNext::Hub,
         OnboardingOutcome::Quit => OnboardingNext::Quit,
     }
@@ -532,16 +546,17 @@ fn follow_onboarding_choice(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     verbose: bool,
-    outcome: OnboardingOutcome,
+    outcome: &OnboardingOutcome,
+    root: &Path,
 ) -> anyhow::Result<FollowOnboardingResult> {
     match onboarding_next_screen(outcome) {
         OnboardingNext::Quit => Ok(FollowOnboardingResult::exit()),
         OnboardingNext::Hub => Ok(FollowOnboardingResult::complete_to_hub()),
         OnboardingNext::PathPicker => Ok(FollowOnboardingResult::from_tutorial(run_learning_path(
-            terminal, theme, verbose,
+            terminal, theme, verbose, root,
         )?)),
         OnboardingNext::DiscoveryThenFirstWin => Ok(FollowOnboardingResult::from_tutorial(
-            run_discovery_then_first_win_tutorial(terminal, theme, verbose)?,
+            run_discovery_then_first_win_tutorial(terminal, theme, verbose, root)?,
         )),
     }
 }
@@ -551,9 +566,10 @@ fn run_learning_path(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     verbose: bool,
+    root: &Path,
 ) -> anyhow::Result<TutorialRunResult> {
-    let mut tutorial_state = tutorial_state_for_learning_path();
-    run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)
+    let mut tutorial_state = tutorial_state_for_learning_path(root);
+    run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose, root)
 }
 
 /// Guided-setup wow: discovery, optional first-win, then the path picker.
@@ -564,16 +580,17 @@ fn run_discovery_then_first_win_tutorial(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     verbose: bool,
+    root: &Path,
 ) -> anyhow::Result<TutorialRunResult> {
-    match run_discovery(terminal, theme)? {
+    match run_discovery(terminal, theme, root)? {
         Some(mut results) => {
             // WOW-005: land on the highest-value actionable real finding
             // first; declining falls through to the tutorial path picker.
-            if run_first_win_reroute(terminal, theme, &mut results)? == FirstWinFlow::Quit {
+            if run_first_win_reroute(terminal, theme, &mut results, root)? == FirstWinFlow::Quit {
                 return Ok(TutorialRunResult::deferred(SurfaceExit::Quit));
             }
-            let mut tutorial_state = tutorial_state_with_scan(results);
-            run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)
+            let mut tutorial_state = tutorial_state_with_scan(results, root);
+            run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose, root)
         }
         None => Ok(TutorialRunResult::deferred(SurfaceExit::Back)),
     }
@@ -582,125 +599,158 @@ fn run_discovery_then_first_win_tutorial(
 fn run_onboarding(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
+    launch_root: &Path,
 ) -> anyhow::Result<OnboardingOutcome> {
     use anvil_tui::surfaces::onboarding::{OnboardingChoice, OnboardingWelcomeState};
 
-    let mut onboarding = OnboardingWelcomeState::new();
-    let exit = crate::tui::run_surface_in(terminal, &mut onboarding, theme)?;
+    loop {
+        let mut onboarding = OnboardingWelcomeState::new();
+        let exit = crate::tui::run_surface_in(terminal, &mut onboarding, theme)?;
 
-    if exit == SurfaceExit::Quit && onboarding.chosen.is_none() {
-        return Ok(OnboardingOutcome::Quit);
-    }
-
-    match onboarding.chosen {
-        Some(OnboardingChoice::GuidedSetup) => {
-            if run_guided_init(terminal, theme)? {
-                Ok(OnboardingOutcome::Quit)
-            } else {
-                Ok(OnboardingOutcome::Configured)
-            }
+        if exit == SurfaceExit::Quit && onboarding.chosen.is_none() {
+            return Ok(OnboardingOutcome::Quit);
         }
-        Some(OnboardingChoice::SkipToTutorial) => Ok(OnboardingOutcome::Tutorial),
-        Some(OnboardingChoice::SkipEntirely) | None => Ok(OnboardingOutcome::Skip),
+
+        match onboarding.chosen {
+            Some(OnboardingChoice::GuidedSetup) => {
+                match run_guided_init(terminal, theme, launch_root)? {
+                    GuidedInitOutcome::Configured(root) => {
+                        return Ok(OnboardingOutcome::Configured(root));
+                    }
+                    GuidedInitOutcome::Back => {}
+                    GuidedInitOutcome::Quit => return Ok(OnboardingOutcome::Quit),
+                }
+            }
+            Some(OnboardingChoice::SkipToTutorial) => return Ok(OnboardingOutcome::Tutorial),
+            Some(OnboardingChoice::SkipEntirely) | None => return Ok(OnboardingOutcome::Skip),
+        }
     }
 }
 
-/// Returns `true` if the user quit out of the landing screen and the caller
-/// should stop the onboarding flow.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum GuidedInitOutcome {
+    Configured(PathBuf),
+    Back,
+    Quit,
+}
+
+fn guided_init_cancel_outcome(exit: SurfaceExit, wants_back: bool) -> GuidedInitOutcome {
+    if wants_back || exit == SurfaceExit::Back {
+        GuidedInitOutcome::Back
+    } else {
+        GuidedInitOutcome::Quit
+    }
+}
+
+fn guided_init_config(
+    root: &Path,
+    format: anvil_tui::surfaces::init::ConfigFormat,
+    checks: Vec<String>,
+) -> anyhow::Result<(
+    crate::commands::init::GeneratedConfig,
+    crate::commands::init::AnvilConfig,
+)> {
+    let config = crate::commands::init::AnvilConfig {
+        format: crate::commands::init::format_label(format),
+        checks,
+        ..crate::commands::init::AnvilConfig::default()
+    };
+    let generated = crate::commands::init::generate_config(&config, root)
+        .context("could not save config for the selected project")?;
+    Ok((generated, config))
+}
+
 fn run_guided_init(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
-) -> anyhow::Result<bool> {
+    launch_root: &Path,
+) -> anyhow::Result<GuidedInitOutcome> {
     use anvil_tui::surfaces::onboarding;
-
-    // Skip init if config already exists.
-    if onboarding::config_exists() {
-        timed_loading(
-            terminal,
-            "Init",
-            "anvil configuration detected \u{2014} skipping setup.",
-            theme,
-            std::time::Duration::from_millis(200),
-        )?;
-        return Ok(false);
-    }
 
     let checks = crate::commands::defaults::default_available_checks();
     let mut init_state = anvil_tui::surfaces::init::InitState::new(checks);
     let exit = crate::tui::run_surface_in(terminal, &mut init_state, theme)?;
 
-    if exit == SurfaceExit::Quit && !init_state.confirmed {
-        // User quit the init wizard — don't show error, just fall through.
-        return Ok(false);
+    if !init_state.confirmed {
+        return Ok(guided_init_cancel_outcome(exit, init_state.wants_back));
     }
 
-    if init_state.confirmed {
-        let checks: Vec<String> = if init_state.config.checks.is_empty() {
-            crate::commands::defaults::default_check_names()
-        } else {
-            init_state.config.checks
-        };
+    // DISTRIB-006 (ADR-060): confirmation is consent to the wizard choices,
+    // not consent to bypass a non-default install root. Refuse before even
+    // creating the selected directory so a gated run leaves both the launch
+    // project and the selected project untouched.
+    crate::install_root::ensure_project_write_allowed("guided setup")?;
 
-        let init_root = if init_state.config.directory == "." {
-            std::path::PathBuf::from(".")
-        } else {
-            std::path::PathBuf::from(&init_state.config.directory)
-        };
-        if let Err(e) = std::fs::create_dir_all(&init_root) {
-            eprintln!("[welcome] warning: failed to create directory: {e}");
-        }
-
-        let mut config = crate::commands::init::AnvilConfig::default();
-        config.format = crate::commands::init::format_label(init_state.config.format);
-        config.checks.clone_from(&checks);
-
-        match crate::commands::init::generate_config(&config, &init_root) {
-            Ok(generated) => {
-                // Name the file actually written rather than
-                // a hardcoded literal, so the landing summary can never drift
-                // from what `generate_config` created (CIB-171) — the written
-                // file is the canonical `.anvil.<ext>` since UCFG-001; the
-                // fallback literal is unreachable for our own UTF-8 names.
-                let config_path = generated
-                    .config_path
-                    .file_name()
-                    .and_then(std::ffi::OsStr::to_str)
-                    .unwrap_or(".anvil.yaml")
-                    .to_string();
-                let summary = onboarding::InitCompleteSummary {
-                    config_path,
-                    plans_dir: format!("{}/", config.planning_dir),
-                    cache_dir: ".anvil/cache/".to_string(),
-                    gitignore_updated: generated.gitignore_updated,
-                    checks_enabled: checks,
-                };
-                let mut landing = onboarding::InitCompleteState::new(summary);
-                crate::tui::run_surface_in(terminal, &mut landing, theme)?;
-                // InitCompleteState::should_quit returns true for both Enter
-                // (wants_continue) and q/Esc; wants_continue is the authoritative
-                // signal for whether to proceed past the landing screen.
-                if !landing.wants_continue {
-                    return Ok(true);
-                }
-            }
-            Err(e) => {
-                timed_loading(
-                    terminal,
-                    "Init",
-                    &format!("Warning: could not save config: {e}"),
-                    theme,
-                    std::time::Duration::from_millis(400),
-                )?;
-            }
-        }
+    let checks: Vec<String> = if init_state.config.checks.is_empty() {
+        crate::commands::defaults::default_check_names()
+    } else {
+        init_state.config.checks
+    };
+    let init_root = resolve_guided_project_root(launch_root, &init_state.config.directory)?;
+    if onboarding::config_exists_in(&init_root) {
+        timed_loading(
+            terminal,
+            "Init",
+            "anvil configuration detected in the selected project — skipping setup.",
+            theme,
+            std::time::Duration::from_millis(200),
+        )?;
+        return Ok(GuidedInitOutcome::Configured(init_root));
     }
+    let (generated, config) =
+        guided_init_config(&init_root, init_state.config.format, checks.clone())?;
 
-    Ok(false)
+    let config_path = generated
+        .config_path
+        .file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or(".anvil.yaml")
+        .to_string();
+    let summary = onboarding::InitCompleteSummary {
+        config_path,
+        plans_dir: format!("{}/", config.planning_dir),
+        cache_dir: ".anvil/cache/".to_string(),
+        gitignore_updated: generated.gitignore_updated,
+        checks_enabled: checks,
+    };
+    let mut landing = onboarding::InitCompleteState::new(summary);
+    let landing_exit = crate::tui::run_surface_in(terminal, &mut landing, theme)?;
+    if landing.wants_continue {
+        Ok(GuidedInitOutcome::Configured(init_root))
+    } else {
+        Ok(guided_init_cancel_outcome(landing_exit, false))
+    }
+}
+
+/// Resolve the selected project once after confirmation. The typed caller
+/// keeps Back, Quit, write failure, and Configured on distinct paths.
+fn resolve_guided_project_root(
+    launch_root: &std::path::Path,
+    selected_directory: &str,
+) -> anyhow::Result<std::path::PathBuf> {
+    let selected = if selected_directory.is_empty() || selected_directory == "." {
+        launch_root.to_path_buf()
+    } else {
+        launch_root.join(selected_directory)
+    };
+    std::fs::create_dir_all(&selected).with_context(|| {
+        format!(
+            "failed to create selected project directory {}",
+            selected.display()
+        )
+    })?;
+    crate::display_path::canonicalise(&selected).with_context(|| {
+        format!(
+            "failed to resolve selected project directory {}",
+            selected.display()
+        )
+    })
 }
 
 fn run_discovery(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
+    root: &Path,
 ) -> anyhow::Result<Option<anvil_tui::surfaces::tutorial::discovery::ScanResults>> {
     use anvil_tui::surfaces::tutorial::discovery::{DiscoveryState, ScanResults};
     use anvil_tui::surfaces::tutorial::showcase;
@@ -709,8 +759,8 @@ fn run_discovery(
     discovery.tick();
     draw_discovery_scanning(terminal, theme, &discovery)?;
 
-    let results = match scan_project() {
-        Ok(results) if results.findings.is_empty() => {
+    let results = match scan_project(root) {
+        results if results.findings.is_empty() => {
             // Clean project — show showcase examples so user sees capabilities.
             let findings = showcase::showcase_findings();
             ScanResults {
@@ -728,23 +778,7 @@ fn run_discovery(
                 is_showcase: true,
             }
         }
-        Ok(results) => results,
-        Err(e) => {
-            // Scan failed — surface the error and fall back to showcase mode.
-            eprintln!(
-                "Warning: failed to scan project for discovery findings: {e}. Falling back to showcase examples."
-            );
-            let findings = showcase::showcase_findings();
-            ScanResults {
-                findings,
-                files_scanned: 0,
-                duration_ms: 0,
-                truncated: false,
-                files_skipped_by_ignore: 0,
-                // CIB-170: scan-failure fallback is also showcase data.
-                is_showcase: true,
-            }
-        }
+        results => results,
     };
     discovery.set_results(results);
 
@@ -1023,15 +1057,14 @@ fn scan_one(
     Some(local)
 }
 
-fn scan_project() -> anyhow::Result<anvil_tui::surfaces::tutorial::discovery::ScanResults> {
-    let cwd = std::env::current_dir()?;
+fn scan_project(root: &Path) -> anvil_tui::surfaces::tutorial::discovery::ScanResults {
     // `ANVIL_SCAN_ALL` bypasses gitignore (see `scan_project_at`). Parsed here
     // so the discovery logic stays a pure function of `(root, scan_all)` and
     // can be tested against a temp tree without mutating the process env or
     // cwd.
     let scan_all = std::env::var("ANVIL_SCAN_ALL")
         .is_ok_and(|v| !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false"));
-    Ok(scan_project_at(&cwd, scan_all))
+    scan_project_at(root, scan_all)
 }
 
 /// Discover and scan candidate files under `cwd`. Split out from
@@ -1303,25 +1336,24 @@ fn run_tutorial_with_fix(
     theme: &EddaCraftTheme,
     tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
     verbose: bool,
+    workspace_root: &Path,
 ) -> anyhow::Result<TutorialRunResult> {
-    let workspace_root = crate::util::workspace_root()?;
     let progress_path = crate::commands::tutorial::progress_file_path()?;
-    bind_welcome_tutorial_workspace(tutorial_state, &workspace_root)?;
+    bind_welcome_tutorial_workspace(tutorial_state, workspace_root)?;
     let progress = crate::commands::tutorial::load_progress_into_state(
         tutorial_state,
         &progress_path,
-        &workspace_root,
+        workspace_root,
     );
 
-    let exit =
-        run_welcome_tutorial_loop(terminal, theme, tutorial_state, verbose, &workspace_root)?;
+    let exit = run_welcome_tutorial_loop(terminal, theme, tutorial_state, verbose, workspace_root)?;
 
     if crate::commands::tutorial::should_persist_progress(tutorial_state) {
         crate::commands::tutorial::save_progress_from_state(
             &progress_path,
             &progress,
             tutorial_state,
-            &workspace_root,
+            workspace_root,
         )?;
     }
 
@@ -1436,7 +1468,7 @@ fn run_welcome_tutorial_loop(
         }
 
         if let Some(request) = tutorial_state.pending_fix.take() {
-            match apply_fix_request(&request, None) {
+            match apply_fix_request_in(&request, None, workspace_root) {
                 FixOutcome::Applied { summary } => {
                     if let Some(results) = tutorial_state.scan_results.as_mut() {
                         remove_fixed_finding(results, &request);
@@ -1657,8 +1689,10 @@ fn run_welcome_hub(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     verbose: bool,
+    initial_root: &Path,
 ) -> anyhow::Result<()> {
     let mut welcome = WelcomeState::new();
+    let mut active_root = initial_root.to_path_buf();
 
     loop {
         let exit = crate::tui::run_surface_in(terminal, &mut welcome, theme)?;
@@ -1774,7 +1808,7 @@ fn run_welcome_hub(
                 welcome.status_message = None;
                 match hub_run_tutorial_next() {
                     LearningPathNext::PathPicker => {
-                        let tutorial = run_learning_path(terminal, theme, verbose)?;
+                        let tutorial = run_learning_path(terminal, theme, verbose, &active_root)?;
                         if tutorial.exit == SurfaceExit::Quit {
                             break;
                         }
@@ -1784,7 +1818,7 @@ fn run_welcome_hub(
                 welcome.chosen = None;
             }
             Some(QuickStartOption::RestartOnboarding) => {
-                let marker_path = first_run_marker_path()?;
+                let marker_path = first_run_marker_path_in(&active_root);
                 delete_first_run_marker(&marker_path)?;
                 match crate::commands::tutorial::progress_file_path() {
                     Ok(progress_path) => match std::fs::remove_file(&progress_path) {
@@ -1804,28 +1838,39 @@ fn run_welcome_hub(
                     }
                 }
 
-                let (onboarding_ok, continue_to_hub) = match run_onboarding(terminal, theme) {
-                    Ok(outcome) => {
-                        let follow = follow_onboarding_choice(terminal, theme, verbose, outcome)?;
-                        (
-                            outcome.completes_first_run(follow.completes_first_run()),
-                            follow.continue_to_hub(),
-                        )
-                    }
-                    Err(e) => {
-                        welcome.status_message = Some(format!("Onboarding failed: {e}"));
-                        (false, true)
-                    }
-                };
+                let (onboarding_ok, continue_to_hub, selected_root) =
+                    match run_onboarding(terminal, theme, &active_root) {
+                        Ok(outcome) => {
+                            let selected_root = outcome.project_root(&active_root).to_path_buf();
+                            let follow = follow_onboarding_choice(
+                                terminal,
+                                theme,
+                                verbose,
+                                &outcome,
+                                &selected_root,
+                            )?;
+                            (
+                                outcome.completes_first_run(follow.completes_first_run()),
+                                follow.continue_to_hub(),
+                                selected_root,
+                            )
+                        }
+                        Err(e) => {
+                            welcome.status_message = Some(format!("Onboarding failed: {e}"));
+                            (false, true, active_root.clone())
+                        }
+                    };
 
                 // Only re-create marker after successful onboarding so users
                 // can retry on failure.
                 if onboarding_ok {
-                    let marker_path = first_run_marker_path()?;
+                    let marker_path = first_run_marker_path_in(&selected_root);
                     if let Err(err) = create_first_run_marker(&marker_path) {
                         eprintln!("[welcome] warning: failed to create first-run marker: {err}");
                     }
                 }
+
+                active_root = selected_root;
 
                 if !continue_to_hub {
                     break;
@@ -1998,6 +2043,98 @@ fn plain_welcome_message(prompts_sign_in: bool) -> String {
 mod tests {
     use super::*;
 
+    #[test]
+    fn selected_guided_root_is_canonical_and_relative_to_launch_project() {
+        let parent = tempfile::tempdir().expect("parent");
+        let launch = parent.path().join("repo-a");
+        let selected = parent.path().join("repo-b");
+        std::fs::create_dir_all(&launch).expect("launch project");
+
+        let resolved = resolve_guided_project_root(&launch, "../repo-b")
+            .expect("resolve selected project root");
+
+        assert_eq!(
+            resolved,
+            selected.canonicalize().expect("canonical selected project")
+        );
+        assert_ne!(resolved, launch);
+    }
+
+    #[test]
+    fn guided_init_cancellation_keeps_back_and_quit_distinct() {
+        assert_eq!(
+            guided_init_cancel_outcome(SurfaceExit::Back, true),
+            GuidedInitOutcome::Back
+        );
+        assert_eq!(
+            guided_init_cancel_outcome(SurfaceExit::Quit, false),
+            GuidedInitOutcome::Quit
+        );
+    }
+
+    #[test]
+    fn guided_config_failure_never_returns_configured() {
+        let selected = tempfile::tempdir().expect("selected project");
+        std::fs::create_dir(selected.path().join(".anvil.yaml"))
+            .expect("block config file with directory");
+
+        let error = guided_init_config(
+            selected.path(),
+            anvil_tui::surfaces::init::ConfigFormat::Yaml,
+            crate::commands::defaults::default_check_names(),
+        )
+        .expect_err("config write must fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("could not save config for the selected project"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    #[test]
+    fn selected_project_drives_scan_preview_and_apply_without_touching_launch_project() {
+        use crate::services::interactive_fix::{apply_previewed_fix_request, preview_fix_request};
+
+        let parent = tempfile::tempdir().expect("parent");
+        let launch = parent.path().join("repo-a");
+        let selected = parent.path().join("repo-b");
+        std::fs::create_dir_all(&launch).expect("launch project");
+        std::fs::create_dir_all(&selected).expect("selected project");
+        let source = "const value: any = source;\n";
+        std::fs::write(launch.join("a-only.ts"), source).expect("launch source");
+        std::fs::write(selected.join("b-only.ts"), source).expect("selected source");
+
+        let results = scan_project_at(&selected, false);
+        let finding = results
+            .findings
+            .iter()
+            .find(|finding| finding.file == "b-only.ts")
+            .expect("selected finding");
+        assert!(
+            results
+                .findings
+                .iter()
+                .all(|finding| finding.file != "a-only.ts"),
+            "launch project must not enter the selected scan"
+        );
+
+        let request = finding.fix_request().expect("deterministic fix");
+        let preview = preview_fix_request(&request, &selected).expect("selected preview");
+        let outcome = apply_previewed_fix_request(&request, &preview.before, &selected);
+        assert!(matches!(outcome, FixOutcome::Applied { .. }));
+        assert_eq!(
+            std::fs::read_to_string(launch.join("a-only.ts")).expect("launch source remains"),
+            source
+        );
+        assert!(
+            std::fs::read_to_string(selected.join("b-only.ts"))
+                .expect("selected source updated")
+                .contains(": unknown")
+        );
+    }
+
     fn write_test_step(state: &mut anvil_tui::surfaces::tutorial::TutorialState, target: &str) {
         state.load_steps(anvil_tui::surfaces::tutorial::TutorialPath::Policy);
         state.steps[0] = anvil_tui::surfaces::tutorial::TutorialStep {
@@ -2024,6 +2161,7 @@ mod tests {
             || {
                 let mut state = tutorial_state_with_scan(
                     anvil_tui::surfaces::tutorial::discovery::ScanResults::default(),
+                    Path::new("."),
                 );
                 state.load_steps(anvil_tui::surfaces::tutorial::TutorialPath::Policy);
                 let test = state
@@ -2050,6 +2188,7 @@ mod tests {
         temp_env::with_var("ANVIL_DEV", Some("1"), || {
             let mut state = tutorial_state_with_scan(
                 anvil_tui::surfaces::tutorial::discovery::ScanResults::default(),
+                Path::new("."),
             );
             state.load_steps(anvil_tui::surfaces::tutorial::TutorialPath::Policy);
             let test = state
@@ -2071,6 +2210,7 @@ mod tests {
             .expect("canonical workspace");
         let mut state = tutorial_state_with_scan(
             anvil_tui::surfaces::tutorial::discovery::ScanResults::default(),
+            &root,
         );
 
         bind_welcome_tutorial_workspace(&mut state, &root).expect("bind welcome tutorial");
@@ -2089,6 +2229,7 @@ mod tests {
         let sandbox = tempfile::tempdir().expect("sandbox");
         let mut state = tutorial_state_with_scan(
             anvil_tui::surfaces::tutorial::discovery::ScanResults::default(),
+            &root,
         );
         bind_welcome_tutorial_workspace(&mut state, &root).expect("initial bind");
         state
@@ -3019,7 +3160,7 @@ mod tests {
 
         assert_eq!(hub_run_tutorial_next(), LearningPathNext::PathPicker);
 
-        let state = tutorial_state_for_learning_path();
+        let state = tutorial_state_for_learning_path(Path::new("."));
         assert_eq!(state.phase, TutorialPhase::PathSelect);
         assert!(
             state.scan_results.is_none(),
@@ -3032,11 +3173,11 @@ mod tests {
     #[test]
     fn first_run_choose_learning_path_skips_discovery_and_opens_path_picker() {
         assert_eq!(
-            onboarding_next_screen(OnboardingOutcome::Tutorial),
+            onboarding_next_screen(&OnboardingOutcome::Tutorial),
             OnboardingNext::PathPicker
         );
         assert_eq!(
-            onboarding_next_screen(OnboardingOutcome::Configured),
+            onboarding_next_screen(&OnboardingOutcome::Configured(PathBuf::from("."))),
             OnboardingNext::DiscoveryThenFirstWin,
             "guided setup may still wow with discovery; do not remove it"
         );
@@ -3079,7 +3220,7 @@ mod tests {
     fn onboarding_outcome_variants_exist() {
         // Verify all four variants are distinct.
         let outcomes = [
-            OnboardingOutcome::Configured,
+            OnboardingOutcome::Configured(PathBuf::from("configured")),
             OnboardingOutcome::Tutorial,
             OnboardingOutcome::Skip,
             OnboardingOutcome::Quit,
@@ -3097,7 +3238,7 @@ mod tests {
 
     #[test]
     fn first_run_completion_distinguishes_quit_from_explicit_choices() {
-        assert!(OnboardingOutcome::Configured.completes_first_run(true));
+        assert!(OnboardingOutcome::Configured(PathBuf::from(".")).completes_first_run(true));
         assert!(OnboardingOutcome::Tutorial.completes_first_run(true));
         assert!(OnboardingOutcome::Skip.completes_first_run(true));
         assert!(!OnboardingOutcome::Quit.completes_first_run(false));
@@ -3145,7 +3286,10 @@ mod tests {
 
         // Backing out of discovery/tutorial must not count as first-run completion.
         assert!(!OnboardingOutcome::Tutorial.completes_first_run(back.completes_first_run()));
-        assert!(!OnboardingOutcome::Configured.completes_first_run(back.completes_first_run()));
+        assert!(
+            !OnboardingOutcome::Configured(PathBuf::from("."))
+                .completes_first_run(back.completes_first_run())
+        );
         assert!(OnboardingOutcome::Skip.completes_first_run(skip.completes_first_run()));
     }
 }
