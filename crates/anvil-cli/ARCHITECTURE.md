@@ -1,8 +1,8 @@
 # anvil CLI architecture
 
-| Type         | Authority | Owner          | Status | Freshness                                                                                                                                   |
-| ------------ | --------- | -------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-05 against CONV-002 shared source-scan service and RIO-001/002 bounded I/O; component topology and diagrams unchanged |
+| Type         | Authority | Owner          | Status | Freshness                                                                                                                                                                                                                                    |
+| ------------ | --------- | -------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-10 for JREL-009 split MCP entry ownership; diagrams and topology unchanged. Prior review 2026-09-05 against CONV-002 shared source-scan service and RIO-001/002 bounded I/O; component topology and diagrams unchanged |
 
 | Upstream                                                                                      | Downstream                                                                                              |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |

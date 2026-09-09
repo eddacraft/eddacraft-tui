@@ -209,7 +209,7 @@ pub(crate) struct McpEnsureSummary {
 
 /// ADR-114 bare ensure: repair already-owned MCP entries only.
 ///
-/// - `SafeDrift` → rewrite in place (ADR-044 ownership)
+/// - `SafeDrift` → replace only the obsolete managed command path (ADR-044)
 /// - `UpToDate` / `ExplicitOverride` → no write
 /// - `NotPresent` → never install (recovery is `anvil start`)
 /// - `UnsafeDrift` → never overwrite

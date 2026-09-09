@@ -283,7 +283,7 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-009: Preserve explicit MCP launch choices during repair
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** Daily repair fixes owned drift without undoing the user's intended client configuration.
 - **Expected Outcome:** Supported explicit executable, scope, environment and per-entry options survive daily ensure. Managed obsolete paths may migrate, but intentional overrides, disabled state and pins remain respected. Unsafe/corrupt/conflicting entries are reported accurately and never overwritten or mislabelled absent. The ownership policy and any ADR-044 amendment are explicit before changing its contract.
