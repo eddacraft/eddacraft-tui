@@ -31,6 +31,17 @@ fn restore_terminal() {
     let _ = terminal::disable_raw_mode();
 }
 
+fn enter_alternate_screen() -> anyhow::Result<()> {
+    execute!(io::stdout(), EnterAlternateScreen)?;
+    #[cfg(debug_assertions)]
+    if std::env::var_os("ANVIL_TEST_TUI_FAIL_DURING_ENTER").as_deref()
+        == Some(std::ffi::OsStr::new("1"))
+    {
+        anyhow::bail!("injected alternate-screen entry failure");
+    }
+    Ok(())
+}
+
 /// Install a process-wide panic hook that restores the terminal before the
 /// previous hook prints the panic message. Idempotent — only the first call
 /// installs the hook; subsequent calls are no-ops. Without this, a panic
@@ -140,11 +151,12 @@ impl TerminalGuard {
     pub fn enter() -> anyhow::Result<Self> {
         install_panic_hook();
         terminal::enable_raw_mode()?;
-        if let Err(e) = execute!(io::stdout(), EnterAlternateScreen) {
-            // Roll back the raw-mode change so we don't leak it on
-            // partial-setup failure.
-            let _ = terminal::disable_raw_mode();
-            return Err(e.into());
+        if let Err(error) = enter_alternate_screen() {
+            // The enter sequence may have reached the terminal before a
+            // write/flush error was reported, so conservatively restore the
+            // entire terminal while preserving the original setup error.
+            restore_terminal();
+            return Err(error);
         }
         Ok(Self { active: true })
     }

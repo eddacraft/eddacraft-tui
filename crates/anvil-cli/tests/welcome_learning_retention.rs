@@ -287,6 +287,34 @@ fn partial_terminal_setup_failure_restores_the_parent_terminal() {
 
 #[cfg(unix)]
 #[test]
+fn alternate_screen_entry_error_restores_the_parent_terminal() {
+    let home = tempfile::tempdir().expect("isolated user home");
+    let workspace = tempfile::tempdir().expect("new repository");
+    std::fs::create_dir(workspace.path().join(".git")).expect("repository git marker");
+
+    let result = run_welcome_script_with_env(
+        workspace.path(),
+        home.path(),
+        &[("ANVIL_TEST_TUI_FAIL_DURING_ENTER", "1")],
+        &[(b"esc/q quit", b"q")],
+    );
+
+    assert!(
+        !result.status.success(),
+        "the injected alternate-screen entry error must return an error"
+    );
+    assert!(
+        result
+            .transcript
+            .contains("injected alternate-screen entry failure"),
+        "the fixture did not reach the injected entry error:\n{}",
+        result.transcript
+    );
+    assert_terminal_restored(&result);
+}
+
+#[cfg(unix)]
+#[test]
 fn panic_after_terminal_entry_restores_the_parent_terminal() {
     let home = tempfile::tempdir().expect("isolated user home");
     let workspace = tempfile::tempdir().expect("new repository");
