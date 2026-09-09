@@ -2175,7 +2175,7 @@ fn daemon_capability_for_start(
 /// (`ReuseOnly`). `--verify` reports daemon-repair guidance without
 /// fail-closing solely because no daemon is answering. `--json` still
 /// measures selected save-time coverage and fail-closes when it is
-/// unavailable. Explicit `NoSpawn` opt-out/fallback stays ReuseOnly.
+/// unavailable. Explicit `NoSpawn` opt-out/fallback stays `ReuseOnly`.
 fn readiness_daemon_spawn_disabled(
     verify: bool,
     daemon_capability: Option<anvil_intercept::ensure::StartCapability>,
