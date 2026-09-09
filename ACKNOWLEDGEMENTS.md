@@ -2801,7 +2801,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `mio` 1.2.2
+- `mio` 1.2.3
 
 <details>
 <summary>Licence text</summary>
@@ -9534,7 +9534,7 @@ the following restrictions:
 | `rustc-demangle` | 0.1.28 | MIT License | https://github.com/rust-lang/rustc-demangle |
 | `socket2` | 0.6.5 | MIT License | https://github.com/rust-lang/socket2 |
 | `wait-timeout` | 0.2.1 | MIT License | https://github.com/alexcrichton/wait-timeout |
-| `mio` | 1.2.2 | MIT License | https://github.com/tokio-rs/mio |
+| `mio` | 1.2.3 | MIT License | https://github.com/tokio-rs/mio |
 | `errno` | 0.3.14 | MIT License | https://github.com/lambda-fairy/rust-errno |
 | `mime` | 0.3.17 | MIT License | https://github.com/hyperium/mime |
 | `bitflags` | 2.13.1 | MIT License | https://github.com/bitflags/bitflags |
