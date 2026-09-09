@@ -654,7 +654,7 @@ pub(crate) fn render_new_toml_mcp(
 /// Shared drift classifier: same args + a recognised obsolete managed command
 /// path = `SafeDrift`; supported explicit command/environment choices are
 /// `ExplicitOverride`; same args + foreign command = `UnsafeDrift`;
-/// different args = `UnsafeDrift`; non-object existing = `UnsafeDrift`.
+/// different args = `UnsafeDrift`; non-object existing or env = `UnsafeDrift`.
 /// Caller is responsible for the byte-for-byte equality check that produces
 /// `UpToDate`.
 ///
@@ -717,10 +717,15 @@ pub(crate) fn classify_drift_by_args(
         };
     }
 
-    let existing_env = obj
-        .get("env")
-        .cloned()
-        .unwrap_or_else(|| serde_json::json!({}));
+    let existing_env = match obj.get("env") {
+        Some(value) if !value.is_object() => {
+            return DriftClass::UnsafeDrift {
+                reason: "existing entry's env is not an object".to_string(),
+            };
+        }
+        Some(value) => value.clone(),
+        None => serde_json::json!({}),
+    };
     let expected_env = serde_json::to_value(fresh_env).unwrap_or_else(|_| serde_json::json!({}));
     if existing_env != expected_env {
         return DriftClass::ExplicitOverride {
@@ -1905,6 +1910,29 @@ args = ["mcp", "serve", "--stdio"]
                 assert!(reason.contains("environment"));
             }
             other => panic!("expected ExplicitOverride, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classify_drift_by_args_rejects_non_object_env() {
+        for env in [
+            serde_json::json!("ANVIL_HOME=/srv/anvil"),
+            serde_json::json!(["ANVIL_HOME=/srv/anvil"]),
+        ] {
+            let existing = serde_json::json!({
+                "command": "anvil",
+                "args": ["mcp", "serve", "--stdio"],
+                "env": env,
+            });
+            match classify_drift_by_args(&existing, &AnvilEntry::preferred_stdio()) {
+                DriftClass::UnsafeDrift { reason } => {
+                    assert!(
+                        reason.contains("env is not an object"),
+                        "expected non-object env refusal, got {reason}"
+                    );
+                }
+                other => panic!("expected UnsafeDrift for env={env}, got {other:?}"),
+            }
         }
     }
 
