@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval protocol, brief contract, first comparison frozen; GCTX harness diagnosis) | 2026-09-08 — CCTX-005 Draft unblocker for V2/V4 harness; design council [`2026-09-08-cctx-design-council`](../reviews/2026-09-08-cctx-design-council.md) **PASS** (gate WARN) on live §12.7 V1 eval only; product and §15 remain parked. CCTX-003 authored V3/V4 fixtures and the dated comparison report; CCTX-002 froze §9; CCTX-001 froze §12/§13. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
+| Spec | Advisory | CCTX | Draft (eval protocol, brief contract, first comparison frozen; GCTX harness diagnosis) | 2026-09-09 — gctx-simple-v1 Rust/Python estimator cross-check and InputTooLarge alignment; diagram contract unchanged. Prior 2026-09-08 — CCTX-005 Draft unblocker for V2/V4 harness; design council [`2026-09-08-cctx-design-council`](../reviews/2026-09-08-cctx-design-council.md) **PASS** (gate WARN) on live §12.7 V1 eval only; product and §15 remain parked. CCTX-003 authored V3/V4 fixtures and the dated comparison report; CCTX-002 froze §9; CCTX-001 froze §12/§13. Origin: operator-supplied high-level specification, linked against the archived GCTX contract, GATT, CEG, and Graph Trust Surfaces |
 
 | Upstream | Downstream |
 | -------- | ---------- |
