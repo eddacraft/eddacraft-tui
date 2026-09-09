@@ -1164,9 +1164,9 @@ fn l4_policy_next_action(data: &StatusData, repo_root: &Path) -> Option<&'static
         Ok(None) => {
             Some("L4 policy is missing. Create `anvil/policy.yml`, then run `anvil status` again.")
         }
-        Err(_) => {
-            Some("L4 policy is invalid. Fix `anvil/policy.*`, then run `anvil status` again.")
-        }
+        Err(_) => Some(
+            "L4 policy could not be loaded. Fix access or contents of `anvil/policy.*`, then run `anvil status` again.",
+        ),
     }
 }
 
@@ -2438,8 +2438,8 @@ mod tests {
         cleanup(&dir);
     }
 
-    /// CIB-415: an active L4 hook with malformed policy identifies the
-    /// policy parse problem instead of suggesting unrelated daemon work.
+    /// CIB-415: an active L4 hook with a policy that cannot be loaded gives
+    /// guidance that covers both malformed and unreadable policy files.
     #[test]
     fn l4_invalid_policy_next_action_is_actionable() {
         let dir = make_temp_dir();
@@ -2453,8 +2453,10 @@ mod tests {
             SaveTimePosture::Hidden,
         );
         assert!(
-            snapshot.next_action.contains("policy") && snapshot.next_action.contains("invalid"),
-            "invalid policy guidance must identify the problem: {}",
+            snapshot.next_action.contains("policy")
+                && snapshot.next_action.contains("could not be loaded")
+                && !snapshot.next_action.contains("invalid"),
+            "policy load guidance must cover parse and I/O failures: {}",
             snapshot.next_action,
         );
         cleanup(&dir);
