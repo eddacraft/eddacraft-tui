@@ -143,7 +143,7 @@ All gates cleared 2026-09-07; module promoted to **Ready**.
 
 | ID       | Task                                                | Status | Depends on |
 | -------- | --------------------------------------------------- | ------ | ---------- |
-| GATT-001 | Self-attestation contract (spec amendment)          | Ready | —          |
+| GATT-001 | Self-attestation contract (spec amendment)          | In Progress | —          |
 | GATT-002 | Disclosure gate harness (written before the fields) | Ready | GATT-001   |
 | GATT-003 | Per-edge call-resolution fidelity                   | Ready | GATT-002   |
 | GATT-004 | Cap disclosure parity across the six tools          | Ready | GATT-002   |

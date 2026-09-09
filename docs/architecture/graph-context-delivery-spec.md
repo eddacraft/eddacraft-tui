@@ -1,27 +1,36 @@
 # Graph Context Delivery — Architecture Spec
 
-| Type | Authority | Owner                                                                                                                     | Status | Freshness                                                                                                                                                                                                                                                                                           |
-| ---- | --------- | ------------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec | Derived   | GCTX ([`plans/archive/modules/graph-context-delivery.aps.md`](../../plans/archive/modules/graph-context-delivery.aps.md)) | Live   | Authored 2026-06-15 (GCTX-001 projection contract). Folds the context-egress privacy review (PV-9, CE-1..CE-12, APPROVE-WITH-CONDITIONS 4/4) onto the GV2-023 consumer query contract. Projection rules only — schemas, deltas, and hot-path admission stay owned by GV2 (ADR-061/063/064/067/069). |
+| Type | Authority | Owner                                                                                                                     | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---- | --------- | ------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Spec | Derived   | GCTX ([`plans/archive/modules/graph-context-delivery.aps.md`](../../plans/archive/modules/graph-context-delivery.aps.md)) | Live   | Last reviewed 2026-09-09 for GATT-001 / [ADR-142](../../plans/decisions/142-graph-answer-attestation.md) self-attestation: every projection carries a shared counts-and-enums `Attestation` block (tagged totals, per-edge fidelity, cap disclosure, cost self-report). No GV2 schema, no source-text egress change, no ranking field. Authored 2026-06-15 (GCTX-001 projection contract). Folds the context-egress privacy review (PV-9, CE-1..CE-12, APPROVE-WITH-CONDITIONS 4/4) onto the GV2-023 consumer query contract. Projection rules only — schemas, deltas, and hot-path admission stay owned by GV2 (ADR-061/063/064/067/069). |
 
-| Upstream                                                                                                                                                                                                                                                                                                                                                                                   | Downstream                                                                                                                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`graph-v2-foundation-spec.md`](./graph-v2-foundation-spec.md) (GV2-023 consumer query contract), [context-egress privacy review (PV-9)](../../plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md), [ADR-083](../../plans/decisions/083-gctx-mcp-delivery-target.md), [ADR-075](../../plans/decisions/075-v080-graph-product-scope.md), `crates/anvil-intercept-rules` | GCTX-010/011/012/013 (query tools), GCTX-021/022/023 (snippet + slicing), GCTX-030 (`graph://` resources), GCTX-031 (benchmarks), GCTX-032 (user guide), `flags/manifest.json` |
+| Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Downstream                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`graph-v2-foundation-spec.md`](./graph-v2-foundation-spec.md) (GV2-023 consumer query contract), [context-egress privacy review (PV-9)](../../plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md), [ADR-083](../../plans/decisions/083-gctx-mcp-delivery-target.md), [ADR-075](../../plans/decisions/075-v080-graph-product-scope.md), [ADR-142](../../plans/decisions/142-graph-answer-attestation.md) (self-attestation), `crates/anvil-intercept-rules`, `crates/anvil-gctx-types`, `crates/anvil-graph-cache` | GCTX-010/011/012/013 (query tools), GCTX-021/022/023 (snippet + slicing), GCTX-030 (`graph://` resources), GCTX-031 (benchmarks), GCTX-032 (user guide), GATT-001..006 ([graph-answer-attestation](../../plans/modules/graph-answer-attestation.aps.md)), `flags/manifest.json` |
 
-> **Status (2026-07-02): Phase 1–3 all Merged.** The GCTX module is **15/15
-> Merged** — GCTX-010 (#2657) through GCTX-024 (#2980), the full tool/resource
-> surface plus the consented snippet-egress opt-in — see the GCTX row in
+> **Status (2026-09-09): Phase 1–3 all Merged; GATT-001 amends the frozen
+> contract.** The GCTX module is **15/15 Merged** — GCTX-010 (#2657) through
+> GCTX-024 (#2980), the full tool/resource surface plus the consented
+> snippet-egress opt-in — see the GCTX row in
 > [`plans/index.aps.md`](../../plans/index.aps.md). The graph-handle and
 > executor decisions this contract sits on are settled:
 > [ADR-084](../../plans/decisions/084-gctx-graph-handle-access.md),
 > [ADR-085](../../plans/decisions/085-daemon-full-scan-executor.md), and
 > [ADR-086](../../plans/decisions/086-symbol-call-graph-substrate.md) are all
 > **Accepted**. This document remains the **frozen delivery contract** the
-> implementation tracks, not a forward-looking proposal. Forward pointer:
-> [ADR-095](../../plans/decisions/095-gctx-cli-secondary-surface.md) (Proposed)
-> adds a co-equal **CLI secondary** read surface over the same `anvil/gctx/*`
-> RPC spine — MCP-first, the CLI a thin client for out-of-session consumers, not
-> a runtime fallback.
+> implementation tracks, not a forward-looking proposal.
+>
+> [ADR-142](../../plans/decisions/142-graph-answer-attestation.md) (**Accepted**
+> 2026-09-07) adds the self-attestation contract below: every projection states
+> its own bounds in-band. GATT-002..005 implement that contract in
+> `anvil-gctx-types` and `anvil-graph-cache`; this amendment freezes the shape
+> they must ship.
+>
+> [ADR-095](../../plans/decisions/095-gctx-cli-secondary-surface.md)
+> (**Accepted** 2026-07-02) adds a co-equal **CLI secondary** read surface over
+> the same `anvil/gctx/*` RPC spine — MCP-first, the CLI a thin client for
+> out-of-session consumers, not a runtime fallback. Attestation is defined on
+> the projection, so both surfaces render the same block.
 
 ## Purpose and scope
 
@@ -35,16 +44,19 @@ mechanism?_
 GV2 fixes the substrate; GV2-023 fixes that GCTX reads it as a **context
 projection** through a single `GctxProjector` choke point. This spec fixes the
 projection rules themselves — default posture, redaction, the sealed egress DTO,
-volume bounds, degradation, and the transport boundary — by absorbing the twelve
-conditions (CE-1..CE-12) of the
+volume bounds, self-attestation of those bounds (ADR-142), degradation, and the
+transport boundary — by absorbing the twelve conditions (CE-1..CE-12) of the
 [context-egress privacy review (PV-9)](../../plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md).
 
 **In scope:** the egress trust boundary and default posture; the sealed egress
 DTO and single projection choke point; the egress field allowlist and residual
 table; snippet-egress opt-in, secret scanning, and path filtering; volume
-bounds; stale-graph and degradation behaviour; the transport and workspace-root
-boundary; the flag, telemetry, kill-switch, and consent surface; and the
-per-tool / per-resource projection map that the Phase 1–3 items implement.
+bounds; **self-attestation of those bounds** (ADR-142 — what the answer could
+not resolve or could not fit, as a shared counts-and-enums block on every
+projection); stale-graph and degradation behaviour; the transport and
+workspace-root boundary; the flag, telemetry, kill-switch, and consent surface;
+and the per-tool / per-resource projection map that the Phase 1–3 items
+implement.
 
 **Out of scope (owned elsewhere, by design):**
 
@@ -256,6 +268,158 @@ snippet calls, or abuse query params. The contract requires:
   file paths only** — it never reads or forwards diff content; content goes
   through the graph → snippet → redaction pipeline like any other source text.
 
+Caps without disclosure are an unauditable answer. The next section is how every
+projection reports which of these bounds fired, and what that cost.
+
+## Self-attestation (ADR-142)
+
+Every GCTX projection — the six tools and the `graph://` resources, and every
+future projection that ships through `GctxProjector` — carries a single shared
+**`Attestation`** block stating what bound the answer and what it costs. The
+block is additive, counts-and-flags only, and identical in shape across every
+tool and both delivery surfaces (MCP and the ADR-095 CLI secondary).
+
+This is the third disclosure class. Two already exist:
+
+- **Privacy** — `RedactionSummary` (CE-11): what the egress boundary removed.
+- **Assurance** — `workspace_assurance.state` plus a `reason` (CE-7, ADR-084):
+  whether the graph was warm.
+
+The third class is **epistemic**: what the answer itself could not resolve, or
+could not fit. It is already good on `anvil_search_symbols` (`matched` /
+`returned` / `truncated`) and thin or absent on the reports with the highest
+stakes (`ImpactSummary` / `AffectedTestsSummary` carry a single `truncated` bool
+covering two budgets). This section makes the third class a contract, not a
+per-tool courtesy.
+
+Implementation lives in `crates/anvil-gctx-types` (the shared type held by every
+projection DTO) and `crates/anvil-graph-cache` (per-edge call-resolution
+fidelity; the existing `estimate_gctx_tokens` / `GCTX_TOKEN_ESTIMATOR_VERSION`
+cost self-report). This spec freezes the contract; GATT-002 writes the
+observability harness; GATT-003..005 land the fields.
+
+Ranking confidence is **not** a field. `SearchSymbolsQuery` is conjunctive
+filters over a deterministic keyset walk; there is no ranker, so there is no
+ranking confidence to report. Inventing one would be the defect this contract
+exists to prevent: an estimate presented with the confidence of a measurement.
+
+### A shared type, not per-tool fields
+
+`Attestation` is one struct, held by every projection DTO. It is **not** a set
+of per-tool ad-hoc fields, and it is **not** folded into `RedactionSummary`.
+
+Two separate structs, because they answer two different questions and are
+audited by different people: `RedactionSummary` answers _what did the privacy
+boundary remove_ (CE-11, a security artefact); `Attestation` answers _what did
+the query fail to resolve or fit_ (an epistemic artefact). Merging them would
+make the CE-11 counts harder to review in isolation, which is the property that
+made those counts acceptable to PV-9.
+
+Because the type is required by every projection DTO, a new tool cannot ship
+without disclosure. That is the enforcement mechanism, and it is the point:
+partial adoption across six tools is worse than none, since a caller then cannot
+distinguish a tool with no bounds from one that does not report them.
+
+### Bounds are named and separately counted
+
+For every section an answer can cap, `Attestation` carries one entry naming:
+
+- the **section** bounded,
+- the **budget** that bound it (a closed enum — page limit, node budget,
+  traversal depth, byte ceiling, session ceiling), one entry per budget that
+  actually fired,
+- **`returned`**, and
+- **`total`**.
+
+A section that was not bounded contributes no entry. Existing DTO
+`truncated: bool` fields are retained for one release and become _derived_
+(`true` iff at least one bound entry exists), documented as a compatibility
+shim, not removed in this change.
+
+### `total` is a tagged count, never a bare number
+
+`total` is `Exact(n)` or `AtLeast(n)`. It is never a bare integer.
+
+On a filtered scan (`anvil_search_symbols`) the pre-cap total is cheap and
+honest — `Exact`. On a **bounded traversal** (`anvil_impact_of_change`'s
+dependent closure, `anvil_affected_tests`' reverse walk) the true total is
+unknowable without completing the walk the budget exists to prevent: reporting
+one would require defeating the node budget on every call. `AtLeast` states the
+floor and says it is a floor, in the type, so no consumer can read it as a
+total.
+
+A number that reads like a total but is a floor is the defect this contract is
+about. Encoding the distinction in the type is the only way it cannot recur by
+omission.
+
+### Resolution fidelity moves to the edge
+
+Call-resolution ambiguity is reported per call edge. Any caller-level
+`heuristic` flag is retained as a **derived summary of its edge set** and
+documented as such. Marking the symbol when one of its edges is ambiguous is a
+false statement about its other edges, and blast-radius answers are read edge by
+edge.
+
+`crates/anvil-graph-cache` already computes per-edge ambiguity and then OR-s it
+across all of a caller's edges into one caller-level `heuristic` flag. This
+contract requires the per-edge decision to be retained on the projection; the
+caller-level flag is a summary, not a property of the caller.
+
+### The answer reports its own cost
+
+`Attestation` carries `est_tokens` and the `estimator_version` that produced it,
+from the existing `estimate_gctx_tokens` / `GCTX_TOKEN_ESTIMATOR_VERSION`
+(`crates/anvil-graph-cache`). No second estimator is introduced. The version
+travels with the number so it stays comparable across releases and reads as an
+estimate rather than a measurement.
+
+This reports cost; it does not enforce it. The snippet budget keeps its current
+behaviour.
+
+### Egress posture: counts and closed enums only, and `total` is post-filter
+
+Every field is a count, a closed enum variant, or a version string. No name, no
+path, no span, no content. The block therefore travels in the identity-only
+default (CE-1) and inherits the counts-only posture PV-9 accepted for
+`RedactionSummary` (CE-11); the `gctx.egress` opt-in is untouched.
+
+**Binding constraint:** every count is taken **after** the CE-3 sensitive-path
+deny-list is applied. Counting before it would turn `total` into an oracle for
+the existence of denied paths — a query whose `total` exceeds its post-filter
+result set would confirm that matching `.env` / `id_rsa` / `.aws` content
+exists. Denied paths stay counted only in
+`RedactionSummary.omitted_sensitive_paths`, which is where PV-9 put them.
+
+### Gates are written before the fields they guard
+
+No attestation field merges before a test that forces its condition and proves
+the disclosure observable — a cap that actually fires, an ambiguous edge that
+actually exists, an estimate actually attached. Each such gate must be shown to
+fail when its subject is removed. A gate that cannot observe what it asserts is
+worse than no gate, because it reports confidence. GATT-002 is that harness;
+GATT-003..005 are the fields.
+
+### Both surfaces, one shape
+
+The block is defined on the projection, above the transport, so the MCP tools
+and the ADR-095 CLI secondary render the same attestation from the same
+`GctxProjector` output. Neither surface may carry a field the other lacks.
+
+### Per-tool meaning
+
+| Surface                                        | What `Attestation` must disclose                                                                                                                                                               |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anvil_search_symbols`                         | Page-limit bound with `Exact` pre-cap total (today's `RedactionSummary.matched` / `returned` / `truncated`; the shared block is the canonical form)                                            |
+| `anvil_find_callers` / `anvil_find_dependents` | Per-call result-set cap and per-session traversal credit, as separate bound entries when they fire; per-edge resolution fidelity                                                               |
+| `anvil_impact_of_change`                       | Affected-symbol cap and dependent-closure node budget as **separate** bound entries (never one bool covering both); tagged totals (`Exact` for a known seed set, `AtLeast` for a bounded walk) |
+| `anvil_affected_tests`                         | Reverse-walk node budget as its own bound entry; heuristic / incomplete-coverage remains a derived summary of evidence edges                                                                   |
+| `anvil_symbol_context`                         | Union of the above plus snippet byte-ceiling / token-budget bounds                                                                                                                             |
+| `graph://stats`                                | Cost self-report; no section-bound entry unless a cap actually fired                                                                                                                           |
+| `graph://symbols` / `graph://edges`            | Page / byte-cap bounds with tagged totals, post CE-3 filter                                                                                                                                    |
+
+A future tool inherits this table by construction: it holds `Attestation`, so
+shipping without disclosure is a compile error rather than a review catch.
+
 ## Stale-graph guard and degradation (CE-7)
 
 The graph cache may lag source by a rebuild cycle. A credential-shaped symbol
@@ -331,30 +495,42 @@ the graph being off.
 
 Each surface is a projection over the GV2-023 background tier, built only by
 `GctxProjector`. All are identity-only by default; only the snippet-bearing
-surfaces escalate under the CE-1 opt-in.
+surfaces escalate under the CE-1 opt-in. Every surface carries the shared
+`Attestation` block (ADR-142); see
+[Self-attestation (ADR-142)](#self-attestation-adr-142) for per-tool meaning.
 
 - **`anvil_search_symbols`** — paginated, deterministic symbol summaries
   (`SymbolIdentity` + kind + relative path + visibility), opaque cursors (CE-6),
-  CE-3/CE-4 filtering. Identity-only; never carries text. _(GCTX-010)_
+  CE-3/CE-4 filtering. Identity-only; never carries text. Page-limit bound
+  attests `Exact` pre-cap total. _(GCTX-010)_
 - **`anvil_find_callers` / `anvil_find_dependents`** — bounded traversal results
   with distance, relative source file, symbol summary, and truncation metadata;
-  per-call cap + per-session traversal credit (CE-6). Identity-only.
+  per-call cap + per-session traversal credit (CE-6), disclosed as separate
+  bound entries when they fire; per-edge resolution fidelity, with any
+  caller-level `heuristic` flag derived from the edge set. Identity-only.
   _(GCTX-011)_
 - **`anvil_impact_of_change`** — given changed **file paths** (never diff
   content), a deterministic `ImpactReport`: affected symbols, dependent files,
-  known tests; input file-count cap ≈ ≤ 200 (CE-6). Identity-only. _(GCTX-012)_
+  known tests; input file-count cap ≈ ≤ 200 (CE-6). Affected-symbol cap and
+  dependent-closure node budget are **separate** attestation entries; a bounded
+  walk's `total` is `AtLeast`, never a bare integer. The existing
+  `truncated: bool` is a one-release derived shim. Identity-only. _(GCTX-012)_
 - **`anvil_affected_tests`** — test files + evidence edges with explicit
-  heuristic/incomplete-coverage markers. Identity-only. _(GCTX-013)_
+  heuristic/incomplete-coverage markers (derived from the evidence-edge set).
+  Reverse-walk node budget is its own bound entry. Identity-only. _(GCTX-013)_
 - **`anvil_symbol_context`** — the headline tool: search + impact + snippet
   extraction + token budgeting in one response. The primary snippet-bearing
   surface — text only under the CE-1 opt-in, through the full CE-2/CE-3
-  pipeline; identity-only (spans-as-locations) otherwise. _(GCTX-021/022/023)_
+  pipeline; identity-only (spans-as-locations) otherwise. Attests the union of
+  the above plus snippet byte-ceiling / token-budget bounds.
+  _(GCTX-021/022/023)_
 - **`graph://stats`** — aggregate counts (symbol/edge totals, warming/stale
   timestamp); the lowest-risk egress and the recommended default-on warm-up
-  target for the CE-11 redaction-summary machinery (PV-9 N-1). _(GCTX-030)_
+  target for the CE-11 redaction-summary machinery (PV-9 N-1). Cost self-report
+  always; no section-bound entry unless a cap actually fired. _(GCTX-030)_
 - **`graph://symbols` / `graph://edges`** — read-only identity-only summaries
-  with pagination (opaque cursors), CE-3/CE-4 filtering, and CE-6 byte caps.
-  _(GCTX-030)_
+  with pagination (opaque cursors), CE-3/CE-4 filtering, and CE-6 byte caps,
+  attested with tagged totals taken after the CE-3 deny-list. _(GCTX-030)_
 
 ## Warming, stale, and degradation behaviour by class
 
@@ -383,23 +559,33 @@ Where each PV-9 condition is discharged. CE-1 and CE-5 are **hard gates**; the
 rest fold into item text and are verified at implementation.
 
 - **CE-1** (snippet opt-in; identity-only default) — this spec +
-  GCTX-021/022/023 item text. _Hard Ready gate._
+  GCTX-021/022/023 item text. `Attestation` is counts, closed enums, and a
+  version string only, so it travels in the identity-only default. _Hard Ready
+  gate._
 - **CE-2** (deny-by-default secret scan) — GCTX-021 (detector hook), GCTX-022
   (redact-before-budget).
 - **CE-3** (sensitive-path / gitignore filter) — this spec + GCTX-010/021/030.
+  Attestation `total` is counted **after** this deny-list (ADR-142 §6); denied
+  paths stay in `RedactionSummary.omitted_sensitive_paths` only.
 - **CE-4** (egress allowlist + residual table) — this spec (table above) +
   GCTX-010/012/013/030.
 - **CE-5** (sealed DTO + single choke point + no-leak test) — this spec (DTO
   module + projector + no-leak-test scaffold) + every tool/resource Validation
-  line. _Hard item gate (GCTX-001 → Phase 1)._
-- **CE-6** (volume bounds) — this spec + GCTX-010/011/012/022/030.
+  line. `Attestation` is a sealed DTO field, not an internal-type passthrough.
+  _Hard item gate (GCTX-001 → Phase 1)._
+- **CE-6** (volume bounds) — this spec + GCTX-010/011/012/022/030. ADR-142
+  requires each fired bound to be named and counted separately on `Attestation`;
+  `truncated: bool` is a one-release derived shim.
 - **CE-7** (stale-graph guard; no whole-file fallback) — this spec +
-  GCTX-021/023.
+  GCTX-021/023. Assurance (`workspace_assurance`) remains a separate disclosure
+  class from attestation.
 - **CE-8** (session-pinned root; stdio-only) — this spec + GCTX-002.
 - **CE-9** (`gctx.egress` flag) — this spec + `flags/manifest.json` (at first
-  implementation).
-- **CE-10** (enum-only telemetry) — this spec.
+  implementation). Untouched by attestation.
+- **CE-10** (enum-only telemetry) — this spec. `est_tokens` is an aggregate
+  estimate on the projection, not a per-symbol telemetry label.
 - **CE-11** (kill-switch + redaction summary) — this spec + GCTX-023 + GCTX-032.
+  `Attestation` is a sibling of `RedactionSummary`, not a fold into it.
 - **CE-12** (surfaced consent) — this spec + GCTX-032.
 
 ## What this spec deliberately does not freeze
@@ -413,7 +599,12 @@ rest fold into item text and are verified at implementation.
   Phase 1 items in the ADR-083 `anvil mcp serve` surface, not frozen here.
 - **Token-estimator accuracy envelope** (GCTX-020), **benchmark fixtures**
   (GCTX-031), and **user-guide outline** (GCTX-032) — named, detailed in their
-  items.
+  items. ADR-142 reuses the existing estimator for cost self-report; it does not
+  replace the accuracy envelope or enforce a token budget.
+- **The Rust field names and enum discriminants of `Attestation`** — this spec
+  freezes meaning (tagged totals, named budgets, per-edge fidelity, cost
+  self-report, CE-3 post-filter counting). GATT-002..005 fix the type in
+  `anvil-gctx-types` / `anvil-graph-cache`.
 
 ## Related docs
 
@@ -425,8 +616,14 @@ rest fold into item text and are verified at implementation.
   delivery target (`anvil mcp serve`, Rust RMCPF surface)
 - [ADR-075](../../plans/decisions/075-v080-graph-product-scope.md) — v0.9 GCTX
   scope and the two entry gates
-- [ADR-095](../../plans/decisions/095-gctx-cli-secondary-surface.md) (Proposed)
-  — CLI secondary read surface over the same `anvil/gctx/*` daemon spine
-  (MCP-first; CLI a co-equal thin client, not a runtime fallback)
+- [ADR-095](../../plans/decisions/095-gctx-cli-secondary-surface.md)
+  (**Accepted**) — CLI secondary read surface over the same `anvil/gctx/*`
+  daemon spine (MCP-first; CLI a co-equal thin client, not a runtime fallback)
+- [ADR-142](../../plans/decisions/142-graph-answer-attestation.md)
+  (**Accepted**) — graph answers attest their own bounds; this spec's
+  self-attestation section is that decision
+- [`plans/modules/graph-answer-attestation.aps.md`](../../plans/modules/graph-answer-attestation.aps.md)
+  — GATT-001..006 implement the contract (spec, gate harness, per-edge fidelity,
+  cap parity, cost self-report, consumer teaching)
 - [`plans/archive/modules/graph-context-delivery.aps.md`](../../plans/archive/modules/graph-context-delivery.aps.md)
   — the GCTX module and work items
