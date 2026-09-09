@@ -1863,6 +1863,7 @@ mod tests {
     /// without re-formatting.
     #[test]
     fn build_protection_claim_uses_agent_tag_identifier() {
+        use anvil_intercept_proto::session::AgentTag;
         let tag = AgentTag::new("anvil-run", "claude-code-1", 1_700_000_042);
         let mut session = sample_session("sess-tag", "/tmp/wt-tag");
         session.agent_tag = Some(tag);
@@ -1997,6 +1998,7 @@ mod tests {
     /// identifier on the wire path as on the daemon-internal path.
     #[test]
     fn build_protection_claim_from_wire_uses_agent_tag_identifier() {
+        use anvil_intercept_proto::session::AgentTag;
         let tag = AgentTag::new("anvil-run", "claude-code-1", 1_700_000_042);
         let mut session = sample_session("sess-tag", "/tmp/wt-tag");
         session.agent_tag = Some(tag);
