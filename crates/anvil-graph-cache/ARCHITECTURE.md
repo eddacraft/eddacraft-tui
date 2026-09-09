@@ -1,8 +1,8 @@
 # anvil graph-cache architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                    |
-| ------------ | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | GV2   | Live   | Last reviewed 2026-08-31 against `crates/anvil-kernel-types/src/graph.rs` ordinal default (CIB-387); source-to-graph flow diagrams unchanged |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                               |
+| ------------ | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | GV2   | Live   | Last reviewed 2026-09-10 GATT-003: per-edge call-resolution fidelity on callers_of (call_graph); diagram contract unchanged Prior review 2026-08-31 against `crates/anvil-kernel-types/src/graph.rs` ordinal default (CIB-387); source-to-graph flow diagrams unchanged |
 
 | Upstream                                                                                                                 | Downstream                                                                |
 | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
