@@ -512,22 +512,6 @@ fn run_onboarding(
 ) -> anyhow::Result<OnboardingOutcome> {
     use anvil_tui::surfaces::onboarding::{OnboardingChoice, OnboardingWelcomeState};
 
-    // Check for stale tutorial progress from a previous install and reset.
-    if let Ok(progress_path) = crate::commands::tutorial::progress_file_path()
-        && progress_path.exists()
-    {
-        timed_loading(
-            terminal,
-            "Setup",
-            "Previous tutorial progress found \u{2014} resetting for fresh install.",
-            theme,
-            std::time::Duration::from_millis(600),
-        )?;
-        if let Err(e) = std::fs::remove_file(&progress_path) {
-            eprintln!("[welcome] warning: could not remove tutorial progress: {e}");
-        }
-    }
-
     let mut onboarding = OnboardingWelcomeState::new();
     let exit = crate::tui::run_surface_in(terminal, &mut onboarding, theme)?;
 
