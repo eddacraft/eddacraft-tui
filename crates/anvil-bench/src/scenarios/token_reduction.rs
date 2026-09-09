@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::time::Instant;
 
 use anvil_gctx_types::{
-    DependentSummary, ImpactOutcome, ImpactReport, ImpactSummary, SymbolSummary,
+    Attestation, DependentSummary, ImpactOutcome, ImpactReport, ImpactSummary, SymbolSummary,
 };
 use anvil_graph_cache::estimate_gctx_tokens;
 use anvil_kernel_types::{
