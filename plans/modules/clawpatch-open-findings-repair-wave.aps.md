@@ -7,8 +7,9 @@
 | -------- | ----- | -------- | ----------- | -------- |
 | CLAWOPEN | —     | P1       | In Progress | 9/12     |
 
-**Last reviewed:** 2026-09-05 — open PR #4361 reconciled: CLAWOPEN-007 is In
-Progress; CLAWOPEN-011 is Blocked on hosted Neon provisioning. Prior:
+**Last reviewed:** 2026-09-09 — #4361 merged, so CLAWOPEN-007 is Merged;
+CLAWOPEN-011 is Complete now its hosted Neon proof is green on `main`
+(run 34305126477). Prior:
 CLAWOPEN-002 and CLAWOPEN-010 merged via
 [#4219](https://github.com/eddacraft/anvil-001/pull/4219) (`6e728c0f7`). The
 bounded first delivery of seven clusters covering 14 of the 24 findings that
@@ -17,9 +18,9 @@ remain after SETCON-012 merged via
 source set remains the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
 selected for this repair wave. CLAWOPEN-001, -002, -003, -004, -005, -006, -008,
--010, and -012 are Merged. CLAWOPEN-007 is In Progress on #4361; CLAWOPEN-011 is
-Blocked on its hosted Neon proof; CLAWOPEN-009 is In Progress under EMBERRS-001
-retirement authority.
+-007, -008, -010, and -012 are Merged. CLAWOPEN-011 is Complete on its hosted
+Neon proof; CLAWOPEN-009 is In Progress under EMBERRS-001 retirement authority.
+Stored `N/M` is left to the `pnpm aps:index` reconcile (ADR-053).
 
 > **Exclusive module.** The wave orchestrator is the only plan writer. Parallel
 > executors own isolated code/test workspaces and do not edit this module, the
@@ -197,11 +198,17 @@ findings, are repaired.
 
 ### CLAWOPEN-007: Make generated docs durable
 
-- **Status:** In Progress — implementation in open PR #4361
-- **Reconciliation (2026-09-05):** The implementing branch contains whole-batch
-  rollback and help-snapshot boundary work. PR #4361 is non-draft and mergeable
-  at 7a650924dd738bacc26920e547792d15098f6d03, but remains unmerged. Its opening
-  description predates that state; no completion claim is made here.
+- **Status:** Merged 2026-09-05 via PR #4361
+- **Closeout evidence (2026-09-09):**
+  [#4361](https://github.com/eddacraft/anvil-001/pull/4361) merged to `main` at
+  `de222cbc` on 2026-09-05, carrying `scripts/docs/lib/atomic-output-batch.mjs`
+  and routing both generators through it. Re-verified on `main` at `82db0626`:
+  `node --test scripts/docs/atomic-output-batch.test.mjs` 6/6,
+  `node --test scripts/docs/generator-atomic-output.test.mjs` 7/7,
+  `pnpm docs:public:check` 0 errors across 98 files, and
+  `pnpm docs:catalogue:check` current. The remaining `pnpm test:docs-check` and
+  `pnpm docs:check` legs are covered by the merge's own CI rather than re-run
+  here.
 - **Priority:** P2
 - **Risk:** standard
 - **Intent:** Documentation generation cannot destroy the prior valid outputs.
@@ -216,8 +223,8 @@ findings, are repaired.
 - **Validation:** `node --test scripts/docs/atomic-output-batch.test.mjs`;
   `pnpm test:docs-check`; `pnpm docs:public:check`;
   `pnpm docs:catalogue:check`; `pnpm docs:check`
-- **Decision:** the whole-batch rollback and `--update-help-snapshots` boundary
-  design is implemented on #4361; review and merge remain outstanding.
+- **Decision:** closed — the whole-batch rollback and `--update-help-snapshots`
+  boundary design merged via #4361.
 
 ### CLAWOPEN-008: Make evaluation evidence non-vacuous
 
@@ -295,12 +302,23 @@ findings, are repaired.
 
 ### CLAWOPEN-011: Prove OTP attempt caps against PostgreSQL
 
-- **Status:** Blocked — hosted Neon provisioning is not configured
-- **Reconciliation (2026-09-05):** Implementation is in open PR #4361 at
-  7a650924dd738bacc26920e547792d15098f6d03. Hosted run 33893142132 failed before
-  the database proof: NEON_API_KEY is required (NEON_PROJECT_ID was also empty).
-  Configure the dedicated non-production harness and pass the real contention
-  test before closeout; green mock tests are insufficient.
+- **Status:** Complete 2026-09-09 — hosted Neon proof green on `main`
+- **Closeout evidence (2026-09-09):** Hosted provisioning is configured and the
+  live proof passes end to end. Run
+  [34305126477](https://github.com/eddacraft/anvil-001/actions/runs/34305126477)
+  (`workflow_dispatch` on `main` at `82db0626`) created the ephemeral branch
+  `ci-test-clawopen-011-34305126477-1` (`br-odd-flower-axubaaml`, two-hour
+  expiry) in the `anvil-api-test` project, passed
+  `apps/anvil-api/src/__tests__/auth-otp.neon.test.ts` — "allows exactly three
+  claims after more than three callers visibly contend on the row lock" — and
+  deleted the branch. The 2026-09-05 `NEON_API_KEY is required` failure
+  (run 33893142132) was cleared by
+  [#4473](https://github.com/eddacraft/anvil-001/pull/4473), which pointed the
+  workflow at the configured `NEON_TEST_API_KEY` secret and
+  `NEON_TEST_PROJECT_ID` variable. Supporting local evidence on `82db0626`:
+  focused API suites 44/44 (`auth-otp`, `neon-otp-contention`,
+  `neon-test-database-safety`, `neon-client-retry`) and
+  `pnpm --dir apps/anvil-api typecheck` clean.
 - **Priority:** P1
 - **Risk:** high
 - **Intent:** The OTP attempt cap is verified against the real database
@@ -322,8 +340,8 @@ findings, are repaired.
 - **Finding ID:** `fnd_sig-feat-route-c6c95ee31e-9b089f_43160b2454`
 - **Validation:** the repository's PostgreSQL-backed API integration command;
   focused API tests and typecheck
-- **Decision:** disposable PostgreSQL harness implementation is on #4361; hosted
-  provisioning and real-database verification remain outstanding.
+- **Decision:** closed — the disposable PostgreSQL harness merged via #4361 and
+  the hosted real-database verification is green on `main`.
 
 ### CLAWOPEN-012: Complete operational API documentation
 
