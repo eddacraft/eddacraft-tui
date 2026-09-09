@@ -546,7 +546,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   `fnd_sig-feat-library-34bc4660c0-5f3f` /
   `fnd_sig-feat-library-34bc4660c0-d3a8` /
   `fnd_sig-feat-library-34bc4660c0-2aa7`); triage at
-  `plans/reviews/2026-05-29-clawpatch-triage.md`. Defect 1 corroborates the
+  `plans/archive/reviews/2026-05-29-clawpatch-triage.md`. Defect 1 corroborates the
   hand-noted `--update-baseline` overwrite friction in
   `plans/reviews/continuous-improvement-log.md`, which was never filed.
 - **Dependencies:** DOCGOV-005 (built `docs:check`), DOCGOV-007 (index-freshness

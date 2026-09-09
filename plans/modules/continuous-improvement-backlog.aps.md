@@ -799,7 +799,7 @@ archive.
 - **Identified From:** 2026-05-29 clawpatch periodic scan
   (`plans/audits/2026-05-29-clawpatch-periodic-scan.json`, finding
   `fnd_sig-feat-library-ae662c437a-fe21_879e585035`); triage at
-  `plans/reviews/2026-05-29-clawpatch-triage.md`. Distinct from CIB-023, which
+  `plans/archive/reviews/2026-05-29-clawpatch-triage.md`. Distinct from CIB-023, which
   covers the implemented-but-draft drift class rather than input robustness.
 - **Files:** `scripts/aps/drift-check.mjs` release-record loading/error handling;
   a drift-check fixture test.
@@ -2391,7 +2391,7 @@ archive.
   `crates/anvil-sarif/src/lib.rs`; focused unit/integration tests per crate.
 - **Validation:** `cargo test -p eddacraft-anvil-gctx-egress -p eddacraft-anvil-gctx-types -p eddacraft-anvil-policy-engine -p eddacraft-anvil-sarif`;
   each fix has a failing test proven against current `main` before implementation.
-- **Identified From:** `plans/reviews/2026-06-20-clawpatch-triage.md` §A (Rust
+- **Identified From:** `plans/archive/reviews/2026-06-20-clawpatch-triage.md` §A (Rust
   product-actionable); audit `plans/audits/2026-06-20-clawpatch-periodic-scan.json`.
 - **Coordinates with:** `feat/gctx-020` and other in-flight gctx work — reconcile
   file overlap before implementation; do not race duplicate fixes.
@@ -3595,7 +3595,7 @@ archive.
   `crates/anvil-intercept/tests/binary_contract.rs`.
 - **Identified From:** clawpatch 2026-07-02 triage
   (`fnd_sig-feat-cli-command-43c5f1e5c2`, low / contract-mismatch);
-  `plans/reviews/2026-07-02-clawpatch-triage.md`.
+  `plans/archive/reviews/2026-07-02-clawpatch-triage.md`.
 - **Confidence:** high.
 
 ### CIB-129: Cover the `anvil-rayon-init` half-cores pool cap with a test
@@ -3624,7 +3624,7 @@ archive.
   `crates/anvil-kernel/tests/langtail_external_validation.rs`, plus the test-gap
   tail enumerated in `plans/audits/2026-07-02-clawpatch-periodic-scan.json`.
 - **Identified From:** clawpatch 2026-07-02 triage (63 test-gap + 2 confirmed-bug
-  in `crates/**/tests/`); `plans/reviews/2026-07-02-clawpatch-triage.md`.
+  in `crates/**/tests/`); `plans/archive/reviews/2026-07-02-clawpatch-triage.md`.
 - **Confidence:** medium.
 
 ### CIB-131: Harden dogfood FP classifier path handling
@@ -3651,7 +3651,7 @@ archive.
 - **Files:** `infra/scripts/admin-key-manage.mjs`.
 - **Identified From:** clawpatch 2026-07-02 triage (`admin-key-manage.mjs`
   medium / confirmed-bug SSL-substring + low / contract-mismatch field name);
-  `plans/reviews/2026-07-02-clawpatch-triage.md`.
+  `plans/archive/reviews/2026-07-02-clawpatch-triage.md`.
 - **Confidence:** high.
 
 ### CIB-133: Gate the first-week insights nudge under `project_writes_gated` in `status` and `watch`

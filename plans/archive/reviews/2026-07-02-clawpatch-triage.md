@@ -4,7 +4,7 @@
 **Status command:** `clawpatch status`
 **Findings input:** `plans/audits/2026-07-02-clawpatch-periodic-scan.json`
 **Corpus SHA:** `d1fded280` (`main`)
-**Predecessor:** `plans/reviews/2026-06-20-clawpatch-triage.md`
+**Predecessor:** `plans/archive/reviews/2026-06-20-clawpatch-triage.md`
 
 ## Why this run
 

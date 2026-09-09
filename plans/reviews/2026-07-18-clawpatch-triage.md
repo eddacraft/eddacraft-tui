@@ -5,7 +5,7 @@ codex / `gpt-5.6-terra` high)
 **Status command:** `clawpatch status`
 **Findings input:** `plans/audits/2026-07-18-clawpatch-periodic-scan.json`
 **Branch:** `test/clawpatch`
-**Predecessor:** `plans/reviews/2026-07-02-clawpatch-triage.md`
+**Predecessor:** `plans/archive/reviews/2026-07-02-clawpatch-triage.md`
 
 ## Why this run
 
