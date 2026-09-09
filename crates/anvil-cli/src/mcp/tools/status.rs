@@ -8,6 +8,7 @@ use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 use crate::mcp::validation::DaemonStatus;
 
 pub const TOOL_NAME: &str = "anvil_status";
+const PATH_REDACTED: &str = "value redacted; run local `anvil status` for details";
 
 pub fn descriptor() -> Value {
     json!({
@@ -33,10 +34,11 @@ pub fn descriptor() -> Value {
 }
 
 pub fn call(arguments: &Value) -> Value {
-    let payload = match status_payload(arguments) {
+    let mut payload = match status_payload(arguments) {
         Ok(payload) => payload,
         Err(error) => json!({ "error": error }),
     };
+    redact_path_bearing_strings(&mut payload);
     tool_result(&payload)
 }
 
@@ -87,9 +89,8 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         })
     });
     let next = status_command::status_readiness_action(&readiness);
-    let mut readiness_value =
+    let readiness_value =
         serde_json::to_value(&readiness).expect("readiness projection serialises");
-    redact_readiness_details(&mut readiness_value);
     let mut payload = json!({
         "status": "ok",
         "workspaceRoot": redacted_workspace_root,
@@ -115,21 +116,13 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
     Ok(payload)
 }
 
-fn redact_readiness_details(value: &mut Value) {
+fn redact_path_bearing_strings(value: &mut Value) {
     match value {
         Value::Object(object) => {
-            for (key, child) in object {
-                if key == "detail"
-                    && let Value::String(detail) = child
-                    && contains_absolute_path(detail)
-                {
-                    "detail redacted; run local `anvil status` for details".clone_into(detail);
-                } else {
-                    redact_readiness_details(child);
-                }
-            }
+            object.values_mut().for_each(redact_path_bearing_strings);
         }
-        Value::Array(values) => values.iter_mut().for_each(redact_readiness_details),
+        Value::Array(values) => values.iter_mut().for_each(redact_path_bearing_strings),
+        Value::String(text) if contains_absolute_path(text) => PATH_REDACTED.clone_into(text),
         _ => {}
     }
 }
@@ -460,26 +453,22 @@ mod tests {
     }
 
     #[test]
-    fn readiness_egress_redacts_unix_and_windows_absolute_paths() {
+    fn status_egress_redacts_absolute_paths_in_every_string_field() {
         let mut value = json!({
             "components": {
                 "mcp": { "detail": "configured MCP command `/outside/private/anvil-mcp` is not resolvable on PATH" },
                 "save_time": { "detail": "watcher C:\\Users\\operator\\private failed" },
                 "daemon": { "detail": "daemon serving" }
-            }
+            },
+            "config": { "error": "yaml parse error in /outside/private/.anvil.yaml" }
         });
 
-        redact_readiness_details(&mut value);
+        redact_path_bearing_strings(&mut value);
 
-        assert_eq!(
-            value["components"]["mcp"]["detail"],
-            "detail redacted; run local `anvil status` for details"
-        );
-        assert_eq!(
-            value["components"]["save_time"]["detail"],
-            "detail redacted; run local `anvil status` for details"
-        );
+        assert_eq!(value["components"]["mcp"]["detail"], PATH_REDACTED);
+        assert_eq!(value["components"]["save_time"]["detail"], PATH_REDACTED);
         assert_eq!(value["components"]["daemon"]["detail"], "daemon serving");
+        assert_eq!(value["config"]["error"], PATH_REDACTED);
         let encoded = serde_json::to_string(&value).unwrap();
         assert!(!encoded.contains("/outside/private"));
         assert!(!encoded.contains("operator"));
@@ -522,7 +511,12 @@ mod tests {
         let payload: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
             .expect("payload is JSON");
         assert_eq!(payload["config"]["loaded"], false);
-        assert!(payload["config"]["error"].is_string());
+        assert_eq!(payload["config"]["error"], PATH_REDACTED);
+        assert!(
+            !serde_json::to_string(&payload)
+                .expect("status payload serialises")
+                .contains(workspace.path().to_string_lossy().as_ref())
+        );
         assert_eq!(
             payload["readiness"]["aggregate"]["components"]["config"]["state"],
             "failed"
