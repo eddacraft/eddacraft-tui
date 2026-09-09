@@ -27,6 +27,15 @@ pub enum TokenEstimateError {
     },
 }
 
+/// Estimate a serialised GCTX envelope. `None` when the payload exceeds
+/// [`MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES`] — omit cost rather than lie.
+#[must_use]
+pub fn estimate_gctx_envelope(json: &str) -> Option<(usize, &'static str)> {
+    estimate_gctx_tokens(json, None)
+        .ok()
+        .map(|est| (est.tokens, est.estimator))
+}
+
 pub fn estimate_gctx_tokens(
     input: &str,
     language: Option<&str>,
@@ -157,5 +166,18 @@ mod tests {
                 max_bytes: MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES,
             }
         );
+        assert!(
+            estimate_gctx_envelope(&input).is_none(),
+            "GATT-005: oversized envelopes omit cost rather than truncate"
+        );
+    }
+
+    #[test]
+    fn estimate_gctx_envelope_reports_versioned_cost() {
+        let json =
+            r#"{"symbols":[],"redaction_summary":{"matched":0,"returned":0,"truncated":false}}"#;
+        let (tokens, version) = estimate_gctx_envelope(json).expect("small envelope");
+        assert_eq!(version, GCTX_TOKEN_ESTIMATOR_VERSION);
+        assert!(tokens > 0);
     }
 }

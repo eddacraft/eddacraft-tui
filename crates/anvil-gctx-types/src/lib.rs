@@ -1554,6 +1554,19 @@ mod tests {
     }
 
     #[test]
+    fn filled_cost_serialises_version_and_tokens() {
+        let att = Attestation {
+            est_tokens: 40,
+            estimator_version: "gctx-simple-v1".into(),
+            ..Attestation::default()
+        };
+        let v = serde_json::to_value(&att).unwrap();
+        assert_eq!(v["est_tokens"], 40);
+        assert_eq!(v["estimator_version"], "gctx-simple-v1");
+        assert!(v.get("bounds").is_none());
+    }
+
+    #[test]
     fn default_attestation_serialises_as_empty_object() {
         // ADR-142 risk: `est_tokens: 0` + empty version on every default
         // projector looks like a real estimate. Unset cost fields stay absent

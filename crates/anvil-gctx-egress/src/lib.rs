@@ -12,7 +12,7 @@ use anvil_gctx_types::{
     SearchSymbolsQuery, SnippetResult, SymbolContextProjection, SymbolContextRedactionSummary,
     SymbolSummary, TestEvidence,
 };
-use anvil_graph_cache::{CallEdgeFidelity, DependencyGraph, SymbolGraph};
+use anvil_graph_cache::{CallEdgeFidelity, DependencyGraph, SymbolGraph, estimate_gctx_envelope};
 use anvil_kernel_types::{
     ByteRange, EdgeType, SymbolIdentity, SymbolKind, SymbolNode, Visibility, content_hash,
 };
@@ -211,27 +211,30 @@ impl GctxProjector {
 
         let returned = page.len();
         let has_more = next_cursor.is_some();
-        Ok(SearchSymbolsProjection {
-            // `truncated` is the authoritative "more pages follow" signal — it is
-            // `false` on the final page of a multi-page walk (where `matched`
-            // still exceeds this page's `returned`).
-            redaction_summary: RedactionSummary {
-                matched,
-                returned,
-                truncated: has_more,
-                omitted_sensitive_paths: omitted_sensitive,
-                ..Default::default()
+        Ok(with_cost_self_report(
+            SearchSymbolsProjection {
+                // `truncated` is the authoritative "more pages follow" signal — it is
+                // `false` on the final page of a multi-page walk (where `matched`
+                // still exceeds this page's `returned`).
+                redaction_summary: RedactionSummary {
+                    matched,
+                    returned,
+                    truncated: has_more,
+                    omitted_sensitive_paths: omitted_sensitive,
+                    ..Default::default()
+                },
+                symbols: page,
+                next_cursor,
+                attestation: page_attestation(
+                    BoundSection::SearchPage,
+                    returned,
+                    matched,
+                    has_more,
+                    false,
+                ),
             },
-            symbols: page,
-            next_cursor,
-            attestation: page_attestation(
-                BoundSection::SearchPage,
-                returned,
-                matched,
-                has_more,
-                false,
-            ),
-        })
+            |p| &mut p.attestation,
+        ))
     }
 
     /// Walk the reverse-impact (dependents) set of `file` and collect identity-only
@@ -393,25 +396,28 @@ impl GctxProjector {
 
         let returned = page.len();
         let has_more = next_cursor.is_some();
-        Ok(FindDependentsProjection {
-            redaction_summary: RedactionSummary {
-                matched,
-                returned,
-                truncated: has_more,
-                omitted_sensitive_paths: omitted_sensitive,
-                ..Default::default()
+        Ok(with_cost_self_report(
+            FindDependentsProjection {
+                redaction_summary: RedactionSummary {
+                    matched,
+                    returned,
+                    truncated: has_more,
+                    omitted_sensitive_paths: omitted_sensitive,
+                    ..Default::default()
+                },
+                dependents: page,
+                next_cursor,
+                partial: walk_truncated,
+                attestation: page_attestation(
+                    BoundSection::Dependents,
+                    returned,
+                    matched,
+                    has_more,
+                    walk_truncated,
+                ),
             },
-            dependents: page,
-            next_cursor,
-            partial: walk_truncated,
-            attestation: page_attestation(
-                BoundSection::Dependents,
-                returned,
-                matched,
-                has_more,
-                walk_truncated,
-            ),
-        })
+            |p| &mut p.attestation,
+        ))
     }
 
     /// Collect the identity-only callers of `target` from the warm symbol graph
@@ -540,25 +546,28 @@ impl GctxProjector {
 
         let returned = page.len();
         let has_more = next_cursor.is_some();
-        Ok(FindCallersProjection {
-            redaction_summary: RedactionSummary {
-                matched,
-                returned,
-                truncated: has_more,
-                omitted_sensitive_paths: omitted_sensitive,
-                ..Default::default()
+        Ok(with_cost_self_report(
+            FindCallersProjection {
+                redaction_summary: RedactionSummary {
+                    matched,
+                    returned,
+                    truncated: has_more,
+                    omitted_sensitive_paths: omitted_sensitive,
+                    ..Default::default()
+                },
+                callers: page,
+                next_cursor,
+                partial: walk_truncated || callers_incomplete,
+                attestation: page_attestation(
+                    BoundSection::Callers,
+                    returned,
+                    matched,
+                    has_more,
+                    walk_truncated,
+                ),
             },
-            callers: page,
-            next_cursor,
-            partial: walk_truncated || callers_incomplete,
-            attestation: page_attestation(
-                BoundSection::Callers,
-                returned,
-                matched,
-                has_more,
-                walk_truncated,
-            ),
-        })
+            |p| &mut p.attestation,
+        ))
     }
 
     /// Collect the raw, identity-only pieces of an impact-of-change report
@@ -765,13 +774,16 @@ impl GctxProjector {
             truncated: attestation.truncated(),
             omitted_sensitive_paths: omitted_sensitive,
         };
-        ImpactReport {
-            affected_symbols: affected,
-            dependent_files: dependents,
-            known_tests,
-            summary,
-            attestation,
-        }
+        with_cost_self_report(
+            ImpactReport {
+                affected_symbols: affected,
+                dependent_files: dependents,
+                known_tests,
+                summary,
+                attestation,
+            },
+            |p| &mut p.attestation,
+        )
     }
 
     /// Collect the raw, identity-only pieces of an affected-tests report
@@ -980,13 +992,16 @@ impl GctxProjector {
             truncated: attestation.truncated(),
             omitted_sensitive_paths: omitted_sensitive,
         };
-        AffectedTestsReport {
-            tests,
-            coverage_gaps,
-            heuristic: true,
-            summary,
-            attestation,
-        }
+        with_cost_self_report(
+            AffectedTestsReport {
+                tests,
+                coverage_gaps,
+                heuristic: true,
+                summary,
+                attestation,
+            },
+            |p| &mut p.attestation,
+        )
     }
 
     /// Build the counts-only `graph://stats` projection (GCTX-030). Pure
@@ -1000,13 +1015,16 @@ impl GctxProjector {
         file_count: usize,
         dependency_edge_count: usize,
     ) -> GraphStatsProjection {
-        GraphStatsProjection {
-            symbol_count,
-            symbol_edge_count,
-            file_count,
-            dependency_edge_count,
-            attestation: Attestation::default(),
-        }
+        with_cost_self_report(
+            GraphStatsProjection {
+                symbol_count,
+                symbol_edge_count,
+                file_count,
+                dependency_edge_count,
+                attestation: Attestation::default(),
+            },
+            |p| &mut p.attestation,
+        )
     }
 
     /// Collect identity-only `(from, to, edge_type)` edge summaries from the
@@ -1164,25 +1182,28 @@ impl GctxProjector {
 
         let returned = page.len();
         let has_more = next_cursor.is_some();
-        Ok(GraphEdgesProjection {
-            redaction_summary: RedactionSummary {
-                matched,
-                returned,
-                truncated: has_more,
-                omitted_sensitive_paths: omitted_sensitive,
-                ..Default::default()
-            },
-            edges: page,
-            next_cursor,
-            bounded,
-            attestation: page_attestation(
-                BoundSection::GraphResourcePage,
-                returned,
-                matched,
-                has_more,
+        Ok(with_cost_self_report(
+            GraphEdgesProjection {
+                redaction_summary: RedactionSummary {
+                    matched,
+                    returned,
+                    truncated: has_more,
+                    omitted_sensitive_paths: omitted_sensitive,
+                    ..Default::default()
+                },
+                edges: page,
+                next_cursor,
                 bounded,
-            ),
-        })
+                attestation: page_attestation(
+                    BoundSection::GraphResourcePage,
+                    returned,
+                    matched,
+                    has_more,
+                    bounded,
+                ),
+            },
+            |p| &mut p.attestation,
+        ))
     }
 
     /// Resolve a symbol's snippet location **under the cache lock** (GCTX-021).
@@ -1481,34 +1502,37 @@ impl GctxProjector {
 
         let attestation = snippet_attestation(&sliced);
 
-        SymbolContextProjection {
-            snippets: sliced
-                .snippets
-                .into_iter()
-                .map(|s| ContextSnippet {
-                    identity: s.identity,
-                    distance: s.distance,
-                    snippet: s.snippet,
-                })
-                .collect(),
-            omitted_context: sliced
-                .omitted
-                .into_iter()
-                .map(|o| OmittedContext {
-                    identity: o.identity,
-                    reason: o.reason.to_egress_reason(),
-                })
-                .collect(),
-            redaction_summary: SymbolContextRedactionSummary {
-                estimated_tokens: sliced.estimated_tokens,
-                redacted_secrets,
-                snippets_truncated,
-                fully_suppressed_symbols: fully_suppressed,
-                omitted_sensitive_paths: omitted_sensitive,
-                outcome: telemetry_outcome,
+        with_cost_self_report(
+            SymbolContextProjection {
+                snippets: sliced
+                    .snippets
+                    .into_iter()
+                    .map(|s| ContextSnippet {
+                        identity: s.identity,
+                        distance: s.distance,
+                        snippet: s.snippet,
+                    })
+                    .collect(),
+                omitted_context: sliced
+                    .omitted
+                    .into_iter()
+                    .map(|o| OmittedContext {
+                        identity: o.identity,
+                        reason: o.reason.to_egress_reason(),
+                    })
+                    .collect(),
+                redaction_summary: SymbolContextRedactionSummary {
+                    estimated_tokens: sliced.estimated_tokens,
+                    redacted_secrets,
+                    snippets_truncated,
+                    fully_suppressed_symbols: fully_suppressed,
+                    omitted_sensitive_paths: omitted_sensitive,
+                    outcome: telemetry_outcome,
+                },
+                attestation,
             },
-            attestation,
-        }
+            |p| &mut p.attestation,
+        )
     }
 }
 
@@ -1798,6 +1822,25 @@ fn snippet_attestation(sliced: &slice::ContextSlice) -> Attestation {
         ));
     }
     Attestation::with_bounds(bounds)
+}
+
+/// Fill `est_tokens` / `estimator_version` from the existing estimator (GATT-005).
+/// Cost fields stay unset on the first serialise so a zero default cannot look
+/// like a real estimate; then the versioned number is attached.
+fn with_cost_self_report<T: Serialize>(
+    mut envelope: T,
+    attestation: impl Fn(&mut T) -> &mut Attestation,
+) -> T {
+    let Ok(json) = serde_json::to_string(&envelope) else {
+        return envelope;
+    };
+    let Some((tokens, version)) = estimate_gctx_envelope(&json) else {
+        return envelope;
+    };
+    let att = attestation(&mut envelope);
+    att.est_tokens = tokens;
+    att.estimator_version = version.to_string();
+    envelope
 }
 
 fn page_attestation(
@@ -2364,6 +2407,14 @@ mod tests {
         assert!(p.symbols.is_empty());
         assert_eq!(p.redaction_summary.matched, 0);
         assert!(!p.redaction_summary.truncated);
+        assert_eq!(
+            p.attestation.estimator_version,
+            anvil_graph_cache::GCTX_TOKEN_ESTIMATOR_VERSION
+        );
+        assert!(
+            p.attestation.est_tokens > 0,
+            "GATT-005: even an empty page reports a versioned estimate"
+        );
     }
 
     #[test]
@@ -4054,6 +4105,12 @@ mod tests {
         assert_eq!(p.symbol_edge_count, 30);
         assert_eq!(p.file_count, 4);
         assert_eq!(p.dependency_edge_count, 7);
+        assert!(p.attestation.bounds.is_empty(), "stats invents no bound");
+        assert_eq!(
+            p.attestation.estimator_version,
+            anvil_graph_cache::GCTX_TOKEN_ESTIMATOR_VERSION
+        );
+        assert!(p.attestation.est_tokens > 0);
     }
 
     #[test]

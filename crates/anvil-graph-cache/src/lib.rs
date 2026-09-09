@@ -46,6 +46,6 @@ pub use snapshot::{
 pub use symbol_graph::{GraphError, GraphStats, SymbolGraph};
 pub use tokens::{
     GCTX_TOKEN_ESTIMATOR_VERSION, MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES, TokenEstimate,
-    TokenEstimateError, estimate_gctx_tokens,
+    TokenEstimateError, estimate_gctx_envelope, estimate_gctx_tokens,
 };
 pub use trust::{TrustGraph, TrustPostureChange, annotate_trust, policy_profiles};
