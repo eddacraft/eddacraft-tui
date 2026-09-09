@@ -108,7 +108,7 @@ jsonschema = "0.52"
 regorus = { version = "=0.11.0", default-features = false }
 
 # TUI
-animate-core = { version = "=0.5.0" }
+animate-core = { version = "=0.7.0" }
 eddacraft-tui = { path = "crates/eddacraft-tui" }
 ratatui = "0.30"
 crossterm = "0.29"

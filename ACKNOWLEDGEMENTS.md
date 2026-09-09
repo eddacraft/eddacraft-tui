@@ -7419,7 +7419,7 @@ SOFTWARE.
 
 Used by:
 
-- `animate-core` 0.5.0
+- `animate-core` 0.7.0
 - `axoupdater` 0.10.2
 - `backtrace-ext` 0.2.1
 - `block2` 0.6.2
@@ -9733,7 +9733,7 @@ the following restrictions:
 | `rust-sugiyama` | 0.4.0 | MIT License | https://github.com/paddison/rust-sugiyama |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
 | `tree-sitter-dart` | 0.2.0 | MIT License | https://github.com/nielsenko/tree-sitter-dart |
-| `animate-core` | 0.5.0 | MIT License | https://github.com/vyfor/animate |
+| `animate-core` | 0.7.0 | MIT License | https://github.com/vyfor/animate |
 | `axoupdater` | 0.10.2 | MIT License | https://github.com/axodotdev/axoupdater |
 | `backtrace-ext` | 0.2.1 | MIT License | https://github.com/gankra/backtrace-ext |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
