@@ -317,6 +317,7 @@ fn established_session_processes_mutation_once_when_replacement_is_missing() {
     assert_eq!(response["id"], 2);
     assert_eq!(response["result"]["isError"], false, "{response}");
 
+    let mut stderr = recv_lines_until(&mut child, &stderr_rx, "reconnect mcp for this client");
     drop(child.stdin.take());
     assert!(wait_for_exit(&mut child).success());
     let on_disk = std::fs::read_to_string(&source).expect("read mutated fixture");
@@ -325,11 +326,11 @@ fn established_session_processes_mutation_once_when_replacement_is_missing() {
         1,
         "the accepted mutation must run exactly once: {on_disk}"
     );
-    let stderr = drain_lines(&stderr_rx);
+    stderr.push_str(&drain_lines(&stderr_rx));
     assert_eq!(
         reconnect_instruction_count(&stderr),
         1,
-        "failed replacement must leave one explicit reconnect instruction: {stderr}"
+        "unresolved preferred binary must leave one explicit reconnect instruction: {stderr}"
     );
 }
 
@@ -688,6 +689,35 @@ fn drain_lines(rx: &Receiver<std::io::Result<String>>) -> String {
         out.push_str(&line);
     }
     out
+}
+
+fn recv_lines_until(
+    child: &mut Child,
+    rx: &Receiver<std::io::Result<String>>,
+    expected: &str,
+) -> String {
+    let started = Instant::now();
+    let expected = expected.to_ascii_lowercase();
+    let mut observed = String::new();
+    loop {
+        match rx.recv_timeout(Duration::from_millis(50)) {
+            Ok(Ok(line)) => {
+                observed.push_str(&line);
+                if observed.to_ascii_lowercase().contains(&expected) {
+                    return observed;
+                }
+            }
+            Ok(Err(err)) => panic!("failed to read child stderr: {err}"),
+            Err(mpsc::RecvTimeoutError::Timeout) if started.elapsed() <= CHILD_TIMEOUT => {}
+            Err(mpsc::RecvTimeoutError::Timeout | mpsc::RecvTimeoutError::Disconnected) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!(
+                    "timed out waiting for child stderr to contain {expected:?}; observed: {observed}"
+                );
+            }
+        }
+    }
 }
 
 fn wait_for_exit(child: &mut Child) -> std::process::ExitStatus {

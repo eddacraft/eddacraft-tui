@@ -753,7 +753,7 @@ mod tests {
         assert_eq!(
             decide(&unresolved),
             ReexecDecision::Stay {
-                reason: StayReason::EstablishedSession,
+                reason: StayReason::EstablishedSessionPreferredUnresolved,
                 skewed: true,
             }
         );
