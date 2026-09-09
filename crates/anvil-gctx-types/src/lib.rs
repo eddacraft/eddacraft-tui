@@ -549,12 +549,13 @@ impl FindCallersQuery {
     }
 }
 
-/// A single identity-only caller summary: a calling symbol, its hop distance, and
-/// whether the call reaching it is an overload fan-out (GCALL-007 CALL-1).
+/// A single identity-only caller summary: a calling symbol, its hop distance,
+/// per-edge resolution fidelity, and a derived caller-level heuristic summary
+/// (GCALL-007 CALL-1 / ADR-142 §4 / GATT-003).
 ///
 /// Carries **only** the caller's [`SymbolIdentity`], the traversal `distance`,
-/// and the `heuristic` marker — no source text, no call-site arguments, no byte
-/// span, no session-local id.
+/// per-edge [`EdgeFidelity`] values, and the derived `heuristic` marker — no
+/// source text, no call-site arguments, no byte span, no session-local id.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CallerSummary {
     /// The calling symbol (identity-only).
@@ -562,11 +563,14 @@ pub struct CallerSummary {
     /// Hop distance from the queried symbol: `1` for a direct caller, `2` for a
     /// caller-of-a-caller (bounded by the depth cap).
     pub distance: u32,
-    /// `true` when the call reaching this caller is an **overload fan-out** — the
-    /// static resolver could not pick one overload and attached the call to all,
-    /// so this caller may be over-included (GCALL-007 CALL-1, ADR-086 §1). A
-    /// consumer must not treat a `heuristic` caller as an exact call.
+    /// Derived summary of [`Self::edges`]: `true` iff any edge is
+    /// [`EdgeFidelity::Heuristic`]. Retained as a caller-level shim (ADR-142 §4);
+    /// consumers that need honesty per call must read `edges`.
     pub heuristic: bool,
+    /// Per-edge call-resolution fidelity for every `Calls` edge from this caller
+    /// that contributed at this distance. A mixed set (Exact + Heuristic) keeps
+    /// Exact edges visible instead of OR-ing them away (GATT-003).
+    pub edges: Vec<EdgeFidelity>,
 }
 
 /// The identity-only projection returned when the call graph is readable.
@@ -1576,6 +1580,29 @@ mod tests {
         assert_ne!(EdgeFidelity::Exact, EdgeFidelity::Heuristic);
         let exact = serde_json::to_value(EdgeFidelity::Exact).unwrap();
         assert_eq!(exact, "exact");
+        let mixed = CallerSummary {
+            caller: sample_identity(),
+            distance: 1,
+            heuristic: true,
+            edges: vec![
+                EdgeFidelity::Exact,
+                EdgeFidelity::Exact,
+                EdgeFidelity::Exact,
+                EdgeFidelity::Heuristic,
+            ],
+        };
+        let v = serde_json::to_value(&mixed).unwrap();
+        assert_eq!(v["edges"].as_array().unwrap().len(), 4);
+        assert_eq!(v["edges"][0], "exact");
+        assert_eq!(v["edges"][3], "heuristic");
+        assert_eq!(v["heuristic"], true);
+        let exact_n = v["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| *e == "exact")
+            .count();
+        assert_eq!(exact_n, 3);
     }
 
     fn sample_projection() -> SearchSymbolsProjection {
@@ -2017,6 +2044,7 @@ mod tests {
             caller: sample_identity(),
             distance: 1,
             heuristic: true,
+            edges: vec![EdgeFidelity::Heuristic],
         }
     }
 
@@ -2046,7 +2074,7 @@ mod tests {
         let obj = v.as_object().expect("summary serialises to an object");
         let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
         keys.sort_unstable();
-        assert_eq!(keys, ["caller", "distance", "heuristic"]);
+        assert_eq!(keys, ["caller", "distance", "edges", "heuristic"]);
 
         let id = obj["caller"].as_object().expect("caller is an object");
         let mut id_keys: Vec<&str> = id.keys().map(String::as_str).collect();

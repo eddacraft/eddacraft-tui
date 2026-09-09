@@ -144,8 +144,8 @@ All gates cleared 2026-09-07; module promoted to **Ready**.
 | ID       | Task                                                | Status | Depends on |
 | -------- | --------------------------------------------------- | ------ | ---------- |
 | GATT-001 | Self-attestation contract (spec amendment)          | Merged 2026-09-09 via PR [#4520](https://github.com/eddacraft/anvil-001/pull/4520) | —          |
-| GATT-002 | Disclosure gate harness (written before the fields) | In Progress | GATT-001   |
-| GATT-003 | Per-edge call-resolution fidelity                   | Ready | GATT-002   |
+| GATT-002 | Disclosure gate harness (written before the fields) | Merged 2026-09-10 via PR [#4525](https://github.com/eddacraft/anvil-001/pull/4525) | GATT-001   |
+| GATT-003 | Per-edge call-resolution fidelity                   | In Progress | GATT-002   |
 | GATT-004 | Cap disclosure parity across the six tools          | Ready | GATT-002   |
 | GATT-005 | Cost self-report on every projection envelope       | Ready | GATT-002   |
 | GATT-006 | Teach the consumer to read the disclosures          | Ready | GATT-003..005 |

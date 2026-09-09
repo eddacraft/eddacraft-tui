@@ -5,13 +5,14 @@ use std::path::Path;
 
 use anvil_gctx_types::{
     AffectedTestsReport, AffectedTestsSummary, Attestation, CallerSummary, ContextSelector,
-    ContextSnippet, DependentSummary, EdgeSummary, FindCallersProjection, FindCallersQuery,
-    FindDependentsProjection, FindDependentsQuery, GctxOutcome, GraphEdgesProjection,
-    GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary, OmittedContext,
-    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SnippetResult,
-    SymbolContextProjection, SymbolContextRedactionSummary, SymbolSummary, TestEvidence,
+    ContextSnippet, DependentSummary, EdgeFidelity, EdgeSummary, FindCallersProjection,
+    FindCallersQuery, FindDependentsProjection, FindDependentsQuery, GctxOutcome,
+    GraphEdgesProjection, GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary,
+    OmittedContext, OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery,
+    SnippetResult, SymbolContextProjection, SymbolContextRedactionSummary, SymbolSummary,
+    TestEvidence,
 };
-use anvil_graph_cache::{DependencyGraph, SymbolGraph};
+use anvil_graph_cache::{CallEdgeFidelity, DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{
     ByteRange, EdgeType, SymbolIdentity, SymbolKind, SymbolNode, Visibility, content_hash,
 };
@@ -405,8 +406,8 @@ impl GctxProjector {
     /// **Call this under the cache lock** (it borrows `graph`). It delegates to
     /// [`anvil_graph_cache::callers_of`] (the bounded reverse-`Calls` BFS) and
     /// seals each result into an identity-only [`CallerSummary`] carrying the
-    /// caller identity, hop distance, and the GCALL-007 CALL-1 `heuristic`
-    /// (fan-out) marker. The returned summaries own their data, so the caller
+    /// caller identity, hop distance, per-edge fidelity (GATT-003), and the
+    /// derived GCALL-007 CALL-1 `heuristic` summary. The returned summaries own their data, so the caller
     /// releases the lock before calling [`GctxProjector::project_callers`]. The
     /// `bool` is the walk's `truncated` flag (node budget hit) — folded into the
     /// projection's `partial` marker.
@@ -442,6 +443,14 @@ impl GctxProjector {
                 caller: c.caller,
                 distance: c.distance,
                 heuristic: c.heuristic,
+                edges: c
+                    .edges
+                    .into_iter()
+                    .map(|e| match e {
+                        CallEdgeFidelity::Exact => EdgeFidelity::Exact,
+                        CallEdgeFidelity::Heuristic => EdgeFidelity::Heuristic,
+                    })
+                    .collect(),
             })
             .collect();
         (callers, report.truncated, omitted_sensitive)
@@ -2993,6 +3002,7 @@ mod tests {
                 },
                 distance: 1,
                 heuristic: false,
+                edges: vec![EdgeFidelity::Exact],
             })
             .collect()
     }

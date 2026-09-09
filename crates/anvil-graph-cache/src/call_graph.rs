@@ -25,23 +25,36 @@ use crate::symbol_graph::SymbolGraph;
 /// GCTX-011/013 reverse-impact bound.
 pub const MAX_CALLERS_WALK: usize = 10_000;
 
+/// Per-edge call-resolution fidelity on the graph-cache substrate (ADR-142 §4 /
+/// GATT-003). Mapped to `EdgeFidelity` at gctx egress.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallEdgeFidelity {
+    /// Resolver attached this call to exactly one callee of the name.
+    Exact,
+    /// Overload fan-out: the caller has `Calls` edges to two or more symbols
+    /// sharing the callee's `(file, kind, name)` (ADR-086 §1 / GCALL-007 CALL-1).
+    Heuristic,
+}
+
 /// One caller of the queried symbol: its identity, the traversal distance
-/// (hops) from the target, and whether the edge reaching it is an overload
-/// fan-out (GCALL-007 CALL-1).
+/// (hops) from the target, per-edge fidelity for every edge that contributed at
+/// this distance, and a derived caller-level heuristic summary (ADR-142 §4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallerResult {
     /// The calling symbol (identity-only).
     pub caller: SymbolIdentity,
     /// Distance in `Calls`-edge hops from the queried target (1 = direct caller).
     pub distance: u32,
-    /// True when the edge this caller was reached through is an **overload
-    /// fan-out** — the caller has `Calls` edges to two or more symbols sharing
-    /// the called symbol's `(file, kind, name)`, so the static resolver could not
-    /// pick one overload and attached the call to all (ADR-086 §1). A consumer
-    /// must not treat a `heuristic` caller as an exact call (GCALL-007 CALL-1).
-    /// Conservative: a caller that genuinely calls two distinct overloads is also
-    /// flagged — the marker never *under*-reports fan-out, the safe direction.
+    /// Derived summary of [`Self::edges`]: `true` iff any contributing edge is
+    /// [`CallEdgeFidelity::Heuristic`]. Retained for one release as a
+    /// caller-level shim (ADR-142 §4); consumers that need honesty per call
+    /// must read `edges`.
     pub heuristic: bool,
+    /// Fidelity of each `Calls` edge from this caller into the frontier at this
+    /// hop. A caller with one fan-out edge and three exact edges reports
+    /// three `Exact` and one `Heuristic` here — never a single OR-ed bool that
+    /// lies about the exact edges (GATT-003).
+    pub edges: Vec<CallEdgeFidelity>,
 }
 
 /// The bounded result of a caller traversal.
@@ -100,11 +113,13 @@ pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> C
     'walk: for hop in 1..=depth {
         // Collect this hop's new callers, deduplicated by caller node id. A caller
         // reachable via several frontier nodes in one hop is recorded once, with
-        // `heuristic` **OR-ed** across all its edges — so a caller is heuristic if
-        // *any* of its calls into the frontier is an overload fan-out (a
-        // deterministic, conservative result independent of frontier-visit order).
-        let mut hop_callers: std::collections::HashMap<u64, (SymbolIdentity, bool)> =
-            std::collections::HashMap::new();
+        // **per-edge** fidelity retained (GATT-003 / ADR-142 §4). The caller-level
+        // `heuristic` flag is derived later as "any edge Heuristic" — never by
+        // discarding Exact edges under an OR.
+        let mut hop_callers: std::collections::HashMap<
+            u64,
+            (SymbolIdentity, Vec<CallEdgeFidelity>),
+        > = std::collections::HashMap::new();
         for &current in &frontier {
             for edge in graph.incoming_edges(current) {
                 if edge.edge_type != EdgeType::Calls || seen.contains(&edge.from) {
@@ -115,33 +130,41 @@ pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> C
                 // callers across few files pays the file-symbol scan once per file,
                 // not once per caller node, on this lock-held read path.
                 if let Some(identity) = identities.get(edge.from) {
-                    let heuristic = is_fan_out_call(graph, edge.from, current);
+                    let fidelity = if is_fan_out_call(graph, edge.from, current) {
+                        CallEdgeFidelity::Heuristic
+                    } else {
+                        CallEdgeFidelity::Exact
+                    };
                     hop_callers
                         .entry(edge.from)
-                        .and_modify(|entry| entry.1 |= heuristic)
-                        .or_insert((identity, heuristic));
+                        .and_modify(|entry| entry.1.push(fidelity))
+                        .or_insert((identity, vec![fidelity]));
                 }
             }
         }
         // Expand in identity order so an over-budget truncation keeps a
         // deterministic prefix.
-        let mut next_ids: Vec<(u64, SymbolIdentity, bool)> = hop_callers
+        let mut next_ids: Vec<(u64, SymbolIdentity, Vec<CallEdgeFidelity>)> = hop_callers
             .into_iter()
-            .map(|(id, (identity, heuristic))| (id, identity, heuristic))
+            .map(|(id, (identity, edges))| (id, identity, edges))
             .collect();
         next_ids.sort_by(|a, b| a.1.cmp(&b.1));
 
         let mut next_frontier: Vec<u64> = Vec::new();
-        for (id, identity, heuristic) in next_ids {
+        for (id, identity, edges) in next_ids {
             // `hop_callers` keys are unique and already excluded prior-hop callers;
             // `seen.insert` records this caller for the next hop's cycle guard.
             if !seen.insert(id) {
                 continue;
             }
+            let heuristic = edges
+                .iter()
+                .any(|e| matches!(e, CallEdgeFidelity::Heuristic));
             callers.push(CallerResult {
                 caller: identity,
                 distance: hop,
                 heuristic,
+                edges,
             });
             next_frontier.push(id);
             if callers.len() >= MAX_CALLERS_WALK {
@@ -419,6 +442,11 @@ mod tests {
             t_report.callers[0].heuristic,
             "a fan-out caller must be flagged heuristic"
         );
+        assert_eq!(
+            t_report.callers[0].edges,
+            vec![CallEdgeFidelity::Heuristic],
+            "single fan-out edge is disclosed as one Heuristic fidelity"
+        );
 
         // callers_of(u): the same caller, but `u` has one definition → not fan-out.
         let u = SymbolIdentity {
@@ -433,6 +461,53 @@ mod tests {
             !u_report.callers[0].heuristic,
             "an unambiguous callee's caller is not heuristic"
         );
+    }
+
+
+    #[test]
+    fn mixed_frontier_edges_keep_exact_fidelities() {
+        // GATT-003: hop-2 caller through three exact mids + one fan-out mid
+        // keeps Exact edges visible (ADR-142 / per-edge fidelity).
+        let mut g = SymbolGraph::new();
+        let file = "mixed.ts";
+        update_file(
+            &mut g,
+            FileSymbols {
+                file: file.to_string(),
+                symbols: vec![
+                    func(0, "t", file),
+                    func(1, "m1", file),
+                    func(2, "m2", file),
+                    func(3, "m3", file),
+                    func(4, "m4", file),
+                    func(5, "m4", file),
+                    func(6, "c", file),
+                ],
+                imports: Vec::new(),
+                reexports: Vec::new(),
+                calls: vec![
+                    CallSite { from: caller_ref("m1"), callee: CalleeRef { name: "t".into(), via_import: None }, line: 1 },
+                    CallSite { from: caller_ref("m2"), callee: CalleeRef { name: "t".into(), via_import: None }, line: 2 },
+                    CallSite { from: caller_ref("m3"), callee: CalleeRef { name: "t".into(), via_import: None }, line: 3 },
+                    CallSite { from: caller_ref("m4"), callee: CalleeRef { name: "t".into(), via_import: None }, line: 4 },
+                    CallSite { from: caller_ref("c"), callee: CalleeRef { name: "m1".into(), via_import: None }, line: 5 },
+                    CallSite { from: caller_ref("c"), callee: CalleeRef { name: "m2".into(), via_import: None }, line: 6 },
+                    CallSite { from: caller_ref("c"), callee: CalleeRef { name: "m3".into(), via_import: None }, line: 7 },
+                    CallSite { from: caller_ref("c"), callee: CalleeRef { name: "m4".into(), via_import: None }, line: 8 },
+                ],
+                calls_partial: false,
+                has_unresolved_dynamic_import: false,
+                content_hash: None,
+            },
+        );
+        let t = SymbolIdentity { file: file.into(), kind: SymbolKind::Function, name: "t".into(), ordinal: 0 };
+        let report = callers_of(&g, &t, 2);
+        let c = report.callers.iter().find(|x| x.caller.name == "c" && x.distance == 2).expect("hop-2 caller c");
+        assert!(c.heuristic, "derived summary is heuristic when any edge is");
+        let exact_n = c.edges.iter().filter(|e| matches!(e, CallEdgeFidelity::Exact)).count();
+        let heur_n = c.edges.iter().filter(|e| matches!(e, CallEdgeFidelity::Heuristic)).count();
+        assert!(exact_n >= 3, "exact mid edges must remain visible (Exact={exact_n} Heuristic={heur_n} edges={:?})", c.edges);
+        assert!(heur_n >= 1, "fan-out mid edge must remain visible (Exact={exact_n} Heuristic={heur_n} edges={:?})", c.edges);
     }
 
     #[test]
