@@ -30,7 +30,6 @@ from score_fixtures import (
 )
 
 HERE = Path(__file__).resolve().parent
-RUNS = HERE / "runs"  # live/fixture scores
 AUDITS = HERE.parents[2] / "audits"  # durable estimator xcheck evidence
 
 
