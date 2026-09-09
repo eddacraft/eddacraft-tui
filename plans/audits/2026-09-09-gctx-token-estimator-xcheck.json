@@ -1,0 +1,331 @@
+{
+  "date_utc": "2026-09-09T06:29:56Z",
+  "estimator": "gctx-simple-v1",
+  "source_of_truth": "crates/anvil-graph-cache/src/tokens.rs",
+  "python_port": "plans/evals/context-compiler/2026-09-08/score_fixtures.py",
+  "max_bytes": 65536,
+  "pass": 21,
+  "fail": 0,
+  "total": 21,
+  "cases": [
+    {
+      "name": "empty",
+      "pass": true,
+      "detail": "tokens=0",
+      "python": {
+        "ok": true,
+        "tokens": 0,
+        "input_bytes": 0
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 0,
+        "input_bytes": 0
+      }
+    },
+    {
+      "name": "ascii_prose",
+      "pass": true,
+      "detail": "tokens=11",
+      "python": {
+        "ok": true,
+        "tokens": 11,
+        "input_bytes": 44
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 11,
+        "input_bytes": 44
+      }
+    },
+    {
+      "name": "code_identifiers",
+      "pass": true,
+      "detail": "tokens=20",
+      "python": {
+        "ok": true,
+        "tokens": 20,
+        "input_bytes": 64
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 20,
+        "input_bytes": 64
+      }
+    },
+    {
+      "name": "underscored_idents",
+      "pass": true,
+      "detail": "tokens=9",
+      "python": {
+        "ok": true,
+        "tokens": 9,
+        "input_bytes": 34
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 9,
+        "input_bytes": 34
+      }
+    },
+    {
+      "name": "newlines",
+      "pass": true,
+      "detail": "tokens=10",
+      "python": {
+        "ok": true,
+        "tokens": 10,
+        "input_bytes": 29
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 10,
+        "input_bytes": 29
+      }
+    },
+    {
+      "name": "crlf",
+      "pass": true,
+      "detail": "tokens=5",
+      "python": {
+        "ok": true,
+        "tokens": 5,
+        "input_bytes": 7
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 5,
+        "input_bytes": 7
+      }
+    },
+    {
+      "name": "tabs_and_spaces",
+      "pass": true,
+      "detail": "tokens=3",
+      "python": {
+        "ok": true,
+        "tokens": 3,
+        "input_bytes": 6
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 3,
+        "input_bytes": 6
+      }
+    },
+    {
+      "name": "ascii_punct",
+      "pass": true,
+      "detail": "tokens=13",
+      "python": {
+        "ok": true,
+        "tokens": 13,
+        "input_bytes": 13
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 13,
+        "input_bytes": 13
+      }
+    },
+    {
+      "name": "non_ascii_latin",
+      "pass": true,
+      "detail": "tokens=9",
+      "python": {
+        "ok": true,
+        "tokens": 9,
+        "input_bytes": 21
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 9,
+        "input_bytes": 21
+      }
+    },
+    {
+      "name": "non_ascii_cjk",
+      "pass": true,
+      "detail": "tokens=7",
+      "python": {
+        "ok": true,
+        "tokens": 7,
+        "input_bytes": 22
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 7,
+        "input_bytes": 22
+      }
+    },
+    {
+      "name": "emoji",
+      "pass": true,
+      "detail": "tokens=6",
+      "python": {
+        "ok": true,
+        "tokens": 6,
+        "input_bytes": 16
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 6,
+        "input_bytes": 16
+      }
+    },
+    {
+      "name": "nbsp",
+      "pass": true,
+      "detail": "tokens=2",
+      "python": {
+        "ok": true,
+        "tokens": 2,
+        "input_bytes": 4
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 2,
+        "input_bytes": 4
+      }
+    },
+    {
+      "name": "near_max_bytes",
+      "pass": true,
+      "detail": "tokens=16384",
+      "python": {
+        "ok": true,
+        "tokens": 16384,
+        "input_bytes": 65536
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 16384,
+        "input_bytes": 65536
+      }
+    },
+    {
+      "name": "over_max_bytes",
+      "pass": true,
+      "detail": "error agree",
+      "python": {
+        "ok": false,
+        "error": "input_too_large",
+        "input_bytes": 65537,
+        "max_bytes": 65536
+      },
+      "rust": {
+        "ok": false,
+        "input_bytes": 65537,
+        "error": "input_too_large",
+        "max_bytes": 65536
+      }
+    },
+    {
+      "name": "rust_impl_ref",
+      "pass": true,
+      "detail": "tokens=28",
+      "python": {
+        "ok": true,
+        "tokens": 28,
+        "input_bytes": 63
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 28,
+        "input_bytes": 63
+      }
+    },
+    {
+      "name": "graph_summary_ref",
+      "pass": true,
+      "detail": "tokens=15",
+      "python": {
+        "ok": true,
+        "tokens": 15,
+        "input_bytes": 57
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 15,
+        "input_bytes": 57
+      }
+    },
+    {
+      "name": "fixture:T01.md",
+      "pass": true,
+      "detail": "tokens=1377",
+      "python": {
+        "ok": true,
+        "tokens": 1377,
+        "input_bytes": 5126
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 1377,
+        "input_bytes": 5126
+      }
+    },
+    {
+      "name": "fixture:T05.md",
+      "pass": true,
+      "detail": "tokens=1278",
+      "python": {
+        "ok": true,
+        "tokens": 1278,
+        "input_bytes": 4437
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 1278,
+        "input_bytes": 4437
+      }
+    },
+    {
+      "name": "fixture:T10.md",
+      "pass": true,
+      "detail": "tokens=1239",
+      "python": {
+        "ok": true,
+        "tokens": 1239,
+        "input_bytes": 4325
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 1239,
+        "input_bytes": 4325
+      }
+    },
+    {
+      "name": "fixture:T15.md",
+      "pass": true,
+      "detail": "tokens=1285",
+      "python": {
+        "ok": true,
+        "tokens": 1285,
+        "input_bytes": 4500
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 1285,
+        "input_bytes": 4500
+      }
+    },
+    {
+      "name": "fixture:T20.md",
+      "pass": true,
+      "detail": "tokens=1277",
+      "python": {
+        "ok": true,
+        "tokens": 1277,
+        "input_bytes": 4441
+      },
+      "rust": {
+        "ok": true,
+        "tokens": 1277,
+        "input_bytes": 4441
+      }
+    }
+  ],
+  "intentional_divergences": [],
+  "notes": "Python now rejects input above MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES with GctxTokenEstimateError, matching Rust TokenEstimateError::InputTooLarge. No numeric \u00a713 thresholds were set."
+}

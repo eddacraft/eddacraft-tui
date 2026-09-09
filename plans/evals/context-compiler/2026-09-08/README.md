@@ -32,6 +32,8 @@ success, and not a V3-beats-V2 comparison. Live V3 was not run.
 | [`recovery_cost.py`](recovery_cost.py) | First-class §13 recovery-cost metric (`measured` / `none` / `unmeasured`) |
 | [`score_live_session.py`](score_live_session.py) | Live-run scaffold: score a provided V1 session record; does not run sessions |
 | [`test_eval_scoring.py`](test_eval_scoring.py) | Unit tests for recovery cost and T06/T07 structural-partial-brief |
+| [`crosscheck_gctx_tokens.py`](crosscheck_gctx_tokens.py) | Rust ↔ Python `gctx-simple-v1` estimator cross-check (design-council follow-up) |
+| [`../../../audits/2026-09-09-gctx-token-estimator-xcheck.json`](../../../audits/2026-09-09-gctx-token-estimator-xcheck.json) | Dated estimator cross-check evidence |
 | [`runs/2026-09-08-fixture-score.json`](runs/2026-09-08-fixture-score.json) | Dated CCTX-003 fixture score |
 | [`V1-RUNBOOK.md`](V1-RUNBOOK.md) | Live §12.7 V1 procedure |
 | [`residual-map.md`](residual-map.md) | Task-ID ownership for parallel V1 batches |
@@ -55,5 +57,6 @@ From the repository root, with the corpus worktree at
 ```bash
 python3 plans/evals/context-compiler/2026-09-08/score_fixtures.py
 python3 -m unittest discover -s plans/evals/context-compiler/2026-09-08 -p 'test_*.py'
+python3 plans/evals/context-compiler/2026-09-08/crosscheck_gctx_tokens.py
 python3 plans/evals/context-compiler/2026-09-08/score_v1.py
 ```

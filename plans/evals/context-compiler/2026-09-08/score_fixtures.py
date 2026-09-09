@@ -230,18 +230,38 @@ def off_allowlist_gold_in_v3_handles(scored: dict) -> list[str]:
     return leaked
 
 
+# Match crates/anvil-graph-cache/src/tokens.rs (GCTX-020 / gctx-simple-v1).
+MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES = 64 * 1024
+
+
+class GctxTokenEstimateError(ValueError):
+    """Raised when input exceeds MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES (Rust InputTooLarge)."""
+
+
 def estimate_gctx_tokens(text: str) -> int:
-    """GCTX-020 conservative estimator (gctx-simple-v1) ported from tokens.rs."""
+    """GCTX-020 conservative estimator (gctx-simple-v1) ported from tokens.rs.
+
+    Rust is the source of truth. Oversized input raises GctxTokenEstimateError,
+    matching TokenEstimateError::InputTooLarge rather than truncating.
+    """
+    input_bytes = len(text.encode("utf-8"))
+    if input_bytes > MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES:
+        raise GctxTokenEstimateError(
+            f"input is too large for GCTX token estimation: "
+            f"{input_bytes} bytes > {MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES} bytes"
+        )
     if not text:
         return 0
-    return max(lexical_units(text), ceil(len(text.encode("utf-8")) / 4))
+    return max(lexical_units(text), ceil(input_bytes / 4))
 
 
 def lexical_units(text: str) -> int:
+    """Port of tokens.rs lexical_units: ascii alnum/_ word runs, newlines, punct, utf8/3."""
     count = 0
     in_word = False
     for ch in text:
-        if ch.isalnum() and ch.isascii() or ch == "_":
+        # Match Rust: ch.is_ascii_alphanumeric() || ch == '_'
+        if (ch.isascii() and ch.isalnum()) or ch == "_":
             if not in_word:
                 count += 1
                 in_word = True
@@ -255,7 +275,6 @@ def lexical_units(text: str) -> int:
         else:
             count += ceil(len(ch.encode("utf-8")) / 3)
     return count
-
 
 def parse_claims(text: str) -> list[dict]:
     claims = []

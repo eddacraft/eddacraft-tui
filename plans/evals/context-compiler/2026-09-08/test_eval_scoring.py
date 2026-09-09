@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for CCTX eval scoring: recovery cost and T06/T07 structural partial-brief.
+"""Tests for CCTX eval scoring: recovery cost, T06/T07 structural partial-brief, gctx port.
 
 Not a live §12.7 session. Not a product compiler.
 """
@@ -13,6 +13,9 @@ from score_fixtures import (
     STRUCTURAL_PARTIAL_BRIEF,
     CORPUS,
     FIXTURES,
+    GctxTokenEstimateError,
+    MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES,
+    estimate_gctx_tokens,
     off_allowlist_gold_in_v3_handles,
     score_one,
 )
@@ -205,7 +208,38 @@ class AuthorshipNotRecallTests(unittest.TestCase):
         self.assertNotEqual(row["tokens_after_wrong_path"], 0)
 
 
+class GctxTokenEstimatorPortTests(unittest.TestCase):
+    """Local checks for the Python port; full Rust cross-check is crosscheck_gctx_tokens.py."""
+
+    def test_empty_is_zero(self) -> None:
+        self.assertEqual(estimate_gctx_tokens(""), 0)
+
+    def test_typescript_reference_corpus(self) -> None:
+        source = (
+            "export function alpha(value: string) {"
+            + "\n"
+            + "  return value.trim();"
+            + "\n"
+            + "}"
+            + "\n"
+        )
+        self.assertEqual(estimate_gctx_tokens(source), 20)
+
+    def test_rejects_oversized_input(self) -> None:
+        oversized = "a" * (MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES + 1)
+        with self.assertRaises(GctxTokenEstimateError) as ctx:
+            estimate_gctx_tokens(oversized)
+        self.assertIn("too large", str(ctx.exception).lower())
+        self.assertIn(str(MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES), str(ctx.exception))
+
+    def test_accepts_exact_max_bytes(self) -> None:
+        exact = "a" * MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES
+        tokens = estimate_gctx_tokens(exact)
+        self.assertEqual(tokens, MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES // 4)
+
+
 class LiveScaffoldSmokeTests(unittest.TestCase):
+
     def test_score_live_session_file(self) -> None:
         from score_live_session import score_live_session
 
