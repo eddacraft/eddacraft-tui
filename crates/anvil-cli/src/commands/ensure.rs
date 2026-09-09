@@ -17,6 +17,7 @@ use crate::activation;
 use crate::activation::diagnostic::ConfigStatus;
 use crate::activation::mcp_client::AnvilEntry;
 use crate::activation::orchestrator::install::{InstallOutcome, ensure_existing_mcp_entries};
+use crate::activation::state::ProtectionState;
 use crate::output::AlreadyReported;
 use crate::registration::{
     self, SaveTimeDriverReadiness, WorktreeRegistration, WorktreeRegistrationReport,
@@ -378,8 +379,7 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     )
     .with_worktree_registration_report(Some(&registration_report))
     .with_mcp_failure(mcp_failure.as_deref());
-    let next = readiness
-        .failure_action()
+    let next = crate::commands::status::status_readiness_action(&readiness)
         .or_else(|| next_action_line(protection, &mcp_line));
     emit_ensure_report(
         global,
@@ -435,25 +435,50 @@ fn emit_ensure_report(
         return Ok(());
     }
 
-    println!("anvil ensure");
-    println!("  protection: {}", protection.label());
-    println!("  {}", protection.headline());
-    println!("  readiness: {}", readiness.state.label());
-    println!("  components: {}", readiness.component_summary());
-    if let Some(sessions) = readiness.mcp_session_summary() {
-        println!("  mcp sessions: {sessions}");
-    }
-    println!("  {daemon_line}");
-    println!("  {worktree_line}");
-    println!("  {mcp_line}");
-    if let Some(next) = next {
-        println!("  next: {next}");
-    }
+    print!(
+        "{}",
+        render_ensure_human(
+            protection,
+            &readiness,
+            &daemon_line,
+            &worktree_line,
+            &mcp_line,
+            next.as_deref(),
+        )
+    );
 
     if readiness.failed() {
         return Err(AlreadyReported.into());
     }
     Ok(())
+}
+
+fn render_ensure_human(
+    protection: ProtectionState,
+    readiness: &EnsureReadiness,
+    daemon_line: &str,
+    worktree_line: &str,
+    mcp_line: &str,
+    next: Option<&str>,
+) -> String {
+    use std::fmt::Write as _;
+
+    let mut output = String::new();
+    let _ = writeln!(output, "anvil ensure");
+    let _ = writeln!(output, "  protection: {}", protection.label());
+    let _ = writeln!(output, "  {}", protection.headline());
+    let _ = writeln!(output, "  readiness: {}", readiness.state.label());
+    let _ = writeln!(output, "  components: {}", readiness.component_summary());
+    if let Some(sessions) = readiness.mcp_session_summary() {
+        let _ = writeln!(output, "  mcp sessions: {sessions}");
+    }
+    let _ = writeln!(output, "  {daemon_line}");
+    let _ = writeln!(output, "  {worktree_line}");
+    let _ = writeln!(output, "  {mcp_line}");
+    if let Some(next) = next {
+        let _ = writeln!(output, "  next: {next}");
+    }
+    output
 }
 
 fn report_not_activated(global: &GlobalArgs, root: &Path) -> anyhow::Result<()> {
@@ -942,6 +967,39 @@ mod tests {
             json["components"]["mcp"]["live_sessions"][1]["state"],
             "degraded"
         );
+
+        let next = crate::commands::status::status_readiness_action(&readiness);
+        assert_eq!(
+            next.as_deref(),
+            Some("run `anvil start` to finish MCP readiness")
+        );
+        let human = render_ensure_human(
+            ProtectionState::Protecting,
+            &readiness,
+            "daemon: running",
+            "worktree: registered",
+            "mcp: present",
+            next.as_deref(),
+        );
+        assert!(
+            human.contains("next: run `anvil start` to finish MCP readiness"),
+            "{human}"
+        );
+
+        let report = EnsureJsonReport {
+            surface: "ensure",
+            protection: "protecting".to_owned(),
+            config: "valid".to_owned(),
+            daemon: "daemon: running".to_owned(),
+            daemon_version_before: None,
+            daemon_version_after: None,
+            worktree: "worktree: registered".to_owned(),
+            mcp: "mcp: present".to_owned(),
+            readiness,
+            next,
+        };
+        let json = serde_json::to_value(report).expect("ensure report serialises");
+        assert_eq!(json["next"], "run `anvil start` to finish MCP readiness");
     }
 
     #[test]
