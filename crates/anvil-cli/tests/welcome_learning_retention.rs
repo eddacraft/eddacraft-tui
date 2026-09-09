@@ -38,6 +38,8 @@ fn welcome_command(workspace: &Path, home: &Path) -> Command {
 struct PtyRun {
     status: std::process::ExitStatus,
     transcript: String,
+    terminal_mode_before: nix::sys::termios::Termios,
+    terminal_mode_after: nix::sys::termios::Termios,
 }
 
 #[cfg(unix)]
@@ -49,8 +51,50 @@ fn occurrence_count(bytes: &[u8], needle: &[u8]) -> usize {
 }
 
 #[cfg(unix)]
+fn terminal_mode(file: &std::fs::File) -> nix::sys::termios::Termios {
+    nix::sys::termios::tcgetattr(file).expect("read PTY terminal mode")
+}
+
+#[cfg(unix)]
+fn assert_terminal_restored(result: &PtyRun) {
+    let enters = occurrence_count(result.transcript.as_bytes(), b"\x1b[?1049h");
+    let leaves = occurrence_count(result.transcript.as_bytes(), b"\x1b[?1049l");
+    assert!(enters > 0, "welcome never entered the alternate screen");
+    assert_eq!(leaves, enters, "welcome left the alternate screen active");
+    assert_eq!(
+        result.terminal_mode_after, result.terminal_mode_before,
+        "welcome left the PTY terminal mode changed"
+    );
+}
+
+#[cfg(unix)]
+fn assert_terminal_restored_after_panic(result: &PtyRun) {
+    let enters = occurrence_count(result.transcript.as_bytes(), b"\x1b[?1049h");
+    let leaves = occurrence_count(result.transcript.as_bytes(), b"\x1b[?1049l");
+    assert!(enters > 0, "welcome never entered the alternate screen");
+    assert!(
+        leaves >= enters,
+        "panic recovery left the alternate screen active"
+    );
+    assert_eq!(
+        result.terminal_mode_after, result.terminal_mode_before,
+        "panic recovery left the PTY terminal mode changed"
+    );
+}
+
+#[cfg(unix)]
 fn run_welcome_script(workspace: &Path, home: &Path, actions: &[(&[u8], &[u8])]) -> PtyRun {
     run_welcome_script_with_anvil_home(workspace, home, None, actions)
+}
+
+#[cfg(unix)]
+fn run_welcome_script_with_env(
+    workspace: &Path,
+    home: &Path,
+    environment: &[(&str, &str)],
+    actions: &[(&[u8], &[u8])],
+) -> PtyRun {
+    run_welcome_script_with_options(workspace, home, None, environment, actions)
 }
 
 #[cfg(unix)]
@@ -58,6 +102,17 @@ fn run_welcome_script_with_anvil_home(
     workspace: &Path,
     home: &Path,
     anvil_home: Option<&Path>,
+    actions: &[(&[u8], &[u8])],
+) -> PtyRun {
+    run_welcome_script_with_options(workspace, home, anvil_home, &[], actions)
+}
+
+#[cfg(unix)]
+fn run_welcome_script_with_options(
+    workspace: &Path,
+    home: &Path,
+    anvil_home: Option<&Path>,
+    environment: &[(&str, &str)],
     actions: &[(&[u8], &[u8])],
 ) -> PtyRun {
     let size = nix::pty::Winsize {
@@ -69,6 +124,8 @@ fn run_welcome_script_with_anvil_home(
     let pty = nix::pty::openpty(Some(&size), None).expect("open PTY");
     let mut master = std::fs::File::from(pty.master);
     let slave = std::fs::File::from(pty.slave);
+    let slave_monitor = slave.try_clone().expect("clone PTY monitor");
+    let terminal_mode_before = terminal_mode(&slave_monitor);
     let stdin = slave.try_clone().expect("clone PTY stdin");
     let stdout = slave.try_clone().expect("clone PTY stdout");
 
@@ -76,6 +133,7 @@ fn run_welcome_script_with_anvil_home(
     if let Some(anvil_home) = anvil_home {
         command.env("ANVIL_HOME", anvil_home);
     }
+    command.envs(environment.iter().copied());
     command
         .arg("welcome")
         .env("TERM", "xterm-256color")
@@ -137,6 +195,8 @@ fn run_welcome_script_with_anvil_home(
     PtyRun {
         status,
         transcript: String::from_utf8_lossy(&bytes).into_owned(),
+        terminal_mode_before,
+        terminal_mode_after: terminal_mode(&slave_monitor),
     }
 }
 
@@ -194,6 +254,63 @@ fn first_run_in_repo_b_preserves_repo_a_learning_when_user_quits_immediately() {
         !repo_b.path().join(".anvil/first-run").exists(),
         "quitting first-run setup must leave it deferred rather than completed"
     );
+    assert_terminal_restored(&result);
+}
+
+#[cfg(unix)]
+#[test]
+fn partial_terminal_setup_failure_restores_the_parent_terminal() {
+    let home = tempfile::tempdir().expect("isolated user home");
+    let workspace = tempfile::tempdir().expect("new repository");
+    std::fs::create_dir(workspace.path().join(".git")).expect("repository git marker");
+
+    let result = run_welcome_script_with_env(
+        workspace.path(),
+        home.path(),
+        &[("ANVIL_TEST_TUI_FAIL_AFTER_ENTER", "1")],
+        &[(b"esc/q quit", b"q")],
+    );
+
+    assert!(
+        !result.status.success(),
+        "the injected partial setup failure must return an error"
+    );
+    assert!(
+        result
+            .transcript
+            .contains("injected failure after terminal entry"),
+        "the fixture did not reach the injected failure:\n{}",
+        result.transcript
+    );
+    assert_terminal_restored(&result);
+}
+
+#[cfg(unix)]
+#[test]
+fn panic_after_terminal_entry_restores_the_parent_terminal() {
+    let home = tempfile::tempdir().expect("isolated user home");
+    let workspace = tempfile::tempdir().expect("new repository");
+    std::fs::create_dir(workspace.path().join(".git")).expect("repository git marker");
+
+    let result = run_welcome_script_with_env(
+        workspace.path(),
+        home.path(),
+        &[("ANVIL_TEST_TUI_PANIC_AFTER_ENTER", "1")],
+        &[(b"esc/q quit", b"q")],
+    );
+
+    assert!(
+        !result.status.success(),
+        "the injected panic must terminate unsuccessfully"
+    );
+    assert!(
+        result
+            .transcript
+            .contains("injected panic after terminal entry"),
+        "the fixture did not reach the injected panic:\n{}",
+        result.transcript
+    );
+    assert_terminal_restored_after_panic(&result);
 }
 
 #[cfg(unix)]
@@ -736,6 +853,7 @@ fn guided_config_write_failure_exits_before_discovery_or_completion() {
     assert!(!result.transcript.contains("Scanning project..."));
     assert!(!repo_a.join(".anvil").exists());
     assert!(!repo_b.join(".anvil/first-run").exists());
+    assert_terminal_restored(&result);
 }
 
 #[test]

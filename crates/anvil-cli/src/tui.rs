@@ -194,6 +194,18 @@ impl TuiSession {
     /// Enter raw mode and the alternate screen once.
     pub(crate) fn enter() -> anyhow::Result<Self> {
         let guard = TerminalGuard::enter()?;
+        #[cfg(debug_assertions)]
+        if std::env::var_os("ANVIL_TEST_TUI_FAIL_AFTER_ENTER").as_deref()
+            == Some(std::ffi::OsStr::new("1"))
+        {
+            anyhow::bail!("injected failure after terminal entry");
+        }
+        #[cfg(debug_assertions)]
+        if std::env::var_os("ANVIL_TEST_TUI_PANIC_AFTER_ENTER").as_deref()
+            == Some(std::ffi::OsStr::new("1"))
+        {
+            panic!("injected panic after terminal entry");
+        }
         let backend = CrosstermBackend::new(io::stdout());
         let terminal = Terminal::new(backend)?;
         Ok(Self {
@@ -222,6 +234,11 @@ impl TuiSession {
     /// Run a phase without leaving the current terminal session.
     pub(crate) fn run_surface<S: Surface>(&mut self, state: &mut S) -> anyhow::Result<SurfaceExit> {
         surface_loop(&mut self.terminal, state, &self.theme)
+    }
+
+    /// Borrow the terminal for a caller-managed multi-phase flow.
+    pub(crate) fn terminal_mut(&mut self) -> &mut Terminal<CrosstermBackend<io::Stdout>> {
+        &mut self.terminal
     }
 
     /// Restore the terminal exactly once after all phases finish.
@@ -304,21 +321,6 @@ pub fn run_surface_in<S: Surface>(
     surface_loop(terminal, state, theme)
 }
 
-/// Set up a TUI terminal session and return the terminal for caller-managed
-/// surface switching. Caller must call `teardown_terminal` when done.
-///
-/// Installs the panic-restore hook so a panic between setup and teardown
-/// still restores the terminal. For the RAII-style alternative, see
-/// [`TerminalGuard`].
-pub fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<io::Stdout>>> {
-    install_panic_hook();
-    terminal::enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    Ok(Terminal::new(backend)?)
-}
-
 /// Draw a loading frame with a message inside the shell chrome.
 pub fn draw_loading(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
@@ -335,15 +337,6 @@ pub fn draw_loading(
         ));
         frame.render_widget(loading, content);
     })?;
-    Ok(())
-}
-
-/// Tear down a TUI terminal session.
-pub fn teardown_terminal(
-    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-) -> anyhow::Result<()> {
-    terminal::disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
 }
 

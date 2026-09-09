@@ -326,37 +326,42 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut terminal = crate::tui::setup_terminal()?;
+    let mut tui_session = crate::tui::TuiSession::enter()?;
     let theme = EddaCraftTheme;
 
     let mut onboarding_completed = false;
     let mut active_root = launch_root.clone();
-    let result = if first_run {
-        match run_onboarding(&mut terminal, &theme, &launch_root) {
-            Ok(outcome) => {
-                active_root = outcome.project_root(&launch_root).to_path_buf();
-                let follow = follow_onboarding_choice(
-                    &mut terminal,
-                    &theme,
-                    global.verbose,
-                    &outcome,
-                    &active_root,
-                )?;
-                onboarding_completed = outcome.completes_first_run(follow.completes_first_run());
-                if follow.continue_to_hub() {
-                    run_welcome_hub(&mut terminal, &theme, global.verbose, &active_root)
-                } else {
-                    Ok(())
+    let result = {
+        let terminal = tui_session.terminal_mut();
+        if first_run {
+            match run_onboarding(terminal, &theme, &launch_root) {
+                Ok(outcome) => {
+                    active_root = outcome.project_root(&launch_root).to_path_buf();
+                    let follow = follow_onboarding_choice(
+                        terminal,
+                        &theme,
+                        global.verbose,
+                        &outcome,
+                        &active_root,
+                    )?;
+                    onboarding_completed =
+                        outcome.completes_first_run(follow.completes_first_run());
+                    if follow.continue_to_hub() {
+                        run_welcome_hub(terminal, &theme, global.verbose, &active_root)
+                    } else {
+                        Ok(())
+                    }
                 }
+                Err(e) => Err(e),
             }
-            Err(e) => Err(e),
+        } else {
+            run_welcome_hub(terminal, &theme, global.verbose, &active_root)
         }
-    } else {
-        run_welcome_hub(&mut terminal, &theme, global.verbose, &active_root)
     };
 
-    // Always teardown terminal, even on error.
-    let teardown_result = crate::tui::teardown_terminal(&mut terminal);
+    // Surface teardown errors on normal exits. Earlier `?` returns and panics
+    // are restored by the session guard's Drop implementation.
+    let teardown_result = tui_session.leave();
 
     // A project becomes a returning-user project only after the first-run
     // flow completed successfully. Quitting or failing leaves setup deferred
