@@ -16,6 +16,7 @@ use crate::GlobalArgs;
 use crate::activation;
 use crate::commands::hooks::{
     config_hooks_enabled, is_config_mode_hook_path, list_config_hook_commands,
+    resolve_file_mode_hook_paths,
 };
 use crate::commands::protection_claim_section;
 use crate::commands::status_mcp;
@@ -258,8 +259,9 @@ fn gather_status_data(root: &str) -> StatusData {
 ///
 /// Reports two source types per event:
 ///
-/// 1. **File-mode** — `.husky/<event>` and (for `pre-commit` only) the
-///    bare `.git/hooks/pre-commit` fallback when no Husky entry is active.
+/// 1. **File-mode** — every effective path Git can consult for the event:
+///    `core.hooksPath` when configured, otherwise the resolved
+///    `.git/hooks/<event>` path and any `.husky/<event>` entry.
 /// 2. **Config-mode** — Git 2.54 native `hook.<event>.command` entries
 ///    surfaced via `git config --get-all`. Each entry produces its own
 ///    `HookStatus` row with the path set to a `git config hook.<event>.command`
@@ -268,47 +270,29 @@ fn gather_status_data(root: &str) -> StatusData {
 ///    the path label so users can tell their custom commands apart from
 ///    anvil's.
 fn gather_hooks(root: &Path) -> Vec<HookStatus> {
-    let candidates = [
-        ("pre-commit", ".husky/pre-commit"),
-        ("pre-push", ".husky/pre-push"),
-        ("post-merge", ".husky/post-merge"),
-    ];
-
-    let mut hooks: Vec<HookStatus> = candidates
-        .iter()
-        .map(|(name, rel)| {
-            let full = root.join(rel);
-            let active = is_executable(&full);
-            HookStatus {
-                name: (*name).to_string(),
-                active,
-                path: if full.exists() {
-                    rel.to_string()
-                } else {
-                    String::new()
-                },
+    let mut hooks = Vec::new();
+    for event in ["pre-commit", "pre-push", "post-merge"] {
+        let mut found = false;
+        for hook_path in resolve_file_mode_hook_paths(root, event) {
+            if !hook_path.exists() {
+                continue;
             }
-        })
-        .collect();
-
-    // Fallback: bare git hook if no husky pre-commit was found.
-    // Resolve worktree `.git` files (pointer to real git dir) so hooks are
-    // found regardless of checkout type.
-    let has_husky_precommit = hooks.iter().any(|h| h.name == "pre-commit" && h.active);
-
-    if !has_husky_precommit {
-        let git_dir = resolve_git_dir(root);
-        let git_hook = git_dir.join("hooks/pre-commit");
-        if git_hook.exists() {
-            let rel = match git_hook.strip_prefix(root) {
-                Ok(p) => p.to_string_lossy().into_owned(),
-                Err(_) => git_hook.to_string_lossy().into_owned(),
+            found = true;
+            let path = match hook_path.strip_prefix(root) {
+                Ok(relative) => relative.to_string_lossy().into_owned(),
+                Err(_) => hook_path.to_string_lossy().into_owned(),
             };
-            let active = is_executable(&git_hook);
             hooks.push(HookStatus {
-                name: "pre-commit".to_string(),
-                active,
-                path: rel,
+                name: event.to_string(),
+                active: is_executable(&hook_path),
+                path,
+            });
+        }
+        if !found {
+            hooks.push(HookStatus {
+                name: event.to_string(),
+                active: false,
+                path: String::new(),
             });
         }
     }
@@ -514,6 +498,7 @@ fn parse_checks_from_text(text: &str) -> Vec<String> {
 
 /// Resolve the actual git directory. In worktrees, `.git` is a file containing
 /// `gitdir: <path>` rather than a directory.
+#[cfg(test)]
 fn resolve_git_dir(root: &Path) -> std::path::PathBuf {
     let dot_git = root.join(".git");
     if dot_git.is_file()
@@ -1086,7 +1071,10 @@ fn build_legible_snapshot(
     let protection = derive_protection(diag, &layers);
     let daemon = read_daemon_summary(diag);
     let witness = read_witness_summary(root);
-    let next_action = next_action_for_diagnostic(protection, &daemon, diag).to_string();
+    let next_action = l4_policy_next_action(data, root).map_or_else(
+        || next_action_for_diagnostic(protection, &daemon, diag).to_string(),
+        str::to_string,
+    );
     let shared = activation::SharedPostureFacts::from_diagnostic(diag);
     let posture_facts = shared.fact_lines();
     let posture_meaning = shared.meaning_for_status_claim(protection.as_str());
@@ -1157,6 +1145,21 @@ fn l4_layer_state(data: &StatusData, repo_root: &Path) -> LayerState {
         }
         LayerState::On => LayerState::Partial,
         other => other,
+    }
+}
+
+/// When the pre-push entry point is active but cannot load an acceptance
+/// policy, make the single status action name the actual L4 repair.
+fn l4_policy_next_action(data: &StatusData, repo_root: &Path) -> Option<&'static str> {
+    if hook_layer_state(data, "pre-push") != LayerState::On {
+        return None;
+    }
+    match crate::policy_load::load_policy(repo_root) {
+        Ok(Some(_)) => None,
+        Ok(None) => Some("L4 policy is missing. Run `anvil init` to create `anvil/policy.yml`."),
+        Err(_) => {
+            Some("L4 policy is invalid. Fix `anvil/policy.*`, then run `anvil status` again.")
+        }
     }
 }
 
@@ -2311,6 +2314,121 @@ mod tests {
         crate::policy_load::seed_default_acceptance_policy(&dir).unwrap();
         let data = bare_status_data(vec![file_mode_pre_push_hook()]);
         assert_eq!(l4_layer_state(&data, &dir), LayerState::On);
+        cleanup(&dir);
+    }
+
+    /// CIB-415 follow-up: the default file-mode installer writes the
+    /// pre-push hook under the resolved Git hooks directory, not Husky.
+    #[cfg(unix)]
+    #[test]
+    fn l4_default_bare_pre_push_hook_with_policy_is_on() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = make_temp_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        crate::policy_load::seed_default_acceptance_policy(&dir).unwrap();
+
+        let hook_path = resolve_git_dir(&dir).join("hooks/pre-push");
+        std::fs::create_dir_all(hook_path.parent().unwrap()).unwrap();
+        std::fs::write(&hook_path, "#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert!(
+            data.hooks.iter().any(|hook| {
+                hook.name == "pre-push" && hook.active && hook.path.ends_with(".git/hooks/pre-push")
+            }),
+            "default bare pre-push hook must be discovered: {:?}",
+            data.hooks,
+        );
+        assert_eq!(l4_layer_state(&data, &dir), LayerState::On);
+        cleanup(&dir);
+    }
+
+    /// Git ignores .git/hooks when core.hooksPath is configured, so status
+    /// must inspect the effective file-mode location before claiming L4.
+    #[cfg(unix)]
+    #[test]
+    fn l4_core_hooks_path_pre_push_hook_with_policy_is_on() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = make_temp_dir();
+        if !try_git_init(&dir) {
+            eprintln!("skipping: git init unavailable");
+            cleanup(&dir);
+            return;
+        }
+        let configured = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&dir)
+            .args(["config", "core.hooksPath", ".custom-hooks"])
+            .status()
+            .expect("git config core.hooksPath");
+        assert!(configured.success());
+        crate::policy_load::seed_default_acceptance_policy(&dir).unwrap();
+
+        let hook_path = dir.join(".custom-hooks/pre-push");
+        std::fs::create_dir_all(hook_path.parent().unwrap()).unwrap();
+        std::fs::write(&hook_path, "#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert!(
+            data.hooks.iter().any(|hook| {
+                hook.name == "pre-push"
+                    && hook.active
+                    && hook.path.ends_with(".custom-hooks/pre-push")
+            }),
+            "effective core.hooksPath pre-push hook must be discovered: {:?}",
+            data.hooks,
+        );
+        assert_eq!(l4_layer_state(&data, &dir), LayerState::On);
+        cleanup(&dir);
+    }
+
+    /// CIB-415: an active L4 hook with no policy names the missing policy
+    /// and the command that creates the safe default.
+    #[test]
+    fn l4_missing_policy_next_action_is_actionable() {
+        let dir = make_temp_dir();
+        let data = bare_status_data(vec![file_mode_pre_push_hook()]);
+        let snapshot = build_legible_snapshot(
+            &data,
+            &test_activation_diagnostic(),
+            &dir,
+            SaveTimePosture::Hidden,
+        );
+        assert!(
+            snapshot.next_action.contains("policy") && snapshot.next_action.contains("anvil init"),
+            "missing policy guidance must be actionable: {}",
+            snapshot.next_action,
+        );
+        cleanup(&dir);
+    }
+
+    /// CIB-415: an active L4 hook with malformed policy identifies the
+    /// policy parse problem instead of suggesting unrelated daemon work.
+    #[test]
+    fn l4_invalid_policy_next_action_is_actionable() {
+        let dir = make_temp_dir();
+        std::fs::create_dir_all(dir.join("anvil")).unwrap();
+        std::fs::write(dir.join("anvil/policy.yml"), "not-a-policy\n").unwrap();
+        let data = bare_status_data(vec![file_mode_pre_push_hook()]);
+        let snapshot = build_legible_snapshot(
+            &data,
+            &test_activation_diagnostic(),
+            &dir,
+            SaveTimePosture::Hidden,
+        );
+        assert!(
+            snapshot.next_action.contains("policy") && snapshot.next_action.contains("invalid"),
+            "invalid policy guidance must identify the problem: {}",
+            snapshot.next_action,
+        );
         cleanup(&dir);
     }
 
