@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 5/13 |
+| JREL | Josh | high | In Progress | 6/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -224,7 +224,14 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-006: Preserve learning across projects and interrupted setup
 
-- **Status:** Ready
+- **Status:** Merged — PR #4512 (claim #4511) at `870bdba79`, completion-signal
+  PR #4513 at `87a129a54`, and quit-edge fix-forward PR #4514 at `ae38bced6`.
+  Closeout: user-global tutorial progress survives a missing project first-run
+  marker; completed learning paths mark `.anvil/first-run` only when the path
+  completed this session; completion is recorded at the final-step transition
+  so Quit from the completion screen retains the path. Back remains deferred;
+  autoplay stays excluded. Independent verification and Council passed on the
+  fix-forward head; required hosted checks were green before rebase-merge.
 - **Priority:** P1
 - **Intent:** Returning users retain learning progress when they open another repository.
 - **Expected Outcome:** A missing project first-run marker never deletes user-global tutorial progress. Visiting repo B after learning in A preserves progress even on immediate quit, failure, plain/JSON invocation or upgrade. Explicit reset remains deliberate; started, deferred and completed setup are not conflated with runtime health.
