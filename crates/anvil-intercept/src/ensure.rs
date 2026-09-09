@@ -519,11 +519,10 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
                 "the daemon did not become ready within {}s. \
                  See the daemon log at {} or retry with bare `anvil`.",
                 // Print the effective wall-clock ceiling: an in-flight probe can
-                // overrun `bind_timeout` by one `PROBE_TIMEOUT` (see
+                // overrun the bind wait by one `PROBE_TIMEOUT` (see
                 // `wait_until_answered` — the overrun is intentional), so the
-                // real bound is `bind_timeout + PROBE_TIMEOUT`, not `bind_timeout`
-                // alone (CIB-174).
-                (params.bind_timeout + PROBE_TIMEOUT).as_secs(),
+                // real bound is `bind_wait + PROBE_TIMEOUT` (CIB-174 / JREL-011).
+                (bind_wait + PROBE_TIMEOUT).as_secs(),
                 params.log_path.display()
             ),
         }
