@@ -252,6 +252,35 @@ fn backing_out_of_learning_path_keeps_first_run_deferred() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn completing_learning_path_marks_first_run_complete() {
+    let home = tempfile::tempdir().expect("isolated user home");
+    let workspace = tempfile::tempdir().expect("new repository");
+    std::fs::create_dir(workspace.path().join(".git")).expect("repository git marker");
+
+    let result = run_welcome_script(
+        workspace.path(),
+        home.path(),
+        &[
+            (b"esc/q quit", b"\x1b[B\r"),
+            // Select the five-step informational path, advance each step,
+            // acknowledge completion, return from the picker, then quit the hub.
+            (b"anvil's protection loop", b"\r     \r\x1bq"),
+        ],
+    );
+
+    assert!(
+        result.status.success(),
+        "welcome completion flow failed:\n{}",
+        result.transcript
+    );
+    assert!(
+        workspace.path().join(".anvil/first-run").is_file(),
+        "completing a real learning path must create first-run completion evidence"
+    );
+}
+
 #[test]
 fn plain_and_json_welcome_preserve_user_global_learning() {
     for args in [&["--no-tui", "welcome"][..], &["--json", "welcome"][..]] {

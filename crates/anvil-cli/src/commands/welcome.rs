@@ -470,38 +470,57 @@ fn hub_run_tutorial_next() -> LearningPathNext {
 ///
 /// JREL-006: [`SurfaceExit::Back`] leaves setup cancelled/deferred — the hub
 /// may still open, but Back must not become completion evidence (no
-/// `.anvil/first-run` write). Only an explicit continue-to-hub completion
-/// path (e.g. Skip) marks first-run complete.
+/// `.anvil/first-run` write). Only an explicit completion signal, such as
+/// Skip or finishing a real learning path, marks first-run complete.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FollowOnboardingResult {
-    /// Open the welcome hub. `mark_complete` controls the first-run marker.
-    ContinueToHub { mark_complete: bool },
-    /// User quit the welcome flow.
-    Exit,
+struct TutorialRunResult {
+    exit: SurfaceExit,
+    completed_path: bool,
+}
+
+impl TutorialRunResult {
+    fn deferred(exit: SurfaceExit) -> Self {
+        Self {
+            exit,
+            completed_path: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FollowOnboardingResult {
+    continue_to_hub: bool,
+    mark_complete: bool,
 }
 
 impl FollowOnboardingResult {
-    fn from_surface_exit(exit: SurfaceExit) -> Self {
-        match exit {
-            // Esc/back: return to hub without treating the follow-on as done.
-            SurfaceExit::Back => Self::ContinueToHub {
-                mark_complete: false,
-            },
-            SurfaceExit::Quit => Self::Exit,
+    fn from_tutorial(result: TutorialRunResult) -> Self {
+        Self {
+            continue_to_hub: result.exit == SurfaceExit::Back,
+            mark_complete: result.completed_path,
+        }
+    }
+
+    fn complete_to_hub() -> Self {
+        Self {
+            continue_to_hub: true,
+            mark_complete: true,
+        }
+    }
+
+    fn exit() -> Self {
+        Self {
+            continue_to_hub: false,
+            mark_complete: false,
         }
     }
 
     fn continue_to_hub(self) -> bool {
-        matches!(self, Self::ContinueToHub { .. })
+        self.continue_to_hub
     }
 
     fn completes_first_run(self) -> bool {
-        matches!(
-            self,
-            Self::ContinueToHub {
-                mark_complete: true
-            }
-        )
+        self.mark_complete
     }
 }
 
@@ -516,14 +535,12 @@ fn follow_onboarding_choice(
     outcome: OnboardingOutcome,
 ) -> anyhow::Result<FollowOnboardingResult> {
     match onboarding_next_screen(outcome) {
-        OnboardingNext::Quit => Ok(FollowOnboardingResult::Exit),
-        OnboardingNext::Hub => Ok(FollowOnboardingResult::ContinueToHub {
-            mark_complete: true,
-        }),
-        OnboardingNext::PathPicker => Ok(FollowOnboardingResult::from_surface_exit(
-            run_learning_path(terminal, theme, verbose)?,
-        )),
-        OnboardingNext::DiscoveryThenFirstWin => Ok(FollowOnboardingResult::from_surface_exit(
+        OnboardingNext::Quit => Ok(FollowOnboardingResult::exit()),
+        OnboardingNext::Hub => Ok(FollowOnboardingResult::complete_to_hub()),
+        OnboardingNext::PathPicker => Ok(FollowOnboardingResult::from_tutorial(run_learning_path(
+            terminal, theme, verbose,
+        )?)),
+        OnboardingNext::DiscoveryThenFirstWin => Ok(FollowOnboardingResult::from_tutorial(
             run_discovery_then_first_win_tutorial(terminal, theme, verbose)?,
         )),
     }
@@ -534,7 +551,7 @@ fn run_learning_path(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     verbose: bool,
-) -> anyhow::Result<SurfaceExit> {
+) -> anyhow::Result<TutorialRunResult> {
     let mut tutorial_state = tutorial_state_for_learning_path();
     run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)
 }
@@ -547,18 +564,18 @@ fn run_discovery_then_first_win_tutorial(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     theme: &EddaCraftTheme,
     verbose: bool,
-) -> anyhow::Result<SurfaceExit> {
+) -> anyhow::Result<TutorialRunResult> {
     match run_discovery(terminal, theme)? {
         Some(mut results) => {
             // WOW-005: land on the highest-value actionable real finding
             // first; declining falls through to the tutorial path picker.
             if run_first_win_reroute(terminal, theme, &mut results)? == FirstWinFlow::Quit {
-                return Ok(SurfaceExit::Quit);
+                return Ok(TutorialRunResult::deferred(SurfaceExit::Quit));
             }
             let mut tutorial_state = tutorial_state_with_scan(results);
             run_tutorial_with_fix(terminal, theme, &mut tutorial_state, verbose)
         }
-        None => Ok(SurfaceExit::Back),
+        None => Ok(TutorialRunResult::deferred(SurfaceExit::Back)),
     }
 }
 
@@ -1286,7 +1303,7 @@ fn run_tutorial_with_fix(
     theme: &EddaCraftTheme,
     tutorial_state: &mut anvil_tui::surfaces::tutorial::TutorialState,
     verbose: bool,
-) -> anyhow::Result<SurfaceExit> {
+) -> anyhow::Result<TutorialRunResult> {
     let workspace_root = crate::util::workspace_root()?;
     let progress_path = crate::commands::tutorial::progress_file_path()?;
     bind_welcome_tutorial_workspace(tutorial_state, &workspace_root)?;
@@ -1308,7 +1325,10 @@ fn run_tutorial_with_fix(
         )?;
     }
 
-    Ok(exit)
+    Ok(TutorialRunResult {
+        exit,
+        completed_path: tutorial_state.completed_path_this_session(),
+    })
 }
 
 fn run_welcome_tutorial_loop(
@@ -1754,8 +1774,8 @@ fn run_welcome_hub(
                 welcome.status_message = None;
                 match hub_run_tutorial_next() {
                     LearningPathNext::PathPicker => {
-                        let sub_exit = run_learning_path(terminal, theme, verbose)?;
-                        if sub_exit == SurfaceExit::Quit {
+                        let tutorial = run_learning_path(terminal, theme, verbose)?;
+                        if tutorial.exit == SurfaceExit::Quit {
                             break;
                         }
                     }
@@ -1784,17 +1804,17 @@ fn run_welcome_hub(
                     }
                 }
 
-                let onboarding_ok = match run_onboarding(terminal, theme) {
+                let (onboarding_ok, continue_to_hub) = match run_onboarding(terminal, theme) {
                     Ok(outcome) => {
                         let follow = follow_onboarding_choice(terminal, theme, verbose, outcome)?;
-                        if !follow.continue_to_hub() {
-                            break;
-                        }
-                        outcome.completes_first_run(follow.completes_first_run())
+                        (
+                            outcome.completes_first_run(follow.completes_first_run()),
+                            follow.continue_to_hub(),
+                        )
                     }
                     Err(e) => {
                         welcome.status_message = Some(format!("Onboarding failed: {e}"));
-                        false
+                        (false, true)
                     }
                 };
 
@@ -1805,6 +1825,10 @@ fn run_welcome_hub(
                     if let Err(err) = create_first_run_marker(&marker_path) {
                         eprintln!("[welcome] warning: failed to create first-run marker: {err}");
                     }
+                }
+
+                if !continue_to_hub {
+                    break;
                 }
 
                 welcome.should_quit = false;
@@ -3082,28 +3106,35 @@ mod tests {
 
     #[test]
     fn follow_on_surface_back_opens_hub_without_completing_first_run() {
-        let back = FollowOnboardingResult::from_surface_exit(SurfaceExit::Back);
+        let back =
+            FollowOnboardingResult::from_tutorial(TutorialRunResult::deferred(SurfaceExit::Back));
         assert_eq!(
             back,
-            FollowOnboardingResult::ContinueToHub {
-                mark_complete: false
+            FollowOnboardingResult {
+                continue_to_hub: true,
+                mark_complete: false,
             }
         );
         assert!(back.continue_to_hub());
         assert!(!back.completes_first_run());
 
         assert_eq!(
-            FollowOnboardingResult::from_surface_exit(SurfaceExit::Quit),
-            FollowOnboardingResult::Exit
+            FollowOnboardingResult::from_tutorial(TutorialRunResult::deferred(SurfaceExit::Quit)),
+            FollowOnboardingResult::exit()
         );
-        assert!(!FollowOnboardingResult::Exit.continue_to_hub());
-        assert!(!FollowOnboardingResult::Exit.completes_first_run());
+        assert!(!FollowOnboardingResult::exit().continue_to_hub());
+        assert!(!FollowOnboardingResult::exit().completes_first_run());
 
-        let skip = FollowOnboardingResult::ContinueToHub {
-            mark_complete: true,
-        };
+        let skip = FollowOnboardingResult::complete_to_hub();
         assert!(skip.continue_to_hub());
         assert!(skip.completes_first_run());
+
+        let completed_path = FollowOnboardingResult::from_tutorial(TutorialRunResult {
+            exit: SurfaceExit::Back,
+            completed_path: true,
+        });
+        assert!(completed_path.continue_to_hub());
+        assert!(completed_path.completes_first_run());
 
         // Backing out of discovery/tutorial must not count as first-run completion.
         assert!(!OnboardingOutcome::Tutorial.completes_first_run(back.completes_first_run()));
