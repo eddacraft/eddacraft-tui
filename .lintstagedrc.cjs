@@ -89,19 +89,23 @@ module.exports = {
   '*.json': (files) => {
     const kept = filter(files).filter((f) => !isAgentConfig(f));
     if (kept.length === 0) return [];
-    const formatted = kept.filter((file) => !isAuditJson(file));
-    const auditJson = kept.filter(isAuditJson);
+    // `/plans` is prettierignored wholesale (same as Markdown). A plans-only
+    // JSON stage otherwise hands oxfmt an all-excluded target set and fails
+    // with "Expected at least one target file" — CCTX live V1 run records live
+    // under plans/evals/. Skip oxfmt for root plans JSON; still JSON.parse.
+    const formatted = kept.filter((file) => !isAuditJson(file) && !isRootPlansDoc(file));
+    const parseOnly = kept.filter((file) => isAuditJson(file) || isRootPlansDoc(file));
     const tasks = [];
     if (formatted.length > 0) {
       const list = toCommandList(formatted);
       tasks.push(`oxfmt --write ${list}`, `eslint --fix ${list}`);
     }
-    if (auditJson.length > 0) {
-      // Validate each audit JSON, naming the offending file on failure so a
+    if (parseOnly.length > 0) {
+      // Validate each plans/audit JSON, naming the offending file on failure so a
       // bad file in a multi-file stage is obvious (a bare JSON.parse throws
       // without saying which file).
       tasks.push(
-        `node -e "for (const file of process.argv.slice(1)) { try { JSON.parse(require('node:fs').readFileSync(file, 'utf8')); } catch (err) { console.error('Invalid JSON in ' + file + ': ' + err.message); process.exit(1); } }" ${toCommandList(auditJson)}`
+        `node -e "for (const file of process.argv.slice(1)) { try { JSON.parse(require('node:fs').readFileSync(file, 'utf8')); } catch (err) { console.error('Invalid JSON in ' + file + ': ' + err.message); process.exit(1); } }" ${toCommandList(parseOnly)}`
       );
     }
     return tasks;

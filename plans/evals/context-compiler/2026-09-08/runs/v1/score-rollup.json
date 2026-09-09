@@ -1,0 +1,177 @@
+{
+  "run": {
+    "id": "cctx-004-2026-09-08-v1-score",
+    "at": "2026-09-09T06:25:57Z",
+    "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+    "kind": "live-v1-session-score",
+    "scorer": "score_v1.py"
+  },
+  "n_records": 5,
+  "tasks": [
+    {
+      "task": "T16",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T16.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "anvil-gctx-types",
+          "token_reduction.rs",
+          "CE-5"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 280,
+      "first_useful_action": {
+        "at_s": 45,
+        "path": "crates/anvil-gctx-types/src/lib.rs",
+        "note": "Located CE-5 structural no-leak hard gate in anvil-gctx-types crate docs and tests."
+      }
+    },
+    {
+      "task": "T17",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T17.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "AffectedTestsSummary",
+          "affected_tests_",
+          "identity-only"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 210,
+      "first_useful_action": {
+        "at_s": 35,
+        "path": "crates/anvil-gctx-types/src/lib.rs",
+        "note": "Found AffectedTestsSummary / AffectedTestsReport and identity-only pinning tests."
+      }
+    },
+    {
+      "task": "T18",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T18.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "anvil_affected_tests",
+          "call_graph.rs",
+          "token_reduction"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 200,
+      "first_useful_action": {
+        "at_s": 50,
+        "path": "crates/anvil-graph-cache/src/call_graph.rs",
+        "note": "Confirmed call_graph.rs substrate; then contrasted with anvil_affected_tests ownership."
+      }
+    },
+    {
+      "task": "T19",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T19.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "142-graph-answer-attestation.md",
+          "\u00a715.6",
+          "parked"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": true,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 210,
+      "first_useful_action": {
+        "at_s": 40,
+        "path": "plans/specs/2026-09-08-context-compiler.md",
+        "note": "Found \u00a715 open decision 6: Evidence format versus GATT remains parked."
+      }
+    },
+    {
+      "task": "T20",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T20.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "five-track",
+          "not membership",
+          "Graph Trust Surfaces"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": true,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 190,
+      "first_useful_action": {
+        "at_s": 30,
+        "path": "plans/specs/2026-07-28-graph-trust-surfaces.md",
+        "note": "Confirmed operator-approved five-track Graph Trust Surfaces shortlist."
+      }
+    }
+  ]
+}

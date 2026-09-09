@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval artefacts) | 2026-09-08 — directory scaffold for live §12.7 V1 sessions; no session records yet |
+| Spec | Advisory | CCTX | Draft (eval artefacts) | 2026-09-09 — T16–T20 live V1 sessions recorded (batch-D); T01–T15 still empty here |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -16,4 +16,6 @@ Dated §12.7 ordinary-exploration sessions. Corpus
 | `Txx.json` | One independent V1 session |
 | `Txx.md` | Optional transcript notes |
 | `batch-t01-t05.json` | First-batch roll-up — created when T01–T05 sessions are recorded (not in this PR yet) |
+| `batch-t16-t20.json` | Batch-D roll-up for T16–T20 (this PR) |
+| `T16.json` … `T20.json` | Batch-D live V1 session records |
 | `score-rollup.json` | Mechanical `score_v1.py` output |

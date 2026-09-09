@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ------ | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval coordination) | 2026-09-08 — first batch T01–T05 claimed by CCTX-004 / #4466 |
+| Spec | Advisory | CCTX | Draft (eval coordination) | 2026-09-09 — T16–T20 recorded by eval/cctx-v1-batch-D (this PR); T01–T05 remain claimed by CCTX-004 / #4466 |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -41,11 +41,11 @@ residual is the done bar for a first PR.
 | T13 | policy-sensitive change | available | — | **High priority** — live leakage score (council should_fix). Keep `anvil_validate_write`. |
 | T14 | policy-sensitive change | available | — | EVALCI vs CCTX |
 | T15 | policy-sensitive change | available | — | Honest **uncertainty**; do not invent an ADR (§15.7) |
-| T16 | test-impact | available | — | Blast-radius scoring applies |
-| T17 | test-impact | available | — | Blast-radius scoring applies |
-| T18 | test-impact | available | — | Blast-radius scoring applies |
-| T19 | novel structural question | available | — | Honest **parked** (§15.6); do not fork GATT |
-| T20 | novel structural question | available | — | Honest **no** — affinity, not membership |
+| T16 | test-impact | recorded | eval/cctx-v1-batch-D (this PR; T16–T20) | Blast-radius scoring applies |
+| T17 | test-impact | recorded | eval/cctx-v1-batch-D (this PR; T16–T20) | Blast-radius scoring applies |
+| T18 | test-impact | recorded | eval/cctx-v1-batch-D (this PR; T16–T20) | Blast-radius scoring applies |
+| T19 | novel structural question | recorded | eval/cctx-v1-batch-D (this PR; T16–T20) | Honest **parked** (§15.6); do not fork GATT |
+| T20 | novel structural question | recorded | eval/cctx-v1-batch-D (this PR; T16–T20) | Honest **no** — affinity, not membership |
 
 Suggested sibling slices: T06–T10, T11–T15 (includes T13), T16–T20.
 

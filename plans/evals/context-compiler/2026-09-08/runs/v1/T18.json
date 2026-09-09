@@ -1,0 +1,80 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/cctx-v1-corpus-batch-D",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "task": "T18",
+  "session_id": "cctx-v1-batch-D-T18-2026-09-09",
+  "started_at": "2026-09-09T06:33:00Z",
+  "ended_at": "2026-09-09T06:36:20Z",
+  "wall_time_s": 200,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 3
+    },
+    {
+      "name": "read",
+      "count": 3
+    },
+    {
+      "name": "ls",
+      "count": 1
+    }
+  ],
+  "search_queries": [
+    "anvil_affected_tests across repo",
+    "call_graph.rs in anvil-graph-cache",
+    "token_reduction vs spike / GCTX-013"
+  ],
+  "files_read": [
+    "crates/anvil-graph-cache/src/call_graph.rs",
+    "crates/anvil-gctx-types/src/lib.rs",
+    "crates/anvil-bench/src/scenarios/token_reduction.rs",
+    "plans/archive/modules/graph-context-delivery.aps.md"
+  ],
+  "first_useful_action": {
+    "at_s": 50,
+    "path": "crates/anvil-graph-cache/src/call_graph.rs",
+    "note": "Confirmed call_graph.rs substrate; then contrasted with anvil_affected_tests ownership."
+  },
+  "answer": "After editing crates/anvil-graph-cache/src/call_graph.rs, naming affected tests is a GCTX-013 job via anvil_affected_tests (identity-only, import-heuristic) \u2014 not this CCTX spike and not the GCTX-031 token_reduction bench. V1 has no GCTX tools available, so this session cannot honestly list live affected tests; the correct next step when GCTX is unblocked is to call anvil_affected_tests with the changed paths (including call_graph.rs) and keep anvil_validate_write on the edit. Do not treat token_reduction numbers or a Decision Brief as the test list.",
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path; honest blocked-GCTX limitation stated."
+  },
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "anvil_affected_tests",
+      "call_graph.rs",
+      "token_reduction"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

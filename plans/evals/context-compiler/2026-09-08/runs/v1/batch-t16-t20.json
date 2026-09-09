@@ -1,0 +1,122 @@
+{
+  "run": {
+    "id": "cctx-v1-batch-D-t16-t20-2026-09-09",
+    "at": "2026-09-09T06:26:13Z",
+    "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+    "variant": "V1",
+    "kind": "live-v1-batch-rollup",
+    "branch": "eval/cctx-v1-batch-D",
+    "relates_to": "#4466"
+  },
+  "tasks": [
+    {
+      "task": "T16",
+      "session_id": "cctx-v1-batch-D-T16-2026-09-09",
+      "wall_time_s": 280,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 45,
+        "path": "crates/anvil-gctx-types/src/lib.rs",
+        "note": "Located CE-5 structural no-leak hard gate in anvil-gctx-types crate docs and tests."
+      },
+      "notes": null
+    },
+    {
+      "task": "T17",
+      "session_id": "cctx-v1-batch-D-T17-2026-09-09",
+      "wall_time_s": 210,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 35,
+        "path": "crates/anvil-gctx-types/src/lib.rs",
+        "note": "Found AffectedTestsSummary / AffectedTestsReport and identity-only pinning tests."
+      },
+      "notes": null
+    },
+    {
+      "task": "T18",
+      "session_id": "cctx-v1-batch-D-T18-2026-09-09",
+      "wall_time_s": 200,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 50,
+        "path": "crates/anvil-graph-cache/src/call_graph.rs",
+        "note": "Confirmed call_graph.rs substrate; then contrasted with anvil_affected_tests ownership."
+      },
+      "notes": null
+    },
+    {
+      "task": "T19",
+      "session_id": "cctx-v1-batch-D-T19-2026-09-09",
+      "wall_time_s": 210,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": true,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 40,
+        "path": "plans/specs/2026-09-08-context-compiler.md",
+        "note": "Found \u00a715 open decision 6: Evidence format versus GATT remains parked."
+      },
+      "notes": "Honest parked (\u00a715.6); do not fork GATT"
+    },
+    {
+      "task": "T20",
+      "session_id": "cctx-v1-batch-D-T20-2026-09-09",
+      "wall_time_s": 190,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": true,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 30,
+        "path": "plans/specs/2026-07-28-graph-trust-surfaces.md",
+        "note": "Confirmed operator-approved five-track Graph Trust Surfaces shortlist."
+      },
+      "notes": "Honest no \u2014 affinity, not membership"
+    }
+  ],
+  "summary": {
+    "n": 5,
+    "all_task_success": true,
+    "honest_specials": {
+      "T19": "parked \u00a715.6",
+      "T20": "no \u2014 affinity, not membership"
+    },
+    "non_scope": [
+      "No APS N/M bump",
+      "Spec \u00a715 remains parked",
+      "No GCTX / Decision Brief input",
+      "No product compiler"
+    ]
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/cctx-v1-corpus-batch-D",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "task": "T16",
+  "session_id": "cctx-v1-batch-D-T16-2026-09-09",
+  "started_at": "2026-09-09T06:24:00Z",
+  "ended_at": "2026-09-09T06:28:40Z",
+  "wall_time_s": 280,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 4
+    },
+    {
+      "name": "read",
+      "count": 5
+    }
+  ],
+  "search_queries": [
+    "GctxProjector|CE-5|token_reduction in crates",
+    "CE-5|hard gate|no-leak in anvil-gctx-types",
+    "GCTX-010|GCTX-031 in docs/architecture/graph-context-delivery-spec.md",
+    "token_reduction spike in plans/specs/2026-09-08-context-compiler.md"
+  ],
+  "files_read": [
+    "crates/anvil-gctx-egress/src/lib.rs",
+    "crates/anvil-gctx-types/src/lib.rs",
+    "crates/anvil-bench/src/scenarios/token_reduction.rs",
+    "docs/architecture/graph-context-delivery-spec.md",
+    "plans/specs/2026-09-08-context-compiler.md"
+  ],
+  "first_useful_action": {
+    "at_s": 45,
+    "path": "crates/anvil-gctx-types/src/lib.rs",
+    "note": "Located CE-5 structural no-leak hard gate in anvil-gctx-types crate docs and tests."
+  },
+  "answer": "If GctxProjector (crates/anvil-gctx-egress/src/lib.rs \u2014 the CE-5 egress choke point on the GCTX-010 spine) changes, the hard gate to keep is the CE-5 structural no-leak test suite in crates/anvil-gctx-types/src/lib.rs (crate docs call it the CE-5 hard gate; serialised-shape tests such as symbol_summary_serialised_keys_are_identity_only and the GCTX-011/012/013/014 CE-5 sections). The GCTX-031 bench crates/anvil-bench/src/scenarios/token_reduction.rs measures ImpactOutcome payload shape versus file-reading and must not be treated as this CCTX spike \u2014 the draft Context Compiler spec says the spike sits beside token_reduction and does not replace that harness. Keep anvil_validate_write on any edit; this V1 session did not use GCTX tools or a Decision Brief as a gate.",
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path requiring recovery."
+  },
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "anvil-gctx-types",
+      "token_reduction.rs",
+      "CE-5"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/cctx-v1-corpus-batch-D",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "task": "T20",
+  "session_id": "cctx-v1-batch-D-T20-2026-09-09",
+  "started_at": "2026-09-09T06:41:00Z",
+  "ended_at": "2026-09-09T06:44:10Z",
+  "wall_time_s": 190,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 3
+    },
+    {
+      "name": "read",
+      "count": 3
+    }
+  ],
+  "search_queries": [
+    "Graph Trust Surfaces five-track shortlist",
+    "Context Compiler sixth track / affinity in plans/index.aps.md",
+    "\u00a76 / \u00a716 Context Compiler positioning"
+  ],
+  "files_read": [
+    "plans/specs/2026-07-28-graph-trust-surfaces.md",
+    "plans/index.aps.md",
+    "plans/specs/2026-09-08-context-compiler.md"
+  ],
+  "first_useful_action": {
+    "at_s": 30,
+    "path": "plans/specs/2026-07-28-graph-trust-surfaces.md",
+    "note": "Confirmed operator-approved five-track Graph Trust Surfaces shortlist."
+  },
+  "answer": "No. Graph Trust Surfaces is an operator-approved five-track shortlist (CONF/CEG, LSPNAV, CGBDG, POLCAP, SCA) in plans/specs/2026-07-28-graph-trust-surfaces.md. Context Compiler (CCTX) has affinity of intent (trustworthy graph answers) with that programme, not membership \u2014 plans/index.aps.md Graph Substrate row and the Context Compiler spec \u00a76 / \u00a716 say explicitly it is not a sixth track. Home is Graph Substrate next to GATT/CEG affinity. Do not schedule CCTX as a sixth GTS track from this spike.",
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path."
+  },
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "five-track",
+      "not membership",
+      "Graph Trust Surfaces"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": true,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}
