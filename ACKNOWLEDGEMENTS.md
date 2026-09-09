@@ -4732,7 +4732,7 @@ THE SOFTWARE.
 Used by:
 
 - `dirs-sys` 0.5.0
-- `dirs` 6.0.0
+- `dirs` 7.0.0
 
 <details>
 <summary>Licence text</summary>
@@ -9625,7 +9625,7 @@ the following restrictions:
 | `ahash` | 0.8.12 | MIT License | https://github.com/tkaitchuck/ahash |
 | `want` | 0.3.1 | MIT License | https://github.com/seanmonstar/want |
 | `dirs-sys` | 0.5.0 | MIT License | https://github.com/dirs-dev/dirs-sys-rs |
-| `dirs` | 6.0.0 | MIT License | https://github.com/soc/dirs-rs |
+| `dirs` | 7.0.0 | MIT License | https://github.com/soc/dirs-rs |
 | `try-lock` | 0.2.5 | MIT License | https://github.com/seanmonstar/try-lock |
 | `block-buffer` | 0.12.1 | MIT License | https://github.com/RustCrypto/utils |
 | `getrandom` | 0.3.4 | MIT License | https://github.com/rust-random/getrandom |
