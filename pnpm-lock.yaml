@@ -33,7 +33,7 @@ overrides:
   '@eslint/eslintrc>ajv': 6.14.0
   serialize-javascript@<7.0.5: '>=7.0.5'
   brace-expansion@<5.0.9: 5.0.9
-  hono@<4.12.7: '>=4.12.7'
+  hono@<4.13.5: '>=4.13.5'
   http-proxy-middleware@<3.0.6: '>=3.0.6'
   underscore@<=1.13.7: '>=1.13.8'
   '@hono/node-server@<1.19.13': '>=1.19.13'
@@ -265,13 +265,13 @@ importers:
         version: link:../../packages/transactional
       '@hono/zod-validator':
         specifier: ^0.8.0
-        version: 0.8.0(hono@4.12.34)(zod@4.4.3)
+        version: 0.8.0(hono@4.13.7)(zod@4.4.3)
       '@neondatabase/serverless':
         specifier: ^1.1.0
         version: 1.1.0
       hono:
-        specifier: ^4.12.34
-        version: 4.12.34
+        specifier: ^4.13.7
+        version: 4.13.7
       jose:
         specifier: ^6.2.3
         version: 6.2.3
@@ -539,8 +539,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/anvil/runtime
       hono:
-        specifier: ^4.12.34
-        version: 4.12.34
+        specifier: ^4.13.7
+        version: 4.13.7
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -3149,7 +3149,7 @@ packages:
   '@hono/zod-validator@0.8.0':
     resolution: {integrity: sha512-5uS4S1/LKtZQYvD4BtpPUFkOv8d1wNxHHrChm26buMiEYc1FrHWvDUaKVBwkiVtvSExHSpLGDvcnpI2Copyj9w==}
     peerDependencies:
-      hono: '>=4.12.7'
+      hono: '>=4.13.5'
       zod: ^3.25.0 || ^4.0.0
 
   '@humanfs/core@0.19.2':
@@ -10376,8 +10376,8 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.12.34:
-    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
+  hono@4.13.7:
+    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@7.0.2:
@@ -19803,9 +19803,9 @@ snapshots:
     dependencies:
       tailwindcss: 4.3.2
 
-  '@hono/zod-validator@0.8.0(hono@4.12.34)(zod@4.4.3)':
+  '@hono/zod-validator@0.8.0(hono@4.13.7)(zod@4.4.3)':
     dependencies:
-      hono: 4.12.34
+      hono: 4.13.7
       zod: 4.4.3
 
   '@humanfs/core@0.19.2':
@@ -27790,7 +27790,7 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono@4.12.34: {}
+  hono@4.13.7: {}
 
   hosted-git-info@7.0.2:
     dependencies:
