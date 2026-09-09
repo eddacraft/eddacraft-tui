@@ -5,7 +5,7 @@
 
 | ID   | Owner       | Status | Progress |
 | ---- | ----------- | ------ | -------- |
-| CCTX | @joshuaboys | Ready | 2/3      |
+| CCTX | @joshuaboys | Ready | 3/4      |
 
 **Status:** **Ready** (2026-09-08). Owner authorised the first spike. Spec
 §12/§13 is frozen enough to run (CCTX-001). Spec §9 Decision Brief
