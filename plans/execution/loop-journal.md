@@ -1019,3 +1019,26 @@ never with feature work.
 - Avoided: jrel-drain, cctx-004, residual-map V1, JREL welcome files.
 - Next: GATT-002 disclosure gate harness (`test/gatt-002-disclosure-harness`,
   claim #4524).
+
+## Cycle — 2026-09-09 (JREL-010 integrated; drain resume after host restart)
+
+- Target: JREL-010 then JREL-011 then JREL-013. Harness: Grok
+  (`GROK_AGENT=1`). Mode: autonomous complete plus rebase-merge on green
+  (session override; no admin merge).
+- Resume VERIFY: `origin/main` was `3d0374327`; GATT-006 APS reconcile
+  #4563 already on main (`7df16ed63`) — GATT left untouched. JREL 10/13
+  with 001–009 + 012 Merged. PR #4562 already rebased onto that main
+  (`a393bf667`), MERGEABLE, rebase auto-merge enabled by joshuaboys.
+  Feature work was not redone.
+- Claims (degraded/advisory): GitHub #4553; git-ref `refs/claims/JREL-010`
+  renewed locally (`fbb76ee1f`). Remote blob-ref push needs force; not
+  forced. Isolation for land: existing PR branch. Reconcile worktree
+  `/home/aneki/.grok/worktrees/src-anvil-001/jrel-010-reconcile`.
+- JREL-010 (admitted MCP worktree identity):
+  `LANDING(a393bf667a2636476dc510a7c35aaabedc888674)` then
+  `MERGED(a2734e822e2e301e4eb68368031bea9764b7367e, 2026-09-09T21:24:21Z)`
+  via PR #4562 (rebase-merge). Original head is not an ancestor after
+  rewrite; merge commit is an ancestor of `origin/main`; content probe
+  passed (`fix(mcp): pin tools to admitted worktree identity`).
+- Next: exclusive APS reconcile of JREL-010 → Merged (this branch), then
+  JREL-011, then JREL-013.

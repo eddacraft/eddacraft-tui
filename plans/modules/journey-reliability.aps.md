@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 10/13 |
+| JREL | Josh | high | In Progress | 11/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -299,13 +299,19 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-010: Consistent admitted workspace identity in MCP
 
-- **Status:** In Progress
+- **Status:** Merged — PR #4562 (claim #4553) at `a2734e822`. MCP serve
+  pins tools, resources and live-session registration to the admitted git
+  worktree containing the launch directory, not the raw cwd. Package
+  subdirectory, linked-worktree and symlink launches share one canonical
+  project/worktree with activation, status, graph and validation.
+  Outside-repo launches refuse with reconnection guidance; nested untrusted
+  git checkouts stay refused, including `anvil_validate_write`.
 - **Priority:** P1
 - **Intent:** MCP tools use the intended admitted project regardless of launch directory.
 - **Expected Outcome:** Activation and MCP status, graph and validation agree on canonical project/worktree identity for root, package subdirectory, linked worktree and symlink launches. Outside-repo launch either establishes an explicitly admitted root or gives precise reconnection guidance. Unrelated or nested untrusted roots remain refused; no arbitrary caller-root escape is introduced.
 - **Dependencies:** JREL-002
 - **Coordinates with:** GCTX root admission, ACTMO registration, CIB-414 nested-root boundary; this item fixes identity mismatch without relaxing those controls.
-- **Files:** `crates/anvil-cli/src/mcp/tools/shared.rs`, `crates/anvil-cli/src/mcp/tools/status.rs`, `crates/anvil-cli/src/mcp/protocol/domain.rs`, `crates/anvil-cli/src/registration.rs`
+- **Files:** `crates/anvil-cli/src/mcp/tools/shared.rs`, `crates/anvil-cli/src/mcp/tools/validate_write.rs`, `crates/anvil-cli/src/mcp/tools/apply_patch.rs`, `crates/anvil-cli/src/mcp/client_session.rs`, `crates/anvil-cli/src/mcp/protocol/domain.rs`, `crates/anvil-cli/src/mcp/resources/mod.rs`, `crates/anvil-cli/ARCHITECTURE.md`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; launch-location matrix and negative containment tests prove common identity without widened admission.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
 
