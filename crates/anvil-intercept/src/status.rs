@@ -365,9 +365,12 @@ pub trait StatusProvider: Send + Sync {
 
     /// JREL-013: snapshot for one worktree's attestation. Default
     /// filters a full snapshot; production providers override to avoid
-    /// materialising unrelated sessions.
+    /// materialising unrelated sessions. Filter key matches registry
+    /// lookup: canonicalize when the path exists so a non-canonical
+    /// caller path cannot empty a successful scoped snapshot.
     fn query_status_for_worktree(&self, worktree: &Path) -> DaemonStatus {
-        filter_status_to_worktree(self.query_status(), worktree)
+        let filter_key = std::fs::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
+        filter_status_to_worktree(self.query_status(), &filter_key)
     }
 }
 
@@ -578,10 +581,13 @@ impl StatusProvider for DaemonStatusProvider {
     }
 
     fn query_status_for_worktree(&self, worktree: &Path) -> DaemonStatus {
-        filter_status_to_worktree(
-            self.assemble_snapshot(self.registry.sessions_for_worktree(worktree)),
-            worktree,
-        )
+        let sessions = self.registry.sessions_for_worktree(worktree);
+        let snapshot = self.assemble_snapshot(sessions);
+        // sessions_for_worktree matches on canonicalize(worktree); stored
+        // paths are canonical. Filter with the same key so a non-canonical
+        // caller path cannot empty a successful lookup.
+        let filter_key = std::fs::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
+        filter_status_to_worktree(snapshot, &filter_key)
     }
 }
 
@@ -958,6 +964,47 @@ mod tests {
         let full_claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-a"));
         let scoped_claim = build_protection_claim(&scoped, Path::new("/tmp/wt-a"));
         assert_eq!(full_claim, scoped_claim);
+    }
+
+    #[test]
+    fn query_status_for_worktree_keeps_sessions_for_noncanonical_caller_path() {
+        use crate::fence::FenceStore;
+        use crate::registry::SessionRegistry;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let wt = tmp.path().join("wt-a");
+        std::fs::create_dir(&wt).expect("mkdir");
+        let canonical = std::fs::canonicalize(&wt).expect("canonicalize");
+        let via_dotdot = tmp.path().join(".").join("wt-a");
+
+        let registry = Arc::new(SessionRegistry::new());
+        registry
+            .register(
+                &SessionId::new("s-a"),
+                &canonical,
+                None,
+                Instant::now(),
+            )
+            .expect("register");
+
+        let fence_path = tmp.path().join("fence.json");
+        let provider = DaemonStatusProvider::new(
+            Arc::clone(&registry),
+            Arc::new(FenceStore::at_path(&fence_path)),
+            LatencyAggregator::new(),
+            Instant::now(),
+            "0.9.8-beta",
+        );
+        let scoped = provider.query_status_for_worktree(&via_dotdot);
+        assert_eq!(scoped.sessions.len(), 1, "{scoped:?}");
+        assert_eq!(scoped.sessions[0].worktree, canonical);
+        assert!(
+            scoped
+                .worktrees
+                .iter()
+                .all(|entry| entry.worktree == canonical),
+            "{scoped:?}"
+        );
     }
 
     fn sample_rollup(p50_ms: f64, p95_ms: f64) -> LatencyRollup {
@@ -1821,7 +1868,6 @@ mod tests {
     /// without re-formatting.
     #[test]
     fn build_protection_claim_uses_agent_tag_identifier() {
-        use anvil_intercept_proto::session::AgentTag;
         let tag = AgentTag::new("anvil-run", "claude-code-1", 1_700_000_042);
         let mut session = sample_session("sess-tag", "/tmp/wt-tag");
         session.agent_tag = Some(tag);
@@ -1956,7 +2002,6 @@ mod tests {
     /// identifier on the wire path as on the daemon-internal path.
     #[test]
     fn build_protection_claim_from_wire_uses_agent_tag_identifier() {
-        use anvil_intercept_proto::session::AgentTag;
         let tag = AgentTag::new("anvil-run", "claude-code-1", 1_700_000_042);
         let mut session = sample_session("sess-tag", "/tmp/wt-tag");
         session.agent_tag = Some(tag);
