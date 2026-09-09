@@ -34,6 +34,8 @@ use crate::commands::mcp_inventory::UnixTermSignals;
 use crate::mcp::reexec::resolve_preferred_executable;
 
 const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
+const ESTABLISHED_SESSION_RECONNECT_GUIDANCE: &str = "Live MCP sessions preserve accepted and pipelined requests on their current image. \
+     Reconnect MCP for each affected client to use the preferred binary.";
 
 #[derive(Debug, Args)]
 pub struct McpRefreshArgs {
@@ -649,10 +651,7 @@ fn emit_report(report: &RefreshReport, json_mode: bool) -> Result<()> {
         );
     }
     if report.processes.skewed > 0 {
-        println!(
-            "Live MCP sessions preserve accepted and pipelined requests on their current image. \
-             Reconnect MCP for each parent that remains stale after its next tool call."
-        );
+        println!("{ESTABLISHED_SESSION_RECONNECT_GUIDANCE}");
     }
     Ok(())
 }
@@ -975,5 +974,13 @@ mod tests {
             message.contains("not offered") || message.contains("forbidden"),
             "error should say force-skewed is not offered: {message}"
         );
+    }
+
+    #[test]
+    fn established_session_guidance_requires_client_reconnect_without_waiting_for_call() {
+        let lower = super::ESTABLISHED_SESSION_RECONNECT_GUIDANCE.to_ascii_lowercase();
+        assert!(lower.contains("reconnect mcp for each affected client"));
+        assert!(!lower.contains("next tool call"));
+        assert!(!lower.contains("each parent"));
     }
 }

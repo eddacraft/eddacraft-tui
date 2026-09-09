@@ -72,6 +72,7 @@ pub(crate) enum StayReason {
     PlatformDemoted,
     Pinned,
     EstablishedSession,
+    EstablishedSessionPreferredUnresolved,
 }
 
 impl StayReason {
@@ -107,6 +108,12 @@ impl StayReason {
                 "This established MCP session stays on its current anvil binary \
                  so the request and any pipelined input are not lost. \
                  Reconnect MCP for this client to use the preferred binary.",
+            ),
+            Self::EstablishedSessionPreferredUnresolved => Some(
+                "This established MCP session stays on its current anvil binary \
+                 so the request and any pipelined input are not lost. The preferred \
+                 anvil binary could not be resolved. Put anvil first on PATH. \
+                 Reconnect MCP for this client.",
             ),
             Self::NotATrigger | Self::MidFrame | Self::NotSkewed => None,
         }
@@ -166,7 +173,10 @@ pub(crate) fn decide(probe: &ReexecProbe) -> ReexecDecision {
     let skewed = is_skewed(probe.current_exe.as_deref(), probe.preferred.as_deref());
 
     if probe.check == CheckKind::RpcMethod {
-        if probe.preferred.is_none() || skewed {
+        if probe.preferred.is_none() {
+            return stay(StayReason::EstablishedSessionPreferredUnresolved, true);
+        }
+        if skewed {
             return stay(StayReason::EstablishedSession, true);
         }
         return stay(StayReason::NotSkewed, false);
@@ -591,6 +601,28 @@ mod tests {
     }
 
     #[test]
+    fn mcp_reexec_established_session_reports_unresolved_preferred_without_reexec() {
+        let mut probe = skewed_probe();
+        probe.preferred = None;
+
+        let decision = decide(&probe);
+
+        assert_eq!(
+            decision,
+            ReexecDecision::Stay {
+                reason: StayReason::EstablishedSessionPreferredUnresolved,
+                skewed: true,
+            }
+        );
+        let hint = StayReason::EstablishedSessionPreferredUnresolved
+            .recovery_hint()
+            .expect("unresolved established session must surface a recovery hint");
+        assert!(hint.contains("established MCP session"));
+        assert!(hint.contains("PATH"));
+        assert!(hint.contains("Reconnect MCP for this client"));
+    }
+
+    #[test]
     fn mcp_reexec_windows_demotes_to_honest_skew() {
         let mut probe = skewed_probe();
         probe.gate = ReexecGate::PlatformDemoted;
@@ -621,6 +653,7 @@ mod tests {
             StayReason::PreferredUnresolved,
             StayReason::Pinned,
             StayReason::EstablishedSession,
+            StayReason::EstablishedSessionPreferredUnresolved,
         ] {
             let hint = reason
                 .recovery_hint()

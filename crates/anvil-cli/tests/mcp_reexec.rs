@@ -131,7 +131,7 @@ fn mcp_reexec_anti_loop_holds_when_generation_file_already_exists() {
 }
 
 #[test]
-fn mcp_reexec_recovery_warning_is_once_per_condition_across_trigger_flow() {
+fn mcp_reexec_reconnect_instruction_is_once_across_trigger_flow_for_each_gate() {
     let (_dir, preferred) = copy_anvil_as_preferred();
     let preferred = preferred.to_str().expect("utf8 preferred");
     let cases = [("kill-switch", "1", ""), ("already-reexeced", "", "1")];
