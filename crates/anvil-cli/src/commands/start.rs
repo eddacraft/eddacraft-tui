@@ -398,19 +398,15 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
     }
 
-    // Read-only probes (`--verify` / `--json`) never start a daemon
-    // (`daemon_capability` is `None`). Treat that the same as an explicit
-    // NoSpawn opt-out for readiness: do not select save-time coverage that
-    // would fail-closed solely because no daemon is answering. Mutating
-    // `anvil start` still measures MaySpawn honestly.
+    // Read-only probes never start a daemon (`daemon_capability` is `None`).
+    // `--verify` is the scripted health-check: report daemon-repair guidance
+    // without fail-closing solely because no daemon is answering. `--json`
+    // still measures selected save-time coverage honestly and fail-closes
+    // when that coverage is unavailable. Mutating `anvil start` still
+    // measures MaySpawn honestly.
     let readiness_selection = ReadinessSelection::new(
         crate::commands::ensure::save_time_driver_opt_out(),
-        daemon_capability.is_none_or(|capability| {
-            matches!(
-                capability,
-                anvil_intercept::ensure::StartCapability::NoSpawn(_)
-            )
-        }),
+        readiness_daemon_spawn_disabled(args.verify, daemon_capability),
         start_mcp_opt_out(args),
     )
     .with_mcp_required_without_session(
@@ -2173,6 +2169,22 @@ fn daemon_capability_for_start(
     } else {
         StartCapability::MaySpawn
     })
+}
+
+/// Whether measured readiness should treat daemon spawn as disabled
+/// (`ReuseOnly`). `--verify` reports daemon-repair guidance without
+/// fail-closing solely because no daemon is answering. `--json` still
+/// measures selected save-time coverage and fail-closes when it is
+/// unavailable. Explicit `NoSpawn` opt-out/fallback stays ReuseOnly.
+fn readiness_daemon_spawn_disabled(
+    verify: bool,
+    daemon_capability: Option<anvil_intercept::ensure::StartCapability>,
+) -> bool {
+    verify
+        || matches!(
+            daemon_capability,
+            Some(anvil_intercept::ensure::StartCapability::NoSpawn(_))
+        )
 }
 
 fn activation_progress_steps(
@@ -6369,6 +6381,35 @@ mod tests {
             ),
             Some(StartCapability::NoSpawn(NoStartReason::NonInteractive)),
         );
+    }
+
+    #[test]
+    fn verify_probe_disables_daemon_spawn_for_readiness() {
+        assert!(readiness_daemon_spawn_disabled(
+            true,
+            daemon_capability_for_start(false, true, false)
+        ));
+    }
+
+    #[test]
+    fn json_probe_still_measures_absent_daemon_coverage() {
+        assert!(!readiness_daemon_spawn_disabled(
+            false,
+            daemon_capability_for_start(false, true, false)
+        ));
+    }
+
+    #[test]
+    fn explicit_no_spawn_disables_daemon_spawn_for_readiness() {
+        use anvil_intercept::ensure::{NoStartReason, StartCapability};
+        assert!(readiness_daemon_spawn_disabled(
+            false,
+            Some(StartCapability::NoSpawn(NoStartReason::OptOut))
+        ));
+        assert!(!readiness_daemon_spawn_disabled(
+            false,
+            Some(StartCapability::MaySpawn)
+        ));
     }
 
     /// `--no-daemon` / `ANVIL_NO_DAEMON` is the explicit opt-out and wins

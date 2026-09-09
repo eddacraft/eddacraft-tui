@@ -1225,6 +1225,45 @@ fn start_json_fails_when_selected_save_time_coverage_is_unavailable() {
     assert!(String::from_utf8_lossy(&out.stderr).trim().is_empty());
 }
 
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_verify_succeeds_with_repair_guidance_when_save_time_coverage_is_unavailable() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let git = Command::new("git")
+        .arg("init")
+        .arg("--quiet")
+        .current_dir(dir.path())
+        .output()
+        .expect("git init runs");
+    assert!(git.status.success());
+
+    let first = run_start_with_home(dir.path(), home.path(), &["--no-daemon"]);
+    assert!(
+        first.status.success(),
+        "setup start failed: stderr={}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("state: ready_restart_required"),
+        "scripted --verify must keep the activation verdict, got:\n{stdout}"
+    );
+    assert!(
+        stdout.to_ascii_lowercase().contains("daemon")
+            || stdout.to_ascii_lowercase().contains("intercept"),
+        "--verify must surface daemon repair guidance, got:\n{stdout}"
+    );
+}
+
 #[test]
 fn welcome_still_runs_after_start_promotion() {
     // #1280 review: don't assert on welcome's description copy — that's
