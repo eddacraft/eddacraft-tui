@@ -321,6 +321,7 @@ describe('Smoke › Rust MCP launch shim', () => {
 
   maybeIt('discovers and calls tools directly with modern metadata over stdio', async () => {
     const workspace = createE2EWorkspace({
+      withGit: true,
       files: {
         'src/existing.ts': 'export const existing = true;\n',
       },
