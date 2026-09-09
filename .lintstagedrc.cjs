@@ -101,7 +101,7 @@ module.exports = {
       tasks.push(`oxfmt --write ${list}`, `eslint --fix ${list}`);
     }
     if (parseOnly.length > 0) {
-      // Validate each plans/audit JSON, naming the offending file on failure so a
+      // Validate each plans/audit JSON and any root plans/** JSON, naming the offending file on failure so a
       // bad file in a multi-file stage is obvious (a bare JSON.parse throws
       // without saying which file).
       tasks.push(
