@@ -78,7 +78,7 @@ JREL evidence and installed-release rehearsal; this subset alone cannot close
 those gates. CIB-384 is already implemented on main, so distribution inclusion
 is a release verification task. The spec is proposed planning context: changes
 to public evidence semantics require the existing ADR process, not implicit
-acceptance through this intake. Item statuses and counters remain unchanged.
+acceptance through this intake. Open-item spec prose is unchanged; item statuses and counters were reconciled as bookkeeping to match merged work.
 
 ## Work Items
 
