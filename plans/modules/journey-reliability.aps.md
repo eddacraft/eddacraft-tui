@@ -317,7 +317,7 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-011: Bound the complete lifecycle and integration exchange
 
-- **Status:** Merged — PR #4566 (claim #4552) at `9371d51ed`. Ensure shares one
+- **Status:** Merged — PR #4566 (claim #4552) at `76294a9e9` (merge tip `9371d51ed`). Ensure shares one
   monotonic lifecycle budget across rendezvous coordinator lock, start lock,
   discovery, spawn and bind-wait. Delayed locks and a stuck coordinator fail
   within the budget; unresponsive listeners fail closed without spawning a

@@ -1051,7 +1051,7 @@ never with feature work.
   on `feat/jrel-011-lifecycle-budget`. Claim #4552.
 - JREL-011 (lifecycle budget):
   `LANDING(76294a9e9ff95e1387b7cac8ab473917cf6fedb6)` then
-  `MERGED(9371d51edfbfe5f82c8de67d4980bcaef819804e, 2026-09-09T22:30:41Z)`
+  `MERGED(code 76294a9e9 / tip 9371d51edfbfe5f82c8de67d4980bcaef819804e, 2026-09-09T22:30:41Z)`
   via PR #4566 (rebase-merge). Merge commit is an ancestor of
   `origin/main`. Copilot spawn-after-budget finding repaired before land.
   Verify-loop pass-with-advisories on `47fda5f3a`; F1 copy repair landed.
