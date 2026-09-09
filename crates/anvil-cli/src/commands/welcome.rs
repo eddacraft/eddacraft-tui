@@ -3136,6 +3136,13 @@ mod tests {
         assert!(completed_path.continue_to_hub());
         assert!(completed_path.completes_first_run());
 
+        let completed_then_quit = FollowOnboardingResult::from_tutorial(TutorialRunResult {
+            exit: SurfaceExit::Quit,
+            completed_path: true,
+        });
+        assert!(!completed_then_quit.continue_to_hub());
+        assert!(completed_then_quit.completes_first_run());
+
         // Backing out of discovery/tutorial must not count as first-run completion.
         assert!(!OnboardingOutcome::Tutorial.completes_first_run(back.completes_first_run()));
         assert!(!OnboardingOutcome::Configured.completes_first_run(back.completes_first_run()));

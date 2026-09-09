@@ -379,8 +379,8 @@ pub struct TutorialState {
     /// Paths the user has previously completed (persisted across sessions).
     /// Used by the renderer to show checkmarks in the path selector.
     pub completed_paths: Vec<TutorialPath>,
-    /// True after the user finishes a real path and returns from its completion
-    /// screen during this tutorial session. Autoplay never sets this signal.
+    /// True after the user finishes a real path during this tutorial session.
+    /// Autoplay never sets this signal.
     completed_path_this_session: bool,
     /// Transient notice shown when resuming an interrupted session.
     pub resuming_notice: Option<String>,
@@ -1053,6 +1053,9 @@ impl TutorialState {
             if self.current_step + 1 < self.steps.len() {
                 self.current_step += 1;
             } else {
+                if !self.autoplay_session && self.chosen_path.is_some() {
+                    self.completed_path_this_session = true;
+                }
                 self.phase = TutorialPhase::Complete;
                 // WOW-004: re-scan once, at the moment the walk completes.
                 self.compute_completion_delta();
@@ -1590,11 +1593,11 @@ impl TutorialState {
                     self.restore_autoplay_context();
                     self.autoplay_teardown_requested = true;
                 }
-                if !leaving_autoplay && let Some(path) = self.chosen_path {
-                    self.completed_path_this_session = true;
-                    if !self.completed_paths.contains(&path) {
-                        self.completed_paths.push(path);
-                    }
+                if !leaving_autoplay
+                    && let Some(path) = self.chosen_path
+                    && !self.completed_paths.contains(&path)
+                {
+                    self.completed_paths.push(path);
                 }
                 self.phase = TutorialPhase::PathSelect;
                 self.steps.clear();
@@ -2438,6 +2441,7 @@ mod tests {
         state.current_step = state.steps.len() - 1;
         state.advance_step();
         assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(!state.completed_path_this_session());
 
         assert!(state.hand_back_autoplay());
         state.handle_key(Action::Select);
@@ -2730,7 +2734,7 @@ mod tests {
             state.handle_key(Action::Select);
         }
         assert_eq!(state.phase, TutorialPhase::Complete);
-        assert!(!state.completed_path_this_session());
+        assert!(state.completed_path_this_session());
 
         state.handle_key(Action::Select); // return to path select
         assert_eq!(state.phase, TutorialPhase::PathSelect);
@@ -4088,9 +4092,9 @@ mod tests {
     fn completed_paths_preserved_across_reset() {
         let mut state = TutorialState::new();
         state.set_completed_paths(vec![TutorialPath::Architecture]);
-        state.chosen_path = Some(TutorialPath::Architecture);
-        state.phase = TutorialPhase::Complete;
-        state.handle_key(Action::Select);
+        state.load_steps(TutorialPath::Architecture);
+        state.current_step = state.steps.len() - 1;
+        state.advance_step();
         assert!(state.completed_path_this_session());
 
         <TutorialState as crate::surface::Surface>::reset(&mut state);

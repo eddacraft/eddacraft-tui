@@ -264,9 +264,9 @@ fn completing_learning_path_marks_first_run_complete() {
         home.path(),
         &[
             (b"esc/q quit", b"\x1b[B\r"),
-            // Select the five-step informational path, advance each step,
-            // acknowledge completion, return from the picker, then quit the hub.
-            (b"anvil's protection loop", b"\r     \r\x1bq"),
+            // Select the five-step informational path, advance every step,
+            // then quit directly from the completion screen.
+            (b"anvil's protection loop", b"\r     q"),
         ],
     );
 
