@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 9/13 |
+| JREL | Josh | high | In Progress | 10/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -283,7 +283,11 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-009: Preserve explicit MCP launch choices during repair
 
-- **Status:** In Progress
+- **Status:** Merged — PR #4556 (claim #4549) at `be59ea474`. Explicit MCP
+  launch choices (command, env, args, client options, disabled state, scope
+  precedence and heal pins) survive daily ensure; non-object env is refused as
+  unsafe drift; managed obsolete paths may migrate without undoing intentional
+  overrides.
 - **Priority:** P1
 - **Intent:** Daily repair fixes owned drift without undoing the user's intended client configuration.
 - **Expected Outcome:** Supported explicit executable, scope, environment and per-entry options survive daily ensure. Managed obsolete paths may migrate, but intentional overrides, disabled state and pins remain respected. Unsafe/corrupt/conflicting entries are reported accurately and never overwritten or mislabelled absent. The ownership policy and any ADR-044 amendment are explicit before changing its contract.
