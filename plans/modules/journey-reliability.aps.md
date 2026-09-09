@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 11/13 |
+| JREL | Josh | high | In Progress | 12/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -317,13 +317,19 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-011: Bound the complete lifecycle and integration exchange
 
-- **Status:** In Progress
+- **Status:** Merged — PR #4566 (claim #4552) at `9371d51ed`. Ensure shares one
+  monotonic lifecycle budget across rendezvous coordinator lock, start lock,
+  discovery, spawn and bind-wait. Delayed locks and a stuck coordinator fail
+  within the budget; unresponsive listeners fail closed without spawning a
+  duplicate; spawn is skipped if the budget is already spent. #4231 / RIO-001
+  via #4397 already bounds MCP validation; CIB-405 remains Proposed and was
+  not duplicated.
 - **Priority:** P1
 - **Intent:** Every startup or repair attempt completes within an explicit overall deadline.
 - **Expected Outcome:** Lock acquisition, endpoint discovery, spawn, registration and readiness share a measured monotonic budget; slow partial replies cannot extend it indefinitely. Unresponsive and absent stay distinct without unsafe duplicate spawning. CIB-405 owns connection-reuse migrations and issue #4231 owns its MCP-validation timeout fix; their verified outcomes are integrated here without duplicate implementations.
 - **Dependencies:** JREL-004
 - **Coordinates with:** CIB-405 (connection reuse), #4231 (MCP validation deadline); claim/reconcile those existing owners when executing rather than creating replacement items.
-- **Files:** `crates/anvil-intercept/src/ensure.rs`, `crates/anvil-cli/src/commands/daemon_recycle.rs`, `crates/anvil-cli/src/registration.rs`, `crates/anvil-cli/src/mcp/validation.rs`
+- **Files:** `crates/anvil-intercept/src/ensure.rs`
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --no-fail-fast`; `cargo test -p eddacraft-anvil --no-fail-fast`; delayed lock, unreachable endpoint, slow-drip peer and responsive-invalid peer finish within the documented budget. Record tests/evidence from CIB-405 and #4231.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
 
