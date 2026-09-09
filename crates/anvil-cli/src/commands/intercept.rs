@@ -1429,7 +1429,9 @@ fn parse_unblock_response_bytes(
 
 /// Build the on-the-wire bytes for a `query_status` JSON-RPC frame.
 /// Centralised so the Unix and Windows paths cannot drift on
-/// jsonrpc/version/id semantics.
+/// jsonrpc/version/id semantics. Test-only wrapper; production callers
+/// use [`build_query_status_frame_bytes_scoped`].
+#[cfg(test)]
 fn build_query_status_frame_bytes(method: &str, id: &str) -> Vec<u8> {
     build_query_status_frame_bytes_scoped(method, id, None)
 }
