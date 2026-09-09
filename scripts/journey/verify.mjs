@@ -256,6 +256,8 @@ function executeScenario(scenario, options, bin) {
         {
           ANVIL_BIN: bin,
           ANVIL_E2E_REQUIRE_BIN: '1',
+          // MCP probes resolve configured anvil via PATH
+          [((process.platform === 'win32') ? 'Path' : 'PATH')]: dirname(bin) + ((process.platform === 'win32') ? ';' : ':') + (process.env[((process.platform === 'win32') ? 'Path' : 'PATH')] || ''),
         }
       );
       const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
