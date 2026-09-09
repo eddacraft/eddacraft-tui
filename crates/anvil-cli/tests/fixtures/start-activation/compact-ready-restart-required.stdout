@@ -3,7 +3,7 @@ ACTIVATION
   Daemon not reachable — protection cannot graduate until the intercept daemon answers this worktree.
   daemon: not started (--no-daemon); save-time validation uses the scoped fallback.
   save-time driver: not attached
-  next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`.
+  next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal, or bare `anvil` headlessly, then re-run `anvil start --verify`.
 
   Anonymous usage telemetry
   anvil sends at most one anonymous beacon per day so active installs

@@ -18,7 +18,9 @@ use crate::activation::diagnostic::{
 };
 use crate::activation::identity;
 use crate::commands::{hooks, init, mcp_installer};
-use crate::registration::{self, WorktreeRegistration};
+use crate::registration::{
+    self, SaveTimeDriverReadiness, WorktreeRegistration, WorktreeRegistrationReport,
+};
 use crate::services::sample_analyser;
 
 pub mod install;
@@ -318,6 +320,7 @@ pub(crate) struct ActivationOutcome {
     pub diagnostic: ActivationDiagnostic,
     pub install_report: InstallReport,
     pub run: ActivationRun,
+    pub registration_report: Option<WorktreeRegistrationReport>,
 }
 
 impl ActivationOutcome {
@@ -1310,10 +1313,9 @@ fn run_with_home_and_policy<'a>(
         root,
         home,
         global,
-        // JREL-003: the primitive also restores and waits for the save-time
-        // driver; the activation diagnostic that follows reads its evidence
-        // from the daemon, so only the membership outcome is consumed here.
-        |root| registration::register_worktree_with_daemon(root).registration,
+        // JREL-003/JREL-005: preserve both durable membership and bounded
+        // driver-readiness evidence through the activation result.
+        registration::register_worktree_with_daemon,
         mcp_install_policy,
         enabled,
         render_mode,
@@ -1373,14 +1375,17 @@ fn extend_enabled_with_explicit_clients(
 }
 
 #[cfg(test)]
-fn run_with_home_and_registration(
+fn run_with_home_and_registration<R>(
     root: &Path,
     home: Option<&Path>,
     global: &GlobalArgs,
-    register_worktree: impl FnOnce(&Path) -> WorktreeRegistration,
+    register_worktree: impl FnOnce(&Path) -> R,
     mcp_install_policy: McpInstallPolicy,
     enabled: &BTreeSet<McpClientId>,
-) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
+) -> anyhow::Result<(ActivationDiagnostic, InstallReport)>
+where
+    R: Into<WorktreeRegistrationReport>,
+{
     Ok(run_with_home_and_registration_outcome(
         root,
         home,
@@ -1396,17 +1401,20 @@ fn run_with_home_and_registration(
 }
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-fn run_with_home_and_registration_outcome<'a>(
+fn run_with_home_and_registration_outcome<'a, R>(
     root: &Path,
     home: Option<&Path>,
     global: &GlobalArgs,
-    register_worktree: impl FnOnce(&Path) -> WorktreeRegistration,
+    register_worktree: impl FnOnce(&Path) -> R,
     mcp_install_policy: McpInstallPolicy,
     enabled: &BTreeSet<McpClientId>,
     render_mode: StartRenderMode,
     rotate_identity: bool,
     observer: Option<&'a mut ActivationEventObserver<'a>>,
-) -> anyhow::Result<ActivationOutcome> {
+) -> anyhow::Result<ActivationOutcome>
+where
+    R: Into<WorktreeRegistrationReport>,
+{
     let mut activation_run = ActivationRunRecorder::new(observer);
 
     // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME without
@@ -1695,6 +1703,8 @@ fn run_with_home_and_registration_outcome<'a>(
     // not a repo at all) `anvil start` stays honest — it does not register a
     // junk session keyed to e.g. $HOME; the daemon is still ensured by the
     // caller, and `start.rs` surfaces the "no worktree registered" guidance.
+    let mut registration_report = None;
+    let mut registration_error = None;
     if let Err(reason) = registration::registerable_worktree(root) {
         tracing::info!(
             error = %reason,
@@ -1706,9 +1716,38 @@ fn run_with_home_and_registration_outcome<'a>(
         );
     } else {
         activation_run.start(ActivationStep::WorktreeRegistration);
-        match register_worktree(root) {
+        let report = register_worktree(root).into();
+        match &report.registration {
             WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {
-                activation_run.complete(ActivationStep::WorktreeRegistration);
+                match &report.driver {
+                    Some(SaveTimeDriverReadiness::Failed) => {
+                        let error = "save-time driver failed after worktree registration";
+                        registration_error = Some(error.to_owned());
+                        activation_run.fail(ActivationStep::WorktreeRegistration, error);
+                    }
+                    Some(SaveTimeDriverReadiness::Absent) => {
+                        let disabled = std::env::var_os("ANVIL_NO_SAVE_TIME_DRIVER")
+                            .is_some_and(|value| !value.is_empty());
+                        if disabled {
+                            activation_run.complete(ActivationStep::WorktreeRegistration);
+                        } else {
+                            let error =
+                                "save-time driver did not become ready after worktree registration";
+                            registration_error = Some(error.to_owned());
+                            activation_run.fail(ActivationStep::WorktreeRegistration, error);
+                        }
+                    }
+                    Some(SaveTimeDriverReadiness::Unknown(error)) => {
+                        let error = format!(
+                            "save-time driver readiness could not be read after worktree registration: {error}"
+                        );
+                        registration_error = Some(error.clone());
+                        activation_run.fail(ActivationStep::WorktreeRegistration, error);
+                    }
+                    Some(SaveTimeDriverReadiness::Attached { .. }) | None => {
+                        activation_run.complete(ActivationStep::WorktreeRegistration);
+                    }
+                }
             }
             WorktreeRegistration::DaemonUnavailable => {
                 tracing::debug!(
@@ -1724,22 +1763,21 @@ fn run_with_home_and_registration_outcome<'a>(
                     error = %message,
                     "orchestrator: activation worktree registration refused; continuing",
                 );
-                activation_run.skip(
-                    ActivationStep::WorktreeRegistration,
-                    format!("registration refused: {message}"),
-                );
+                let error = format!("worktree registration refused: {message}");
+                registration_error = Some(error.clone());
+                activation_run.fail(ActivationStep::WorktreeRegistration, error);
             }
             WorktreeRegistration::Rejected(error) => {
                 tracing::warn!(
                     error = %error,
                     "orchestrator: activation worktree registration rejected; continuing",
                 );
-                activation_run.skip(
-                    ActivationStep::WorktreeRegistration,
-                    format!("registration rejected: {error}"),
-                );
+                let error = format!("worktree registration rejected: {error}");
+                registration_error = Some(error.clone());
+                activation_run.fail(ActivationStep::WorktreeRegistration, error);
             }
         }
+        registration_report = Some(report);
     }
 
     // Step 1c — offer GitHub Actions workflow installation (MLP2-043 /
@@ -1844,9 +1882,13 @@ fn run_with_home_and_registration_outcome<'a>(
     // Surface every install failure on the diagnostic so
     // `protection_state()` collapses to `Error` and JSON consumers
     // see all simultaneous failures, not just the first one.
-    if let Some(err) = install_report.aggregated_failure() {
-        diagnostic.last_error = Some(format!("MCP install failed: {err}"));
-    }
+    let mcp_error = install_report
+        .aggregated_failure()
+        .map(|err| format!("MCP install failed: {err}"));
+    let mut errors = diagnostic.last_error.take().into_iter().collect::<Vec<_>>();
+    errors.extend(registration_error);
+    errors.extend(mcp_error);
+    diagnostic.last_error = (!errors.is_empty()).then(|| errors.join("; "));
 
     activation_run.start(ActivationStep::Verdict);
     activation_run.complete(ActivationStep::Verdict);
@@ -1856,6 +1898,7 @@ fn run_with_home_and_registration_outcome<'a>(
         diagnostic,
         install_report,
         run: activation_run,
+        registration_report,
     })
 }
 
@@ -3566,6 +3609,43 @@ verdict: completed"
             called.get(),
             "orchestrator must register the activation worktree"
         );
+    }
+
+    #[test]
+    fn orchestrator_preserves_failed_driver_readiness_as_a_failed_step() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+        git_init(dir.path());
+
+        let outcome = run_with_home_and_registration_outcome(
+            dir.path(),
+            Some(home.path()),
+            &global,
+            |_| WorktreeRegistrationReport {
+                registration: WorktreeRegistration::Registered,
+                driver: Some(SaveTimeDriverReadiness::Failed),
+            },
+            McpInstallPolicy::Skip,
+            &BTreeSet::new(),
+            StartRenderMode::Plain,
+            false,
+            None,
+        )
+        .expect("typed readiness is reported rather than returned as an orchestration error");
+
+        assert_eq!(
+            outcome.diagnostic.last_error.as_deref(),
+            Some("save-time driver failed after worktree registration")
+        );
+        assert!(outcome.run.events().iter().any(|event| {
+            event.step == ActivationStep::WorktreeRegistration
+                && event.lifecycle == ActivationStepLifecycle::Failed
+        }));
+        assert!(matches!(
+            outcome.registration_report.and_then(|report| report.driver),
+            Some(SaveTimeDriverReadiness::Failed)
+        ));
     }
 
     /// ACTMO-016: outside a registerable worktree, the orchestrator does not

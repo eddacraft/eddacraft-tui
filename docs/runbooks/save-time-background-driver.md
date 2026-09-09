@@ -1,8 +1,8 @@
 # Save-Time Background Driver — Operator Runbook
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | DSV   | Live   | Last reviewed 2026-09-07 for JREL-003/004 residuals: gated duplicate `session.register` restores a dead child (heartbeat does not fork), placeholder stop, leftover adopt, atomic `<stem>.ready` write, and absent-driver as a debug line rather than a stderr warning. Prior review 2026-09-07 for JREL-003 (council round two): refresh-driven recovery, the lifetime-evidence respawn bound, the generation-bound marker / `save_time_driver_evidence` contract, the bounded stop, and the driver-failure keys in `anvil workspace register` JSON. Filed 2026-07-06 for DSV-051 against ADR-101 and `anvil start --no-mcp` |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | DSV   | Live   | Last reviewed 2026-09-09 for JREL-005 typed driver readiness, additive status evidence, failure exit behaviour, and public daily-command recovery copy. Prior review 2026-09-07 for JREL-003/004 residuals: gated duplicate `session.register` restores a dead child (heartbeat does not fork), placeholder stop, leftover adopt, atomic `<stem>.ready` write, and absent-driver as a debug line rather than a stderr warning. Prior review 2026-09-07 for JREL-003 (council round two): refresh-driven recovery, the lifetime-evidence respawn bound, the generation-bound marker / `save_time_driver_evidence` contract, the bounded stop, and the driver-failure keys in `anvil workspace register` JSON. Filed 2026-07-06 for DSV-051 against ADR-101 and `anvil start --no-mcp` |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                              | Downstream                                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -27,7 +27,9 @@ Healthy posture:
 
 - `anvil start --no-mcp` exits successfully without opening a foreground watch.
 - `anvil intercept status` includes a non-zero `drivers:` active count.
-- `anvil status --json` for the worktree reports `save_time_driver: "attached"`.
+- `anvil status --json` for the worktree reports `save_time_driver: "attached"`,
+  `save_time_driver_readiness: "ready"`, and either `watches-installed` or
+  `fresh-activity` as `save_time_driver_evidence`.
 - Saving a file with a planted antipattern-family finding appends the finding to
   the worktree's driver log.
 
@@ -52,10 +54,14 @@ anvil intercept status
 anvil status --json
 ```
 
-If `anvil start` says `save-time driver is not attached`, use
-`anvil intercept status` first. The false branch means only that no attached
-driver was proven; the richer status surface distinguishes absent, failed, and
-attached worktrees.
+The daily bare command and `anvil start` now print an overall `readiness` plus
+component states. A failed daemon, worktree registration, or save-time driver
+returns a non-zero exit and one component-specific `next:` action. Use
+`anvil intercept status` for the full daemon inventory. Its registered-worktree
+lines and `anvil status --json` distinguish `starting`, `ready`, `disabled`,
+`degraded`, and `failed`; attachment without readiness evidence is not `ready`.
+For a scripted mutating ensure receipt, use bare `anvil --json`; the existing
+`anvil start --json` contract remains a read-only activation probe.
 
 ## Logs And Artefacts
 

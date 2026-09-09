@@ -155,6 +155,16 @@
       "type": "string",
       "enum": ["attached", "absent", "failed", "unknown"]
     },
+    "save_time_driver_readiness": {
+      "description": "JREL-005: readiness derived from the daemon-reported driver state and evidence. `starting` means the child exists but has not proved watches are installed; `ready` requires watches-installed or fresh-activity evidence; `disabled` is an explicit operator opt-out; `degraded` is absent or unrecognised evidence; `failed` is a bounded driver failure. Additive and omitted when no registered-worktree driver projection is available.",
+      "type": "string",
+      "enum": ["starting", "ready", "disabled", "degraded", "failed"]
+    },
+    "save_time_driver_evidence": {
+      "description": "JREL-005: daemon-reported readiness evidence for the current worktree's attached save-time driver. Additive and omitted when the daemon supplied no evidence.",
+      "type": "string",
+      "enum": ["spawned", "watches-installed", "fresh-activity", "unknown"]
+    },
     "cli_version": {
       "description": "MCPLH-005: this CLI's version string. Present only when an MCP process inventory was gathered.",
       "type": "string"

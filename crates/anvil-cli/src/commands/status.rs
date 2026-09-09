@@ -3,7 +3,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use anvil_intercept_proto::protocol::{AssuranceState, WorkspaceAssurance};
-use anvil_intercept_proto::status::{DaemonStatusV1, SaveTimeDriverStatusV1};
+use anvil_intercept_proto::status::{
+    DaemonStatusV1, SaveTimeDriverEvidenceV1, SaveTimeDriverStatusV1, WorktreeStatusV1,
+};
 use anvil_kernel_types::hooks::is_anvil_managed_command;
 use anvil_kernel_types::protection_claim::{ProtectionClaim, WorktreeClaimState};
 use anvil_tui::surfaces::status::{
@@ -637,22 +639,88 @@ fn render_registered_worktrees(snapshot: Option<&DaemonStatusV1>, cwd: Option<&P
     out
 }
 
-/// DSV-049: the save-time driver segment appended to a registered worktree's
-/// plain line. Silent for `Absent`/`Unknown` so the common case (driver
-/// supervision off, or nothing attached) stays byte-identical to the
-/// pre-DSV-049 surface; surfaced only when there is real attachment evidence
-/// (`attached`) or an honest failure (`failed`). `Unknown` — a driver state
-/// from a newer daemon — folds to silent, matching the wire contract's
-/// "treat unknown fail-safe as absent" rule.
-fn driver_segment(snapshot: &DaemonStatusV1, worktree: &Path) -> &'static str {
+/// DSV-049/JREL-005: the save-time driver segment appended to a registered
+/// worktree's plain line. Every known state is rendered so an operator can
+/// distinguish ready, starting, deliberately disabled, degraded, and failed
+/// coverage without interpreting the daemon's wire-level enum.
+fn driver_segment(snapshot: &DaemonStatusV1, worktree: &Path) -> String {
+    driver_segment_with_opt_out(
+        snapshot,
+        worktree,
+        std::env::var_os("ANVIL_NO_SAVE_TIME_DRIVER").is_some_and(|value| !value.is_empty()),
+    )
+}
+
+fn driver_segment_with_opt_out(
+    snapshot: &DaemonStatusV1,
+    worktree: &Path,
+    driver_disabled: bool,
+) -> String {
     let overlay = snapshot
         .worktrees
         .iter()
         .find(|entry| entry.worktree == worktree);
-    match overlay.map(|entry| entry.save_time_driver) {
-        Some(SaveTimeDriverStatusV1::Attached) => " driver: attached",
-        Some(SaveTimeDriverStatusV1::Failed) => " driver: failed",
-        _ => "",
+    overlay.map_or_else(
+        || " driver: degraded (no evidence)".to_owned(),
+        |entry| {
+            let evidence = entry
+                .save_time_driver_evidence
+                .map(save_time_driver_evidence_str);
+            match save_time_driver_readiness_with_opt_out(entry, driver_disabled) {
+                "ready" => format!(
+                    " driver: ready ({})",
+                    evidence.unwrap_or("attached without readiness evidence")
+                ),
+                "starting" => format!(" driver: starting ({})", evidence.unwrap_or("spawned")),
+                "disabled" => " driver: disabled".to_owned(),
+                "failed" => " driver: failed".to_owned(),
+                _ => match entry.save_time_driver {
+                    SaveTimeDriverStatusV1::Unknown => " driver: degraded (unknown)".to_owned(),
+                    SaveTimeDriverStatusV1::Absent => " driver: degraded (absent)".to_owned(),
+                    SaveTimeDriverStatusV1::Attached => {
+                        " driver: degraded (attached without readiness evidence)".to_owned()
+                    }
+                    SaveTimeDriverStatusV1::Failed => " driver: failed".to_owned(),
+                },
+            }
+        },
+    )
+}
+
+pub(crate) fn save_time_driver_readiness(entry: &WorktreeStatusV1) -> &'static str {
+    save_time_driver_readiness_with_opt_out(
+        entry,
+        std::env::var_os("ANVIL_NO_SAVE_TIME_DRIVER").is_some_and(|value| !value.is_empty()),
+    )
+}
+
+fn save_time_driver_readiness_with_opt_out(
+    entry: &WorktreeStatusV1,
+    driver_disabled: bool,
+) -> &'static str {
+    match entry.save_time_driver {
+        SaveTimeDriverStatusV1::Failed => "failed",
+        SaveTimeDriverStatusV1::Absent if driver_disabled => "disabled",
+        SaveTimeDriverStatusV1::Absent | SaveTimeDriverStatusV1::Unknown => "degraded",
+        SaveTimeDriverStatusV1::Attached => match entry.save_time_driver_evidence {
+            Some(
+                SaveTimeDriverEvidenceV1::WatchesInstalled
+                | SaveTimeDriverEvidenceV1::FreshActivity,
+            ) => "ready",
+            Some(SaveTimeDriverEvidenceV1::Spawned) => "starting",
+            Some(SaveTimeDriverEvidenceV1::Unknown) | None => "degraded",
+        },
+    }
+}
+
+pub(crate) const fn save_time_driver_evidence_str(
+    evidence: SaveTimeDriverEvidenceV1,
+) -> &'static str {
+    match evidence {
+        SaveTimeDriverEvidenceV1::Spawned => "spawned",
+        SaveTimeDriverEvidenceV1::WatchesInstalled => "watches-installed",
+        SaveTimeDriverEvidenceV1::FreshActivity => "fresh-activity",
+        SaveTimeDriverEvidenceV1::Unknown => "unknown",
     }
 }
 
@@ -828,7 +896,7 @@ fn assurance_state_str(state: AssuranceState) -> &'static str {
 /// DSV-049: closed-set wire string for a [`SaveTimeDriverStatusV1`] (matches
 /// the proto kebab-case serialiser; used for the `--json` surface). `Unknown`
 /// — a driver state from a newer daemon — surfaces honestly as `"unknown"` for
-/// machine consumers, distinct from the plain surface which folds it to silent.
+/// machine consumers, alongside the plain surface's explicit degraded state.
 fn save_time_driver_str(state: SaveTimeDriverStatusV1) -> &'static str {
     match state {
         SaveTimeDriverStatusV1::Attached => "attached",
@@ -1463,16 +1531,16 @@ fn next_action_for_diagnostic(
             "Restart your editor or agent, then run `anvil start --verify`."
         }
         DaemonAttestation::Unreachable => {
-            "No intercept daemon is answering. Run `anvil start` in a terminal, or `anvil intercept start --foreground` headlessly, then run `anvil start --verify`."
+            "No intercept daemon is answering. Run `anvil start` in a terminal, or bare `anvil` headlessly, then run `anvil start --verify`."
         }
         DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
             "Run `anvil intercept status`, then run `anvil start --verify` after the editor or agent makes an MCP request."
         }
         DaemonAttestation::StaleHeartbeat => {
-            "Restart the intercept daemon with `anvil intercept start --foreground`, then run `anvil start --verify`."
+            "Run bare `anvil` to restore the intercept daemon, then run `anvil start --verify`."
         }
         DaemonAttestation::AllSurfacesQuarantined => {
-            "Restart the fenced intercept daemon with `anvil intercept start --foreground`, then run `anvil start --verify`."
+            "Run `anvil start` to restore daemon-backed protection, then run `anvil start --verify`."
         }
         DaemonAttestation::Warming => {
             "Wait a few seconds for the intercept daemon to settle, then run `anvil start --verify`."
@@ -1663,6 +1731,17 @@ struct StatusOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     save_time_driver: Option<&'static str>,
 
+    /// JREL-005: readiness classification derived from the measured driver
+    /// state plus its evidence (`starting` / `ready` / `disabled` /
+    /// `degraded` / `failed`). Additive and omitted with the driver itself.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    save_time_driver_readiness: Option<&'static str>,
+
+    /// JREL-005: daemon-reported evidence for an attached driver. Omitted when
+    /// no evidence exists or the worktree is not registered.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    save_time_driver_evidence: Option<&'static str>,
+
     /// MCPLH-005: MCP inventory + split readiness claims. Flattened so each
     /// field is omitted independently when absent (same posture as
     /// `save_time`).
@@ -1723,6 +1802,12 @@ fn print_json(
         (root.prefix().map(|p| p.display().to_string()), gated)
     };
 
+    let driver = daemon_snapshot.and_then(|snapshot| {
+        snapshot
+            .worktrees
+            .iter()
+            .find(|entry| entry.worktree == worktree)
+    });
     let output = StatusOutput {
         schema_version: STATUS_SCHEMA_VERSION,
         activation: activation::render_json(activation_diag),
@@ -1767,12 +1852,11 @@ fn print_json(
         // DSV-049: the cwd worktree's driver state, mirroring the cwd-centric
         // `claim` / `save_time` fields. `None` (omitted) when no daemon
         // answered or the worktree is not registered — no over-claim.
-        save_time_driver: daemon_snapshot.and_then(|snap| {
-            snap.worktrees
-                .iter()
-                .find(|w| w.worktree == worktree)
-                .map(|w| save_time_driver_str(w.save_time_driver))
-        }),
+        save_time_driver: driver.map(|entry| save_time_driver_str(entry.save_time_driver)),
+        save_time_driver_readiness: driver.map(save_time_driver_readiness),
+        save_time_driver_evidence: driver
+            .and_then(|entry| entry.save_time_driver_evidence)
+            .map(save_time_driver_evidence_str),
         mcp: mcp.unwrap_or_default(),
     };
 
@@ -2997,8 +3081,8 @@ mod tests {
             "missing terminal recovery: {next}"
         );
         assert!(
-            next.contains("`anvil intercept start --foreground`"),
-            "missing headless recovery: {next}"
+            next.contains("bare `anvil`"),
+            "missing bare headless recovery: {next}"
         );
         assert!(
             next.contains("`anvil start --verify`"),
@@ -3075,13 +3159,13 @@ mod tests {
                 name: "stale heartbeat",
                 attestation: DaemonAttestation::StaleHeartbeat,
                 mcp_live: false,
-                expected_next: "Next: Restart the intercept daemon",
+                expected_next: "Next: Run bare `anvil`",
             },
             WarmingRenderCase {
                 name: "all surfaces quarantined",
                 attestation: DaemonAttestation::AllSurfacesQuarantined,
                 mcp_live: false,
-                expected_next: "Next: Restart the fenced intercept daemon",
+                expected_next: "Next: Run `anvil start`",
             },
             WarmingRenderCase {
                 name: "daemon warming",
@@ -3512,10 +3596,10 @@ mod tests {
             "section header: {out}"
         );
         assert!(
-            out.contains("anvil-status-reg-a [registered] (current)"),
+            out.contains("anvil-status-reg-a [registered] driver:") && out.contains("(current)"),
             "{out}"
         );
-        assert!(out.contains("anvil-status-reg-b [fenced]"), "{out}");
+        assert!(out.contains("anvil-status-reg-b [fenced] driver:"), "{out}");
         assert!(
             !out.contains("anvil-status-live"),
             "live sessions excluded: {out}"
@@ -3528,13 +3612,11 @@ mod tests {
         assert!(out.contains("(daemon unavailable)"), "{out}");
     }
 
-    /// DSV-049: the plain registered-worktrees section surfaces the
-    /// save-time driver state per worktree — `attached` and `failed`
-    /// are shown as an explicit `driver: …` segment; `absent` stays
-    /// silent so the pre-DSV-049 surface is byte-identical for the
-    /// common (supervision-off) case.
+    /// JREL-005: the plain registered-worktrees section distinguishes ready,
+    /// failed, and degraded driver evidence instead of collapsing attachment
+    /// or absence into a boolean.
     #[test]
-    fn status_save_time_driver_segment_renders_attached_failed_and_silent_absent() {
+    fn status_save_time_driver_segment_renders_typed_readiness() {
         let attached = Path::new("/tmp/anvil-status-drv-attached");
         let failed = Path::new("/tmp/anvil-status-drv-failed");
         let absent = Path::new("/tmp/anvil-status-drv-absent");
@@ -3573,32 +3655,48 @@ mod tests {
             save_time_driver_evidence: None,
         };
         snapshot.worktrees = vec![
-            entry(attached, "da", SaveTimeDriverStatusV1::Attached),
+            WorktreeStatusV1 {
+                save_time_driver_evidence: Some(SaveTimeDriverEvidenceV1::WatchesInstalled),
+                ..entry(attached, "da", SaveTimeDriverStatusV1::Attached)
+            },
             entry(failed, "df", SaveTimeDriverStatusV1::Failed),
             entry(absent, "dn", SaveTimeDriverStatusV1::Absent),
         ];
 
-        let out = render_registered_worktrees(Some(&snapshot), None);
+        let out =
+            snapshot
+                .registered_worktrees()
+                .iter()
+                .fold(String::new(), |mut rendered, worktree| {
+                    use std::fmt::Write as _;
+                    let _ = writeln!(
+                        rendered,
+                        "{} [registered]{}",
+                        worktree.display(),
+                        driver_segment_with_opt_out(&snapshot, worktree, false),
+                    );
+                    rendered
+                });
         assert!(
-            out.contains("anvil-status-drv-attached [registered] driver: attached"),
+            out.contains(
+                "anvil-status-drv-attached [registered] driver: ready (watches-installed)"
+            ),
             "{out}"
         );
         assert!(
             out.contains("anvil-status-drv-failed [registered] driver: failed"),
             "{out}"
         );
-        // Absent: no driver segment — byte-identical to the pre-DSV-049 line.
         assert!(
-            out.contains("anvil-status-drv-absent [registered]\n"),
-            "absent driver must stay silent: {out}"
+            out.contains("anvil-status-drv-absent [registered] driver: degraded (absent)"),
+            "absent driver must remain explicit degraded evidence: {out}"
         );
-        assert!(!out.contains("driver: absent"), "{out}");
     }
 
     /// DSV-049: the `--json` wire-string mapper covers every proto arm,
     /// including the forward-compat `Unknown` (surfaced honestly to
-    /// machine consumers as `"unknown"`, unlike the plain surface which
-    /// folds it to silent).
+    /// machine consumers as `"unknown"`); the plain surface presents the same
+    /// evidence as degraded readiness.
     #[test]
     fn status_save_time_driver_str_maps_every_arm() {
         assert_eq!(
@@ -3619,16 +3717,34 @@ mod tests {
         );
     }
 
-    /// DSV-049: an `Unknown` driver state (from a newer daemon) folds to
-    /// silent on the plain surface — the wire contract's "treat unknown
-    /// fail-safe as absent" rule, so an older CLI never renders an
-    /// unrecognised state as coverage.
+    /// An unknown driver state is explicit degraded evidence and never coverage.
     #[test]
-    fn status_save_time_driver_segment_treats_unknown_as_silent() {
+    fn status_save_time_driver_segment_treats_unknown_as_degraded() {
         let wt = Path::new("/tmp/anvil-status-drv-unknown");
         let mut snapshot = snapshot_with_session_at(wt, false, false);
         snapshot.worktrees[0].save_time_driver = SaveTimeDriverStatusV1::Unknown;
-        assert_eq!(driver_segment(&snapshot, wt), "");
+        assert_eq!(driver_segment(&snapshot, wt), " driver: degraded (unknown)");
+    }
+
+    #[test]
+    fn save_time_driver_readiness_covers_starting_and_disabled() {
+        let wt = Path::new("/tmp/anvil-status-drv-readiness");
+        let mut snapshot = snapshot_with_session_at(wt, false, false);
+        let entry = &mut snapshot.worktrees[0];
+
+        entry.save_time_driver = SaveTimeDriverStatusV1::Attached;
+        entry.save_time_driver_evidence = Some(SaveTimeDriverEvidenceV1::Spawned);
+        assert_eq!(
+            save_time_driver_readiness_with_opt_out(entry, false),
+            "starting"
+        );
+
+        entry.save_time_driver = SaveTimeDriverStatusV1::Absent;
+        entry.save_time_driver_evidence = None;
+        assert_eq!(
+            save_time_driver_readiness_with_opt_out(entry, true),
+            "disabled"
+        );
     }
 
     #[test]
@@ -3790,6 +3906,8 @@ mod tests {
             project_writes_gated: None,
             save_time: None,
             save_time_driver: None,
+            save_time_driver_readiness: None,
+            save_time_driver_evidence: None,
             mcp,
         }
     }

@@ -373,6 +373,33 @@ fn schema_documents_save_time_driver_closed_set() {
     );
 }
 
+#[test]
+fn schema_documents_typed_save_time_readiness_and_evidence() {
+    let schema = load_schema();
+    let readiness = schema
+        .pointer("/properties/save_time_driver_readiness/enum")
+        .and_then(|value| value.as_array())
+        .expect("schema must document save-time driver readiness");
+    assert_eq!(
+        readiness
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect::<Vec<_>>(),
+        ["starting", "ready", "disabled", "degraded", "failed"]
+    );
+    let evidence = schema
+        .pointer("/properties/save_time_driver_evidence/enum")
+        .and_then(|value| value.as_array())
+        .expect("schema must document save-time driver evidence");
+    assert_eq!(
+        evidence
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect::<Vec<_>>(),
+        ["spawned", "watches-installed", "fresh-activity", "unknown"]
+    );
+}
+
 /// Pin the schema file itself — typo in `$id`, the `const` lock, or
 /// the required-fields list would be invisible to the runtime
 /// emission test above. Reading the schema in-process guards that

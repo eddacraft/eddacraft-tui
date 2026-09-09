@@ -12,6 +12,7 @@ use crate::activation::detect_agents::RealDetectionEnv;
 use crate::activation::orchestrator::{
     ActivationStep, ActivationStepEvent, ActivationStepLifecycle, InstallOutcome, StartRenderMode,
 };
+use crate::commands::ensure::{EnsureReadiness, EnsureReadinessState};
 use crate::commands::mcp_installer;
 use crate::commands::watch as watch_cmd;
 use crate::config_summary::render_rule_mode_summary;
@@ -295,10 +296,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let mcp_policy = mcp_install_policy(args);
     let force_all_mcp_clients = force_all_mcp_clients(args);
     let mut activation_run = None;
-    let (mut diagnostic, mut install_report) = if read_only {
+    let (mut diagnostic, mut install_report, registration_report) = if read_only {
         (
             activation::verify(root),
             activation::orchestrator::InstallReport::default(),
+            None,
         )
     } else {
         // Both Install and Skip route through the same entry point; the policy
@@ -341,7 +343,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             )?
         };
         activation_run = Some(outcome.run);
-        (outcome.diagnostic, outcome.install_report)
+        (
+            outcome.diagnostic,
+            outcome.install_report,
+            outcome.registration_report,
+        )
     };
 
     // ADOPT-003 CLI wiring — auto-detect installed AI tools and
@@ -389,6 +395,31 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         ) {
             crate::commands::mcp_heal::warn_poke_failure(&error);
         }
+    }
+
+    let readiness = daemon_outcome
+        .as_ref()
+        .zip(registration_report.as_ref())
+        .map(|(daemon, registration)| {
+            let (mcp_state, mcp_detail) =
+                start_mcp_readiness(&diagnostic, &install_report, start_mcp_opt_out(args));
+            crate::commands::ensure::classify_readiness(
+                diagnostic.config,
+                daemon,
+                registration,
+                crate::commands::ensure::save_time_driver_opt_out(),
+                mcp_state,
+                &mcp_detail,
+            )
+        });
+    if let Some(readiness) = &readiness
+        && readiness.failed()
+        && diagnostic.last_error.is_none()
+    {
+        diagnostic.last_error = Some(format!(
+            "{} readiness failed",
+            readiness.failing_component.unwrap_or("activation")
+        ));
     }
 
     // LAUNCH-011: the watch spawn shares the SUPPRESSION axes of the
@@ -444,7 +475,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         );
 
     if global.json {
-        let json = serde_json::to_string_pretty(&activation::render_json(&diagnostic))?;
+        let mut document = activation::render_json(&diagnostic);
+        if let (serde_json::Value::Object(object), Some(readiness)) = (&mut document, &readiness) {
+            object.insert("readiness".to_owned(), serde_json::to_value(readiness)?);
+        }
+        let json = serde_json::to_string_pretty(&document)?;
         println!("{json}");
     } else {
         // JOURNEY-012: decided once and shared by both compositions below, so
@@ -459,7 +494,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             repeat_collapsed,
             crate::commands::tutorial::any_path_completed,
         );
-        let human_output = if repeat_collapsed {
+        let mut human_output = if repeat_collapsed {
             // CIB-190: one bounded local value receipt, pre-rendered here
             // in the command layer (where the wall clock lives) and
             // threaded through the CIB-183 seam. `None` on any miss —
@@ -480,6 +515,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 offer_tutorial,
             )
         };
+        if let Some(readiness) = &readiness {
+            insert_readiness_before_next(&mut human_output, readiness);
+        }
         if matches!(render_mode, StartRenderMode::Tui) {
             let consent_plan = activation::orchestrator::build_tui_consent_plan(
                 root,
@@ -646,6 +684,10 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         })
     {
         bail!("MCP install failed: {err}");
+    }
+
+    if !read_only && readiness.as_ref().is_some_and(EnsureReadiness::failed) {
+        return Err(crate::output::AlreadyReported.into());
     }
 
     write_warmup_cache_if_mutating(
@@ -2334,6 +2376,67 @@ fn start_mcp_opt_out(args: &StartArgs) -> bool {
     args.no_mcp || std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty())
 }
 
+fn start_mcp_readiness(
+    diagnostic: &activation::diagnostic::ActivationDiagnostic,
+    install_report: &activation::orchestrator::InstallReport,
+    disabled: bool,
+) -> (EnsureReadinessState, String) {
+    if disabled {
+        return (
+            EnsureReadinessState::Disabled,
+            "MCP deliberately omitted".to_owned(),
+        );
+    }
+    if let Some(error) = install_report.aggregated_failure() {
+        return (
+            EnsureReadinessState::Failed,
+            format!("MCP repair failed: {error}"),
+        );
+    }
+    match diagnostic.highest_mcp_tier() {
+        Some(activation::diagnostic::McpTier::LiveValidation) => (
+            EnsureReadinessState::Ready,
+            "live validation observed from an attached client".to_owned(),
+        ),
+        Some(
+            tier @ (activation::diagnostic::McpTier::RestartRequired
+            | activation::diagnostic::McpTier::RestartHandshakeVerified),
+        ) => (
+            EnsureReadinessState::Starting,
+            format!("{}; client attachment is pending", tier.label()),
+        ),
+        Some(
+            tier @ (activation::diagnostic::McpTier::ConfigPresent
+            | activation::diagnostic::McpTier::ServerStartable),
+        ) => (
+            EnsureReadinessState::Degraded,
+            format!("{}; no live client validation", tier.label()),
+        ),
+        Some(
+            activation::diagnostic::McpTier::NotDetected
+            | activation::diagnostic::McpTier::ConfigAbsent,
+        )
+        | None => (
+            EnsureReadinessState::Disabled,
+            "no managed MCP client is configured".to_owned(),
+        ),
+    }
+}
+
+fn insert_readiness_before_next(output: &mut String, readiness: &EnsureReadiness) {
+    let block = format!(
+        "  readiness: {}\n  components: {}\n",
+        readiness.state.label(),
+        readiness.component_summary(),
+    );
+    let insertion = output.rfind("  next:").or_else(|| output.rfind("  Next:"));
+    if let Some(index) = insertion {
+        output.insert_str(index, &block);
+    } else {
+        output.push_str(&block);
+    }
+}
+
 /// CIB-224: `--no-mcp` / `ANVIL_NO_MCP` is mutually exclusive with explicit
 /// MCP client selection (`--mcp-client`, `--all-mcp-clients`,
 /// `ANVIL_ALL_MCP_CLIENTS`). Fail with a one-line recovery rather than
@@ -3943,7 +4046,7 @@ mod tests {
     fn closing_watch_line_defers_to_daemon_repair_hint() {
         // The reproduced CIB-166 contradiction: at `ready_restart_required`
         // with the daemon unreachable, the diagnostic says "start the
-        // intercept daemon with `anvil intercept start --foreground`" and the
+        // intercept daemon with bare `anvil`" and the
         // ending closed with "Next: run `anvil watch`".
         let mut diag = restart_required_diagnostic();
         diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Unreachable;
@@ -3954,7 +4057,7 @@ mod tests {
         );
         let rendered = activation::render_human(&diag);
         assert!(
-            rendered.contains("anvil intercept start --foreground"),
+            rendered.contains("bare `anvil`"),
             "diagnostic owns the ending with the daemon repair hint, got: {rendered}",
         );
         assert_eq!(
@@ -4095,7 +4198,7 @@ mod tests {
         );
 
         let daemon_failed = anvil_intercept::ensure::EnsureOutcome::Failed {
-            recovery: "run `anvil intercept start --foreground`.".to_string(),
+            recovery: "retry with bare `anvil`.".to_string(),
         };
         assert!(
             !is_repeat_success(
@@ -4789,7 +4892,7 @@ mod tests {
 
         let healthy = synth_diagnostic(activation::state::ProtectionState::Protecting);
         let daemon_failed = anvil_intercept::ensure::EnsureOutcome::Failed {
-            recovery: "run `anvil intercept start --foreground`.".to_string(),
+            recovery: "retry with bare `anvil`.".to_string(),
         };
         assert!(!is_repeat_success(
             Some(&run),
@@ -6096,7 +6199,7 @@ mod tests {
             "an install receipt must not compete with final-state daemon guidance: {human}",
         );
         assert_eq!(
-            human.matches("anvil intercept start --foreground").count(),
+            human.matches("bare `anvil`").count(),
             1,
             "the prerequisite daemon repair must be emitted once: {human}",
         );
@@ -6122,7 +6225,7 @@ mod tests {
         assert_eq!(json["state"], "ready_restart_required");
         assert!(json_reason.contains("intercept daemon is not reachable"));
         assert_eq!(tui_guidance, format!("next: {json_guidance}"));
-        assert!(json_guidance.contains("anvil intercept start --foreground"));
+        assert!(json_guidance.contains("bare `anvil`"));
         assert!(!json_guidance.contains("restart your editor"));
     }
 

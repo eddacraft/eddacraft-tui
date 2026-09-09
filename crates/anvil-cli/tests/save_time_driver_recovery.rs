@@ -82,9 +82,13 @@ struct Harness {
 
 impl Harness {
     fn spawn(home: &Path) -> Self {
+        Self::spawn_with_binary(home, Path::new(ANVIL_BIN))
+    }
+
+    fn spawn_with_binary(home: &Path, binary: &Path) -> Self {
         fs::set_permissions(home, fs::Permissions::from_mode(0o700))
             .expect("secure private ANVIL_HOME");
-        let mut command = Command::new(ANVIL_BIN);
+        let mut command = Command::new(binary);
         command.args(["intercept", "start", "--foreground"]);
         configure_private_env(&mut command, home);
         command.process_group(0);
@@ -195,6 +199,80 @@ impl Harness {
     }
 }
 
+#[test]
+fn bare_anvil_fails_when_daemon_rejects_worktree_registration() {
+    let home = tempfile::tempdir().expect("private ANVIL_HOME");
+    let workspace = tempfile::tempdir().expect("workspace");
+    seed_workspace(workspace.path());
+    let worktree = fs::canonicalize(workspace.path()).expect("canonical worktree");
+
+    let stale_binary = home.path().join("stale-anvil");
+    fs::copy(ANVIL_BIN, &stale_binary).expect("copy daemon binary");
+    fs::set_permissions(&stale_binary, fs::Permissions::from_mode(0o700))
+        .expect("make daemon binary executable");
+    let harness = Harness::spawn_with_binary(home.path(), &stale_binary);
+
+    fs::remove_file(&stale_binary).expect("remove daemon executable before driver spawn");
+
+    let plain = harness.anvil(&worktree, &[]);
+    assert_eq!(
+        plain.status.code(),
+        Some(1),
+        "a rejected worktree registration must fail bare activation; stdout={} stderr={}",
+        String::from_utf8_lossy(&plain.stdout),
+        String::from_utf8_lossy(&plain.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&plain.stdout);
+    assert!(stdout.contains("readiness: failed"), "{stdout}");
+    assert!(stdout.contains("worktree=failed"), "{stdout}");
+    assert_eq!(stdout.matches("next:").count(), 1, "{stdout}");
+    assert!(stdout.contains("anvil start"), "{stdout}");
+    assert!(
+        !stdout.contains("anvil intercept start --foreground"),
+        "{stdout}"
+    );
+
+    let json = harness.anvil(&worktree, &["--json"]);
+    assert_eq!(
+        json.status.code(),
+        Some(1),
+        "JSON activation must carry the same failure exit; stdout={} stderr={}",
+        String::from_utf8_lossy(&json.stdout),
+        String::from_utf8_lossy(&json.stderr),
+    );
+    let value: Value = serde_json::from_slice(&json.stdout).expect("bare --json is one document");
+    assert_eq!(value["readiness"]["state"], "failed");
+    assert_eq!(
+        value["readiness"]["components"]["worktree"]["state"],
+        "failed"
+    );
+    assert_eq!(
+        value["next"],
+        "run `anvil start` to retry failed worktree registration"
+    );
+
+    let start = harness.anvil(&worktree, &["start", "--no-tui"]);
+    assert_eq!(
+        start.status.code(),
+        Some(1),
+        "anvil start must fail the same rejected registration; stdout={} stderr={}",
+        String::from_utf8_lossy(&start.stdout),
+        String::from_utf8_lossy(&start.stderr),
+    );
+    let start_stdout = String::from_utf8_lossy(&start.stdout);
+    assert!(start_stdout.contains("readiness: failed"), "{start_stdout}");
+    assert!(start_stdout.contains("worktree=failed"), "{start_stdout}");
+    assert!(
+        start_stdout.contains("failed worktree registration"),
+        "{start_stdout}"
+    );
+    assert_eq!(start_stdout.matches("next:").count(), 1, "{start_stdout}");
+    assert!(
+        !start_stdout.contains("anvil intercept start --foreground"),
+        "{start_stdout}"
+    );
+}
+
 impl Drop for Harness {
     fn drop(&mut self) {
         let _ = self.anvil(&self.home, &["intercept", "stop"]);
@@ -276,7 +354,7 @@ fn seed_workspace(dir: &Path) {
         .expect("git init")
         .success();
     assert!(ok, "git init failed");
-    fs::write(dir.join(".anvil.json"), "{}\n").expect("seed activated config");
+    fs::write(dir.join(".anvil.json"), "{\"checks\":[]}\n").expect("seed activated config");
     fs::write(dir.join("clean.ts"), "export const clean = true;\n").expect("seed source");
 }
 

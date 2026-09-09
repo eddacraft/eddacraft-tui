@@ -132,10 +132,20 @@ pub(crate) struct WorktreeRegistrationReport {
 }
 
 impl WorktreeRegistrationReport {
-    /// True when the daemon reported the driver `failed` — the one outcome a
-    /// surface should name, since membership succeeded but coverage did not.
+    /// True when the daemon explicitly reported the driver `failed`; retained
+    /// for the legacy worktree receipt while JREL-005 readiness separately
+    /// classifies absent and unreadable evidence.
     pub(crate) fn driver_failed(&self) -> bool {
         matches!(self.driver, Some(SaveTimeDriverReadiness::Failed))
+    }
+}
+
+impl From<WorktreeRegistration> for WorktreeRegistrationReport {
+    fn from(registration: WorktreeRegistration) -> Self {
+        Self {
+            registration,
+            driver: None,
+        }
     }
 }
 

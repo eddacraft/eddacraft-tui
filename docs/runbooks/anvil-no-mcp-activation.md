@@ -1,8 +1,8 @@
 # MCP-Optional Activation — Operator Runbook
 
-| Type    | Authority     | Owner | Status | Freshness                                                        |
-| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------- |
-| Runbook | Authoritative | ACTMO | Live   | Filed 2026-06-26 for ACTMO-009 against ADR-092 and `anvil start` |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                  |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | ACTMO | Live   | Last reviewed 2026-09-09 for JREL-005 typed readiness and no-MCP success; filed 2026-06-26 for ACTMO-009 against ADR-092 and `anvil start` |
 
 | Upstream                                                                                                                                                                                                                                                 | Downstream                                                                                                                                                                |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -30,6 +30,12 @@ The honest success state without MCP is usually `watching`, not `protecting`.
 `watching` means daemon-backed activation or save-time fallback is active, but
 pre-write MCP attachment is not in evidence. `protecting` still requires live
 pre-write validation evidence.
+
+The component projection reports MCP as `disabled`, not failed. Overall
+`readiness: ready` requires the selected save-time driver to have
+`watches-installed` or `fresh-activity` evidence. `spawned` remains `starting`;
+a refused registration or failed driver returns a non-zero exit with one
+`anvil start` recovery action.
 
 ## Procedure
 

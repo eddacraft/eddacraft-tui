@@ -3,6 +3,7 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use crate::commands::check_catalog;
+use crate::commands::{status as status_command, status_mcp, watch_save_time};
 use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 use crate::mcp::validation::DaemonStatus;
 
@@ -58,6 +59,65 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
     let has_tracked_baseline = workspace_path.join("anvil/baseline.json").is_file();
     let has_baseline = has_architecture || has_tracked_baseline;
     let available_checks = check_catalog::gate_canonical_names();
+    let activation = crate::activation::verify(&workspace_path);
+    let daemon_snapshot = crate::commands::intercept::query_daemon_status_with_timeout(
+        crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT,
+    )
+    .ok();
+    let daemon_status = if daemon_snapshot.is_some() {
+        DaemonStatus::Available
+    } else {
+        DaemonStatus::Unavailable
+    };
+    let driver = daemon_snapshot.as_ref().and_then(|snapshot| {
+        snapshot
+            .worktrees
+            .iter()
+            .find(|entry| entry.worktree == workspace_path)
+    });
+    let graph_assurance = watch_save_time::query_workspace_status(&workspace_path);
+    let graph = status_mcp::graph_from_assurance(graph_assurance.as_ref());
+    let highest_mcp = activation.highest_mcp_tier();
+    let mcp_capability = highest_mcp.map_or("not-detected", |tier| tier.label());
+    let mcp_disabled = std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty());
+    let mcp_attachment = if mcp_disabled {
+        "disabled"
+    } else if activation.mcp_pre_write_live() {
+        "ready"
+    } else if highest_mcp
+        .is_some_and(|tier| tier >= crate::activation::diagnostic::McpTier::RestartRequired)
+    {
+        "starting"
+    } else {
+        "degraded"
+    };
+    let graph_value = graph.map_or_else(
+        || json!({"state": "unavailable", "reason": "daemon assurance unavailable"}),
+        |projection| serde_json::to_value(projection).expect("graph readiness serialises"),
+    );
+    let driver_disabled =
+        std::env::var_os("ANVIL_NO_SAVE_TIME_DRIVER").is_some_and(|value| !value.is_empty());
+    let watcher_state = driver.map_or_else(
+        || {
+            if driver_disabled {
+                "disabled"
+            } else {
+                "degraded"
+            }
+        },
+        status_command::save_time_driver_readiness,
+    );
+    let watcher_evidence = driver
+        .and_then(|entry| entry.save_time_driver_evidence)
+        .map(status_command::save_time_driver_evidence_str);
+    let mcp_policy = if mcp_disabled { "disabled" } else { "selected" };
+    let configuration_readiness = if config.get("error").is_some() {
+        "failed"
+    } else if config["loaded"] == true {
+        "ready"
+    } else {
+        "disabled"
+    };
 
     Ok(json!({
         "status": "ok",
@@ -66,8 +126,21 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         "config": config,
         "hasBaseline": has_baseline,
         "version": env!("CARGO_PKG_VERSION"),
-        "backend": "local",
-        "daemonStatus": DaemonStatus::NotWired.as_str()
+        "backend": if daemon_snapshot.is_some() { "daemon" } else { "local" },
+        "daemonStatus": daemon_status.as_str(),
+        "readiness": {
+            "configuration": configuration_readiness,
+            "daemon": if daemon_snapshot.is_some() { "ready" } else { "degraded" },
+            "mcpPolicy": mcp_policy,
+            "mcpCapability": mcp_capability,
+            "attachment": mcp_attachment,
+            "lastValidation": if activation.mcp_pre_write_live() { "observed" } else { "not-observed" },
+            "graph": graph_value,
+            "watcher": {
+                "state": watcher_state,
+                "evidence": watcher_evidence
+            }
+        }
     }))
 }
 
@@ -368,8 +441,16 @@ mod tests {
             .expect("payload is JSON");
         assert_eq!(payload["status"], "ok");
         assert_eq!(payload["config"]["loaded"], false);
-        assert_eq!(payload["backend"], "local");
-        assert_eq!(payload["daemonStatus"], "not-wired");
+        assert!(matches!(
+            payload["backend"].as_str(),
+            Some("local" | "daemon")
+        ));
+        assert!(matches!(
+            payload["daemonStatus"].as_str(),
+            Some("available" | "unavailable")
+        ));
+        assert!(payload["readiness"].is_object());
+        assert_ne!(payload["daemonStatus"], "not-wired");
     }
 
     #[test]
@@ -390,6 +471,24 @@ mod tests {
         assert_eq!(payload["config"]["loaded"], true);
         assert_eq!(payload["config"]["source"], ".anvil.yaml");
         assert_eq!(payload["config"]["checks"], json!(["secret-detection"]));
+        assert_eq!(payload["readiness"]["configuration"], "ready");
+    }
+
+    #[test]
+    fn status_reports_invalid_config_as_failed_readiness() {
+        let cwd = std::env::current_dir().expect("test cwd is accessible");
+        let workspace = tempfile::tempdir_in(cwd).expect("workspace exists");
+        std::fs::write(workspace.path().join(".anvil.yaml"), "checks: [\n")
+            .expect("write malformed .anvil.yaml");
+
+        let result = call(&json!({ "workspaceRoot": workspace.path() }));
+
+        assert_eq!(result["isError"], false);
+        let payload: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
+            .expect("payload is JSON");
+        assert_eq!(payload["config"]["loaded"], false);
+        assert!(payload["config"]["error"].is_string());
+        assert_eq!(payload["readiness"]["configuration"], "failed");
     }
 
     #[test]

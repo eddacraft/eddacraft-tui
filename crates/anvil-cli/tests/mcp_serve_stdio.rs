@@ -1013,7 +1013,13 @@ fn mcp_serve_stdio_tools_call_status_returns_workspace_health_summary() {
     )
     .expect("architecture definition is writable");
 
-    let mut child = spawn_mcp_server_in(workspace.path());
+    let runtime_dir = tempfile::tempdir().expect("isolated runtime dir exists");
+    let home_dir = tempfile::tempdir().expect("isolated home dir exists");
+    let mut child = spawn_mcp_server_without_daemon_in(
+        Some(workspace.path()),
+        runtime_dir.path(),
+        home_dir.path(),
+    );
     let stdout = child.stdout.take().expect("child stdout is piped");
     let stdout_rx = spawn_stdout_reader(stdout);
     send_legacy_initialize(&mut child, &stdout_rx, 0);
@@ -1064,7 +1070,10 @@ fn mcp_serve_stdio_tools_call_status_returns_workspace_health_summary() {
         json!(["secret-detection", "policy"])
     );
     assert_eq!(payload["backend"], "local");
-    assert_eq!(payload["daemonStatus"], "not-wired");
+    assert_eq!(payload["daemonStatus"], "unavailable");
+    assert_eq!(payload["readiness"]["configuration"], "ready");
+    assert_eq!(payload["readiness"]["daemon"], "degraded");
+    assert_eq!(payload["readiness"]["watcher"]["state"], "degraded");
     assert!(
         payload["availableChecks"]
             .as_array()
@@ -2362,6 +2371,8 @@ fn spawn_mcp_server_without_daemon_in(
         .arg("serve")
         .arg("--stdio")
         .env("ANVIL_MCP_PREFERRED", ANVIL_BIN)
+        .env_remove("ANVIL_NO_MCP")
+        .env_remove("ANVIL_NO_SAVE_TIME_DRIVER")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());

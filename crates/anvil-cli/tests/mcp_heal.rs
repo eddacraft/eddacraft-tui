@@ -109,7 +109,7 @@ fn init_activated_repo(root: &Path) {
         .status()
         .expect("git init");
     assert!(git.success(), "git init");
-    fs::write(root.join(".anvil.json"), "{}\n").expect("write config");
+    fs::write(root.join(".anvil.json"), "{\"checks\":[]}\n").expect("write config");
 }
 
 #[test]

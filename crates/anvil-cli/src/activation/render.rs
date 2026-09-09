@@ -429,10 +429,9 @@ fn handshake_evidence(tier: McpTier) -> &'static str {
 /// `anvil intercept` actually ships today (`start --foreground`,
 /// `status`, `unblock`). `anvil intercept recover` does NOT exist
 /// (PR #1909 review caught a draft that named it). The
-/// `AllSurfacesQuarantined` recovery path is `stop the daemon and
-/// restart with --foreground`, matching the existing
-/// `render_human` repair hint that the council corrected on PR
-/// #1848.
+/// JREL-005 keeps recovery on the daily public entry points: bare `anvil` and
+/// `anvil start`. The foreground daemon implementation command remains an
+/// operator/debugging surface rather than activation guidance.
 fn daemon_evidence_label(att: super::daemon_evidence::DaemonAttestation) -> &'static str {
     use super::daemon_evidence::DaemonAttestation;
     match att {
@@ -441,7 +440,7 @@ fn daemon_evidence_label(att: super::daemon_evidence::DaemonAttestation) -> &'st
         DaemonAttestation::Unenforced => "running but this worktree is not registered",
         DaemonAttestation::StaleHeartbeat => "running but heartbeat is stale",
         DaemonAttestation::AllSurfacesQuarantined => {
-            "running but every surface is quarantined (stop and restart with `anvil intercept start --foreground` to clear fence state)"
+            "running but every surface is quarantined (run `anvil start` to restore daemon-backed protection)"
         }
         DaemonAttestation::Warming => "running but transient — wait briefly and re-run",
         DaemonAttestation::NoParticipatingSurface => {
@@ -480,7 +479,7 @@ fn why_summary(d: &ActivationDiagnostic) -> &'static str {
             if d.daemon_attestation.attests_worktree() {
                 "the intercept daemon attests this worktree; MCP pre-write is optional and can be enabled separately"
             } else {
-                "save-time watch fallback is running; for pre-write coverage start the intercept daemon (`anvil intercept start --foreground`) and restart your editor"
+                "save-time watch fallback is running; for pre-write coverage run `anvil start` and restart your editor"
             }
         }
         ProtectionState::NeedsAction => why_summary_for_needs_action(d),
@@ -538,17 +537,16 @@ fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -
             "restart your editor so the MCP handshake completes; the daemon will be probed afterwards"
         }
         DaemonAttestation::Unreachable => {
-            "run `anvil start` in a real terminal to auto-start the daemon \
-             (`anvil intercept start --foreground` for headless recovery) so pre-write validation can attach"
+            "run `anvil start` in a real terminal to restore the daemon, or run bare `anvil` headlessly, so pre-write validation can attach"
         }
         DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
             "daemon is running but this worktree is not registered — see `anvil intercept status`"
         }
         DaemonAttestation::StaleHeartbeat => {
-            "daemon heartbeat is stale — stop and restart it with `anvil intercept start --foreground`"
+            "daemon heartbeat is stale — run bare `anvil` to restore it"
         }
         DaemonAttestation::AllSurfacesQuarantined => {
-            "every surface is quarantined — stop and restart the daemon with `anvil intercept start --foreground` to clear fence state"
+            "every surface is quarantined — run `anvil start` to restore daemon-backed protection"
         }
         DaemonAttestation::Warming => {
             "daemon is starting up — wait briefly and re-run `anvil start --verify`"
@@ -632,10 +630,10 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
                 "The intercept daemon is running, but this worktree is not attached to an enforcing session yet. Check `anvil intercept status`, then run `anvil start --verify` again after the editor issues an MCP request."
             }
             DaemonAttestation::StaleHeartbeat => {
-                "The intercept daemon was reachable before, but its heartbeat is stale. Stop that daemon process, start it again with `anvil intercept start --foreground`, then run `anvil start --verify` again."
+                "The intercept daemon was reachable before, but its heartbeat is stale. Run bare `anvil` to restore it, then run `anvil start --verify` again."
             }
             DaemonAttestation::AllSurfacesQuarantined => {
-                "The intercept daemon fenced every session for this worktree. Stop that daemon process, start it again with `anvil intercept start --foreground`, then run `anvil start --verify` again."
+                "The intercept daemon fenced every session for this worktree. Run `anvil start` to restore daemon-backed protection, then run `anvil start --verify` again."
             }
             DaemonAttestation::Warming => {
                 "The intercept daemon is starting or settling. Wait a few seconds, then run `anvil start --verify` again."
@@ -901,16 +899,16 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // is the intercept daemon, not another restart. Each
             // attestation branch points at its concrete remediation.
             DaemonAttestation::Unreachable => {
-                "no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal (not piped) to auto-start the daemon — for headless recovery use `anvil intercept start --foreground` — then re-run `anvil start --verify`."
+                "no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal, or bare `anvil` headlessly, then re-run `anvil start --verify`."
             }
             DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
                 "the intercept daemon is running but is not enforcing this worktree yet; check `anvil intercept status` for the registered worktree set and re-run `anvil start --verify` after your editor has issued an MCP request."
             }
             DaemonAttestation::StaleHeartbeat => {
-                "the intercept daemon's last attestation is stale; stop it (close its terminal, or end the process via Task Manager / `kill <PID>`) and start it again with `anvil intercept start --foreground`, then re-run `anvil start --verify`."
+                "the intercept daemon's last attestation is stale; run bare `anvil` to restore it, then re-run `anvil start --verify`."
             }
             DaemonAttestation::AllSurfacesQuarantined => {
-                "the intercept daemon has fenced every session for this worktree; stop the daemon (close its terminal, or end the process via Task Manager / `kill <PID>`) and start it again with `anvil intercept start --foreground` to clear fence state, then re-run `anvil start --verify`."
+                "the intercept daemon has fenced every session for this worktree; run `anvil start` to restore daemon-backed protection, then re-run `anvil start --verify`."
             }
             DaemonAttestation::Warming => {
                 "the intercept daemon is transitioning (warming / draining); re-run `anvil start --verify` in a few seconds."
@@ -1011,9 +1009,27 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 "anvil does not yet cover this repo's languages in the current release. Architecture / antipattern checks will not produce findings on files in unsupported languages; coverage expands as language packs ship.",
             )
         }
-        ProtectionState::Error => Some(
-            "re-run `anvil start --verify` after addressing the cause; activation will not write any state until it can proceed safely.",
-        ),
+        ProtectionState::Error => Some(repair_hint_for_error(d)),
+    }
+}
+
+fn repair_hint_for_error(d: &ActivationDiagnostic) -> &'static str {
+    match d.last_error.as_deref() {
+        Some(error) if error.contains("save-time driver") => {
+            "run `anvil start` to restore the failed save-time driver."
+        }
+        Some(error) if error.contains("worktree registration") => {
+            "run `anvil start` to retry the failed worktree registration."
+        }
+        Some(error) if error.contains("MCP install failed") => {
+            "run `anvil start` to retry the failed MCP repair."
+        }
+        Some(error) if error.contains("daemon readiness") => {
+            "run bare `anvil` to restore the save-time daemon."
+        }
+        _ => {
+            "re-run `anvil start --verify` after addressing the cause; activation will not write any state until it can proceed safely."
+        }
     }
 }
 
@@ -1365,6 +1381,34 @@ mod tests {
         );
     }
 
+    #[test]
+    fn error_recovery_names_the_failed_component() {
+        let cases = [
+            (
+                "save-time driver failed after worktree registration",
+                "restore the failed save-time driver",
+            ),
+            (
+                "worktree registration refused: cap reached",
+                "retry the failed worktree registration",
+            ),
+            (
+                "MCP install failed: synthetic",
+                "retry the failed MCP repair",
+            ),
+            ("daemon readiness failed", "bare `anvil`"),
+        ];
+        for (error, expected) in cases {
+            let mut diagnostic = empty();
+            diagnostic.last_error = Some(error.to_owned());
+            let rendered = render_human(&diagnostic);
+            assert!(
+                rendered.contains(expected),
+                "error {error:?} must name {expected:?}: {rendered}"
+            );
+        }
+    }
+
     /// CIB-180: the verbose (`--verify --why`, stderr) tier line carries the
     /// same qualifier so both human surfaces stay in lockstep.
     #[test]
@@ -1506,8 +1550,8 @@ mod tests {
             "Unreachable hint must lead with interactive `anvil start`: {h}"
         );
         assert!(
-            h.contains("anvil intercept start"),
-            "Unreachable hint must still name headless recovery: {h}"
+            h.contains("bare `anvil`"),
+            "Unreachable hint must name bare headless recovery: {h}"
         );
     }
 
@@ -1548,7 +1592,7 @@ mod tests {
             "Unreachable hint must lead with interactive `anvil start`: {h}"
         );
         assert!(
-            h.contains("anvil intercept start --foreground") && h.contains("anvil start --verify"),
+            h.contains("bare `anvil`") && h.contains("anvil start --verify"),
             "Unreachable hint must give headless recovery and the re-run command: {h}"
         );
     }
@@ -1588,8 +1632,8 @@ mod tests {
         );
         let h = render_human(&d);
         assert!(
-            h.contains("anvil intercept start --foreground"),
-            "AllSurfacesQuarantined hint must name the cross-platform restart path: {h}"
+            h.contains("anvil start"),
+            "AllSurfacesQuarantined hint must name the public recovery path: {h}"
         );
         assert!(
             !h.contains("anvil intercept recover"),
@@ -1643,7 +1687,7 @@ mod tests {
     /// The remediation is to stop and restart the daemon, not the
     /// editor. Post-ship hardening (council 2026-05-22): the previous
     /// hint pointed at `anvil intercept restart` which doesn't exist;
-    /// the real path is stop + `anvil intercept start --foreground`.
+    /// the public recovery path is bare `anvil`.
     #[test]
     fn ready_restart_required_with_stale_heartbeat_points_at_daemon_start() {
         let d = handshake_verified_diag(
@@ -1651,8 +1695,8 @@ mod tests {
         );
         let h = render_human(&d);
         assert!(
-            h.contains("anvil intercept start --foreground"),
-            "StaleHeartbeat hint must name the real `anvil intercept start --foreground` command: {h}"
+            h.contains("bare `anvil`"),
+            "StaleHeartbeat hint must name bare `anvil`: {h}"
         );
         assert!(
             !h.contains("anvil intercept restart"),
@@ -1800,7 +1844,7 @@ mod tests {
                 && h.contains("local intercept daemon is not reachable")
                 && h.contains("anvil start")
                 && h.contains("real terminal")
-                && h.contains("anvil intercept start --foreground")
+                && h.contains("bare `anvil`")
                 && h.contains("anvil start --verify"),
             "Unreachable render must explain the label and give copy-ready commands: {h}"
         );
@@ -2594,13 +2638,9 @@ mod tests {
         // of one branch does not silently collapse two branches'
         // copy.
         //
-        // Command-name policy (PR #1909 review): copy MUST only
-        // reference subcommands `anvil intercept` actually ships
-        // today — `start --foreground`, `status`, `unblock`. The
-        // earlier draft of this test pinned `anvil intercept recover`
-        // and bare `anvil intercept start`; both were non-existent
-        // / broken invocations the council had already corrected on
-        // PR #1848. The test now pins the corrected commands.
+        // JREL-005 command-name policy: recovery copy uses the daily public
+        // entry points (bare `anvil` / `anvil start`) rather than exposing the
+        // daemon's foreground implementation command.
         let expected: &[(super::super::daemon_evidence::DaemonAttestation, &str)] = &[
             (
                 super::super::daemon_evidence::DaemonAttestation::Unreachable,
@@ -2612,11 +2652,11 @@ mod tests {
             ),
             (
                 super::super::daemon_evidence::DaemonAttestation::AllSurfacesQuarantined,
-                "anvil intercept start --foreground",
+                "anvil start",
             ),
             (
                 super::super::daemon_evidence::DaemonAttestation::StaleHeartbeat,
-                "anvil intercept start --foreground",
+                "bare `anvil`",
             ),
         ];
         for (att, needle) in expected {
@@ -2631,8 +2671,7 @@ mod tests {
 
     /// PR #1909 review (finding 2): `anvil intercept recover` does
     /// NOT exist as a subcommand today. Confirm no code path in the
-    /// verbose renderer emits it; the recovery path is `stop and
-    /// restart with anvil intercept start --foreground`.
+    /// verbose renderer emits it; recovery uses the daily public entry points.
     #[test]
     fn verbose_render_never_names_nonexistent_intercept_recover() {
         let attestations = [
@@ -2657,12 +2696,10 @@ mod tests {
     }
 
     /// PR #1909 review (finding 3): `anvil intercept start` without
-    /// `--foreground` bails today (backgrounded launch arrives with
-    /// INTD-002). Every render path that names `anvil intercept
-    /// start` must include `--foreground` so operators don't hit an
-    /// immediate error.
+    /// JREL-005: daily readiness recovery must stay on the public bare/start
+    /// surfaces and never expose the daemon's foreground implementation command.
     #[test]
-    fn verbose_render_intercept_start_hints_always_include_foreground() {
+    fn verbose_render_never_exposes_foreground_daemon_start() {
         let attestations = [
             super::super::daemon_evidence::DaemonAttestation::NotProbed,
             super::super::daemon_evidence::DaemonAttestation::Unreachable,
@@ -2676,18 +2713,10 @@ mod tests {
         for att in attestations {
             let d = handshake_verified_diag(att);
             let h = render_human_verbose(&d);
-            // Use the whole verbose block: if any line mentions
-            // `anvil intercept start`, the same line MUST include
-            // `--foreground` (the bare form bails on launch).
-            for line in h.lines() {
-                if line.contains("anvil intercept start") {
-                    assert!(
-                        line.contains("--foreground"),
-                        "attestation {att:?} verbose render names bare `anvil intercept start` \
-                         (no `--foreground`) — that invocation bails. Line:\n{line}"
-                    );
-                }
-            }
+            assert!(
+                !h.contains("anvil intercept start --foreground"),
+                "attestation {att:?} exposed the foreground daemon command:\n{h}"
+            );
         }
     }
 
@@ -2766,8 +2795,8 @@ mod tests {
             "ReadyRestartRequired + Unreachable why: must lead with interactive `anvil start`, got: {why_rrr}"
         );
         assert!(
-            why_rrr.contains("anvil intercept start --foreground"),
-            "ReadyRestartRequired + Unreachable why: must still name headless recovery, got: {why_rrr}"
+            why_rrr.contains("bare `anvil`"),
+            "ReadyRestartRequired + Unreachable why: must name bare headless recovery, got: {why_rrr}"
         );
     }
 }

@@ -478,7 +478,7 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
             return EnsureOutcome::Failed {
                 recovery: format!(
                     "failed to launch the background daemon: {err}. \
-                     See the daemon log at {} or run `anvil intercept start --foreground`.",
+                     See the daemon log at {} or retry with bare `anvil`.",
                     params.log_path.display()
                 ),
             };
@@ -496,7 +496,7 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
         EnsureOutcome::Failed {
             recovery: format!(
                 "the daemon did not become ready within {}s. \
-                 See the daemon log at {} or run `anvil intercept start --foreground`.",
+                 See the daemon log at {} or retry with bare `anvil`.",
                 // Print the effective wall-clock ceiling: an in-flight probe can
                 // overrun `bind_timeout` by one `PROBE_TIMEOUT` (see
                 // `wait_until_answered` — the overrun is intentional), so the

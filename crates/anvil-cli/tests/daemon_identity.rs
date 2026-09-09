@@ -148,7 +148,7 @@ fn seed_project(root: &Path) -> PathBuf {
         .output()
         .expect("git init");
     assert!(git.status.success(), "git init failed");
-    fs::write(project.join(".anvil.json"), "{}\n").expect("write config");
+    fs::write(project.join(".anvil.json"), "{\"checks\":[]}\n").expect("write config");
     project
 }
 
