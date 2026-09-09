@@ -1,8 +1,8 @@
 # anvil kernel architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                            |
-| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Architecture | Authoritative | KERN  | Live   | Last reviewed 2026-09-10 GATT-003: per-edge call-resolution fidelity on callers_of (call_graph); diagram contract unchanged Prior review 2026-08-29 against graph-cache component docs; watch, parser, and policy topology unchanged |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                          |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | KERN  | Live   | Last reviewed 2026-09-10 for the GATT-005 cost self-report change; diagram contract unchanged. Prior review 2026-09-10 GATT-003: per-edge call-resolution fidelity on callers_of (call_graph); diagram contract unchanged Prior review 2026-08-29 against graph-cache component docs; watch, parser, and policy topology unchanged |
 
 | Upstream                                                                              | Downstream                                            |
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------- |
