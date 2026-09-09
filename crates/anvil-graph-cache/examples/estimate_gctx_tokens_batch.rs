@@ -1,8 +1,9 @@
 //! Batch oracle for the Python `gctx-simple-v1` port cross-check.
 //!
-//! Reads a JSON array of strings on stdin; writes a JSON array of objects:
-//! `{ "ok": true, "tokens": N, "input_bytes": N }` or
-//! `{ "ok": false, "error": "input_too_large", "input_bytes": N, "max_bytes": N }`.
+//! Reads a JSON array of strings on stdin; writes a JSON envelope object:
+//! `{ "max_bytes": N, "estimator": "...", "results": [ ... ] }` where each
+//! result is `{ "ok": true, "tokens": N, "input_bytes": N, "estimator": "...", "capped": bool }`
+//! or `{ "ok": false, "error": "input_too_large", "input_bytes": N, "max_bytes": N }`.
 //!
 //! Driven by `plans/evals/context-compiler/2026-09-08/crosscheck_gctx_tokens.py`.
 
