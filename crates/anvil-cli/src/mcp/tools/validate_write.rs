@@ -15,8 +15,8 @@ use sha2::{Digest, Sha256};
 
 use crate::mcp::enforcement::{self, EnforcementMode, MCP_DEFAULT_ENFORCEMENT};
 use crate::mcp::tools::shared::{
-    MCP_SERVER_ROOT_NOT_ADMITTED, WorkspacePathKind, mcp_server_root_from,
-    normalise_workspace_relative_path, workspace_root_is_admitted,
+    MCP_SERVER_ROOT_NOT_ADMITTED, NESTED_UNTRUSTED_ROOT, WorkspacePathKind, mcp_server_root_from,
+    normalise_workspace_relative_path, validate_workspace_root,
 };
 use crate::mcp::validation::{
     DaemonStatus, DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient,
@@ -1082,16 +1082,22 @@ fn workspace_root(
                 .into());
             }
             let root = canonical_workspace_root(&root)?;
-            if workspace_root_is_admitted(&root, &default_workspace_root) {
-                Ok(root)
-            } else {
-                // CIB-007: surface the shim's expected workspace root
-                // so the caller can self-correct on the next call.
-                // ADR-125 admits registered linked worktrees of the
-                // same repository; other roots still block.
-                Err(ParseError::UntrustedWorkspaceRoot {
-                    expected: default_workspace_root,
-                })
+            match validate_workspace_root(&root, &default_workspace_root) {
+                Ok((_, admitted)) => Ok(admitted),
+                Err(message) if message == NESTED_UNTRUSTED_ROOT => Err(ToolProblem::new(
+                    "nested-untrusted-workspace-root",
+                    NESTED_UNTRUSTED_ROOT,
+                )
+                .into()),
+                Err(_) => {
+                    // CIB-007: surface the shim's expected workspace root
+                    // so the caller can self-correct on the next call.
+                    // ADR-125 admits registered linked worktrees of the
+                    // same repository; other roots still block.
+                    Err(ParseError::UntrustedWorkspaceRoot {
+                        expected: default_workspace_root,
+                    })
+                }
             }
         }
         Some(_) => Err(ToolProblem::new(
@@ -3982,6 +3988,36 @@ mod tests {
 
         assert_eq!(payload["decision"], "allow");
         assert_ne!(payload["error"]["code"], "untrusted-workspace-root");
+    }
+
+    #[test]
+    fn nested_untrusted_git_checkout_blocks_write() {
+        let root = tempdir().expect("fixture root");
+        let main = root.path().join("main");
+        fs::create_dir_all(main.join(".git").join("refs")).expect("git refs");
+        fs::write(main.join(".git").join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+        let nested = main.join("vendor").join("other");
+        fs::create_dir_all(nested.join(".git").join("refs")).expect("nested git refs");
+        fs::write(nested.join(".git").join("HEAD"), b"ref: refs/heads/main\n")
+            .expect("nested HEAD");
+
+        let payload = call_payload(
+            &main,
+            &json!({
+                "detail": "full",
+                "workspaceRoot": nested.to_string_lossy(),
+                "path": "src/example.ts",
+                "operation": "create",
+                "proposedContent": "export const value = 1;\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "block");
+        assert_eq!(payload["error"]["code"], "nested-untrusted-workspace-root");
+        assert_eq!(
+            payload["error"]["message"],
+            crate::mcp::tools::shared::NESTED_UNTRUSTED_ROOT
+        );
     }
 
     #[test]
