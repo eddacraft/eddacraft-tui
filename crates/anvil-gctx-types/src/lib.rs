@@ -226,6 +226,8 @@ pub struct Attestation {
     pub estimator_version: String,
 }
 
+// serde skip_serializing_if requires fn(&T) -> bool; copy-by-ref is intentional.
+#[allow(clippy::trivially_copy_pass_by_ref)]
 const fn usize_is_zero(n: &usize) -> bool {
     *n == 0
 }
