@@ -229,6 +229,29 @@ mod tests {
         }
     }
 
+    /// GATT-004: the six GCTX tools that charge graph egress are the attested
+    /// surface. A seventh charged tool must gain `Attestation` disclosure before
+    /// it can join this list.
+    #[test]
+    fn gctx_egress_tools_are_the_attested_six() {
+        let charged: Vec<&str> = all()
+            .iter()
+            .filter(|t| t.charges_graph_egress)
+            .map(|t| t.name)
+            .collect();
+        assert_eq!(
+            charged,
+            [
+                search_symbols::TOOL_NAME,
+                find_dependents::TOOL_NAME,
+                find_callers::TOOL_NAME,
+                impact_of_change::TOOL_NAME,
+                affected_tests::TOOL_NAME,
+                symbol_context::TOOL_NAME,
+            ]
+        );
+    }
+
     #[test]
     fn registry_finds_known_tools_and_rejects_unknown() {
         assert!(find(validate_write::TOOL_NAME).is_some());

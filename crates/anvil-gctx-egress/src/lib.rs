@@ -4,13 +4,13 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    AffectedTestsReport, AffectedTestsSummary, Attestation, CallerSummary, ContextSelector,
-    ContextSnippet, DependentSummary, EdgeFidelity, EdgeSummary, FindCallersProjection,
-    FindCallersQuery, FindDependentsProjection, FindDependentsQuery, GctxOutcome,
-    GraphEdgesProjection, GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary,
-    OmittedContext, OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery,
-    SnippetResult, SymbolContextProjection, SymbolContextRedactionSummary, SymbolSummary,
-    TestEvidence,
+    AffectedTestsReport, AffectedTestsSummary, Attestation, BoundBudget, BoundEntry, BoundSection,
+    CallerSummary, ContextSelector, ContextSnippet, DependentSummary, EdgeFidelity, EdgeSummary,
+    FindCallersProjection, FindCallersQuery, FindDependentsProjection, FindDependentsQuery,
+    GctxOutcome, GraphEdgesProjection, GraphEdgesQuery, GraphStatsProjection, ImpactReport,
+    ImpactSummary, OmittedContext, OpaqueCursor, RedactionSummary, SearchSymbolsProjection,
+    SearchSymbolsQuery, SnippetResult, SymbolContextProjection, SymbolContextRedactionSummary,
+    SymbolSummary, TestEvidence,
 };
 use anvil_graph_cache::{CallEdgeFidelity, DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{
@@ -210,6 +210,7 @@ impl GctxProjector {
         });
 
         let returned = page.len();
+        let has_more = next_cursor.is_some();
         Ok(SearchSymbolsProjection {
             // `truncated` is the authoritative "more pages follow" signal — it is
             // `false` on the final page of a multi-page walk (where `matched`
@@ -217,13 +218,19 @@ impl GctxProjector {
             redaction_summary: RedactionSummary {
                 matched,
                 returned,
-                truncated: next_cursor.is_some(),
+                truncated: has_more,
                 omitted_sensitive_paths: omitted_sensitive,
                 ..Default::default()
             },
             symbols: page,
             next_cursor,
-            attestation: Attestation::default(),
+            attestation: page_attestation(
+                BoundSection::SearchPage,
+                returned,
+                matched,
+                has_more,
+                false,
+            ),
         })
     }
 
@@ -385,18 +392,25 @@ impl GctxProjector {
         });
 
         let returned = page.len();
+        let has_more = next_cursor.is_some();
         Ok(FindDependentsProjection {
             redaction_summary: RedactionSummary {
                 matched,
                 returned,
-                truncated: next_cursor.is_some(),
+                truncated: has_more,
                 omitted_sensitive_paths: omitted_sensitive,
                 ..Default::default()
             },
             dependents: page,
             next_cursor,
             partial: walk_truncated,
-            attestation: Attestation::default(),
+            attestation: page_attestation(
+                BoundSection::Dependents,
+                returned,
+                matched,
+                has_more,
+                walk_truncated,
+            ),
         })
     }
 
@@ -525,18 +539,25 @@ impl GctxProjector {
         });
 
         let returned = page.len();
+        let has_more = next_cursor.is_some();
         Ok(FindCallersProjection {
             redaction_summary: RedactionSummary {
                 matched,
                 returned,
-                truncated: next_cursor.is_some(),
+                truncated: has_more,
                 omitted_sensitive_paths: omitted_sensitive,
                 ..Default::default()
             },
             callers: page,
             next_cursor,
             partial: walk_truncated || callers_incomplete,
-            attestation: Attestation::default(),
+            attestation: page_attestation(
+                BoundSection::Callers,
+                returned,
+                matched,
+                has_more,
+                walk_truncated,
+            ),
         })
     }
 
@@ -570,7 +591,14 @@ impl GctxProjector {
         changed_files: &[String],
         depth: u32,
     ) -> CollectedImpact {
-        Self::collect_impact_with_budget(sym, dep, changed_files, depth, MAX_AFFECTED_SYMBOLS)
+        Self::collect_impact_with_budget(
+            sym,
+            dep,
+            changed_files,
+            depth,
+            MAX_AFFECTED_SYMBOLS,
+            MAX_DEPENDENTS_WALK,
+        )
     }
 
     fn collect_impact_with_budget(
@@ -579,6 +607,7 @@ impl GctxProjector {
         changed_files: &[String],
         depth: u32,
         max_affected: usize,
+        max_dependents: usize,
     ) -> CollectedImpact {
         debug_assert!(
             depth <= anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
@@ -595,7 +624,7 @@ impl GctxProjector {
         // and the sensitive ones still fence the BFS by joining `seen`, so the
         // deny-list predicate runs exactly once per changed file — no second
         // under-lock re-filter pass over `seen` (CIB-091 LOW perf follow-up).
-        let mut truncated = false;
+        let mut dependents_truncated = false;
         let mut omitted_sensitive = 0usize;
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut seed_files: Vec<String> = Vec::new();
@@ -619,49 +648,8 @@ impl GctxProjector {
         let changed_count = seed_files.len();
         seed_files.sort_unstable();
 
-        // CIB-091c: collect affected symbols into a bounded max-heap keyed by
-        // identity (O(log n) push) so the lock-held pass does work bounded by the
-        // cap — no O(n) `Vec::insert` shift of up to `MAX_AFFECTED_SYMBOLS` per
-        // symbol under the cache lock. The heap keeps the identity-SMALLEST
-        // `max_affected` summaries (a max-heap pops the largest once over cap),
-        // preserving the existing "keep the lowest-identity-ordered prefix"
-        // truncation semantics. The final sort happens in `project_impact` after
-        // the lock releases.
-        let mut affected_heap: std::collections::BinaryHeap<HeapSummary> =
-            std::collections::BinaryHeap::new();
-        for file in &seed_files {
-            let symbols = sym.symbols_in_file(file);
-            let identities = SymbolIdentity::for_file_symbols(&symbols);
-            for (node, identity) in symbols.iter().zip(identities) {
-                let summary = SymbolSummary {
-                    identity,
-                    visibility: node.visibility,
-                };
-
-                if max_affected == 0 {
-                    truncated = true;
-                    continue;
-                }
-
-                if affected_heap.len() < max_affected {
-                    affected_heap.push(HeapSummary(summary));
-                    continue;
-                }
-
-                // At cap: keep the new summary only if it is smaller than the
-                // current largest (the heap root), evicting that root.
-                if affected_heap
-                    .peek()
-                    .is_some_and(|largest| summary.identity < largest.0.identity)
-                {
-                    affected_heap.pop();
-                    affected_heap.push(HeapSummary(summary));
-                }
-                truncated = true;
-            }
-        }
-        // Unwrap the heap into an unsorted Vec; `project_impact` sorts it.
-        let affected: Vec<SymbolSummary> = affected_heap.into_iter().map(|h| h.0).collect();
+        let (affected, affected_truncated, affected_total) =
+            capped_affected_symbols(sym, &seed_files, max_affected);
 
         // Dependent closure: one multi-source BFS over all seeds.
         let mut dependents: Vec<DependentSummary> = Vec::new();
@@ -690,8 +678,8 @@ impl GctxProjector {
                             distance: hop,
                         });
                         next.push(importer);
-                        if dependents.len() >= MAX_DEPENDENTS_WALK {
-                            truncated = true;
+                        if dependents.len() >= max_dependents {
+                            dependents_truncated = true;
                             break 'walk;
                         }
                     }
@@ -710,7 +698,10 @@ impl GctxProjector {
             affected,
             dependents,
             changed_count,
-            truncated,
+            truncated: affected_truncated || dependents_truncated,
+            affected_truncated,
+            dependents_truncated,
+            affected_total,
             omitted_sensitive,
         }
     }
@@ -730,7 +721,10 @@ impl GctxProjector {
             mut affected,
             mut dependents,
             changed_count,
-            truncated,
+            truncated: _,
+            affected_truncated,
+            dependents_truncated,
+            affected_total,
             omitted_sensitive,
         } = collected;
         // Identities are already distinct (each changed file is seeded once and
@@ -745,12 +739,30 @@ impl GctxProjector {
             .map(|d| d.file.clone())
             .collect();
 
+        let mut bounds = Vec::new();
+        if affected_truncated {
+            bounds.push(BoundEntry::exact(
+                BoundSection::AffectedSymbols,
+                BoundBudget::PageLimit,
+                affected.len(),
+                affected_total,
+            ));
+        }
+        if dependents_truncated {
+            bounds.push(BoundEntry::at_least(
+                BoundSection::DependentClosure,
+                BoundBudget::NodeBudget,
+                dependents.len(),
+                dependents.len(),
+            ));
+        }
+        let attestation = Attestation::with_bounds(bounds);
         let summary = ImpactSummary {
             changed_files: changed_count,
             affected_symbols: affected.len(),
             dependent_files: dependents.len(),
             known_tests: known_tests.len(),
-            truncated,
+            truncated: attestation.truncated(),
             omitted_sensitive_paths: omitted_sensitive,
         };
         ImpactReport {
@@ -758,7 +770,7 @@ impl GctxProjector {
             dependent_files: dependents,
             known_tests,
             summary,
-            attestation: Attestation::default(),
+            attestation,
         }
     }
 
@@ -949,12 +961,23 @@ impl GctxProjector {
         coverage_gaps.sort_unstable();
 
         let evidence_edges = tests.iter().map(|t| t.changed_dependencies.len()).sum();
+        let bounds = if truncated {
+            vec![BoundEntry::at_least(
+                BoundSection::AffectedTests,
+                BoundBudget::NodeBudget,
+                tests.len(),
+                tests.len(),
+            )]
+        } else {
+            Vec::new()
+        };
+        let attestation = Attestation::with_bounds(bounds);
         let summary = AffectedTestsSummary {
             changed_files: changed_count,
             tests: tests.len(),
             evidence_edges,
             coverage_gaps: coverage_gaps.len(),
-            truncated,
+            truncated: attestation.truncated(),
             omitted_sensitive_paths: omitted_sensitive,
         };
         AffectedTestsReport {
@@ -962,7 +985,7 @@ impl GctxProjector {
             coverage_gaps,
             heuristic: true,
             summary,
-            attestation: Attestation::default(),
+            attestation,
         }
     }
 
@@ -1140,18 +1163,25 @@ impl GctxProjector {
         });
 
         let returned = page.len();
+        let has_more = next_cursor.is_some();
         Ok(GraphEdgesProjection {
             redaction_summary: RedactionSummary {
                 matched,
                 returned,
-                truncated: next_cursor.is_some(),
+                truncated: has_more,
                 omitted_sensitive_paths: omitted_sensitive,
                 ..Default::default()
             },
             edges: page,
             next_cursor,
             bounded,
-            attestation: Attestation::default(),
+            attestation: page_attestation(
+                BoundSection::GraphResourcePage,
+                returned,
+                matched,
+                has_more,
+                bounded,
+            ),
         })
     }
 
@@ -1449,6 +1479,8 @@ impl GctxProjector {
             GctxOutcome::Hit
         };
 
+        let attestation = snippet_attestation(&sliced);
+
         SymbolContextProjection {
             snippets: sliced
                 .snippets
@@ -1475,7 +1507,7 @@ impl GctxProjector {
                 omitted_sensitive_paths: omitted_sensitive,
                 outcome: telemetry_outcome,
             },
-            attestation: Attestation::default(),
+            attestation,
         }
     }
 }
@@ -1621,8 +1653,15 @@ pub struct CollectedImpact {
     /// is computed over).
     pub changed_count: usize,
     /// Whether a budget ([`MAX_AFFECTED_SYMBOLS`] or [`MAX_DEPENDENTS_WALK`])
-    /// bound the walk.
+    /// bound the walk. Derived OR of the two named flags; prefer those.
     pub truncated: bool,
+    /// The affected-symbol cap fired (GATT-004). Independent of the
+    /// dependent-closure node budget.
+    pub affected_truncated: bool,
+    /// The dependent-closure node budget fired (GATT-004).
+    pub dependents_truncated: bool,
+    /// Post-CE-3 affected-symbol count before the cap (Exact total).
+    pub affected_total: usize,
     /// CIB-091a (CE-3): identity-only paths dropped by the sensitive-path egress
     /// deny-list (sensitive changed-file seeds + sensitive importers).
     pub omitted_sensitive: usize,
@@ -1683,6 +1722,109 @@ const MAX_DEPENDENTS_WALK: usize = 10_000;
 /// cache `Mutex` (ADR-031). The cap is well above any honest change set; hitting
 /// it sets the report's `truncated` flag.
 const MAX_AFFECTED_SYMBOLS: usize = 20_000;
+
+/// Named page-limit and/or walk-budget entries for one projection section.
+/// Absent when neither cap fired (ADR-142 §2).
+/// CIB-091c: bounded max-heap of identity-smallest affected symbols.
+fn capped_affected_symbols(
+    sym: &SymbolGraph,
+    seed_files: &[String],
+    max_affected: usize,
+) -> (Vec<SymbolSummary>, bool, usize) {
+    let mut heap: std::collections::BinaryHeap<HeapSummary> = std::collections::BinaryHeap::new();
+    let mut total = 0usize;
+    let mut truncated = false;
+    for file in seed_files {
+        let symbols = sym.symbols_in_file(file);
+        let identities = SymbolIdentity::for_file_symbols(&symbols);
+        for (node, identity) in symbols.iter().zip(identities) {
+            let summary = SymbolSummary {
+                identity,
+                visibility: node.visibility,
+            };
+            total += 1;
+            if max_affected == 0 {
+                truncated = true;
+                continue;
+            }
+            if heap.len() < max_affected {
+                heap.push(HeapSummary(summary));
+                continue;
+            }
+            if heap
+                .peek()
+                .is_some_and(|largest| summary.identity < largest.0.identity)
+            {
+                heap.pop();
+                heap.push(HeapSummary(summary));
+            }
+            truncated = true;
+        }
+    }
+    (heap.into_iter().map(|h| h.0).collect(), truncated, total)
+}
+
+fn snippet_attestation(sliced: &slice::ContextSlice) -> Attestation {
+    let budget_omitted = sliced
+        .omitted
+        .iter()
+        .filter(|o| o.reason == slice::SliceOmitReason::Budget)
+        .count();
+    let byte_omitted = sliced
+        .omitted
+        .iter()
+        .filter(|o| o.reason == slice::SliceOmitReason::ByteCeiling)
+        .count();
+    let text_truncated = sliced
+        .snippets
+        .iter()
+        .filter(|s| s.snippet.truncated)
+        .count();
+    let mut bounds = Vec::new();
+    if budget_omitted > 0 {
+        bounds.push(BoundEntry::exact(
+            BoundSection::SnippetTokens,
+            BoundBudget::SessionCeiling,
+            sliced.snippets.len(),
+            sliced.snippets.len() + budget_omitted,
+        ));
+    }
+    if sliced.byte_ceiling_hit || byte_omitted > 0 || text_truncated > 0 {
+        bounds.push(BoundEntry::exact(
+            BoundSection::SnippetBytes,
+            BoundBudget::ByteCeiling,
+            sliced.snippets.len(),
+            sliced.snippets.len() + byte_omitted,
+        ));
+    }
+    Attestation::with_bounds(bounds)
+}
+
+fn page_attestation(
+    section: BoundSection,
+    returned: usize,
+    matched: usize,
+    has_more: bool,
+    walk_truncated: bool,
+) -> Attestation {
+    let mut bounds = Vec::new();
+    if has_more {
+        bounds.push(if walk_truncated {
+            BoundEntry::at_least(section, BoundBudget::PageLimit, returned, matched)
+        } else {
+            BoundEntry::exact(section, BoundBudget::PageLimit, returned, matched)
+        });
+    }
+    if walk_truncated {
+        bounds.push(BoundEntry::at_least(
+            section,
+            BoundBudget::NodeBudget,
+            matched,
+            matched,
+        ));
+    }
+    Attestation::with_bounds(bounds)
+}
 
 /// The decoded contents of an [`OpaqueCursor`]: the keyset seek position plus a
 /// fingerprint binding it to the query filters it was minted for.
@@ -2003,6 +2145,7 @@ fn language_of(file: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_gctx_types::TaggedCount;
     use anvil_kernel_types::{SymbolKind, TrustLevel, Visibility};
 
     fn node(id: u64, name: &str, file: &str, kind: SymbolKind, vis: Visibility) -> SymbolNode {
@@ -2207,6 +2350,11 @@ mod tests {
         // Truncation keeps the deterministic head of the order.
         assert_eq!(p.symbols[0].identity.file, "src/a.ts");
         assert_eq!(p.symbols[1].identity.file, "src/b.ts");
+        assert_eq!(p.attestation.bounds.len(), 1);
+        assert_eq!(p.attestation.bounds[0].section, BoundSection::SearchPage);
+        assert_eq!(p.attestation.bounds[0].budget, BoundBudget::PageLimit);
+        assert_eq!(p.attestation.bounds[0].returned, 2);
+        assert_eq!(p.attestation.bounds[0].total, TaggedCount::Exact(3));
     }
 
     #[test]
@@ -3506,10 +3654,20 @@ mod tests {
         let order_ab: Vec<String> = vec!["a.ts".into(), "b.ts".into()];
         let order_ba: Vec<String> = vec!["b.ts".into(), "a.ts".into()];
         let first = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
-            &sym, &dep, &order_ab, 1, 3,
+            &sym,
+            &dep,
+            &order_ab,
+            1,
+            3,
+            MAX_DEPENDENTS_WALK,
         ));
         let second = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
-            &sym, &dep, &order_ba, 1, 3,
+            &sym,
+            &dep,
+            &order_ba,
+            1,
+            3,
+            MAX_DEPENDENTS_WALK,
         ));
         assert_eq!(first, second);
         assert!(first.summary.truncated);
@@ -3539,13 +3697,27 @@ mod tests {
         // ordinals in the file's parse order, so the surviving prefix is the three
         // smallest by the full identity order.
         let report = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
-            &sym, &dep, &changed, 1, 3,
+            &sym,
+            &dep,
+            &changed,
+            1,
+            3,
+            MAX_DEPENDENTS_WALK,
         ));
         assert!(
             report.summary.truncated,
             "the cap must mark the report truncated"
         );
         assert_eq!(report.affected_symbols.len(), 3);
+        assert_eq!(report.attestation.bounds.len(), 1);
+        assert_eq!(
+            report.attestation.bounds[0].section,
+            BoundSection::AffectedSymbols
+        );
+        assert_eq!(
+            report.attestation.bounds[0].total,
+            anvil_gctx_types::TaggedCount::Exact(5)
+        );
         // The result is identity-sorted by `project_impact`; assert it is exactly
         // the three smallest of the five identities present.
         let all = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
@@ -3554,6 +3726,7 @@ mod tests {
             &changed,
             1,
             MAX_AFFECTED_SYMBOLS,
+            MAX_DEPENDENTS_WALK,
         ));
         assert_eq!(all.affected_symbols.len(), 5);
         let expected_prefix: Vec<_> = all
@@ -3570,6 +3743,49 @@ mod tests {
         assert_eq!(
             got, expected_prefix,
             "cap must keep the identity-smallest prefix"
+        );
+    }
+
+    #[test]
+    fn impact_two_budgets_are_separate_bound_entries() {
+        let mut nodes = Vec::new();
+        for i in 0..5 {
+            nodes.push(node(
+                i,
+                &format!("s{i}"),
+                "src.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ));
+        }
+        let sym = graph_of(nodes);
+        let dep = dep_graph(&[
+            ("a.ts", "src.ts"),
+            ("b.ts", "src.ts"),
+            ("c.ts", "src.ts"),
+            ("d.ts", "src.ts"),
+        ]);
+        let changed = vec!["src.ts".to_string()];
+        let report = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
+            &sym, &dep, &changed, 1, 3, 2,
+        ));
+        assert_eq!(report.affected_symbols.len(), 3);
+        assert_eq!(report.dependent_files.len(), 2);
+        assert_eq!(report.attestation.bounds.len(), 2);
+        assert_eq!(
+            report.attestation.bounds[0].section,
+            BoundSection::AffectedSymbols
+        );
+        assert_eq!(report.attestation.bounds[0].total, TaggedCount::Exact(5));
+        assert_eq!(
+            report.attestation.bounds[1].section,
+            BoundSection::DependentClosure
+        );
+        assert_eq!(report.attestation.bounds[1].total, TaggedCount::AtLeast(2));
+        assert!(report.summary.truncated);
+        assert_ne!(
+            report.attestation.bounds[0].budget,
+            report.attestation.bounds[1].budget
         );
     }
 
@@ -3600,6 +3816,19 @@ mod tests {
         .expect("valid query");
         assert!(projection.partial);
         assert!(!projection.redaction_summary.truncated);
+        assert_eq!(projection.attestation.bounds.len(), 1);
+        assert_eq!(
+            projection.attestation.bounds[0].section,
+            BoundSection::Dependents
+        );
+        assert_eq!(
+            projection.attestation.bounds[0].budget,
+            BoundBudget::NodeBudget
+        );
+        assert_eq!(
+            projection.attestation.bounds[0].total,
+            TaggedCount::AtLeast(3)
+        );
         assert!(projection.next_cursor.is_none());
     }
 
@@ -3900,6 +4129,16 @@ mod tests {
         assert!(
             p.bounded,
             "the collection-bound signal must reach the projection"
+        );
+        assert_eq!(p.attestation.bounds.len(), 1);
+        assert_eq!(
+            p.attestation.bounds[0].section,
+            BoundSection::GraphResourcePage
+        );
+        assert_eq!(p.attestation.bounds[0].budget, BoundBudget::NodeBudget);
+        assert_eq!(
+            p.attestation.bounds[0].total,
+            TaggedCount::AtLeast(p.redaction_summary.matched)
         );
     }
 
@@ -4504,6 +4743,15 @@ mod tests {
         assert!(
             projection.redaction_summary.estimated_tokens <= 5,
             "GCTX-022: token estimate must not exceed budget",
+        );
+        assert!(
+            projection
+                .attestation
+                .bounds
+                .iter()
+                .any(|b| b.section == BoundSection::SnippetTokens
+                    && b.budget == BoundBudget::SessionCeiling),
+            "GATT-004: a token-budget omit must name SnippetTokens",
         );
     }
 

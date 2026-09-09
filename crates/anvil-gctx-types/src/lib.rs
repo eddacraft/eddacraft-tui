@@ -202,6 +202,40 @@ pub struct BoundEntry {
     pub total: TaggedCount,
 }
 
+impl BoundEntry {
+    /// Page-or-scan bound whose pre-cap total is known (ADR-142 §3 `Exact`).
+    #[must_use]
+    pub const fn exact(
+        section: BoundSection,
+        budget: BoundBudget,
+        returned: usize,
+        total: usize,
+    ) -> Self {
+        Self {
+            section,
+            budget,
+            returned,
+            total: TaggedCount::Exact(total),
+        }
+    }
+
+    /// Walk bound whose true total is unknowable (ADR-142 §3 `AtLeast`).
+    #[must_use]
+    pub const fn at_least(
+        section: BoundSection,
+        budget: BoundBudget,
+        returned: usize,
+        total: usize,
+    ) -> Self {
+        Self {
+            section,
+            budget,
+            returned,
+            total: TaggedCount::AtLeast(total),
+        }
+    }
+}
+
 /// Shared self-attestation block on every GCTX projection (ADR-142 §1).
 ///
 /// Sibling of [`RedactionSummary`], not a fold into it: this is what the query
@@ -238,6 +272,15 @@ impl Attestation {
     #[must_use]
     pub fn truncated(&self) -> bool {
         !self.bounds.is_empty()
+    }
+
+    /// Epistemic bounds only; cost fields stay unset until GATT-005.
+    #[must_use]
+    pub fn with_bounds(bounds: Vec<BoundEntry>) -> Self {
+        Self {
+            bounds,
+            ..Self::default()
+        }
     }
 }
 
@@ -713,9 +756,9 @@ pub struct ImpactSummary {
     pub dependent_files: usize,
     /// `known_tests` returned (a subset of `dependent_files`).
     pub known_tests: usize,
-    /// Whether a result cap bound the report — **either** the affected-symbol
-    /// set or the dependent-closure walk hit its node budget. The returned sets
-    /// are then a deterministic, path-ordered prefix, never a silent full cutoff.
+    /// Compatibility shim (ADR-142 §2, one release): `true` iff
+    /// [`ImpactReport::attestation`] carries at least one bound entry. Prefer
+    /// the tagged bound list — this flag cannot say *which* budget fired.
     pub truncated: bool,
     /// Identity-only paths dropped by the CE-3 sensitive-path egress deny-list
     /// across the affected-symbol seed scan and the dependent closure. Counts-only
@@ -858,10 +901,10 @@ pub struct AffectedTestsSummary {
     pub evidence_edges: usize,
     /// `coverage_gaps` returned.
     pub coverage_gaps: usize,
-    /// Whether a result cap bound the report (either traversal hit the node
-    /// budget); the returned sets are then a deterministic prefix, and a
-    /// coverage gap may be over-reported (a test that would have covered it was
-    /// beyond the bound) — never a silent full cutoff.
+    /// Compatibility shim (ADR-142 §2, one release): `true` iff
+    /// [`AffectedTestsReport::attestation`] carries at least one bound entry.
+    /// Prefer the tagged bound list — this flag cannot name the reverse-walk
+    /// budget separately from any other bound.
     pub truncated: bool,
     /// Identity-only paths dropped by the CE-3 sensitive-path egress deny-list
     /// across the reverse/forward dependency walks. Counts-only (CE-5 safe); the
@@ -1574,6 +1617,116 @@ mod tests {
         assert!(
             projection.attestation.truncated(),
             "removing the bound entry must make this assertion fail"
+        );
+    }
+
+    /// GATT-004: every GCTX projection DTO (six tools + `graph://` resources)
+    /// serialises `attestation.bounds` when a cap fired, so a future tool cannot
+    /// ship an envelope that omits disclosure.
+    #[test]
+    fn every_gctx_projection_exposes_attestation_bounds() {
+        let att = Attestation::with_bounds(vec![sample_bound_entry()]);
+        let values = [
+            serde_json::to_value(SearchSymbolsProjection {
+                attestation: att.clone(),
+                ..sample_projection()
+            })
+            .unwrap(),
+            serde_json::to_value(FindDependentsProjection {
+                attestation: att.clone(),
+                ..sample_dependents_projection()
+            })
+            .unwrap(),
+            serde_json::to_value(FindCallersProjection {
+                attestation: att.clone(),
+                ..sample_callers_projection()
+            })
+            .unwrap(),
+            serde_json::to_value(ImpactReport {
+                attestation: att.clone(),
+                ..sample_impact_report()
+            })
+            .unwrap(),
+            serde_json::to_value(AffectedTestsReport {
+                attestation: att.clone(),
+                ..sample_affected_tests_report()
+            })
+            .unwrap(),
+            serde_json::to_value(SymbolContextProjection {
+                snippets: Vec::new(),
+                omitted_context: Vec::new(),
+                redaction_summary: SymbolContextRedactionSummary {
+                    estimated_tokens: 0,
+                    redacted_secrets: 0,
+                    snippets_truncated: 0,
+                    fully_suppressed_symbols: 0,
+                    omitted_sensitive_paths: 0,
+                    outcome: GctxOutcome::Miss,
+                },
+                attestation: att.clone(),
+            })
+            .unwrap(),
+            serde_json::to_value(GraphStatsProjection {
+                attestation: att.clone(),
+                ..GraphStatsProjection::default()
+            })
+            .unwrap(),
+            serde_json::to_value(GraphEdgesProjection {
+                attestation: att,
+                ..sample_edges_projection()
+            })
+            .unwrap(),
+        ];
+        for v in values {
+            assert_eq!(
+                v["attestation"]["bounds"][0]["section"],
+                "dependent_closure"
+            );
+            assert_eq!(v["attestation"]["bounds"][0]["total"]["kind"], "at_least");
+            assert_eq!(v["attestation"]["bounds"][0]["returned"], 12);
+        }
+    }
+
+    #[test]
+    fn bound_section_catalogue_is_closed() {
+        use BoundSection::*;
+        let sections = [
+            SearchPage,
+            Callers,
+            Dependents,
+            AffectedSymbols,
+            DependentClosure,
+            AffectedTests,
+            SnippetBytes,
+            SnippetTokens,
+            GraphResourcePage,
+            GraphResourceBytes,
+        ];
+        assert_eq!(sections.len(), 10, "a new BoundSection must be named here");
+        let names: Vec<String> = sections
+            .iter()
+            .map(|s| {
+                serde_json::to_value(s)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "search_page",
+                "callers",
+                "dependents",
+                "affected_symbols",
+                "dependent_closure",
+                "affected_tests",
+                "snippet_bytes",
+                "snippet_tokens",
+                "graph_resource_page",
+                "graph_resource_bytes",
+            ]
         );
     }
 
