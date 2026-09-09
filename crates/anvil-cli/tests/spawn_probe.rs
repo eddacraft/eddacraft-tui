@@ -443,11 +443,17 @@ fn path_127_unresolvable_anvil_cannot_claim_live_protection() {
     };
 
     let ensure = run_anvil_on_editor_path(root, home.path(), &["--no-tui"]);
-    assert!(
-        ensure.status.success(),
-        "bare ensure failed: stdout={}\nstderr={}",
+    assert_eq!(
+        ensure.status.code(),
+        Some(1),
+        "bare ensure must fail its selected unresolvable MCP component: stdout={}\nstderr={}",
         String::from_utf8_lossy(&ensure.stdout),
         String::from_utf8_lossy(&ensure.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&ensure.stdout).contains("mcp=failed"),
+        "bare ensure must name the typed MCP failure: {}",
+        String::from_utf8_lossy(&ensure.stdout)
     );
 
     let json_out = run_anvil_on_editor_path(

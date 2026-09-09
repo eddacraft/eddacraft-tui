@@ -1005,7 +1005,7 @@ fn start_json_matches_ready_restart_required_fixture() {
     let json: serde_json::Value =
         serde_json::from_str(&stdout).expect("--json output must be valid JSON");
     assert_eq!(json["state"].as_str(), Some("ready_restart_required"));
-    assert_eq!(json["readiness"]["state"], "starting");
+    assert_eq!(json["readiness"]["state"], "disabled");
     assert!(
         String::from_utf8_lossy(&out.stderr).trim().is_empty(),
         "--json must not emit a human stderr block"

@@ -81,7 +81,11 @@ chains stop cleanly. Read-only `anvil status` exits **`0`** and reports
 
 Bare `anvil` (no subcommand) is the day-to-day on-switch after the project has
 been activated once. It ensures the local daemon and already-configured MCP
-entries; it does not install clients you previously skipped.
+entries; it does not install clients you previously skipped. Its readiness
+output reports current MCP sessions separately, including degraded siblings from
+the same client. A client with a valid configuration that is currently closed
+remains inventory rather than a failed live session; an unresolvable configured
+command is still reported as a failure.
 
 ```text
 anvil

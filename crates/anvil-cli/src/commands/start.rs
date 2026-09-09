@@ -398,11 +398,17 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
     }
 
-    let readiness_selection = ReadinessSelection {
-        save_time_disabled: start_daemon_opt_out(args)
-            || crate::commands::ensure::save_time_driver_opt_out(),
-        mcp_disabled: start_mcp_opt_out(args),
-    };
+    let readiness_selection = ReadinessSelection::new(
+        crate::commands::ensure::save_time_driver_opt_out(),
+        matches!(
+            daemon_capability,
+            Some(anvil_intercept::ensure::StartCapability::NoSpawn(_))
+        ),
+        start_mcp_opt_out(args),
+    )
+    .with_mcp_required_without_session(
+        !start_mcp_opt_out(args) && !install_report.per_client.is_empty(),
+    );
     let readiness_worktree = crate::registration::registerable_worktree(root).ok();
     let readiness_snapshot = crate::commands::intercept::query_daemon_status_with_timeout(
         crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT,
@@ -640,7 +646,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     &diagnostic,
                     post_readiness_snapshot.as_ref(),
                     readiness_worktree.as_deref(),
-                    readiness_selection,
+                    readiness_selection.with_mcp_required_without_session(
+                        !start_mcp_opt_out(args)
+                            && (!install_report.per_client.is_empty()
+                                || applied.selected_ids.iter().any(|id| id.starts_with("mcp:"))),
+                    ),
                 )
                 .with_worktree_registration_failure(registration_report.as_ref());
                 let mut post_consent_output = render_start_human_output(

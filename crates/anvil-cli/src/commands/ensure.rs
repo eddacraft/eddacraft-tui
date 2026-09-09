@@ -7,6 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
 use anvil_intercept::ensure::EnsureOutcome;
 use anyhow::Context;
 use serde::Serialize;
@@ -211,6 +212,17 @@ impl EnsureReadiness {
         Self::from_components(self.components)
     }
 
+    /// Preserve a failure from the MCP repair attempted by this invocation.
+    /// Inventory and a later snapshot are read-only evidence and must not erase
+    /// a write-path refusal that the operator has just observed.
+    pub(crate) fn with_mcp_failure(mut self, detail: Option<&str>) -> Self {
+        let Some(detail) = detail else {
+            return self;
+        };
+        self.components.mcp = EnsureComponentReadiness::new(EnsureReadinessState::Failed, detail);
+        Self::from_components(self.components)
+    }
+
     pub(crate) fn component_summary(&self) -> String {
         format!(
             "config={} daemon={} worktree={} save_time={} mcp={}",
@@ -315,11 +327,8 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
 
     // MCP ensure-only (skip entirely under ANVIL_NO_MCP).
     let mcp_disabled = mcp_opt_out();
-    let (mcp_line, mut mcp_state) = if mcp_disabled {
-        (
-            "mcp: skipped (`ANVIL_NO_MCP`)".to_string(),
-            EnsureReadinessState::Disabled,
-        )
+    let (mcp_line, mcp_required_without_session, mcp_failure) = if mcp_disabled {
+        ("mcp: skipped (`ANVIL_NO_MCP`)".to_string(), false, None)
     } else {
         let fresh = AnvilEntry::preferred_stdio();
         let home = util::user_home_dir();
@@ -345,36 +354,30 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
             summary.absent_for_recovery,
             poke.ok().as_ref(),
         );
-        let state = if summary.report.aggregated_failure().is_some() {
-            EnsureReadinessState::Failed
-        } else if rewritten {
-            EnsureReadinessState::Starting
-        } else if summary.managed > 0 {
-            EnsureReadinessState::Degraded
-        } else {
-            EnsureReadinessState::Disabled
-        };
-        (line, state)
+        let failure = summary.report.aggregated_failure();
+        (line, rewritten || failure.is_some(), failure)
     };
 
     // Final protection probe after ensure.
     let diagnostic = activation::verify(root);
-    if matches!(
-        mcp_state,
-        EnsureReadinessState::Starting | EnsureReadinessState::Degraded
-    ) && diagnostic.mcp_pre_write_live()
-    {
-        mcp_state = EnsureReadinessState::Ready;
-    }
     let protection = diagnostic.protection_state();
-    let readiness = classify_readiness(
-        diagnostic.config,
-        &daemon_outcome,
-        &registration_report,
-        save_time_driver_opt_out(),
-        mcp_state,
-        &mcp_line,
-    );
+    let daemon_snapshot = crate::commands::intercept::query_daemon_status_with_timeout(
+        crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT,
+    )
+    .ok();
+    let readiness = crate::commands::status::measured_readiness(
+        &diagnostic,
+        daemon_snapshot.as_ref(),
+        Some(&worktree_path),
+        crate::commands::status::ReadinessSelection::new(
+            save_time_driver_opt_out(),
+            daemon_opt_out(),
+            mcp_disabled,
+        )
+        .with_mcp_required_without_session(mcp_required_without_session),
+    )
+    .with_worktree_registration_report(Some(&registration_report))
+    .with_mcp_failure(mcp_failure.as_deref());
     let next = readiness
         .failure_action()
         .or_else(|| next_action_line(protection, &mcp_line));
@@ -437,6 +440,9 @@ fn emit_ensure_report(
     println!("  {}", protection.headline());
     println!("  readiness: {}", readiness.state.label());
     println!("  components: {}", readiness.component_summary());
+    if let Some(sessions) = readiness.mcp_session_summary() {
+        println!("  mcp sessions: {sessions}");
+    }
     println!("  {daemon_line}");
     println!("  {worktree_line}");
     println!("  {mcp_line}");
@@ -536,6 +542,7 @@ fn preflight_readiness(component_name: &'static str, detail: &str) -> EnsureRead
     }
 }
 
+#[cfg(test)]
 pub(crate) fn classify_readiness(
     config: ConfigStatus,
     daemon: &crate::commands::daemon_recycle::SaveTimeDaemonOutcome,
@@ -885,6 +892,56 @@ mod tests {
         assert_eq!(readiness.state, EnsureReadinessState::Ready);
         assert!(readiness.selected_coverage_ready);
         assert_eq!(readiness.failing_component, None);
+    }
+
+    #[test]
+    fn bare_human_and_json_projections_retain_each_same_client_session() {
+        let sessions = vec![
+            EnsureLiveSessionReadiness {
+                session: "fresh-session".to_owned(),
+                client: "claude-code".to_owned(),
+                state: EnsureReadinessState::Ready,
+                detail: "live session is fresh and participating".to_owned(),
+            },
+            EnsureLiveSessionReadiness {
+                session: "stale-session".to_owned(),
+                client: "claude-code".to_owned(),
+                state: EnsureReadinessState::Degraded,
+                detail: "session heartbeat is stale".to_owned(),
+            },
+        ];
+        let readiness = EnsureReadiness::from_components(EnsureReadinessComponents {
+            config: component(EnsureReadinessState::Ready, "valid"),
+            daemon: component(EnsureReadinessState::Ready, "daemon serving"),
+            worktree: component(
+                EnsureReadinessState::Ready,
+                "current sessions participating",
+            ),
+            save_time: component(EnsureReadinessState::Disabled, "not selected"),
+            mcp: component(EnsureReadinessState::Degraded, "two current sessions")
+                .with_live_sessions(sessions),
+        });
+
+        let human = readiness.mcp_session_summary().expect("session summary");
+        assert!(
+            human.contains("claude-code (fresh-session)=ready"),
+            "{human}"
+        );
+        assert!(
+            human.contains("claude-code (stale-session)=degraded"),
+            "{human}"
+        );
+        let json = serde_json::to_value(&readiness).expect("readiness serialises");
+        assert_eq!(
+            json["components"]["mcp"]["live_sessions"]
+                .as_array()
+                .map(Vec::len),
+            Some(2)
+        );
+        assert_eq!(
+            json["components"]["mcp"]["live_sessions"][1]["state"],
+            "degraded"
+        );
     }
 
     #[test]

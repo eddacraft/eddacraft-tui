@@ -68,7 +68,7 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         &activation,
         daemon_snapshot.as_ref(),
         Some(&workspace_path),
-        status_command::ReadinessSelection::from_environment(),
+        status_command::ReadinessSelection::from_environment().with_mcp_runtime_required(true),
     );
     let graph_assurance = watch_save_time::query_workspace_status(&workspace_path);
     let graph = status_mcp::graph_from_assurance(graph_assurance.as_ref());
@@ -87,6 +87,9 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         })
     });
     let next = status_command::status_readiness_action(&readiness);
+    let mut readiness_value =
+        serde_json::to_value(&readiness).expect("readiness projection serialises");
+    redact_readiness_details(&mut readiness_value);
     let mut payload = json!({
         "status": "ok",
         "workspaceRoot": redacted_workspace_root,
@@ -97,7 +100,7 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         "backend": "local",
         "daemonStatus": DaemonStatus::NotWired.as_str(),
         "readiness": {
-            "aggregate": readiness,
+            "aggregate": readiness_value,
             "requestingSession": requesting_session.map(|session| session.id.as_str()),
             // A live participating lease proves attachment, not a completed
             // validation. Remain fail-closed until the daemon exposes scan
@@ -110,6 +113,47 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         object.insert("next".to_owned(), Value::String(next));
     }
     Ok(payload)
+}
+
+fn redact_readiness_details(value: &mut Value) {
+    match value {
+        Value::Object(object) => {
+            for (key, child) in object {
+                if key == "detail"
+                    && let Value::String(detail) = child
+                    && contains_absolute_path(detail)
+                {
+                    "detail redacted; run local `anvil status` for details".clone_into(detail);
+                } else {
+                    redact_readiness_details(child);
+                }
+            }
+        }
+        Value::Array(values) => values.iter_mut().for_each(redact_readiness_details),
+        _ => {}
+    }
+}
+
+fn contains_absolute_path(detail: &str) -> bool {
+    detail.split_whitespace().any(|word| {
+        let candidate = word.trim_matches(|character: char| {
+            matches!(
+                character,
+                '`' | '\'' | '"' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';'
+            )
+        });
+        Path::new(candidate).is_absolute()
+            || candidate.starts_with("\\\\")
+            || candidate.as_bytes().get(1) == Some(&b':')
+                && candidate
+                    .as_bytes()
+                    .get(2)
+                    .is_some_and(|separator| matches!(separator, b'/' | b'\\'))
+                && candidate
+                    .as_bytes()
+                    .first()
+                    .is_some_and(u8::is_ascii_alphabetic)
+    })
 }
 
 fn load_config_info(workspace_root: &Path) -> Value {
@@ -413,6 +457,32 @@ mod tests {
         assert_eq!(payload["daemonStatus"], "not-wired");
         assert!(payload["readiness"].is_object());
         assert!(payload["readiness"]["aggregate"].is_object());
+    }
+
+    #[test]
+    fn readiness_egress_redacts_unix_and_windows_absolute_paths() {
+        let mut value = json!({
+            "components": {
+                "mcp": { "detail": "configured MCP command `/outside/private/anvil-mcp` is not resolvable on PATH" },
+                "save_time": { "detail": "watcher C:\\Users\\operator\\private failed" },
+                "daemon": { "detail": "daemon serving" }
+            }
+        });
+
+        redact_readiness_details(&mut value);
+
+        assert_eq!(
+            value["components"]["mcp"]["detail"],
+            "detail redacted; run local `anvil status` for details"
+        );
+        assert_eq!(
+            value["components"]["save_time"]["detail"],
+            "detail redacted; run local `anvil status` for details"
+        );
+        assert_eq!(value["components"]["daemon"]["detail"], "daemon serving");
+        let encoded = serde_json::to_string(&value).unwrap();
+        assert!(!encoded.contains("/outside/private"));
+        assert!(!encoded.contains("operator"));
     }
 
     #[test]

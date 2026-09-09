@@ -74,7 +74,7 @@
   "repo_languages": [],
   "unclassified_files_seen": 4,
   "readiness": {
-    "state": "starting",
+    "state": "disabled",
     "selected_coverage_ready": false,
     "components": {
       "config": {
@@ -83,21 +83,20 @@
       },
       "daemon": {
         "state": "disabled",
-        "detail": "not a registerable worktree"
+        "detail": "no live coverage depends on the daemon"
       },
       "worktree": {
         "state": "disabled",
-        "detail": "save-time coverage not selected"
+        "detail": "no live coverage selected"
       },
       "save_time": {
         "state": "disabled",
         "detail": "save-time coverage disabled"
       },
       "mcp": {
-        "state": "starting",
-        "detail": "configured MCP inventory: claude-code=restart_handshake_verified, cursor=restart_handshake_verified, codex=restart_handshake_verified, opencode=restart_handshake_verified, gemini-cli=restart_handshake_verified, antigravity=restart_handshake_verified, openclaw=restart_handshake_verified, vscode=restart_handshake_verified, copilot-cli=restart_handshake_verified, grok=restart_handshake_verified, warp=restart_handshake_verified, zed=restart_handshake_verified"
+        "state": "disabled",
+        "detail": "configured MCP inventory (no live session): claude-code=restart_handshake_verified, cursor=restart_handshake_verified, codex=restart_handshake_verified, opencode=restart_handshake_verified, gemini-cli=restart_handshake_verified, antigravity=restart_handshake_verified, openclaw=restart_handshake_verified, vscode=restart_handshake_verified, copilot-cli=restart_handshake_verified, grok=restart_handshake_verified, warp=restart_handshake_verified, zed=restart_handshake_verified"
       }
     }
-  },
-  "next": "run `anvil start` to finish MCP readiness"
+  }
 }

@@ -57,7 +57,11 @@ anvil status --json
 
 The daily bare command, `anvil start`, and `anvil status` now print an overall
 `readiness` plus component states. Their JSON and interactive surfaces expose
-the same typed projection. The read-only `anvil start --verify` and
+the same typed states; bare `anvil` and JSON also retain every current MCP
+session, so a fresh session cannot mask a stale sibling from the same client.
+Configured-but-closed MCP clients with valid launch configuration remain
+inventory and are not selected live coverage; an unresolvable configured command
+remains a typed failure. The read-only `anvil start --verify` and
 `anvil start --json` modes measure current daemon/worktree state without
 spawning or writing and still return a failing exit when selected coverage is
 unavailable. A selected but unavailable daemon, failed worktree registration, or
@@ -212,9 +216,11 @@ ANVIL_NO_DAEMON=1 anvil start
 but still allows the worktree to register. Status should show the worktree as
 registered with `save_time_driver: "absent"`.
 
-`--no-daemon` and `ANVIL_NO_DAEMON` suppress daemon auto-start. They are broader
-than the driver opt-out: with no daemon, there is no supervised background
-driver to attach.
+`--no-daemon` and `ANVIL_NO_DAEMON` suppress daemon auto-start; they do not
+disable coverage that an existing healthy daemon already supplies. When no
+daemon can be reused, save-time coverage is deliberately unselected because the
+command has no authority to create one. Use `ANVIL_NO_SAVE_TIME_DRIVER` to
+disable the driver itself.
 
 ## Windows Notes
 

@@ -109,9 +109,12 @@ DRVR-006 resolved the daemon/local split as **option (b) Distinguish**.
 daemon RPC. It consumes the existing bounded activation/status probes to report
 measured readiness while preserving the established top-level `backend: local` /
 `daemonStatus: not-wired` provenance. The additive `readiness.aggregate` object
-is the same selected-component projection used by CLI status. It lists current
-attributed MCP sessions individually, and every live session constrains the
-aggregate so one ready editor cannot mask a degraded sibling.
+uses the same selected-component states as CLI status, with path-bearing detail
+suppressed at the MCP egress boundary. It lists current attributed MCP sessions
+individually, and every live session constrains the aggregate so one ready
+editor cannot mask a degraded sibling. Valid configured clients without a
+current session remain inventory rather than selected coverage; a broken
+configured command remains a failure, with path-bearing detail redacted.
 `requestingSession` identifies the calling MCP process when its daemon lease is
 available. A live lease is not completed-scan evidence, so `lastValidation`
 remains `not-observed` until session-correlated scan evidence is available;

@@ -18,9 +18,9 @@ ACTIVATION
     Zed: restart_handshake_verified (pending restart)
   watch: not_requested
   baseline: absent
+  readiness: disabled
+  components: config=ready daemon=disabled worktree=disabled save_time=disabled mcp=disabled
+  next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal, or bare `anvil` headlessly, then re-run `anvil start --verify`.
   rule modes: public-api-expansion=warn, new-dependency-introduction=warn, cross-layer-violation=warn, privilege-expansion=warn
   rule source: .anvil.yaml
   AI tools detected: claude-code, cursor, codex (not cached)
-  readiness: starting
-  components: config=ready daemon=disabled worktree=disabled save_time=disabled mcp=starting
-  next: run `anvil start` to finish MCP readiness

@@ -128,6 +128,7 @@ impl SaveTimeDaemonOutcome {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn failed(&self) -> bool {
         matches!(self.ensure, EnsureOutcome::Failed { .. })
     }
