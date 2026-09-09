@@ -56,7 +56,7 @@ matching the daemon's impact-depth limit.
 | ------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
 | `anvil_search_symbols`   | `name` (substring), `kind`, `file`, `language`, `visibility` | Matching symbol identities, paginated                                                      |
 | `anvil_find_dependents`  | a file path                                                  | Importing files, each with hop distance (`1` direct, `2` transitive)                       |
-| `anvil_find_callers`     | a symbol                                                     | Calling symbols; flags `heuristic` (overload fan-out) and `partial` (incomplete walk)      |
+| `anvil_find_callers`     | a symbol                                                     | Calling symbols; per-edge `exact`/`heuristic`; caller `heuristic` is a summary; `partial`  |
 | `anvil_impact_of_change` | `changedFiles` (paths, ≤200; never diff content)             | Affected symbols, depth-bounded dependent files, best-effort `known_tests`                 |
 | `anvil_affected_tests`   | `changedFiles` (paths)                                       | Test files importing them (with evidence edges) + `coverage_gaps`; `heuristic: true`       |
 | `anvil_symbol_context`   | a seed symbol or file; token budget; `includeSource`         | Neighbourhood symbols, one-hop importers, direct callers (symbol seeds), spans-as-location |
