@@ -5,7 +5,7 @@
 
 | ID       | Owner | Priority | Status      | Progress |
 | -------- | ----- | -------- | ----------- | -------- |
-| CLAWOPEN | —     | P1       | In Progress | 9/12     |
+| CLAWOPEN | —     | P1       | In Progress | 11/12     |
 
 **Last reviewed:** 2026-09-09 — #4361 merged, so CLAWOPEN-007 is Merged;
 CLAWOPEN-011 is Complete now its hosted Neon proof is green on `main`

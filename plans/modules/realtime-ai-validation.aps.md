@@ -13,11 +13,14 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RTAI | —     | In Progress | 8/9      |
+| RTAI | —     | Done        | 9/9      |
 
-**Last reviewed:** 2026-07-20 — RTAI-005 reconciled to ADR-109 and Planning
-Council `plan-33b005f5`: production LSP diagnostics only; graph-backed editor
-navigation is owned by [LSPNAV](./lsp-graph-navigation.aps.md).
+**Last reviewed:** 2026-09-09 — module **Done**: RTAI-005 merged 2026-07-21 via
+[#3360](https://github.com/eddacraft/anvil-001/pull/3360), the last open item,
+so all nine are terminal. It shipped production LSP diagnostics only, per
+ADR-109 and Planning Council `plan-33b005f5`; graph-backed editor navigation is
+owned by [LSPNAV](./lsp-graph-navigation.aps.md). Stored `N/M` is left to the
+`pnpm aps:index` reconcile (ADR-053).
 
 > **A1 launch slice:** RTAI-001 (Done), RTAI-002, RTAI-003, RTAI-006, RTAI-008.
 > RTAI-004 (TS `DriverClient` envelope) and RTAI-005 (generic LSP diagnostics

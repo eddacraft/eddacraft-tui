@@ -4,7 +4,7 @@
 
 | ID  | Owner      | Status   | Progress |
 | --- | ---------- | -------- | -------- |
-| DPO | @eddacraft | In Progress | 2/6   |
+| DPO | @eddacraft | In Progress | 4/8   |
 
 > **DRAFT** — authored via planning-workflow on 2026-06-20 (producer-first
 > sequencing, new-module placement); design-gated by planning council

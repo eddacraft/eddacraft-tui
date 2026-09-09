@@ -5,7 +5,7 @@
 
 | ID     | Owner | Priority | Status | Progress |
 | ------ | ----- | -------- | ------ | -------- |
-| CPACKS | —     | high     | In Progress  | 8/11      |
+| CPACKS | —     | high     | In Progress  | 10/11      |
 
 **Last reviewed:** 2026-08-25 — CPACKS-011 filed In Progress (second starter
 pack `anvil-control-examples` plus a durable per-member overlay). Prior 2026-08-23 — CPACKS-007 promoted Proposed -> Ready as an
