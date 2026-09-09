@@ -247,7 +247,9 @@ mod tests {
 
     #[test]
     fn rewarm_fires_only_on_not_ready() {
-        use anvil_gctx_types::{FindDependentsOutcome, FindDependentsProjection, RedactionSummary};
+        use anvil_gctx_types::{
+            Attestation, FindDependentsOutcome, FindDependentsProjection, RedactionSummary,
+        };
 
         assert!(should_rewarm(&FindDependentsOutcome::NotReady {
             recovery_hint: "warming".into(),
@@ -258,7 +260,7 @@ mod tests {
                 next_cursor: None,
                 redaction_summary: RedactionSummary::default(),
                 partial: false,
-                attestation: Default::default(),
+                attestation: Attestation::default(),
             }
         )));
         assert!(!should_rewarm(&FindDependentsOutcome::Unavailable));

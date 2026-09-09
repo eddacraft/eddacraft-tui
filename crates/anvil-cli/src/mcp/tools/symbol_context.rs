@@ -473,7 +473,7 @@ mod tests {
     #[test]
     fn rewarm_fires_only_on_not_ready() {
         use anvil_gctx_types::{
-            GctxOutcome, SymbolContextOutcome, SymbolContextProjection,
+            Attestation, GctxOutcome, SymbolContextOutcome, SymbolContextProjection,
             SymbolContextRedactionSummary,
         };
 
@@ -492,7 +492,7 @@ mod tests {
             snippets: Vec::new(),
             omitted_context: Vec::new(),
             redaction_summary: summary,
-            attestation: Default::default(),
+            attestation: Attestation::default(),
         };
         assert!(!should_rewarm(&SymbolContextOutcome::Ready(
             projection.clone()

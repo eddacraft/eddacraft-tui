@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn rewarm_fires_only_on_not_ready() {
-        use anvil_gctx_types::{ImpactOutcome, ImpactReport, ImpactSummary};
+        use anvil_gctx_types::{Attestation, ImpactOutcome, ImpactReport, ImpactSummary};
 
         assert!(should_rewarm(&ImpactOutcome::NotReady {
             recovery_hint: "warming".into(),
@@ -246,7 +246,7 @@ mod tests {
             dependent_files: Vec::new(),
             known_tests: Vec::new(),
             summary: ImpactSummary::default(),
-            attestation: Default::default(),
+            attestation: Attestation::default(),
         })));
         assert!(!should_rewarm(&ImpactOutcome::Unavailable));
         assert!(!should_rewarm(&ImpactOutcome::Disabled));

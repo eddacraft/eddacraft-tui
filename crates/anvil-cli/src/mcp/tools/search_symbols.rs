@@ -267,7 +267,9 @@ mod tests {
 
     #[test]
     fn rewarm_fires_only_on_not_ready() {
-        use anvil_gctx_types::{RedactionSummary, SearchSymbolsOutcome, SearchSymbolsProjection};
+        use anvil_gctx_types::{
+            Attestation, RedactionSummary, SearchSymbolsOutcome, SearchSymbolsProjection,
+        };
 
         // The one recoverable state: a warming / cold-but-unpopulated graph.
         assert!(should_rewarm(&SearchSymbolsOutcome::NotReady {
@@ -280,7 +282,7 @@ mod tests {
                 symbols: Vec::new(),
                 next_cursor: None,
                 redaction_summary: RedactionSummary::default(),
-                attestation: Default::default(),
+                attestation: Attestation::default(),
             }
         )));
         assert!(!should_rewarm(&SearchSymbolsOutcome::Unavailable));

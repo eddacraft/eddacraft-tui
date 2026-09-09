@@ -891,7 +891,7 @@ mod windows_tests {
                 symbol_edge_count: 0,
                 file_count: 0,
                 dependency_edge_count: 0,
-                attestation: Default::default(),
+                attestation: anvil_gctx_types::Attestation::default(),
             })
         );
     }

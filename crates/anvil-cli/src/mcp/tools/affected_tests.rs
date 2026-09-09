@@ -241,7 +241,9 @@ mod tests {
 
     #[test]
     fn rewarm_fires_only_on_not_ready() {
-        use anvil_gctx_types::{AffectedTestsOutcome, AffectedTestsReport, AffectedTestsSummary};
+        use anvil_gctx_types::{
+            AffectedTestsOutcome, AffectedTestsReport, AffectedTestsSummary, Attestation,
+        };
 
         assert!(should_rewarm(&AffectedTestsOutcome::NotReady {
             recovery_hint: "warming".into(),
@@ -252,7 +254,7 @@ mod tests {
                 coverage_gaps: Vec::new(),
                 heuristic: true,
                 summary: AffectedTestsSummary::default(),
-                attestation: Default::default(),
+                attestation: Attestation::default(),
             }
         )));
         assert!(!should_rewarm(&AffectedTestsOutcome::Unavailable));
