@@ -464,6 +464,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn mixed_frontier_edges_keep_exact_fidelities() {
         // GATT-003: hop-2 caller through three exact mids + one fan-out mid
         // keeps Exact edges visible (ADR-142 / per-edge fidelity).
