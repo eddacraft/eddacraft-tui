@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 7/13 |
+| JREL | Josh | high | In Progress | 8/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -263,7 +263,15 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-008: Restore the terminal on all welcome exits
 
-- **Status:** Ready
+- **Status:** Merged — PR #4533 (claim #4530) at `76493bf7d`. Welcome now
+  reuses `TuiSession` / `TerminalGuard` ownership across its multi-phase flow,
+  restores raw mode and alternate-screen state on success, cancellation,
+  ordinary errors, partial alternate-screen entry failures and panics, and
+  still surfaces explicit teardown failures. Public PTY regression coverage
+  checks exact terminal attributes, balanced screen transitions and subsequent
+  shell usability across all paths. Independent verification and Council
+  passed; required hosted checks and review-thread clearance were green before
+  protected rebase-merge.
 - **Priority:** P1
 - **Intent:** An interrupted or failed welcome session leaves the terminal usable.
 - **Expected Outcome:** Ordinary Result errors and partial terminal setup restore raw mode and alternate-screen state, as do cancellation and panic paths. The existing guard/session ownership model is reused; a panic-only hook is not sufficient evidence.
