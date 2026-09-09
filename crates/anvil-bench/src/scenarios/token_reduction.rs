@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::time::Instant;
 
 use anvil_gctx_types::{
-    Attestation, DependentSummary, ImpactOutcome, ImpactReport, ImpactSummary, SymbolSummary,
+    DependentSummary, ImpactOutcome, ImpactReport, ImpactSummary, SymbolSummary,
 };
 use anvil_graph_cache::estimate_gctx_tokens;
 use anvil_kernel_types::{
@@ -356,7 +356,7 @@ fn impact_payload(fx: &Fixture) -> String {
         dependent_files: deps,
         known_tests: Vec::new(),
         summary,
-        attestation: anvil_gctx_types::Attestation::default(),
+        attestation: Attestation::default(),
     };
 
     serde_json::to_string(&ImpactOutcome::Ready(report)).expect("impact outcome serialises")
