@@ -129,6 +129,7 @@ fn missing_anvil_yaml_defaults_to_interrupt_e2e() {
     // `interrupt` — preserving the veto-on-error default while recording
     // the true decision.
     let workspace = tempfile::tempdir().expect("workspace exists");
+    init_git_worktree(workspace.path());
     let payload = run_validate_write_against(workspace.path(), SECRET_PROPOSED_CONTENT);
 
     assert_eq!(payload["result"]["isError"], true);
@@ -137,8 +138,14 @@ fn missing_anvil_yaml_defaults_to_interrupt_e2e() {
     assert_eq!(tool["correlation"]["enforcementMode"], "interrupt");
 }
 
+fn init_git_worktree(root: &Path) {
+    fs::create_dir_all(root.join(".git").join("refs")).expect("git refs");
+    fs::write(root.join(".git").join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+}
+
 fn workspace_with_enforcement_mode(mode: &str) -> TempDir {
     let workspace = tempfile::tempdir().expect("workspace exists");
+    init_git_worktree(workspace.path());
     let yaml = format!("enforcement:\n  mode: {mode}\n");
     fs::write(workspace.path().join(".anvil.yaml"), yaml).expect("write enforcement fixture");
     workspace

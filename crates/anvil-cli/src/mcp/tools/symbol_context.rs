@@ -85,8 +85,7 @@ pub fn call(arguments: &Value) -> Value {
 }
 
 fn symbol_context_payload(arguments: &Value) -> Result<Value, String> {
-    let server_root = std::env::current_dir()
-        .map_err(|err| format!("MCP server cwd is not accessible: {err}"))?;
+    let server_root = crate::mcp::tools::shared::mcp_server_root()?;
     let workspace_root = arguments
         .get("workspaceRoot")
         .and_then(Value::as_str)
@@ -452,7 +451,8 @@ mod tests {
 
     #[test]
     fn rejects_neither_nor_both_seeds() {
-        let workspace = std::env::current_dir().expect("cwd");
+        let workspace =
+            crate::mcp::tools::shared::mcp_server_root().expect("test inside git worktree");
         let missing = call(&json!({ "workspaceRoot": workspace }));
         assert_eq!(missing["isError"], true);
         assert!(
@@ -554,7 +554,8 @@ mod tests {
         // discoverable hint naming the enable command (end-to-end through `call`,
         // independent of daemon availability).
         temp_env::with_var_unset("ANVIL_GCTX_EGRESS", || {
-            let workspace = std::env::current_dir().expect("cwd");
+            let workspace =
+                crate::mcp::tools::shared::mcp_server_root().expect("test inside git worktree");
             let result = call(&json!({
                 "workspaceRoot": workspace,
                 "file": "src/a.ts",
@@ -572,7 +573,8 @@ mod tests {
     #[test]
     fn call_omits_hint_when_source_not_requested() {
         temp_env::with_var_unset("ANVIL_GCTX_EGRESS", || {
-            let workspace = std::env::current_dir().expect("cwd");
+            let workspace =
+                crate::mcp::tools::shared::mcp_server_root().expect("test inside git worktree");
             let result = call(&json!({
                 "workspaceRoot": workspace,
                 "file": "src/a.ts"

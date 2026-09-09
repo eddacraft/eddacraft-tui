@@ -73,8 +73,7 @@ pub fn call(arguments: &Value) -> Value {
 }
 
 fn impact_payload(arguments: &Value) -> Result<Value, String> {
-    let server_root = std::env::current_dir()
-        .map_err(|err| format!("MCP server cwd is not accessible: {err}"))?;
+    let server_root = crate::mcp::tools::shared::mcp_server_root()?;
     let workspace_root = arguments
         .get("workspaceRoot")
         .and_then(Value::as_str)
@@ -214,7 +213,8 @@ mod tests {
 
     #[test]
     fn rejects_missing_changed_files() {
-        let workspace = std::env::current_dir().expect("cwd");
+        let workspace =
+            crate::mcp::tools::shared::mcp_server_root().expect("test inside git worktree");
         let result = call(&json!({ "workspaceRoot": workspace }));
         assert_eq!(result["isError"], true);
         assert_eq!(
@@ -225,7 +225,8 @@ mod tests {
 
     #[test]
     fn rejects_empty_changed_files() {
-        let workspace = std::env::current_dir().expect("cwd");
+        let workspace =
+            crate::mcp::tools::shared::mcp_server_root().expect("test inside git worktree");
         let result = call(&json!({ "workspaceRoot": workspace, "changedFiles": [] }));
         assert_eq!(result["isError"], true);
         assert_eq!(

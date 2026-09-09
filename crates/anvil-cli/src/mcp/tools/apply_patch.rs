@@ -5,7 +5,8 @@ use serde_json::{Value, json};
 
 use crate::mcp::enforcement::{self, EnforcementMode, MCP_DEFAULT_ENFORCEMENT};
 use crate::mcp::tools::shared::{
-    WorkspacePathKind, normalise_workspace_relative_path, validate_workspace_root,
+    MCP_SERVER_ROOT_NOT_ADMITTED, WorkspacePathKind, mcp_server_root_from,
+    normalise_workspace_relative_path, validate_workspace_root,
 };
 use crate::mcp::tools::validate_write::{
     ResponseDetail, apply_response_detail, correlation_id, diagnostic_summary,
@@ -28,7 +29,7 @@ pub fn descriptor() -> Value {
             "properties": {
                 "workspaceRoot": {
                     "type": "string",
-                    "description": "Absolute workspace root. Defaults to the server cwd when omitted."
+                    "description": "Absolute workspace root. Defaults to the admitted git worktree containing the server cwd when omitted."
                 },
                 "path": {
                     "type": "string",
@@ -62,7 +63,21 @@ pub fn descriptor() -> Value {
 
 pub fn call(arguments: &Value) -> Value {
     let default_workspace_root = match std::env::current_dir() {
-        Ok(root) => root,
+        Ok(root) => match mcp_server_root_from(&root) {
+            Ok(admitted) => admitted,
+            Err(_) => {
+                return tool_result(&json!({
+                    "schema": RESPONSE_SCHEMA,
+                    "decision": "block",
+                    "error": {
+                        "code": "server-root-not-admitted",
+                        "message": MCP_SERVER_ROOT_NOT_ADMITTED,
+                        "retriable": false
+                    },
+                    "safeDefault": "do-not-write"
+                }));
+            }
+        },
         Err(err) => {
             return tool_result(&json!({
                 "schema": RESPONSE_SCHEMA,

@@ -411,13 +411,13 @@ fn validated_file_filter(query: &[(String, String)]) -> Result<Option<String>, R
     }
 }
 
-/// The process-pinned workspace root: the MCP server's own canonicalised cwd
-/// (GCTX-002 CE-8 — stdio-only, no client-supplied root).
+/// The process-pinned workspace root: the admitted git worktree containing
+/// the MCP server's cwd (GCTX-002 CE-8 / JREL-010 — stdio-only, no
+/// client-supplied root).
 fn workspace_root() -> Result<String, ReadError> {
-    let cwd = std::env::current_dir()
-        .map_err(|err| ReadError::Internal(format!("MCP server cwd is not accessible: {err}")))?;
-    let canonical = cwd.canonicalize().unwrap_or(cwd);
-    Ok(canonical.to_string_lossy().into_owned())
+    crate::mcp::tools::shared::mcp_server_root()
+        .map(|root| root.to_string_lossy().into_owned())
+        .map_err(ReadError::Internal)
 }
 
 /// Parse a `limit` query value and reject anything outside the advertised

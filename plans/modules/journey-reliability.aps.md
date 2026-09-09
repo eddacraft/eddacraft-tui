@@ -299,7 +299,7 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-010: Consistent admitted workspace identity in MCP
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** MCP tools use the intended admitted project regardless of launch directory.
 - **Expected Outcome:** Activation and MCP status, graph and validation agree on canonical project/worktree identity for root, package subdirectory, linked worktree and symlink launches. Outside-repo launch either establishes an explicitly admitted root or gives precise reconnection guidance. Unrelated or nested untrusted roots remain refused; no arbitrary caller-root escape is introduced.

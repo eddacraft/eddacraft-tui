@@ -270,6 +270,15 @@ fn prepare_owner_only_runtime_dir(xdg_runtime_dir: &Path) {
         .expect("anvil/ owner-only");
 }
 
+fn init_git_worktree(root: &Path) {
+    let git = root.join(".git");
+    if git.exists() {
+        return;
+    }
+    std::fs::create_dir_all(git.join("refs")).expect("git refs");
+    std::fs::write(git.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+}
+
 fn spawn_mcp_server(workspace_root: &Path, xdg_runtime_dir: &Path) -> Child {
     // Isolate operator state. `ANVIL_HOME` must be cleared so socket
     // resolution honours this test's `XDG_RUNTIME_DIR` (ADR-060:
@@ -281,7 +290,10 @@ fn spawn_mcp_server(workspace_root: &Path, xdg_runtime_dir: &Path) -> Child {
         .arg("mcp")
         .arg("serve")
         .arg("--stdio")
-        .current_dir(workspace_root)
+        .current_dir({
+            init_git_worktree(workspace_root);
+            workspace_root
+        })
         .env("ANVIL_DEV", "1")
         .env("ANVIL_MCP_PREFERRED", ANVIL_BIN)
         .env("HOME", xdg_runtime_dir)

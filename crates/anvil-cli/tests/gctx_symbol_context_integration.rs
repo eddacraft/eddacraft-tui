@@ -132,6 +132,8 @@ fn cold_save_time_state() -> (SaveTimeState, ColdScanRelease) {
 fn prepare_workspace(tmp: &TempDir) -> PathBuf {
     let root = tmp.path().join("workspace");
     std::fs::create_dir_all(root.join("src")).expect("mkdir src");
+    std::fs::create_dir_all(root.join(".git").join("refs")).expect("git refs");
+    std::fs::write(root.join(".git").join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
     std::fs::write(root.join("src/greet.ts"), GREET_SOURCE).expect("write source");
     std::fs::canonicalize(&root).expect("canonicalise")
 }

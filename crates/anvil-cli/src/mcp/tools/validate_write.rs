@@ -15,7 +15,8 @@ use sha2::{Digest, Sha256};
 
 use crate::mcp::enforcement::{self, EnforcementMode, MCP_DEFAULT_ENFORCEMENT};
 use crate::mcp::tools::shared::{
-    WorkspacePathKind, normalise_workspace_relative_path, workspace_root_is_admitted,
+    MCP_SERVER_ROOT_NOT_ADMITTED, WorkspacePathKind, mcp_server_root_from,
+    normalise_workspace_relative_path, workspace_root_is_admitted,
 };
 use crate::mcp::validation::{
     DaemonStatus, DaemonValidationClient, INPUT_RULE_ID, LocalDaemonValidationClient,
@@ -50,7 +51,7 @@ pub fn descriptor() -> Value {
             "properties": {
                 "workspaceRoot": {
                     "type": "string",
-                    "description": "Absolute workspace root. Defaults to the server cwd when omitted. Linked git worktrees of the same repository are admitted."
+                    "description": "Absolute workspace root. Defaults to the admitted git worktree containing the server cwd when omitted. Linked git worktrees of the same repository are admitted."
                 },
                 "path": {
                     "type": "string",
@@ -126,6 +127,10 @@ pub fn call(arguments: &Value) -> Value {
             // Block (we have no `.anvil.yaml` to read).
             return tool_result(&server_cwd_unavailable_payload(problem, &err));
         }
+    };
+    let Ok(default_workspace_root) = mcp_server_root_from(&default_workspace_root) else {
+        let problem = ToolProblem::new("server-root-not-admitted", MCP_SERVER_ROOT_NOT_ADMITTED);
+        return tool_result(&problem_payload(problem, None, MCP_DEFAULT_ENFORCEMENT));
     };
     call_with_workspace(arguments, &default_workspace_root)
 }

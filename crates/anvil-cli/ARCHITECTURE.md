@@ -1,8 +1,8 @@
 # anvil CLI architecture
 
-| Type         | Authority | Owner          | Status | Freshness                                                                                                                                                                                                                                    |
-| ------------ | --------- | -------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-10 for JREL-009 split MCP entry ownership; diagrams and topology unchanged. Prior review 2026-09-05 against CONV-002 shared source-scan service and RIO-001/002 bounded I/O; component topology and diagrams unchanged |
+| Type         | Authority | Owner          | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------ | --------- | -------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | CLI/LAUNCH/MCP | Live   | Last reviewed 2026-09-10 for JREL-010 admitted worktree identity; MCP tools, resources, and live-session registration pin to the git worktree containing the launch directory rather than the raw cwd. Diagrams and topology unchanged. Prior review 2026-09-10 for JREL-009 split MCP entry ownership. Prior review 2026-09-05 against CONV-002 shared source-scan service and RIO-001/002 bounded I/O; component topology and diagrams unchanged |
 
 | Upstream                                                                                      | Downstream                                                                                              |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -122,6 +122,16 @@ The registry, not this count in prose, is canonical. Mutating or
 execution-triggering tools require authentication; read-only graph-context tools
 also pass the daemon's workspace-root admission boundary and charge successful
 identity-only output against the graph egress budget.
+
+The MCP server identity is the git worktree that contains the launch directory,
+not the launch directory itself (JREL-010). Package-subdirectory, linked
+worktree, and symlink launches therefore share one canonical project/worktree
+with activation, status, graph, and validation. A launch outside any git
+worktree refuses with reconnection guidance rather than treating the cwd as an
+admitted root. Client-supplied names or roots do not grant authority. Nested git
+checkouts that are not registered worktrees of the same repository remain
+refused. Graph-context tools still require the admitted worktree root itself,
+never a nested directory (CIB-398).
 
 ### Validation and fallback
 

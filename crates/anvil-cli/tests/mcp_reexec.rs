@@ -4,6 +4,7 @@
 //! Unix proves the startup replacement image via
 //! `/proc/<pid>/exe` when the platform exposes it.
 
+use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -524,7 +525,17 @@ fn spawn_serve_in(cwd: &Path, env: &[(&str, &str)]) -> Child {
     spawn_serve_in_with_stderr(cwd, env, Stdio::piped())
 }
 
+fn init_git_worktree(root: &Path) {
+    let git = root.join(".git");
+    if git.exists() {
+        return;
+    }
+    fs::create_dir_all(git.join("refs")).expect("git refs");
+    fs::write(git.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+}
+
 fn spawn_serve_in_with_stderr(cwd: &Path, env: &[(&str, &str)], stderr: Stdio) -> Child {
+    init_git_worktree(cwd);
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.current_dir(cwd)
         .arg("--no-tui")

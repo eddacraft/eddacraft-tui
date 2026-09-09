@@ -205,9 +205,11 @@ pub(crate) fn client_info_name(message: &Value) -> Option<String> {
     legacy.or(modern).map(str::to_owned)
 }
 
-/// The worktree this MCP server speaks for: its own working directory.
+/// The worktree this MCP server speaks for: the admitted git worktree
+/// containing the launch directory, not the launch directory itself
+/// (JREL-010). Outside-repo launches do not register a live session.
 pub(crate) fn server_worktree() -> Option<PathBuf> {
-    std::env::current_dir().ok()
+    crate::mcp::tools::shared::mcp_server_root().ok()
 }
 
 #[cfg(test)]

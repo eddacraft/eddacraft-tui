@@ -2369,6 +2369,15 @@ fn spawn_mcp_server_without_daemon(runtime_dir: &Path, home_dir: &Path) -> Child
 /// `workspace` when given. GCTX tools refuse a nested directory as the graph
 /// root (CIB-398), so a test whose workspace is a temp dir under the test cwd
 /// must launch the server there.
+fn init_git_worktree(root: &Path) {
+    let git = root.join(".git");
+    if git.exists() {
+        return;
+    }
+    std::fs::create_dir_all(git.join("refs")).expect("git refs");
+    std::fs::write(git.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+}
+
 fn spawn_mcp_server_without_daemon_in(
     workspace: Option<&Path>,
     runtime_dir: &Path,
@@ -2376,6 +2385,7 @@ fn spawn_mcp_server_without_daemon_in(
 ) -> Child {
     let mut cmd = Command::new(ANVIL_BIN);
     if let Some(workspace) = workspace {
+        init_git_worktree(workspace);
         cmd.current_dir(workspace);
     }
     cmd.arg("--no-tui")
@@ -2404,6 +2414,7 @@ fn spawn_mcp_server_without_daemon_in(
 }
 
 fn spawn_mcp_server_in(cwd: &Path) -> Child {
+    init_git_worktree(cwd);
     Command::new(ANVIL_BIN)
         .current_dir(cwd)
         .arg("--no-tui")
@@ -2424,6 +2435,7 @@ fn spawn_mcp_server_in(cwd: &Path) -> Child {
 /// stdio tests. The unauthenticated envelope contract has its own test
 /// (`mcp_serve_stdio_tools_call_fix_requires_auth_without_credentials`).
 fn spawn_mcp_server_with_dev_bypass_in(cwd: &Path) -> Child {
+    init_git_worktree(cwd);
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.current_dir(cwd)
         .arg("--no-tui")
@@ -2443,6 +2455,7 @@ fn spawn_mcp_server_with_dev_bypass_in(cwd: &Path) -> Child {
 /// empty home, so the test behaves identically on CI (no credentials) and a
 /// developer machine with a real `anvil auth login` session.
 fn spawn_mcp_server_unauthenticated_in(cwd: &Path, empty_home: &Path) -> Child {
+    init_git_worktree(cwd);
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.current_dir(cwd)
         .arg("--no-tui")

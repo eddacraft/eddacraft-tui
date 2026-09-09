@@ -713,11 +713,13 @@ mod tests {
         // and never leaves the credit poisoned for an order-sensitive sibling.
         let _guard = crate::mcp::resources::lock_and_reset_graph_egress_for_test();
 
-        // A valid workspace root so the tool call itself is NOT an error: with no
+        // A valid graph root so the tool call itself is NOT an error: with no
         // daemon it degrades to a successful `unavailable` outcome (isError:false),
-        // which reaches the egress-charge step. The server cwd itself: a graph
-        // tool refuses a nested directory as its root (CIB-398).
-        let workspace = std::env::current_dir().expect("cwd");
+        // which reaches the egress-charge step. The admitted worktree, not the
+        // package cwd: a graph tool refuses a nested directory as its root
+        // (CIB-398 / JREL-010).
+        let workspace = crate::mcp::tools::shared::mcp_server_root()
+            .expect("unit tests run inside a git worktree");
 
         // Sanity: a fresh credit serves the GCTX tool call (charged, under budget).
         let ok = handle_message(&json!({

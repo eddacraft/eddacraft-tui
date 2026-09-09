@@ -136,13 +136,11 @@ pub fn read(uri: &str) -> Result<Value, ReadError> {
     Ok(contents(uri, &payload))
 }
 
-/// The process-pinned workspace root: the MCP server's own canonicalised cwd
-/// (GCTX-002 CE-8 — stdio-only, no client-supplied root), mirroring the MCP
-/// tools' `std::env::current_dir()` contract.
+/// The process-pinned workspace root: the admitted git worktree containing
+/// the MCP server's cwd (GCTX-002 CE-8 / JREL-010 — stdio-only, no
+/// client-supplied root).
 fn workspace_root_path() -> Result<PathBuf, ReadError> {
-    let cwd = std::env::current_dir()
-        .map_err(|err| ReadError::Internal(format!("MCP server cwd is not accessible: {err}")))?;
-    Ok(cwd.canonicalize().unwrap_or(cwd))
+    crate::mcp::tools::shared::mcp_server_root().map_err(ReadError::Internal)
 }
 
 /// Replace the absolute workspace root with `.` in a message bound for the

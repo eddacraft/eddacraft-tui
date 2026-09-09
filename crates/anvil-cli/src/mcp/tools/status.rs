@@ -4,7 +4,9 @@ use serde_json::{Value, json};
 
 use crate::commands::check_catalog;
 use crate::commands::{status as status_command, status_mcp, watch_save_time};
-use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
+use crate::mcp::tools::shared::{
+    canonical_worktree_identity, redact_workspace_root, validate_workspace_root,
+};
 use crate::mcp::validation::DaemonStatus;
 
 pub const TOOL_NAME: &str = "anvil_status";
@@ -43,14 +45,14 @@ pub fn call(arguments: &Value) -> Value {
 }
 
 fn status_payload(arguments: &Value) -> Result<Value, String> {
-    let server_root = std::env::current_dir()
-        .map_err(|err| format!("MCP server cwd is not accessible: {err}"))?;
+    let server_root = crate::mcp::tools::shared::mcp_server_root()?;
     let workspace_root = arguments
         .get("workspaceRoot")
         .and_then(Value::as_str)
         .ok_or_else(|| "workspaceRoot is required".to_string())?;
     let workspace_path = Path::new(workspace_root);
     let (server_root, workspace_path) = validate_workspace_root(workspace_path, &server_root)?;
+    let identity = canonical_worktree_identity(&workspace_path, &server_root);
     let redacted_workspace_root = redact_workspace_root(&workspace_path, &server_root);
 
     let config = load_config_info(&workspace_path);
@@ -80,7 +82,7 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
     );
     let requesting_session = daemon_snapshot.as_ref().and_then(|snapshot| {
         snapshot.sessions.iter().find(|session| {
-            session.worktree == workspace_path
+            (session.worktree == identity || session.worktree == workspace_path)
                 && session.pid == Some(std::process::id())
                 && session
                     .agent_tag
@@ -577,11 +579,13 @@ mod tests {
         assert_eq!(result["isError"], false);
         let payload: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap())
             .expect("payload is JSON");
+        let server =
+            crate::mcp::tools::shared::mcp_server_root().expect("test inside git worktree");
         let expected = workspace
             .canonicalize()
             .expect("workspace canonicalizes")
-            .strip_prefix(cwd.canonicalize().expect("cwd canonicalizes"))
-            .expect("workspace is under cwd")
+            .strip_prefix(&server)
+            .expect("workspace is under the admitted server worktree")
             .to_string_lossy()
             .replace('\\', "/");
         assert_eq!(payload["workspaceRoot"], expected);

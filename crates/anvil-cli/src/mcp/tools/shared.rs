@@ -19,16 +19,26 @@ use anvil_checks::antipattern::{Warning, WarningCategory, WarningSeverity};
 /// scanner runs.
 pub const MAX_FILE_ENTRIES: usize = 10_000;
 
-/// Caller-facing refusal when `workspaceRoot` is not the server cwd, a
-/// path inside it, or a registered linked worktree of the same repository
-/// (ADR-125).
+/// Caller-facing refusal when `workspaceRoot` is not the admitted server
+/// worktree, a path inside it, or a registered linked worktree of the same
+/// repository (ADR-125, JREL-010).
 pub const WORKSPACE_ROOT_NOT_ADMITTED: &str = "workspaceRoot must be inside the MCP server root or a linked git worktree of the same repository";
 
 /// Caller-facing refusal when a daemon-keyed graph-context tool receives a
 /// `workspaceRoot` that ADR-125 admits but that is not itself a graph root
-/// (CIB-398): the server cwd or a registered worktree root, never a nested
-/// directory.
+/// (CIB-398): the admitted server worktree or a registered worktree root,
+/// never a nested directory.
 pub const GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT: &str = "workspaceRoot for graph-context tools must be the MCP server root itself or a registered git worktree root of the same repository, not a nested directory";
+
+/// Precise reconnection guidance when `anvil mcp serve` was launched outside
+/// an admitted git worktree (JREL-010). Client-supplied names or roots do
+/// not grant authority.
+pub const MCP_SERVER_ROOT_NOT_ADMITTED: &str = "MCP server is not inside an admitted git worktree. Relaunch `anvil mcp serve` from the project root, a package directory inside it, or a linked worktree.";
+
+/// Nested git checkout that is not this server's worktree or a registered
+/// linked worktree of the same repository (JREL-010 / CIB-414).
+pub const NESTED_UNTRUSTED_ROOT: &str =
+    "workspaceRoot is a nested git checkout that is not an admitted worktree of this MCP server";
 
 /// Whether a GCTX `NotReady` recovery hint still warrants an on-demand re-warm.
 ///
@@ -62,6 +72,9 @@ pub fn validate_workspace_root(
         .map_err(|err| format!("MCP server root is not accessible: {err}"))?;
     let workspace_root = dunce::canonicalize(workspace_root)
         .map_err(|err| format!("workspaceRoot is not accessible: {err}"))?;
+    if nested_untrusted_git_root(&workspace_root, &server_root) {
+        return Err(NESTED_UNTRUSTED_ROOT.to_string());
+    }
     if !workspace_root_is_admitted(&workspace_root, &server_root) {
         return Err(WORKSPACE_ROOT_NOT_ADMITTED.to_string());
     }
@@ -107,7 +120,9 @@ pub fn workspace_root_is_graph_root(workspace_root: &Path, server_root: &Path) -
 }
 
 /// Whether a canonical `workspace_root` may be used as an MCP tool workspace
-/// for this server cwd (ADR-125).
+/// for this admitted server worktree (ADR-125). Nested git checkouts that
+/// are not registered worktrees of the same repository are refused by
+/// [`validate_workspace_root`] before this predicate runs.
 pub fn workspace_root_is_admitted(workspace_root: &Path, server_root: &Path) -> bool {
     if workspace_root == server_root || workspace_root.starts_with(server_root) {
         return true;
@@ -115,6 +130,74 @@ pub fn workspace_root_is_admitted(workspace_root: &Path, server_root: &Path) -> 
     registered_worktree_roots(server_root)
         .iter()
         .any(|root| workspace_root.starts_with(root))
+}
+
+/// Walk up from `path` to the nearest git worktree root (a directory whose
+/// `.git` is a directory or a `gitdir:` file). Canonicalises first so
+/// symlink launches share identity with the real checkout (JREL-010).
+#[must_use]
+pub fn containing_git_worktree_root(path: &Path) -> Option<PathBuf> {
+    let mut current = dunce::canonicalize(path).ok()?;
+    if current.is_file() {
+        current.pop();
+    }
+    loop {
+        if resolve_git_dir(&current).is_some() {
+            return Some(current);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
+/// Canonical MCP server identity: the git worktree that contains `cwd`,
+/// not the launch directory itself. Package-subdirectory and symlink
+/// launches therefore agree with a root launch (JREL-010).
+pub fn mcp_server_root_from(cwd: &Path) -> Result<PathBuf, String> {
+    let cwd = dunce::canonicalize(cwd)
+        .map_err(|err| format!("MCP server cwd is not accessible: {err}"))?;
+    containing_git_worktree_root(&cwd).ok_or_else(|| MCP_SERVER_ROOT_NOT_ADMITTED.to_string())
+}
+
+/// Canonical MCP server identity from the process working directory.
+pub fn mcp_server_root() -> Result<PathBuf, String> {
+    let cwd = std::env::current_dir()
+        .map_err(|err| format!("MCP server cwd is not accessible: {err}"))?;
+    mcp_server_root_from(&cwd)
+}
+
+/// Map an admitted workspace path to the canonical project/worktree
+/// identity used for session registration, activation, and graph queries.
+#[must_use]
+pub fn canonical_worktree_identity(workspace_root: &Path, server_root: &Path) -> PathBuf {
+    if let Some(checkout) = containing_git_worktree_root(workspace_root)
+        && (checkout == server_root
+            || registered_worktree_roots(server_root)
+                .iter()
+                .any(|root| root == &checkout))
+    {
+        return checkout;
+    }
+    server_root.to_path_buf()
+}
+
+/// A nested git checkout inside `server_root` that is not a registered
+/// linked worktree of the same repository.
+fn nested_untrusted_git_root(workspace_root: &Path, server_root: &Path) -> bool {
+    let Some(checkout) = containing_git_worktree_root(workspace_root) else {
+        return false;
+    };
+    if checkout == server_root {
+        return false;
+    }
+    if registered_worktree_roots(server_root)
+        .iter()
+        .any(|root| root == &checkout)
+    {
+        return false;
+    }
+    checkout.starts_with(server_root)
 }
 
 /// Redact an absolute workspace path to a server-root-relative form.
@@ -1244,5 +1327,101 @@ mod tests {
         let err = validate_gctx_workspace_root(&alias, workspace.path())
             .expect_err("alias of a nested directory refused as a graph root");
         assert_eq!(err, GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT);
+    }
+
+    fn write_fake_git_dir(root: &Path) {
+        std::fs::create_dir_all(root.join(".git").join("refs")).expect("git refs");
+        std::fs::write(root.join(".git").join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+    }
+
+    #[test]
+    fn package_subdirectory_launch_shares_the_worktree_identity() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, _linked) = linked_worktree_layout(root.path());
+        let pkg = main.join("packages").join("cli");
+        std::fs::create_dir_all(&pkg).expect("package dir");
+
+        assert_eq!(
+            containing_git_worktree_root(&pkg).as_deref(),
+            Some(main.as_path()),
+            "package subdirectory must resolve to the checkout root"
+        );
+        let server = mcp_server_root_from(&pkg).expect("admitted");
+        assert_eq!(server, main);
+        validate_workspace_root(&main, &server).expect("repo root admitted from package launch");
+        validate_workspace_root(&pkg, &server)
+            .expect("package subdirectory remains an admitted nested workspace");
+        validate_gctx_workspace_root(&main, &server)
+            .expect("repo root is the graph root from a package launch");
+        let err = validate_gctx_workspace_root(&pkg, &server)
+            .expect_err("package subdirectory is not a graph root");
+        assert_eq!(err, GCTX_WORKSPACE_ROOT_NOT_A_GRAPH_ROOT);
+        assert_eq!(canonical_worktree_identity(&pkg, &server), main);
+        assert_eq!(canonical_worktree_identity(&main, &server), main);
+    }
+
+    #[test]
+    fn linked_worktree_launch_keeps_the_linked_identity() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, linked) = linked_worktree_layout(root.path());
+        let nested = linked.join("src");
+        std::fs::create_dir_all(&nested).expect("nested");
+
+        assert_eq!(
+            mcp_server_root_from(&nested).expect("linked worktree admitted"),
+            linked
+        );
+        assert_ne!(mcp_server_root_from(&nested).expect("linked"), main);
+        assert_eq!(canonical_worktree_identity(&nested, &linked), linked);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_launch_canonicalises_to_the_real_worktree() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, _linked) = linked_worktree_layout(root.path());
+        let alias_dir = tempfile::tempdir().expect("alias parent");
+        let alias = alias_dir.path().join("project-link");
+        std::os::unix::fs::symlink(&main, &alias).expect("symlink");
+
+        assert_eq!(
+            mcp_server_root_from(&alias).expect("symlink launch admitted"),
+            main
+        );
+    }
+
+    #[test]
+    fn outside_repo_launch_has_no_admitted_identity() {
+        let outside = tempfile::tempdir().expect("outside repo");
+        assert_eq!(containing_git_worktree_root(outside.path()), None);
+        let err = mcp_server_root_from(outside.path()).expect_err("outside repo refused");
+        assert_eq!(err, MCP_SERVER_ROOT_NOT_ADMITTED);
+    }
+
+    #[test]
+    fn refuses_nested_untrusted_git_checkout_inside_the_server() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let (main, _linked) = linked_worktree_layout(root.path());
+        let nested = main.join("vendor").join("other");
+        std::fs::create_dir_all(&nested).expect("nested checkout");
+        write_fake_git_dir(&nested);
+        let nested = dunce::canonicalize(&nested).expect("nested canonicalises");
+
+        let err = validate_workspace_root(&nested, &main)
+            .expect_err("nested untrusted git checkout refused");
+        assert_eq!(err, NESTED_UNTRUSTED_ROOT);
+        assert!(!workspace_root_is_graph_root(&nested, &main));
+    }
+
+    #[test]
+    fn still_admits_registered_linked_worktree_nested_inside_the_server() {
+        let root = tempfile::tempdir().expect("fixture root");
+        let inside = root.path().join("main").join(".worktrees").join("linked");
+        let (main, linked) = linked_worktree_layout_at(root.path(), &inside);
+
+        validate_workspace_root(&linked, &main)
+            .expect("registered linked worktree remains admitted");
+        validate_gctx_workspace_root(&linked, &main)
+            .expect("registered linked worktree remains a graph root");
     }
 }

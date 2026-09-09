@@ -59,8 +59,8 @@ impl DomainResult {
 /// Best-effort graph warm-up. Safe to call from modern or legacy paths; does
 /// not block discovery (fire-and-forget daemon warm).
 pub fn warm_up_workspace() {
-    if let Ok(cwd) = std::env::current_dir() {
-        let _ = crate::commands::watch_save_time::warm_up_root(&cwd);
+    if let Ok(root) = crate::mcp::tools::shared::mcp_server_root() {
+        let _ = crate::commands::watch_save_time::warm_up_root(&root);
     }
 }
 

@@ -91,8 +91,7 @@ pub fn call(arguments: &Value) -> Value {
 }
 
 fn search_payload(arguments: &Value) -> Result<Value, String> {
-    let server_root = std::env::current_dir()
-        .map_err(|err| format!("MCP server cwd is not accessible: {err}"))?;
+    let server_root = crate::mcp::tools::shared::mcp_server_root()?;
     let workspace_root = arguments
         .get("workspaceRoot")
         .and_then(Value::as_str)
@@ -251,7 +250,8 @@ mod tests {
 
     #[test]
     fn rejects_unknown_kind_filter() {
-        let workspace = std::env::current_dir().expect("cwd");
+        let workspace =
+            crate::mcp::tools::shared::mcp_server_root().expect("test inside git worktree");
         let result = call(&json!({
             "workspaceRoot": workspace,
             "kind": "NotARealKind"

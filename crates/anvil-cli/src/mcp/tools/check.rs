@@ -62,8 +62,7 @@ pub fn call(arguments: &Value) -> Value {
 }
 
 fn check_payload(arguments: &Value) -> Result<Value, String> {
-    let server_root = std::env::current_dir()
-        .map_err(|err| format!("MCP server cwd is not accessible: {err}"))?;
+    let server_root = crate::mcp::tools::shared::mcp_server_root()?;
     let workspace_root = arguments
         .get("workspaceRoot")
         .and_then(Value::as_str)
