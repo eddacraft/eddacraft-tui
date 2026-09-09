@@ -5672,12 +5672,29 @@ fn verify_durable_membership_claim(
     ))
 }
 
+/// Canonicalised image path of *this* process, resolved once per process.
+///
+/// Probe warm-up and the live durable-membership gate must compare peers
+/// against the same daemon path. Re-reading [`std::env::current_exe`] at
+/// gate time can diverge after an in-place binary replace (the kernel may
+/// then canonicalise `/proc/self/exe` onto the replacement). Caching here
+/// has the same lifetime as [`foreign_exe_reads_faithful`]. Fail-closed:
+/// a first-call resolution failure is sticky, matching the probe cache.
+fn canonical_daemon_exe() -> Option<&'static Path> {
+    static DAEMON_EXE: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    DAEMON_EXE
+        .get_or_init(|| std::env::current_exe().and_then(std::fs::canonicalize).ok())
+        .as_deref()
+}
+
 /// CIB-150: `true` when the authenticated peer behind an IPC connection
 /// is entitled to register durable worktree membership — i.e. it is
 /// running the *same* `anvil` binary as the daemon (the CLI and daemon
 /// ship as one executable). This compares the peer's executable path — read
 /// per-platform by [`peer_exe_path`] — against the daemon's canonicalised
-/// `current_exe`. Fail-closed on every uncertainty: a missing peer pid, an
+/// `current_exe`, cached once per process ([`canonical_daemon_exe`]) so
+/// probe warm-up and the live gate cannot diverge after an in-place binary
+/// replace. Fail-closed on every uncertainty: a missing peer pid, an
 /// unreadable peer or daemon exe path, or a platform with no reader wired
 /// all return `false`.
 ///
@@ -5716,7 +5733,7 @@ fn peer_authorised_for_durable_membership(peer_pid: Option<u32>) -> bool {
     let Some(peer_exe) = canonical_peer_exe(peer_pid) else {
         return false;
     };
-    let Ok(daemon_exe) = std::env::current_exe().and_then(std::fs::canonicalize) else {
+    let Some(daemon_exe) = canonical_daemon_exe() else {
         return false;
     };
     peer_exe == daemon_exe
@@ -5810,7 +5827,7 @@ pub(crate) fn warm_foreign_exe_faithfulness_probe() {
 /// reachable via the in-process `register_on_start` path
 /// (`anvil workspace register --persist`), which never crosses this gate.
 fn probe_foreign_exe_reads_faithful() -> bool {
-    let Ok(daemon_exe) = std::env::current_exe().and_then(std::fs::canonicalize) else {
+    let Some(daemon_exe) = canonical_daemon_exe() else {
         return false;
     };
     let Some(mut canary) = spawn_faithfulness_canary() else {
@@ -5826,7 +5843,7 @@ fn probe_foreign_exe_reads_faithful() -> bool {
     // indistinguishable from sandbox aliasing until exec replaces the image.
     let observed = wait_for_execed_foreign_exe(
         canary_pid,
-        &daemon_exe,
+        daemon_exe,
         FOREIGN_EXE_EXEC_WAIT,
         FOREIGN_EXE_EXEC_POLL,
     );
@@ -7697,6 +7714,28 @@ mod tests {
         assert!(
             peer_exe_path(0).is_none(),
             "an unreadable pid must fail closed, not resolve to a binary",
+        );
+    }
+
+    /// Probe warm-up and the live gate must share one daemon image path
+    /// (issue #4449). Re-resolving `current_exe` per call can diverge after
+    /// an in-place binary replace. Pointer identity proves the OnceLock,
+    /// not a pair of live reads that happen to match.
+    #[test]
+    fn canonical_daemon_exe_is_cached_for_the_process() {
+        let first = canonical_daemon_exe().expect("this process must resolve its own exe");
+        let second = canonical_daemon_exe().expect("cached daemon exe must remain available");
+        assert!(
+            std::ptr::eq(first, second),
+            "probe-time and gate-time daemon exe must be the same cached path"
+        );
+        let live = std::env::current_exe()
+            .and_then(std::fs::canonicalize)
+            .expect("this process must resolve its own exe");
+        assert_eq!(
+            first,
+            live.as_path(),
+            "the cached daemon exe must match this process's current_exe at first observation"
         );
     }
 
