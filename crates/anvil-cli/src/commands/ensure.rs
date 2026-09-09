@@ -57,22 +57,31 @@ impl EnsureReadinessState {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct EnsureComponentReadiness {
-    state: EnsureReadinessState,
-    detail: String,
+    pub(crate) state: EnsureReadinessState,
+    pub(crate) detail: String,
 }
 
-#[derive(Debug, Serialize)]
+impl EnsureComponentReadiness {
+    pub(crate) fn new(state: EnsureReadinessState, detail: impl Into<String>) -> Self {
+        Self {
+            state,
+            detail: detail.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct EnsureReadinessComponents {
-    config: EnsureComponentReadiness,
-    daemon: EnsureComponentReadiness,
-    worktree: EnsureComponentReadiness,
-    save_time: EnsureComponentReadiness,
-    mcp: EnsureComponentReadiness,
+    pub(crate) config: EnsureComponentReadiness,
+    pub(crate) daemon: EnsureComponentReadiness,
+    pub(crate) worktree: EnsureComponentReadiness,
+    pub(crate) save_time: EnsureComponentReadiness,
+    pub(crate) mcp: EnsureComponentReadiness,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct EnsureReadiness {
     pub(crate) state: EnsureReadinessState,
     pub(crate) selected_coverage_ready: bool,
@@ -82,6 +91,56 @@ pub(crate) struct EnsureReadiness {
 }
 
 impl EnsureReadiness {
+    pub(crate) fn from_components(components: EnsureReadinessComponents) -> Self {
+        let states = [
+            ("config", components.config.state),
+            ("daemon", components.daemon.state),
+            ("worktree", components.worktree.state),
+            ("save_time", components.save_time.state),
+            ("mcp", components.mcp.state),
+        ];
+        let selected_states = [components.save_time.state, components.mcp.state];
+        let selected_coverage_ready = selected_states
+            .iter()
+            .any(|state| *state != EnsureReadinessState::Disabled)
+            && selected_states.iter().all(|state| {
+                matches!(
+                    state,
+                    EnsureReadinessState::Ready | EnsureReadinessState::Disabled
+                )
+            })
+            && !states
+                .iter()
+                .any(|(_, state)| *state == EnsureReadinessState::Failed);
+        let failing_component = states
+            .iter()
+            .find_map(|(name, state)| (*state == EnsureReadinessState::Failed).then_some(*name));
+        let state = if failing_component.is_some() {
+            EnsureReadinessState::Failed
+        } else if selected_coverage_ready {
+            EnsureReadinessState::Ready
+        } else if states
+            .iter()
+            .any(|(_, state)| *state == EnsureReadinessState::Starting)
+        {
+            EnsureReadinessState::Starting
+        } else if states
+            .iter()
+            .any(|(_, state)| *state == EnsureReadinessState::Degraded)
+        {
+            EnsureReadinessState::Degraded
+        } else {
+            EnsureReadinessState::Disabled
+        };
+
+        Self {
+            state,
+            selected_coverage_ready,
+            failing_component,
+            components,
+        }
+    }
+
     pub(crate) fn failed(&self) -> bool {
         self.state == EnsureReadinessState::Failed
     }
@@ -368,10 +427,7 @@ pub(crate) fn save_time_driver_opt_out() -> bool {
 }
 
 fn component(state: EnsureReadinessState, detail: impl Into<String>) -> EnsureComponentReadiness {
-    EnsureComponentReadiness {
-        state,
-        detail: detail.into(),
-    }
+    EnsureComponentReadiness::new(state, detail)
 }
 
 fn preflight_readiness(component_name: &'static str, detail: &str) -> EnsureReadiness {
@@ -437,47 +493,6 @@ pub(crate) fn classify_readiness(
         driver_disabled,
     );
 
-    let states = [
-        ("config", config_state),
-        ("daemon", daemon_state),
-        ("worktree", worktree_state),
-        ("save_time", save_time_state),
-        ("mcp", mcp_state),
-    ];
-    let selected_states = [save_time_state, mcp_state];
-    let selected_coverage_ready = selected_states
-        .iter()
-        .any(|state| *state != EnsureReadinessState::Disabled)
-        && selected_states.iter().all(|state| {
-            matches!(
-                state,
-                EnsureReadinessState::Ready | EnsureReadinessState::Disabled
-            )
-        })
-        && !states
-            .iter()
-            .any(|(_, state)| *state == EnsureReadinessState::Failed);
-    let failing_component = states
-        .iter()
-        .find_map(|(name, state)| (*state == EnsureReadinessState::Failed).then_some(*name));
-    let state = if failing_component.is_some() {
-        EnsureReadinessState::Failed
-    } else if selected_coverage_ready {
-        EnsureReadinessState::Ready
-    } else if states
-        .iter()
-        .any(|(_, state)| *state == EnsureReadinessState::Starting)
-    {
-        EnsureReadinessState::Starting
-    } else if states
-        .iter()
-        .any(|(_, state)| *state == EnsureReadinessState::Degraded)
-    {
-        EnsureReadinessState::Degraded
-    } else {
-        EnsureReadinessState::Disabled
-    };
-
     let save_time_detail = match &registration.driver {
         Some(SaveTimeDriverReadiness::Attached { evidence }) => evidence.map_or_else(
             || "attached without readiness evidence".to_owned(),
@@ -488,18 +503,13 @@ pub(crate) fn classify_readiness(
         Some(SaveTimeDriverReadiness::Unknown(error)) => error.clone(),
         None => "no driver evidence".to_owned(),
     };
-    EnsureReadiness {
-        state,
-        selected_coverage_ready,
-        failing_component,
-        components: EnsureReadinessComponents {
-            config: component(config_state, config.label()),
-            daemon: component(daemon_state, format_daemon_outcome(daemon)),
-            worktree: component(worktree_state, format_worktree_registration(registration)),
-            save_time: component(save_time_state, save_time_detail),
-            mcp: component(mcp_state, mcp_detail),
-        },
-    }
+    EnsureReadiness::from_components(EnsureReadinessComponents {
+        config: component(config_state, config.label()),
+        daemon: component(daemon_state, format_daemon_outcome(daemon)),
+        worktree: component(worktree_state, format_worktree_registration(registration)),
+        save_time: component(save_time_state, save_time_detail),
+        mcp: component(mcp_state, mcp_detail),
+    })
 }
 
 fn classify_save_time_readiness(

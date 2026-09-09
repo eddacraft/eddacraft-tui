@@ -54,6 +54,39 @@
         "last_error": { "type": ["string", "null"] }
       }
     },
+    "readiness": {
+      "description": "JREL-005: aggregate readiness for the protection components selected in the current environment. A failed state is paired with a non-zero process exit; disabled is a deliberate or inapplicable component rather than a failure.",
+      "type": "object",
+      "required": ["state", "selected_coverage_ready", "components"],
+      "additionalProperties": true,
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["starting", "ready", "disabled", "degraded", "failed"]
+        },
+        "selected_coverage_ready": { "type": "boolean" },
+        "failing_component": {
+          "type": "string",
+          "enum": ["config", "daemon", "worktree", "save_time", "mcp"]
+        },
+        "components": {
+          "type": "object",
+          "required": ["config", "daemon", "worktree", "save_time", "mcp"],
+          "additionalProperties": false,
+          "properties": {
+            "config": { "$ref": "#/$defs/readinessComponent" },
+            "daemon": { "$ref": "#/$defs/readinessComponent" },
+            "worktree": { "$ref": "#/$defs/readinessComponent" },
+            "save_time": { "$ref": "#/$defs/readinessComponent" },
+            "mcp": { "$ref": "#/$defs/readinessComponent" }
+          }
+        }
+      }
+    },
+    "next": {
+      "description": "JREL-005: one component-specific recovery action when readiness is failed, starting, or degraded.",
+      "type": "string"
+    },
     "hooks": {
       "description": "Discovered hook surfaces. Each entry names a file-mode or config-mode hook plus its active/inactive state.",
       "type": "array",
@@ -225,6 +258,20 @@
     "protecting": {
       "description": "MCPLH-005: true when activation protection state is protecting (pre-write attach). Independent of graph_ready.",
       "type": "boolean"
+    }
+  },
+  "$defs": {
+    "readinessComponent": {
+      "type": "object",
+      "required": ["state", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["starting", "ready", "disabled", "degraded", "failed"]
+        },
+        "detail": { "type": "string" }
+      }
     }
   }
 }

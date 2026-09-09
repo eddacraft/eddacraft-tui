@@ -32,12 +32,90 @@ fn run_status_json(workdir: &Path, home: &Path) -> Output {
         .arg("--json")
         .arg("status")
         .current_dir(workdir)
+        .env("ANVIL_HOME", home)
         .env("HOME", home)
         .env("USERPROFILE", home)
         .env_remove("XDG_CONFIG_HOME")
+        .env("ANVIL_NO_DAEMON", "1")
+        .env("ANVIL_NO_SAVE_TIME_DRIVER", "1")
+        .env("ANVIL_NO_MCP", "1")
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1");
     cmd.output().expect("failed to invoke anvil binary")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn run_status_with_required_daemon(workdir: &Path, home: &Path, json: bool) -> Output {
+    std::fs::create_dir_all(home.join("config")).expect("create isolated config home");
+    std::fs::create_dir_all(home.join("runtime")).expect("create isolated runtime home");
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui");
+    if json {
+        cmd.arg("--json");
+    }
+    cmd.arg("status")
+        .current_dir(workdir)
+        .env("ANVIL_HOME", home)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("XDG_CONFIG_HOME", home.join("config"))
+        .env("XDG_RUNTIME_DIR", home.join("runtime"))
+        .env("ANVIL_NO_MCP", "1")
+        .env_remove("ANVIL_NO_DAEMON")
+        .env_remove("ANVIL_NO_SAVE_TIME_DRIVER")
+        .env("ANVIL_DISABLE_UPDATE_HINT", "1")
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    cmd.output().expect("failed to invoke anvil binary")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn seed_activated_worktree(path: &Path) {
+    let status = Command::new("git")
+        .args(["init", "-q"])
+        .current_dir(path)
+        .status()
+        .expect("git init");
+    assert!(status.success(), "git init failed");
+    std::fs::write(path.join(".anvil.json"), "{\"checks\":[]}\n").expect("seed activated config");
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn status_reports_unavailable_selected_daemon_and_exits_nonzero() {
+    let workspace = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    seed_activated_worktree(workspace.path());
+
+    let json = run_status_with_required_daemon(workspace.path(), home.path(), true);
+    assert_eq!(
+        json.status.code(),
+        Some(1),
+        "selected daemon failure must exit non-zero: stdout={} stderr={}",
+        String::from_utf8_lossy(&json.stdout),
+        String::from_utf8_lossy(&json.stderr),
+    );
+    let doc: serde_json::Value =
+        serde_json::from_slice(&json.stdout).expect("failed status is still one JSON document");
+    assert_eq!(doc["readiness"]["state"], "failed");
+    assert_eq!(doc["readiness"]["failing_component"], "daemon");
+    assert_eq!(doc["readiness"]["components"]["daemon"]["state"], "failed");
+    assert_eq!(
+        doc["next"],
+        "run `anvil start` to restore the save-time daemon"
+    );
+
+    let human = run_status_with_required_daemon(workspace.path(), home.path(), false);
+    assert_eq!(human.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&human.stdout);
+    assert!(stdout.contains("Readiness: failed"), "{stdout}");
+    assert!(stdout.contains("daemon=failed"), "{stdout}");
+    assert_eq!(stdout.matches("Next:").count(), 1, "{stdout}");
+    assert!(stdout.contains("anvil start"), "{stdout}");
+    assert!(
+        !stdout.contains("anvil intercept start --foreground"),
+        "{stdout}"
+    );
 }
 
 fn workspace_root() -> std::path::PathBuf {
@@ -397,6 +475,33 @@ fn schema_documents_typed_save_time_readiness_and_evidence() {
             .filter_map(serde_json::Value::as_str)
             .collect::<Vec<_>>(),
         ["spawned", "watches-installed", "fresh-activity", "unknown"]
+    );
+}
+
+#[test]
+fn schema_documents_aggregate_readiness_contract() {
+    let schema = load_schema();
+    let states = schema
+        .pointer("/properties/readiness/properties/state/enum")
+        .and_then(serde_json::Value::as_array)
+        .expect("schema must document aggregate readiness states");
+    assert_eq!(
+        states
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect::<Vec<_>>(),
+        ["starting", "ready", "disabled", "degraded", "failed"]
+    );
+    let components = schema
+        .pointer("/properties/readiness/properties/components/required")
+        .and_then(serde_json::Value::as_array)
+        .expect("schema must require every readiness component");
+    assert_eq!(
+        components
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect::<Vec<_>>(),
+        ["config", "daemon", "worktree", "save_time", "mcp"]
     );
 }
 

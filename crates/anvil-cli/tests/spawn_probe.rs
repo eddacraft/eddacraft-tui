@@ -455,10 +455,12 @@ fn path_127_unresolvable_anvil_cannot_claim_live_protection() {
         home.path(),
         &["--no-tui", "--json", "status", "--verify"],
     );
-    assert!(
-        json_out.status.success(),
-        "status --verify --json failed: stderr={}",
-        String::from_utf8_lossy(&json_out.stderr)
+    assert_eq!(
+        json_out.status.code(),
+        Some(1),
+        "unresolvable selected MCP is a typed readiness failure: stdout={} stderr={}",
+        String::from_utf8_lossy(&json_out.stdout),
+        String::from_utf8_lossy(&json_out.stderr),
     );
     let json_stdout = String::from_utf8_lossy(&json_out.stdout);
     let parsed: serde_json::Value =
@@ -468,6 +470,8 @@ fn path_127_unresolvable_anvil_cannot_claim_live_protection() {
         parsed["state"], "protecting",
         "missing bare `anvil` on PATH must not claim protecting: {parsed}"
     );
+    assert_eq!(parsed["readiness"]["state"], "failed");
+    assert_eq!(parsed["readiness"]["components"]["mcp"]["state"], "failed");
     let claude = parsed["mcp"]
         .as_array()
         .and_then(|mcp| mcp.iter().find(|entry| entry["client"] == "claude-code"))
@@ -486,10 +490,12 @@ fn path_127_unresolvable_anvil_cannot_claim_live_protection() {
     );
 
     let human = run_anvil_on_editor_path(root, home.path(), &["--no-tui", "status", "--verify"]);
-    assert!(
-        human.status.success(),
-        "status --verify failed: stderr={}",
-        String::from_utf8_lossy(&human.stderr)
+    assert_eq!(
+        human.status.code(),
+        Some(1),
+        "unresolvable selected MCP must fail human verification: stdout={} stderr={}",
+        String::from_utf8_lossy(&human.stdout),
+        String::from_utf8_lossy(&human.stderr),
     );
     let human_stdout = String::from_utf8_lossy(&human.stdout);
     assert!(
@@ -504,4 +510,7 @@ fn path_127_unresolvable_anvil_cannot_claim_live_protection() {
         names_unresolvable_path_repair(&human_stdout),
         "human status must explain the unresolvable command and name PATH repair:\n{human_stdout}"
     );
+    assert!(human_stdout.contains("Readiness: failed"), "{human_stdout}");
+    assert!(human_stdout.contains("mcp=failed"), "{human_stdout}");
+    assert_eq!(human_stdout.matches("Next:").count(), 1, "{human_stdout}");
 }

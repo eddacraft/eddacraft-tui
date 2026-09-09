@@ -82,15 +82,26 @@ struct Harness {
 
 impl Harness {
     fn spawn(home: &Path) -> Self {
-        Self::spawn_with_binary(home, Path::new(ANVIL_BIN))
+        Self::spawn_with_binary_and_driver(home, Path::new(ANVIL_BIN), true)
+    }
+
+    fn spawn_without_driver(home: &Path) -> Self {
+        Self::spawn_with_binary_and_driver(home, Path::new(ANVIL_BIN), false)
     }
 
     fn spawn_with_binary(home: &Path, binary: &Path) -> Self {
+        Self::spawn_with_binary_and_driver(home, binary, true)
+    }
+
+    fn spawn_with_binary_and_driver(home: &Path, binary: &Path, driver_enabled: bool) -> Self {
         fs::set_permissions(home, fs::Permissions::from_mode(0o700))
             .expect("secure private ANVIL_HOME");
         let mut command = Command::new(binary);
         command.args(["intercept", "start", "--foreground"]);
         configure_private_env(&mut command, home);
+        if !driver_enabled {
+            command.env("ANVIL_NO_SAVE_TIME_DRIVER", "1");
+        }
         command.process_group(0);
         let child = command
             .stdin(Stdio::null())
@@ -197,6 +208,59 @@ impl Harness {
             .find(|path| path.extension().is_some_and(|ext| ext == "log"))
             .and_then(|path| fs::read_to_string(path).ok())
     }
+}
+
+#[test]
+fn status_fails_when_selected_save_time_driver_is_absent() {
+    let home = tempfile::tempdir().expect("private ANVIL_HOME");
+    let workspace = tempfile::tempdir().expect("workspace");
+    seed_workspace(workspace.path());
+    let worktree = fs::canonicalize(workspace.path()).expect("canonical worktree");
+    let harness = Harness::spawn_without_driver(home.path());
+
+    // The daemon accepts durable membership but deliberately does not launch a
+    // child. The status process does not inherit that daemon-only opt-out, so
+    // save-time coverage remains selected from the caller's perspective.
+    let registration = harness.anvil(&worktree, &[]);
+    assert_eq!(
+        registration.status.code(),
+        Some(1),
+        "absent selected driver must fail daily activation: stdout={} stderr={}",
+        String::from_utf8_lossy(&registration.stdout),
+        String::from_utf8_lossy(&registration.stderr),
+    );
+
+    let json = harness.anvil(&worktree, &["--json", "status"]);
+    assert_eq!(
+        json.status.code(),
+        Some(1),
+        "status must fail when the registered worktree has no selected driver: stdout={} stderr={}",
+        String::from_utf8_lossy(&json.stdout),
+        String::from_utf8_lossy(&json.stderr),
+    );
+    let doc: Value = serde_json::from_slice(&json.stdout).expect("status output is JSON");
+    assert_eq!(doc["readiness"]["state"], "failed");
+    assert_eq!(doc["readiness"]["failing_component"], "save_time");
+    assert_eq!(
+        doc["readiness"]["components"]["save_time"]["state"],
+        "failed"
+    );
+    assert_eq!(
+        doc["next"],
+        "run `anvil start` to restore the failed save-time driver"
+    );
+
+    let human = harness.anvil(&worktree, &["--no-tui", "status"]);
+    assert_eq!(human.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&human.stdout);
+    assert!(stdout.contains("Readiness: failed"), "{stdout}");
+    assert!(stdout.contains("save_time=failed"), "{stdout}");
+    assert_eq!(stdout.matches("Next:").count(), 1, "{stdout}");
+    assert!(stdout.contains("anvil start"), "{stdout}");
+    assert!(
+        !stdout.contains("anvil intercept start --foreground"),
+        "{stdout}"
+    );
 }
 
 #[test]
@@ -368,6 +432,28 @@ fn assert_ensure_succeeded(out: &Output, context: &str) {
     );
 }
 
+fn assert_ready_no_mcp_status(harness: &Harness, worktree: &Path) {
+    let status = harness.anvil(worktree, &["--json", "status"]);
+    assert_eq!(
+        status.status.code(),
+        Some(0),
+        "ready save-time coverage must be a successful no-MCP status: stdout={} stderr={}",
+        String::from_utf8_lossy(&status.stdout),
+        String::from_utf8_lossy(&status.stderr),
+    );
+    let status_doc: Value =
+        serde_json::from_slice(&status.stdout).expect("ready status output is JSON");
+    assert_eq!(status_doc["readiness"]["state"], "ready");
+    assert_eq!(
+        status_doc["readiness"]["components"]["save_time"]["state"],
+        "ready"
+    );
+    assert_eq!(
+        status_doc["readiness"]["components"]["mcp"]["state"],
+        "disabled"
+    );
+}
+
 #[test]
 fn bare_anvil_restores_exactly_one_ready_driver_after_child_death() {
     let home = tempfile::tempdir().expect("private ANVIL_HOME");
@@ -453,6 +539,8 @@ fn bare_anvil_restores_exactly_one_ready_driver_after_child_death() {
         )
         .then_some(())
     });
+
+    assert_ready_no_mcp_status(&harness, &worktree);
 
     // Save a fixture the daemon's antipattern lane flags (AP-003 explicit
     // `any`) and obtain a real validation result from the restored driver.

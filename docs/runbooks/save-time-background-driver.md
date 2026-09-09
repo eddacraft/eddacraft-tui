@@ -27,7 +27,8 @@ Healthy posture:
 
 - `anvil start --no-mcp` exits successfully without opening a foreground watch.
 - `anvil intercept status` includes a non-zero `drivers:` active count.
-- `anvil status --json` for the worktree reports `save_time_driver: "attached"`,
+- `anvil status --json` for the worktree reports aggregate
+  `readiness.state: "ready"`, `save_time_driver: "attached"`,
   `save_time_driver_readiness: "ready"`, and either `watches-installed` or
   `fresh-activity` as `save_time_driver_evidence`.
 - Saving a file with a planted antipattern-family finding appends the finding to
@@ -54,14 +55,17 @@ anvil intercept status
 anvil status --json
 ```
 
-The daily bare command and `anvil start` now print an overall `readiness` plus
-component states. A failed daemon, worktree registration, or save-time driver
-returns a non-zero exit and one component-specific `next:` action. Use
-`anvil intercept status` for the full daemon inventory. Its registered-worktree
-lines and `anvil status --json` distinguish `starting`, `ready`, `disabled`,
-`degraded`, and `failed`; attachment without readiness evidence is not `ready`.
-For a scripted mutating ensure receipt, use bare `anvil --json`; the existing
-`anvil start --json` contract remains a read-only activation probe.
+The daily bare command, `anvil start`, and `anvil status` now print an overall
+`readiness` plus component states. Their JSON surfaces expose the same typed
+projection. A selected but unavailable daemon, failed worktree registration, or
+absent/failed save-time driver returns a non-zero exit and one
+component-specific `next:` action. Explicit opt-outs remain `disabled` and do
+not create a failure. Use `anvil intercept status` for the full daemon
+inventory. Its registered-worktree lines and `anvil status --json` distinguish
+`starting`, `ready`, `disabled`, `degraded`, and `failed`; attachment without
+readiness evidence is not `ready`. For a scripted mutating ensure receipt, use
+bare `anvil --json`; the existing `anvil start --json` contract remains a
+read-only activation probe.
 
 ## Logs And Artefacts
 

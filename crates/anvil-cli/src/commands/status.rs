@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use anvil_intercept_proto::protocol::{AssuranceState, WorkspaceAssurance};
 use anvil_intercept_proto::status::{
-    DaemonStatusV1, SaveTimeDriverEvidenceV1, SaveTimeDriverStatusV1, WorktreeStatusV1,
+    DaemonStatusV1, IpcStateV1, SaveTimeDriverEvidenceV1, SaveTimeDriverStatusV1, WorktreeStatusV1,
 };
 use anvil_kernel_types::hooks::is_anvil_managed_command;
 use anvil_kernel_types::protection_claim::{ProtectionClaim, WorktreeClaimState};
@@ -16,6 +16,10 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::activation;
+use crate::activation::diagnostic::{ConfigStatus, McpTier};
+use crate::commands::ensure::{
+    EnsureComponentReadiness, EnsureReadiness, EnsureReadinessComponents, EnsureReadinessState,
+};
 use crate::commands::hooks::{
     HookInterpreterStatus, config_hooks_enabled, hook_interpreter_status, is_config_mode_hook_path,
     list_config_hook_commands, resolve_file_mode_hook_paths,
@@ -24,6 +28,7 @@ use crate::commands::protection_claim_section;
 use crate::commands::status_mcp;
 use crate::commands::watch_save_time;
 use crate::config_summary::render_rule_mode_summary;
+use crate::output::AlreadyReported;
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {
@@ -48,6 +53,26 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let mut data = gather_status_data(".");
     let activation = activation::verify(Path::new("."));
+    let registerable_worktree = crate::registration::registerable_worktree(Path::new(".")).ok();
+    let worktree = registerable_worktree.clone().unwrap_or_else(|| {
+        std::fs::canonicalize(".").unwrap_or_else(|_| Path::new(".").to_path_buf())
+    });
+    let daemon_snapshot = match crate::commands::intercept::query_daemon_status() {
+        Ok(snapshot) => Some(snapshot),
+        Err(err) => {
+            tracing::debug!(
+                error = %err,
+                "anvil status: daemon IPC unavailable; readiness will report measured coverage",
+            );
+            None
+        }
+    };
+    let readiness = status_readiness(
+        &activation,
+        daemon_snapshot.as_ref(),
+        registerable_worktree.as_deref(),
+    );
+    let readiness_failed = readiness.failed();
     // DSV-007 / UJ-005: best-effort save-time posture. A live daemon renders
     // its assurance + confinement; default-on routing with no daemon states
     // the off posture explicitly; explicit opt-in preserves the older
@@ -120,35 +145,16 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     }
 
     if global.json {
-        // MLP2-048: IPC query_status for real ProtectionClaim surfaces; on
-        // failure fall back to local-only (empty surfaces). Canonicalise paths
-        // the same way the daemon does on register.
-        let daemon_snapshot = match crate::commands::intercept::query_daemon_status() {
-            Ok(snapshot) => Some(snapshot),
-            Err(err) => {
-                tracing::debug!(
-                    error = %err,
-                    "anvil status --json: daemon IPC unavailable; falling back to local-only protection claim",
-                );
-                None
-            }
-        };
-        let worktree = std::fs::canonicalize(".").unwrap_or_else(|err| {
-            tracing::warn!(
-                error = %err,
-                "anvil status --json: cwd canonicalise failed; protection claim will not match any daemon-registered session",
-            );
-            Path::new(".").to_path_buf()
-        });
         print_json(
             &data,
             &activation,
             daemon_snapshot.as_ref(),
             &worktree,
+            readiness,
             save_time.assurance(),
             mcp,
         )?;
-    } else if status_prefers_tui(global) {
+    } else if status_prefers_tui(global) && !readiness_failed {
         let state = StatusState::new(data);
         crate::tui::run_surface(state)?;
     } else {
@@ -157,13 +163,22 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             &data,
             &activation,
             save_time,
-            cli_version,
-            mcp_inventory.as_ref(),
-            graph.as_ref(),
+            &PlainStatusContext {
+                cli_version,
+                mcp_inventory: mcp_inventory.as_ref(),
+                graph: graph.as_ref(),
+                daemon_snapshot: daemon_snapshot.as_ref(),
+                worktree: &worktree,
+                readiness: &readiness,
+            },
         );
     }
 
-    Ok(())
+    if readiness_failed {
+        Err(AlreadyReported.into())
+    } else {
+        Ok(())
+    }
 }
 
 /// LAUNCH-012: verification surface. Stand-alone activation probe
@@ -173,6 +188,14 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 /// the start command.
 fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let activation = activation::verify(Path::new("."));
+    let registerable_worktree = crate::registration::registerable_worktree(Path::new(".")).ok();
+    let daemon_snapshot = crate::commands::intercept::query_daemon_status().ok();
+    let readiness = status_readiness(
+        &activation,
+        daemon_snapshot.as_ref(),
+        registerable_worktree.as_deref(),
+    );
+    let readiness_failed = readiness.failed();
     let cli_version = env!("CARGO_PKG_VERSION");
     let mcp_inventory = status_mcp::gather_mcp_inventory(cli_version);
     let save_time = gather_save_time();
@@ -191,10 +214,11 @@ fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         ) {
             merge_status_mcp_json(&mut value, &mcp);
         }
+        merge_status_readiness_json(&mut value, &readiness);
         let json = serde_json::to_string_pretty(&value)?;
         println!("{json}");
     } else {
-        print!("{}", activation::render_human(&activation));
+        print!("{}", render_verify_activation(&activation, &readiness));
         print!("{}", render_rule_mode_summary(Path::new(".")));
         print!(
             "{}",
@@ -205,6 +229,7 @@ fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 graph.as_ref(),
             )
         );
+        print!("{}", render_status_readiness(&readiness, true));
         // MLP2-051g — verbose tier-evidence on stderr. Suppressed
         // under `--json` (consumers expect a single JSON document on
         // stdout; the stderr block does not change that contract,
@@ -214,7 +239,260 @@ fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             eprint!("{}", activation::render_human_verbose(&activation));
         }
     }
-    Ok(())
+    if readiness_failed {
+        Err(AlreadyReported.into())
+    } else {
+        Ok(())
+    }
+}
+
+fn merge_status_readiness_json(value: &mut serde_json::Value, readiness: &EnsureReadiness) {
+    let Some(obj) = value.as_object_mut() else {
+        return;
+    };
+    if let Ok(readiness) = serde_json::to_value(readiness) {
+        obj.insert("readiness".to_owned(), readiness);
+    }
+    if let Some(next) = status_readiness_action(readiness) {
+        obj.insert("next".to_owned(), serde_json::Value::String(next));
+    }
+}
+
+fn env_opt_out(name: &str) -> bool {
+    std::env::var_os(name).is_some_and(|value| !value.is_empty())
+}
+
+fn status_readiness(
+    activation: &activation::ActivationDiagnostic,
+    daemon_snapshot: Option<&DaemonStatusV1>,
+    worktree: Option<&Path>,
+) -> EnsureReadiness {
+    let config_state = match activation.config {
+        ConfigStatus::Valid => EnsureReadinessState::Ready,
+        ConfigStatus::Absent => EnsureReadinessState::Disabled,
+        ConfigStatus::Invalid => EnsureReadinessState::Failed,
+    };
+    let save_time = status_save_time_readiness(daemon_snapshot, worktree);
+    let mcp = status_mcp_readiness(activation);
+
+    EnsureReadiness::from_components(EnsureReadinessComponents {
+        config: EnsureComponentReadiness::new(config_state, activation.config.label()),
+        daemon: save_time.daemon,
+        worktree: save_time.worktree,
+        save_time: save_time.driver,
+        mcp,
+    })
+}
+
+struct StatusSaveTimeReadiness {
+    daemon: EnsureComponentReadiness,
+    worktree: EnsureComponentReadiness,
+    driver: EnsureComponentReadiness,
+}
+
+fn status_save_time_readiness(
+    daemon_snapshot: Option<&DaemonStatusV1>,
+    worktree: Option<&Path>,
+) -> StatusSaveTimeReadiness {
+    let daemon_opted_out = env_opt_out("ANVIL_NO_DAEMON");
+    let driver_opted_out = env_opt_out("ANVIL_NO_SAVE_TIME_DRIVER");
+    let selected = worktree.is_some() && !daemon_opted_out && !driver_opted_out;
+    let daemon_state = if selected {
+        match daemon_snapshot.map(|snapshot| snapshot.health.ipc_state) {
+            Some(IpcStateV1::Serving) => EnsureReadinessState::Ready,
+            Some(IpcStateV1::Draining) | None => EnsureReadinessState::Failed,
+        }
+    } else {
+        EnsureReadinessState::Disabled
+    };
+
+    let durable_member = worktree.is_some_and(|worktree| {
+        daemon_snapshot.is_some_and(|snapshot| {
+            snapshot
+                .registered_worktrees()
+                .iter()
+                .any(|registered| registered == worktree)
+        })
+    });
+    let worktree_state =
+        if selected && daemon_state == EnsureReadinessState::Ready && durable_member {
+            EnsureReadinessState::Ready
+        } else if selected {
+            EnsureReadinessState::Failed
+        } else {
+            EnsureReadinessState::Disabled
+        };
+    let driver = worktree.and_then(|worktree| {
+        daemon_snapshot.and_then(|snapshot| {
+            snapshot
+                .worktrees
+                .iter()
+                .find(|entry| entry.worktree == worktree)
+        })
+    });
+    let driver_state = if selected
+        && (daemon_state != EnsureReadinessState::Ready
+            || worktree_state != EnsureReadinessState::Ready
+            || driver.is_none())
+    {
+        EnsureReadinessState::Failed
+    } else if let Some(entry) = driver {
+        match entry.save_time_driver {
+            SaveTimeDriverStatusV1::Attached => match entry.save_time_driver_evidence {
+                Some(SaveTimeDriverEvidenceV1::Spawned) => EnsureReadinessState::Starting,
+                Some(
+                    SaveTimeDriverEvidenceV1::WatchesInstalled
+                    | SaveTimeDriverEvidenceV1::FreshActivity,
+                ) => EnsureReadinessState::Ready,
+                Some(SaveTimeDriverEvidenceV1::Unknown) | None => EnsureReadinessState::Degraded,
+            },
+            SaveTimeDriverStatusV1::Unknown => EnsureReadinessState::Degraded,
+            SaveTimeDriverStatusV1::Absent | SaveTimeDriverStatusV1::Failed => {
+                EnsureReadinessState::Failed
+            }
+        }
+    } else {
+        EnsureReadinessState::Disabled
+    };
+
+    let daemon_detail = if daemon_opted_out {
+        "disabled by ANVIL_NO_DAEMON".to_owned()
+    } else if driver_opted_out {
+        "not selected because save-time driver is disabled".to_owned()
+    } else if worktree.is_none() {
+        "not a registerable worktree".to_owned()
+    } else {
+        match daemon_snapshot.map(|snapshot| snapshot.health.ipc_state) {
+            Some(IpcStateV1::Serving) => "daemon serving".to_owned(),
+            Some(IpcStateV1::Draining) => "daemon is draining".to_owned(),
+            None => "daemon unavailable or unresponsive".to_owned(),
+        }
+    };
+    let worktree_detail = if durable_member {
+        "durably registered".to_owned()
+    } else if selected {
+        "not durably registered".to_owned()
+    } else {
+        "save-time coverage not selected".to_owned()
+    };
+    let driver_detail = status_driver_detail(driver, selected);
+
+    StatusSaveTimeReadiness {
+        daemon: EnsureComponentReadiness::new(daemon_state, daemon_detail),
+        worktree: EnsureComponentReadiness::new(worktree_state, worktree_detail),
+        driver: EnsureComponentReadiness::new(driver_state, driver_detail),
+    }
+}
+
+fn status_driver_detail(driver: Option<&WorktreeStatusV1>, selected: bool) -> String {
+    if !selected {
+        return "save-time coverage disabled".to_owned();
+    }
+    driver.map_or_else(
+        || "no save-time driver evidence".to_owned(),
+        |entry| {
+            let state = save_time_driver_str(entry.save_time_driver);
+            entry.save_time_driver_evidence.map_or_else(
+                || state.to_owned(),
+                |evidence| format!("{state} ({})", save_time_driver_evidence_str(evidence)),
+            )
+        },
+    )
+}
+
+fn status_mcp_readiness(activation: &activation::ActivationDiagnostic) -> EnsureComponentReadiness {
+    let unresolvable_command = activation
+        .mcp
+        .values()
+        .find_map(|probe| probe.unresolvable_command.as_deref());
+    let failed = unresolvable_command.is_some()
+        || activation
+            .last_error
+            .as_deref()
+            .is_some_and(|error| error.to_ascii_lowercase().contains("mcp"));
+    let state = if env_opt_out("ANVIL_NO_MCP") {
+        EnsureReadinessState::Disabled
+    } else if failed {
+        EnsureReadinessState::Failed
+    } else {
+        match activation.highest_mcp_tier() {
+            Some(McpTier::LiveValidation) => EnsureReadinessState::Ready,
+            Some(McpTier::RestartRequired | McpTier::RestartHandshakeVerified) => {
+                EnsureReadinessState::Starting
+            }
+            Some(McpTier::ConfigPresent | McpTier::ServerStartable) => {
+                EnsureReadinessState::Degraded
+            }
+            Some(McpTier::NotDetected | McpTier::ConfigAbsent) | None => {
+                EnsureReadinessState::Disabled
+            }
+        }
+    };
+    let detail = if env_opt_out("ANVIL_NO_MCP") {
+        "disabled by ANVIL_NO_MCP".to_owned()
+    } else if let Some(command) = unresolvable_command {
+        format!("configured MCP command `{command}` is not resolvable on PATH")
+    } else if failed {
+        activation
+            .last_error
+            .clone()
+            .unwrap_or_else(|| "MCP readiness failed".to_owned())
+    } else {
+        activation.highest_mcp_tier().map_or_else(
+            || "no MCP client detected".to_owned(),
+            |tier| tier.label().to_owned(),
+        )
+    };
+    EnsureComponentReadiness::new(state, detail)
+}
+
+fn status_readiness_action(readiness: &EnsureReadiness) -> Option<String> {
+    readiness.failure_action().or_else(|| {
+        let components = &readiness.components;
+        if matches!(
+            components.save_time.state,
+            EnsureReadinessState::Starting | EnsureReadinessState::Degraded
+        ) {
+            Some("run bare `anvil` to finish save-time readiness".to_owned())
+        } else if matches!(
+            components.mcp.state,
+            EnsureReadinessState::Starting | EnsureReadinessState::Degraded
+        ) {
+            Some("run `anvil start` to finish MCP readiness".to_owned())
+        } else {
+            None
+        }
+    })
+}
+
+fn render_status_readiness(readiness: &EnsureReadiness, include_action: bool) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::new();
+    let _ = writeln!(out, "Readiness: {}", readiness.state.label());
+    let _ = writeln!(out, "Components: {}", readiness.component_summary());
+    if include_action && let Some(next) = status_readiness_action(readiness) {
+        let _ = writeln!(out, "Next: {next}");
+    }
+    out
+}
+
+fn render_verify_activation(
+    activation: &activation::ActivationDiagnostic,
+    readiness: &EnsureReadiness,
+) -> String {
+    let rendered = activation::render_human(activation);
+    if status_readiness_action(readiness).is_none() {
+        return rendered;
+    }
+    rendered
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("next:"))
+        .fold(String::new(), |mut output, line| {
+            output.push_str(line);
+            output.push('\n');
+            output
+        })
 }
 
 fn merge_status_mcp_json(value: &mut serde_json::Value, mcp: &status_mcp::StatusMcpJson) {
@@ -542,13 +820,20 @@ fn file_hook_is_active(path: &Path, interpreter: HookInterpreterStatus) -> bool 
 // Output: plain text
 // ---------------------------------------------------------------------------
 
+struct PlainStatusContext<'a> {
+    cli_version: &'a str,
+    mcp_inventory: Option<&'a status_mcp::McpProcessInventory>,
+    graph: Option<&'a status_mcp::GraphReadiness>,
+    daemon_snapshot: Option<&'a DaemonStatusV1>,
+    worktree: &'a Path,
+    readiness: &'a EnsureReadiness,
+}
+
 fn print_plain(
     data: &StatusData,
     activation_diag: &activation::ActivationDiagnostic,
     save_time: SaveTimePosture,
-    cli_version: &str,
-    mcp_inventory: Option<&status_mcp::McpProcessInventory>,
-    graph: Option<&status_mcp::GraphReadiness>,
+    context: &PlainStatusContext<'_>,
 ) {
     // Resolve the repo root once so the witness chain at
     // `<repo-root>/anvil/witness/active.ndjson` is found even when
@@ -558,7 +843,10 @@ fn print_plain(
     // witness line just reports "none yet" instead of pointing at
     // the wrong tree.
     let root = resolve_repo_root().unwrap_or_else(|| Path::new(".").to_path_buf());
-    let snapshot = build_legible_snapshot(data, activation_diag, &root, save_time);
+    let mut snapshot = build_legible_snapshot(data, activation_diag, &root, save_time);
+    if let Some(next) = status_readiness_action(context.readiness) {
+        snapshot.next_action = next;
+    }
     print!("{}", render_plain_legible(&snapshot));
     // Rule-mode summary line is appended as advisory context. The
     // 24-row budget is for the FULL `anvil status` plain output, so
@@ -569,11 +857,9 @@ fn print_plain(
     // ACTMO-017: surface the durably-registered worktrees and whether the
     // current directory is among them. Best-effort: a daemon-down query renders
     // a degraded line rather than omitting the section.
-    let registered_snapshot = crate::commands::intercept::query_daemon_status().ok();
-    let cwd = std::fs::canonicalize(".").ok();
     print!(
         "{}",
-        render_registered_worktrees(registered_snapshot.as_ref(), cwd.as_deref())
+        render_registered_worktrees(context.daemon_snapshot, Some(context.worktree))
     );
     let protecting = matches!(
         activation_diag.protection_state(),
@@ -581,8 +867,14 @@ fn print_plain(
     );
     print!(
         "{}",
-        status_mcp::render_status_mcp_plain(cli_version, protecting, mcp_inventory, graph)
+        status_mcp::render_status_mcp_plain(
+            context.cli_version,
+            protecting,
+            context.mcp_inventory,
+            context.graph,
+        )
     );
+    print!("{}", render_status_readiness(context.readiness, false));
     // DISTRIB-002 update hint, INSIGHTS-004 nudge, and the UJ-010
     // what's-new line share the single footer line in plain output.
     // INSIGHTS-004 takes priority (matching the TUI watch strip, which
@@ -1687,6 +1979,13 @@ pub const STATUS_SCHEMA_VERSION: &str = "anvil.status.v1";
 struct StatusOutput {
     schema_version: &'static str,
     activation: serde_json::Value,
+    /// JREL-005: aggregate typed readiness across the selected protection
+    /// components. Always present so automation can pair the process exit with
+    /// the exact failing component instead of reverse-engineering prose.
+    readiness: EnsureReadiness,
+    /// JREL-005: at most one component-specific recovery action.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next: Option<String>,
     hooks: Vec<HookOutput>,
     profile: ProfileOutput,
     recent_runs: Vec<RunOutput>,
@@ -1778,6 +2077,7 @@ fn print_json(
     activation_diag: &activation::ActivationDiagnostic,
     daemon_snapshot: Option<&DaemonStatusV1>,
     worktree: &Path,
+    readiness: EnsureReadiness,
     save_time: Option<&SaveTimeRender>,
     mcp: Option<status_mcp::StatusMcpJson>,
 ) -> anyhow::Result<()> {
@@ -1808,9 +2108,12 @@ fn print_json(
             .iter()
             .find(|entry| entry.worktree == worktree)
     });
+    let next = status_readiness_action(&readiness);
     let output = StatusOutput {
         schema_version: STATUS_SCHEMA_VERSION,
         activation: activation::render_json(activation_diag),
+        readiness,
+        next,
         hooks: data
             .hooks
             .iter()
@@ -3885,6 +4188,8 @@ mod tests {
     }
 
     fn status_output_for_mcp_test(mcp: status_mcp::StatusMcpJson) -> StatusOutput {
+        let disabled =
+            || EnsureComponentReadiness::new(EnsureReadinessState::Disabled, "test fixture");
         StatusOutput {
             schema_version: STATUS_SCHEMA_VERSION,
             activation: serde_json::json!({
@@ -3894,6 +4199,14 @@ mod tests {
                 "mcp": [],
                 "watch": "not_requested"
             }),
+            readiness: EnsureReadiness::from_components(EnsureReadinessComponents {
+                config: disabled(),
+                daemon: disabled(),
+                worktree: disabled(),
+                save_time: disabled(),
+                mcp: disabled(),
+            }),
+            next: None,
             hooks: vec![],
             profile: ProfileOutput {
                 name: "test".into(),

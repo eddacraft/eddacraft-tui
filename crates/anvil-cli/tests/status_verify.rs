@@ -68,7 +68,11 @@ fn status_verify_on_repo_with_invalid_config_renders_error() {
 
     let home = tempfile::tempdir().unwrap();
     let out = run_status_verify_with_home(dir.path(), home.path(), &[]);
-    assert!(out.status.success());
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "invalid configuration is a typed readiness failure"
+    );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("state: error"),
