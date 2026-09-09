@@ -215,10 +215,19 @@ pub struct Attestation {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bounds: Vec<BoundEntry>,
     /// Estimated token cost of this answer (existing graph-cache estimator).
+    /// Omitted while unset so a default projector cannot look like a real
+    /// zero-cost estimate (ADR-142: disclosure that never fires).
+    #[serde(default, skip_serializing_if = "usize_is_zero")]
     pub est_tokens: usize,
     /// Estimator version that produced [`Self::est_tokens`]. Travels with the
-    /// number so it stays comparable and reads as an estimate.
+    /// number so it stays comparable and reads as an estimate. Empty until
+    /// GATT-005 populates producers.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub estimator_version: String,
+}
+
+const fn usize_is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 impl Attestation {
@@ -1491,6 +1500,25 @@ mod tests {
         assert_eq!(v["bounds"][0]["budget"], "node_budget");
         assert_eq!(v["bounds"][0]["returned"], 12);
         assert_eq!(v["bounds"][0]["total"]["kind"], "at_least");
+    }
+
+    #[test]
+    fn default_attestation_serialises_as_empty_object() {
+        // ADR-142 risk: `est_tokens: 0` + empty version on every default
+        // projector looks like a real estimate. Unset cost fields stay absent
+        // until GATT-005 populates them.
+        let v = serde_json::to_value(Attestation::default()).unwrap();
+        assert_eq!(v, serde_json::json!({}));
+        assert!(
+            v.get("est_tokens").is_none(),
+            "default must not serialise est_tokens: 0 as if an estimate ran"
+        );
+        assert!(
+            v.get("estimator_version").is_none(),
+            "default must not serialise an empty estimator_version"
+        );
+        let round_trip: Attestation = serde_json::from_value(v).unwrap();
+        assert_eq!(round_trip, Attestation::default());
     }
 
     #[test]

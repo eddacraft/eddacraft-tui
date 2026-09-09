@@ -719,7 +719,7 @@ mod tests {
     }
 
     // (whole_repo, neighbourhood, graph) — see README token_reduction table.
-    const GOLDEN_SMALL_LIB: (usize, usize, usize) = (2163, 2163, 429);
-    const GOLDEN_LAYERED_APP: (usize, usize, usize) = (8614, 4738, 539);
-    const GOLDEN_WIDE_FANOUT: (usize, usize, usize) = (7548, 6919, 589);
+    const GOLDEN_SMALL_LIB: (usize, usize, usize) = (2163, 2163, 417);
+    const GOLDEN_LAYERED_APP: (usize, usize, usize) = (8614, 4738, 527);
+    const GOLDEN_WIDE_FANOUT: (usize, usize, usize) = (7548, 6919, 577);
 }
