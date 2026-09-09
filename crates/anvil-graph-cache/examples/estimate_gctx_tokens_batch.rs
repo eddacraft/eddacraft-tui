@@ -7,16 +7,14 @@
 //! Driven by `plans/evals/context-compiler/2026-09-08/crosscheck_gctx_tokens.py`.
 
 use anvil_graph_cache::{
-    estimate_gctx_tokens, MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES, TokenEstimateError,
+    MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES, TokenEstimateError, estimate_gctx_tokens,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::io::{self, Read};
 
 fn main() {
     let mut raw = String::new();
-    io::stdin()
-        .read_to_string(&mut raw)
-        .expect("read stdin");
+    io::stdin().read_to_string(&mut raw).expect("read stdin");
     let inputs: Vec<String> =
         serde_json::from_str(&raw).expect("stdin must be a JSON array of strings");
 
