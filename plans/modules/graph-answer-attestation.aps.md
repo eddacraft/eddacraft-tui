@@ -143,8 +143,8 @@ All gates cleared 2026-09-07; module promoted to **Ready**.
 
 | ID       | Task                                                | Status | Depends on |
 | -------- | --------------------------------------------------- | ------ | ---------- |
-| GATT-001 | Self-attestation contract (spec amendment)          | In Progress | —          |
-| GATT-002 | Disclosure gate harness (written before the fields) | Ready | GATT-001   |
+| GATT-001 | Self-attestation contract (spec amendment)          | Merged 2026-09-09 via PR [#4520](https://github.com/eddacraft/anvil-001/pull/4520) | —          |
+| GATT-002 | Disclosure gate harness (written before the fields) | In Progress | GATT-001   |
 | GATT-003 | Per-edge call-resolution fidelity                   | Ready | GATT-002   |
 | GATT-004 | Cap disclosure parity across the six tools          | Ready | GATT-002   |
 | GATT-005 | Cost self-report on every projection envelope       | Ready | GATT-002   |
@@ -161,7 +161,12 @@ All gates cleared 2026-09-07; module promoted to **Ready**.
   default (CE-1) and the counts-only egress posture (CE-11), states the CE-3
   post-deny-list counting constraint, and holds for both the MCP surface and the
   ADR-095 CLI secondary.
-- **Validation:** `pnpm docs:check`
+- **Validation:** `pnpm docs:check` — exit 0, 15/15 on
+  `308e344b210d1cbc118a1af3e01a0f43fc4f2f17` (independent verify-loop pass).
+  Merged 2026-09-09 via PR
+  [#4520](https://github.com/eddacraft/anvil-001/pull/4520) (rebase). Original
+  head is not an ancestor after rewrite; content probe: `## Self-attestation
+  (ADR-142)` on `origin/main` (`ac0d73f3c` / tip `bf2391bbd`).
 - **Non-scope:** No code. No GV2 schema change. No new identity or path is
   introduced by any field this section defines.
 - **Files:** `docs/architecture/graph-context-delivery-spec.md`
@@ -175,11 +180,12 @@ All gates cleared 2026-09-07; module promoted to **Ready**.
   the condition and asserts the disclosure is visible on the projection — a cap
   actually fires, an ambiguous edge actually exists, an estimate is actually
   attached. Each gate is confirmed to fail when its subject is removed.
-- **Validation:** `cargo test -p anvil-gctx-types -p anvil-graph-cache`
-- **Non-scope:** The fields themselves — this item asserts against the contract,
-  and is expected to fail until GATT-003..005 land. It is written first on
-  purpose: a gate that cannot observe what it asserts is worse than no gate,
-  because it reports confidence.
+- **Validation:** `cargo test -p eddacraft-anvil-gctx-types -p eddacraft-anvil-graph-cache`
+- **Non-scope:** Producer wiring — GATT-003..005 fill per-edge fidelity, cap
+  counts, and cost self-report. This item ships the shared type and observer
+  tests; projector envelopes currently attach `Attestation::default()`.
+- **Files:** `crates/anvil-gctx-types/src/lib.rs`,
+  `crates/anvil-gctx-egress/src/lib.rs`
 - **Confidence:** medium
 
 ### GATT-003 — Per-edge call-resolution fidelity

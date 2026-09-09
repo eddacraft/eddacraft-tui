@@ -997,3 +997,25 @@ never with feature work.
 - Checkpoints raised: drain stopped treating `/address-reviews` as a
   terminal skill; after merge it must return to Orient → Select.
 - Next: CGBDG-001 (discovery). No Ready MCPLH item remains.
+
+## Cycle — 2026-09-09 (GATT drain: GATT-001 integrated)
+
+- Target: GATT drain. Harness: Grok (`GROK_AGENT=1`). Mode: autonomous
+  complete plus rebase-merge on green (session override; no admin merge).
+- Isolation: reused `/home/aneki/.grok/worktrees/src-anvil-001/gatt-drain`;
+  branch `docs/gatt-001-self-attestation-contract`. No `/tmp` worktree.
+- Claims (degraded/advisory): GitHub #4515; git-ref `refs/claims/GATT-001`
+  and `refs/claims/GATT`. Heartbeat renew stayed local (GitHub blob refs
+  reject non-fast-forward without force).
+- GATT-001 (self-attestation spec amendment):
+  `LANDING(308e344b210d1cbc118a1af3e01a0f43fc4f2f17)` then
+  `MERGED(bf2391bbd9a55d01a4f2b06b8a66a60612220f87, 2026-09-09T14:55:37Z)`
+  via PR #4520 (rebase-merge). Original head is not an ancestor after
+  rewrite; content probe passed (`## Self-attestation (ADR-142)` on
+  `origin/main`). Verify-loop pass on `7bf8e0fa` then delta pass on
+  `308e344b2`. Copilot nits (freshness grammar, checklist drift) repaired
+  before merge. `pnpm docs:check` 15/15; docs:redate nothing owed.
+- CIB-341/342 already Merged (#3965, #3964) before this work.
+- Avoided: jrel-drain, cctx-004, residual-map V1, JREL welcome files.
+- Next: GATT-002 disclosure gate harness (`test/gatt-002-disclosure-harness`,
+  claim #4524).
