@@ -578,7 +578,10 @@ impl StatusProvider for DaemonStatusProvider {
     }
 
     fn query_status_for_worktree(&self, worktree: &Path) -> DaemonStatus {
-        self.assemble_snapshot(self.registry.sessions_for_worktree(worktree))
+        filter_status_to_worktree(
+            self.assemble_snapshot(self.registry.sessions_for_worktree(worktree)),
+            worktree,
+        )
     }
 }
 
@@ -934,10 +937,10 @@ mod tests {
                 sample_session("s-a", "/tmp/wt-a"),
                 sample_session("s-b", "/tmp/wt-b"),
             ],
-            &[],
+            &[fence_record("/tmp/wt-a"), fence_record("/tmp/wt-b")],
             IpcState::Serving,
         );
-        let scoped = filter_status_to_worktree(snapshot, Path::new("/tmp/wt-a"));
+        let scoped = filter_status_to_worktree(snapshot.clone(), Path::new("/tmp/wt-a"));
         assert_eq!(scoped.sessions.len(), 1);
         assert_eq!(scoped.sessions[0].id.as_str(), "s-a");
         assert!(
@@ -946,6 +949,15 @@ mod tests {
                 .iter()
                 .all(|entry| entry.worktree == Path::new("/tmp/wt-a"))
         );
+        assert!(
+            scoped
+                .fences
+                .iter()
+                .all(|fence| fence.worktree == Path::new("/tmp/wt-a"))
+        );
+        let full_claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-a"));
+        let scoped_claim = build_protection_claim(&scoped, Path::new("/tmp/wt-a"));
+        assert_eq!(full_claim, scoped_claim);
     }
 
     fn sample_rollup(p50_ms: f64, p95_ms: f64) -> LatencyRollup {
