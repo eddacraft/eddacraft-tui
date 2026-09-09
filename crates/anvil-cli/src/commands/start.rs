@@ -398,12 +398,19 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
     }
 
+    // Read-only probes (`--verify` / `--json`) never start a daemon
+    // (`daemon_capability` is `None`). Treat that the same as an explicit
+    // NoSpawn opt-out for readiness: do not select save-time coverage that
+    // would fail-closed solely because no daemon is answering. Mutating
+    // `anvil start` still measures MaySpawn honestly.
     let readiness_selection = ReadinessSelection::new(
         crate::commands::ensure::save_time_driver_opt_out(),
-        matches!(
-            daemon_capability,
-            Some(anvil_intercept::ensure::StartCapability::NoSpawn(_))
-        ),
+        daemon_capability.is_none_or(|capability| {
+            matches!(
+                capability,
+                anvil_intercept::ensure::StartCapability::NoSpawn(_)
+            )
+        }),
         start_mcp_opt_out(args),
     )
     .with_mcp_required_without_session(
