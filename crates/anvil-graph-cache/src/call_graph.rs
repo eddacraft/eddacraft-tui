@@ -463,7 +463,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn mixed_frontier_edges_keep_exact_fidelities() {
         // GATT-003: hop-2 caller through three exact mids + one fan-out mid
@@ -486,28 +485,109 @@ mod tests {
                 imports: Vec::new(),
                 reexports: Vec::new(),
                 calls: vec![
-                    CallSite { from: caller_ref("m1"), callee: CalleeRef { name: "t".into(), via_import: None }, line: 1 },
-                    CallSite { from: caller_ref("m2"), callee: CalleeRef { name: "t".into(), via_import: None }, line: 2 },
-                    CallSite { from: caller_ref("m3"), callee: CalleeRef { name: "t".into(), via_import: None }, line: 3 },
-                    CallSite { from: caller_ref("m4"), callee: CalleeRef { name: "t".into(), via_import: None }, line: 4 },
-                    CallSite { from: caller_ref("c"), callee: CalleeRef { name: "m1".into(), via_import: None }, line: 5 },
-                    CallSite { from: caller_ref("c"), callee: CalleeRef { name: "m2".into(), via_import: None }, line: 6 },
-                    CallSite { from: caller_ref("c"), callee: CalleeRef { name: "m3".into(), via_import: None }, line: 7 },
-                    CallSite { from: caller_ref("c"), callee: CalleeRef { name: "m4".into(), via_import: None }, line: 8 },
+                    CallSite {
+                        from: caller_ref("m1"),
+                        callee: CalleeRef {
+                            name: "t".into(),
+                            via_import: None,
+                        },
+                        line: 1,
+                    },
+                    CallSite {
+                        from: caller_ref("m2"),
+                        callee: CalleeRef {
+                            name: "t".into(),
+                            via_import: None,
+                        },
+                        line: 2,
+                    },
+                    CallSite {
+                        from: caller_ref("m3"),
+                        callee: CalleeRef {
+                            name: "t".into(),
+                            via_import: None,
+                        },
+                        line: 3,
+                    },
+                    CallSite {
+                        from: caller_ref("m4"),
+                        callee: CalleeRef {
+                            name: "t".into(),
+                            via_import: None,
+                        },
+                        line: 4,
+                    },
+                    CallSite {
+                        from: caller_ref("c"),
+                        callee: CalleeRef {
+                            name: "m1".into(),
+                            via_import: None,
+                        },
+                        line: 5,
+                    },
+                    CallSite {
+                        from: caller_ref("c"),
+                        callee: CalleeRef {
+                            name: "m2".into(),
+                            via_import: None,
+                        },
+                        line: 6,
+                    },
+                    CallSite {
+                        from: caller_ref("c"),
+                        callee: CalleeRef {
+                            name: "m3".into(),
+                            via_import: None,
+                        },
+                        line: 7,
+                    },
+                    CallSite {
+                        from: caller_ref("c"),
+                        callee: CalleeRef {
+                            name: "m4".into(),
+                            via_import: None,
+                        },
+                        line: 8,
+                    },
                 ],
                 calls_partial: false,
                 has_unresolved_dynamic_import: false,
                 content_hash: None,
             },
         );
-        let t = SymbolIdentity { file: file.into(), kind: SymbolKind::Function, name: "t".into(), ordinal: 0 };
+        let t = SymbolIdentity {
+            file: file.into(),
+            kind: SymbolKind::Function,
+            name: "t".into(),
+            ordinal: 0,
+        };
         let report = callers_of(&g, &t, 2);
-        let c = report.callers.iter().find(|x| x.caller.name == "c" && x.distance == 2).expect("hop-2 caller c");
+        let c = report
+            .callers
+            .iter()
+            .find(|x| x.caller.name == "c" && x.distance == 2)
+            .expect("hop-2 caller c");
         assert!(c.heuristic, "derived summary is heuristic when any edge is");
-        let exact_n = c.edges.iter().filter(|e| matches!(e, CallEdgeFidelity::Exact)).count();
-        let heur_n = c.edges.iter().filter(|e| matches!(e, CallEdgeFidelity::Heuristic)).count();
-        assert!(exact_n >= 3, "exact mid edges must remain visible (Exact={exact_n} Heuristic={heur_n} edges={:?})", c.edges);
-        assert!(heur_n >= 1, "fan-out mid edge must remain visible (Exact={exact_n} Heuristic={heur_n} edges={:?})", c.edges);
+        let exact_n = c
+            .edges
+            .iter()
+            .filter(|e| matches!(e, CallEdgeFidelity::Exact))
+            .count();
+        let heur_n = c
+            .edges
+            .iter()
+            .filter(|e| matches!(e, CallEdgeFidelity::Heuristic))
+            .count();
+        assert!(
+            exact_n >= 3,
+            "exact mid edges must remain visible (Exact={exact_n} Heuristic={heur_n} edges={:?})",
+            c.edges
+        );
+        assert!(
+            heur_n >= 1,
+            "fan-out mid edge must remain visible (Exact={exact_n} Heuristic={heur_n} edges={:?})",
+            c.edges
+        );
     }
 
     #[test]

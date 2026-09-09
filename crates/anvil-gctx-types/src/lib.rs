@@ -569,7 +569,9 @@ pub struct CallerSummary {
     pub heuristic: bool,
     /// Per-edge call-resolution fidelity for every `Calls` edge from this caller
     /// that contributed at this distance. A mixed set (Exact + Heuristic) keeps
-    /// Exact edges visible instead of OR-ing them away (GATT-003).
+    /// Exact edges visible instead of OR-ing them away (GATT-003). Absent on
+    /// older payloads (empty default).
+    #[serde(default)]
     pub edges: Vec<EdgeFidelity>,
 }
 
