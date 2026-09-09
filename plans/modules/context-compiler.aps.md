@@ -5,7 +5,7 @@
 
 | ID   | Owner       | Status | Progress |
 | ---- | ----------- | ------ | -------- |
-| CCTX | @joshuaboys | Ready | 3/4      |
+| CCTX | @joshuaboys | Ready | 2/3      |
 
 **Status:** **Ready** (2026-09-08). Owner authorised the first spike. Spec
 §12/§13 is frozen enough to run (CCTX-001). Spec §9 Decision Brief
@@ -16,8 +16,8 @@ resolved, not ADRs. Trust boundary remains binding: synthesis is advisory
 and never allow / warn / block. Enforcement must keep working if Context
 Compiler is unavailable.
 
-CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is **Done** via
-PR #4459 (Decision Brief contract frozen). CCTX-003 is **Complete**
+CCTX-001 is **Merged 2026-09-08 via PR #4456**. CCTX-002 is **Merged
+2026-09-08 via PR #4459** (Decision Brief contract frozen). CCTX-003 is **Complete**
 (fixtures + dated eval report; no product ships).
 
 **Spec:**
@@ -42,7 +42,7 @@ predicates.
 for an Anvil allow, warn, or block decision. Enforcement must keep working if
 Context Compiler is unavailable, stale, or wrong.
 
-**Last reviewed:** 2026-09-08 — CCTX-004 In Progress (live V1 T01–T05);
+**Last reviewed:** 2026-09-08 — CCTX-002 Merged via PR #4459; CCTX-004 In Progress (live V1 T01–T05);
 CCTX-005 Draft stub (GCTX harness for V2/V4; diagnosis note only; not
 started); design council PASS (gate WARN) on live V1 eval only; CCTX-003
 Complete; T06/T07 structural-partial-brief + recovery-cost scoring path
@@ -148,7 +148,7 @@ compiler, crate, or flag.
 | ID       | Task                                              | Status | Depends on |
 | -------- | ------------------------------------------------- | ------ | ---------- |
 | CCTX-001 | Freeze the internal evaluation protocol           | Merged 2026-09-08 via PR #4456 | —          |
-| CCTX-002 | Freeze the Decision Brief as an advisory contract | Done   | CCTX-001   |
+| CCTX-002 | Freeze the Decision Brief as an advisory contract | Merged 2026-09-08 via PR #4459 | CCTX-001   |
 | CCTX-003 | Compare baselines against brief variants          | Complete | CCTX-001, CCTX-002 |
 
 ### CCTX-001: Freeze the internal evaluation protocol
@@ -178,7 +178,7 @@ compiler, crate, or flag.
 
 ### CCTX-002: Freeze the Decision Brief as an advisory contract
 
-- **Status:** Done
+- **Status:** Merged 2026-09-08 via PR #4459
 - **Intent:** Fix what one task-shaped brief must contain, and what it must
   never be allowed to mean.
 - **Expected Outcome:** The Decision Brief contract in spec §9 is the
@@ -188,10 +188,10 @@ compiler, crate, or flag.
   Frozen enough for CCTX-003 to author V3/V4 fixtures. §15.6 remains
   parked (GATT versus distinct brief evidence — not forked, not decided).
 - **Validation:** `pnpm docs:check` — validation passed 2026-09-08 (15/15
-  surfaces). `pnpm aps:index:check` and `pnpm aps:drift` exit 0 (CCTX stored
-  1/3 vs work items 2/3 is expected ADR-053 advisory; pre-existing DPO
-  2/6 vs 4/8 advisory only). `pnpm aps:active-lint` could not run (`aps`
-  not on PATH in this environment).
+  surfaces) on the feature PR. Bookkeeping reconcile: stored CCTX progress
+  2/3 matches two Merged items. `pnpm aps:index:check` / `pnpm aps:drift`
+  still report pre-existing DPO 2/6 vs 4/8 only. `pnpm aps:active-lint`
+  could not run (`aps` not on PATH in this environment).
 - **Non-scope:** No runtime schema, crate, or MCP tool. No change to GCTX
   DTOs or GATT's attestation block. How brief evidence relates to GATT
   remains an open decision (§15.6 parked). CCTX-003 Complete on this
@@ -200,6 +200,10 @@ compiler, crate, or flag.
   `plans/modules/context-compiler.aps.md`, `plans/index.aps.md`
 - **Dependencies:** CCTX-001
 - **Claim:** private GitHub issue #4458
+- **PR:** Merged 2026-09-08 via
+  [#4459](https://github.com/eddacraft/anvil-001/pull/4459)
+  (`57cc7f042219e120ecba271eb30cc12e422232c7` on `main`; rebase-merge of
+  `f0abee73f`)
 - **Confidence:** medium
 
 ### CCTX-003: Compare baselines against brief variants
