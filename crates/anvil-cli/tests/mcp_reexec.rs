@@ -499,6 +499,7 @@ fn replace_preferred(preferred: &Path, replacement: &Path) {
     std::fs::rename(next, preferred).expect("publish preferred update");
 }
 
+#[cfg(unix)]
 fn publish_generation(home: &Path, generation: u64) {
     std::fs::write(
         home.join("mcp-refresh.generation"),
@@ -535,6 +536,7 @@ fn spawn_serve_in_with_stderr(cwd: &Path, env: &[(&str, &str)], stderr: Stdio) -
     cmd.spawn().expect("spawn anvil mcp serve --stdio")
 }
 
+#[cfg(unix)]
 fn suppress_request(id: u64, workspace: &Path, reason: &str) -> Value {
     json!({
         "jsonrpc": "2.0",
@@ -553,12 +555,14 @@ fn suppress_request(id: u64, workspace: &Path, reason: &str) -> Value {
     })
 }
 
+#[cfg(unix)]
 fn send_suppress(child: &mut Child, id: u64, workspace: &Path, reason: &str) {
     let request = suppress_request(id, workspace, reason);
     let stdin = child.stdin.as_mut().expect("stdin");
     writeln!(stdin, "{request}").expect("send mutating request");
 }
 
+#[cfg(unix)]
 fn recv_json_response(
     child: &mut Child,
     rx: &Receiver<std::io::Result<String>>,
