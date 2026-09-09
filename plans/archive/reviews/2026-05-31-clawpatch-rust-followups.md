@@ -10,9 +10,9 @@ pick them up without prior context.
 
 **Source of truth:**
 
-- Audit export: [`plans/archive/audits/2026-05-31-clawpatch-v0.7.3-beta.json`](../archive/audits/2026-05-31-clawpatch-v0.7.3-beta.json) (367 findings)
+- Audit export: [`plans/archive/audits/2026-05-31-clawpatch-v0.7.3-beta.json`](../audits/2026-05-31-clawpatch-v0.7.3-beta.json) (367 findings)
 - Triage + verdict: [`plans/archive/reviews/2026-05-31-clawpatch-triage.md`](./2026-05-31-clawpatch-triage.md)
-- Tracker module: [`plans/archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`](../archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
+- Tracker module: [`plans/archive/modules/clawpatch-pre-tag-v0.7.0-beta.aps.md`](../modules/clawpatch-pre-tag-v0.7.0-beta.aps.md)
 
 **Regenerate the non-test-gap list:**
 

@@ -2,7 +2,7 @@
 
 | Type  | Authority | Owner  | Status | Freshness                                                            |
 | ----- | --------- | ------ | ------ | -------------------------------------------------------------------- |
-| Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-08-13 against ADR-119 D7 / DOCFRESH-007 pin check |
+| Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-09-09 against ADR-119 D7 / DOCFRESH-007 pin check |
 
 | Upstream                                                                                    | Downstream                                     |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
