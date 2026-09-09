@@ -2433,6 +2433,50 @@ mod tests {
     }
 
     #[test]
+    fn cost_self_report_omits_when_attestation_pushes_over_estimator_max() {
+        #[derive(Serialize)]
+        struct Envelope {
+            padding: String,
+            attestation: Attestation,
+        }
+
+        let skeleton = serde_json::to_string(&Envelope {
+            padding: String::new(),
+            attestation: Attestation::default(),
+        })
+        .expect("skeleton serialises");
+        let padding_len = MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES
+            .checked_sub(skeleton.len())
+            .expect("skeleton smaller than estimator cap");
+
+        let pre = Envelope {
+            padding: "a".repeat(padding_len),
+            attestation: Attestation::default(),
+        };
+        let pre_json = serde_json::to_string(&pre).expect("pre-cost json");
+        assert_eq!(pre_json.len(), MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES);
+        let (tokens, version) = estimate_gctx_envelope(&pre_json).expect("pre-cost estimable");
+
+        let mut filled = Envelope {
+            padding: "a".repeat(padding_len),
+            attestation: Attestation::default(),
+        };
+        filled.attestation.est_tokens = tokens;
+        filled.attestation.estimator_version = version.to_string();
+        let filled_json = serde_json::to_string(&filled).expect("filled json");
+        assert!(filled_json.len() > MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES);
+
+        let reported = with_cost_self_report(pre, |envelope| &mut envelope.attestation);
+        assert_eq!(reported.attestation.est_tokens, 0);
+        assert!(reported.attestation.estimator_version.is_empty());
+        let final_json = serde_json::to_string(&reported).expect("final json");
+        assert!(final_json.len() <= MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES);
+        let v: serde_json::Value = serde_json::from_str(&final_json).expect("json");
+        assert!(v["attestation"].get("est_tokens").is_none());
+        assert!(v["attestation"].get("estimator_version").is_none());
+    }
+
+    #[test]
     fn absolute_path_symbol_is_dropped_not_leaked() {
         // CE-5 defence in depth: an absolute path should never be resident, but
         // if one is, the projector must not emit it.
