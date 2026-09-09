@@ -13,6 +13,7 @@
 use std::ffi::OsStr;
 use std::io::{self, ErrorKind};
 use std::os::windows::ffi::OsStrExt;
+use std::os::windows::io::FromRawHandle;
 use std::path::{Component, Path};
 use std::ptr::null_mut;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -20,7 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use windows_sys::Wdk::Foundation::OBJECT_ATTRIBUTES;
 use windows_sys::Wdk::Storage::FileSystem::{
     FILE_CREATE, FILE_DIRECTORY_FILE, FILE_NON_DIRECTORY_FILE, FILE_OPEN,
-    FILE_OPEN_FOR_BACKUP_INTENT, FILE_OPEN_REPARSE_POINT, FILE_RENAME_INFORMATION,
+    FILE_OPEN_FOR_BACKUP_INTENT, FILE_OPEN_IF, FILE_OPEN_REPARSE_POINT, FILE_RENAME_INFORMATION,
     FILE_SYNCHRONOUS_IO_NONALERT, FileRenameInformation, NtCreateFile, NtSetInformationFile,
 };
 use windows_sys::Win32::Foundation::{
@@ -105,6 +106,66 @@ pub fn create_dir_all_nofollow(path: &Path) -> io::Result<()> {
         dir = open_or_mkdir_at(dir.raw(), &name)?;
     }
     Ok(())
+}
+
+/// Open or create an advisory-lock file beneath a pinned, no-reparse parent.
+///
+/// The returned [`std::fs::File`] owns the Windows handle and is suitable for
+/// `fs2` locking. Both the directory walk and leaf open refuse reparse points.
+pub fn open_lock_file_nofollow(path: &Path) -> io::Result<std::fs::File> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path.file_name().ok_or_else(|| {
+        io::Error::new(
+            ErrorKind::InvalidInput,
+            format!("lock path has no file name: {}", path.display()),
+        )
+    })?;
+    create_dir_all_nofollow(parent)?;
+    let dir = open_existing_dir(parent, true)?;
+    let handle = nt_create(
+        dir.raw(),
+        leaf,
+        GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
+        FILE_OPEN_IF,
+        FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_FOR_BACKUP_INTENT,
+        FILE_ATTRIBUTE_NORMAL,
+        true,
+    )?;
+    let raw = handle.raw();
+    std::mem::forget(handle);
+    // SAFETY: `raw` is a valid owned file handle returned by NtCreateFile. We
+    // transferred ownership out of `OwnedHandle`, so `File` is its sole owner.
+    Ok(unsafe { std::fs::File::from_raw_handle(raw.cast()) })
+}
+
+/// Create and populate a new file beneath a pinned, no-reparse parent.
+/// Existing leaves are preserved and reported as `AlreadyExists`.
+pub fn write_new_nofollow(path: &Path, data: &[u8]) -> io::Result<()> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path.file_name().ok_or_else(|| {
+        io::Error::new(
+            ErrorKind::InvalidInput,
+            format!("write path has no file name: {}", path.display()),
+        )
+    })?;
+    create_dir_all_nofollow(parent)?;
+    let dir = open_existing_dir(parent, true)?;
+    let file = nt_create(
+        dir.raw(),
+        leaf,
+        GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
+        FILE_CREATE,
+        FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_FOR_BACKUP_INTENT,
+        FILE_ATTRIBUTE_NORMAL,
+        true,
+    )?;
+    write_all_handle(file.raw(), data)
 }
 
 /// Atomically write `data` to `path` without following reparse points.

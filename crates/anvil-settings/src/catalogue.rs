@@ -50,6 +50,15 @@ pub enum Mutability {
 pub struct Catalogue {
     entries: BTreeMap<String, CatalogueEntry>,
     aliases: BTreeMap<String, String>,
+    project_config_targets: BTreeMap<String, ProjectConfigTarget>,
+}
+
+/// Syntax-neutral target owned by the project-config bootstrap adapter.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectConfigTarget {
+    /// RFC 6901-style pointer; adapters map it to the active YAML/JSON/TOML
+    /// syntax without changing the catalogue key's type or writer authority.
+    pub pointer: String,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -70,6 +79,12 @@ pub enum CatalogueError {
         value_type: ValueType,
         merge: MergeSemantics,
     },
+    #[error("project config target references unknown setting {0}")]
+    UnknownProjectConfigSetting(String),
+    #[error("project config target {key} is not writable by settings-service")]
+    InvalidProjectConfigWriter { key: String },
+    #[error("project config target collision: {0}")]
+    ProjectConfigTargetCollision(String),
 }
 
 impl Catalogue {
@@ -116,6 +131,40 @@ impl Catalogue {
         self.entries.get(canonical)
     }
 
+    /// Bind a canonical setting to its project-config pointer.
+    pub fn register_project_config_target(
+        &mut self,
+        key: &str,
+        pointer: &str,
+    ) -> Result<(), CatalogueError> {
+        let entry = self
+            .get(key)
+            .ok_or_else(|| CatalogueError::UnknownProjectConfigSetting(key.to_owned()))?;
+        if entry.canonical_writer != "settings-service"
+            || entry.mutability != Mutability::SettingsService
+            || !entry.supported_scopes.contains(&Scope::Project)
+        {
+            return Err(CatalogueError::InvalidProjectConfigWriter {
+                key: key.to_owned(),
+            });
+        }
+        if self.project_config_targets.contains_key(key) {
+            return Err(CatalogueError::ProjectConfigTargetCollision(key.to_owned()));
+        }
+        self.project_config_targets.insert(
+            key.to_owned(),
+            ProjectConfigTarget {
+                pointer: pointer.to_owned(),
+            },
+        );
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn project_config_target(&self, key: &str) -> Option<&ProjectConfigTarget> {
+        self.project_config_targets.get(key)
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
@@ -142,6 +191,17 @@ impl Catalogue {
                     key: entry.key.0.clone(),
                     owner: owner.to_owned(),
                 });
+            }
+        }
+        for key in self.project_config_targets.keys() {
+            let entry = self
+                .get(key)
+                .ok_or_else(|| CatalogueError::UnknownProjectConfigSetting(key.clone()))?;
+            if entry.canonical_writer != "settings-service"
+                || entry.mutability != Mutability::SettingsService
+                || !entry.supported_scopes.contains(&Scope::Project)
+            {
+                return Err(CatalogueError::InvalidProjectConfigWriter { key: key.clone() });
             }
         }
         Ok(())

@@ -150,6 +150,7 @@ impl ProjectIdentity {
         if let Some(v) = &self.created_by_version {
             let _ = writeln!(out, "created_by_version: {v}");
         }
+        let _ = writeln!(out, "scaffold_version: 1");
         if let Some(parent) = &self.forked_from {
             let _ = writeln!(out, "forked_from: {parent}");
         }

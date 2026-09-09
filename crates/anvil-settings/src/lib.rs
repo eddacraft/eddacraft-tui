@@ -17,7 +17,7 @@ pub mod seed;
 pub mod service;
 pub mod types;
 
-pub use catalogue::{Catalogue, CatalogueEntry, CatalogueError};
+pub use catalogue::{Catalogue, CatalogueEntry, CatalogueError, ProjectConfigTarget};
 pub use constraints::{ApprovalEvidence, Constraint, ConstraintError, PolicyBundle};
 pub use envelope::{Envelope, EnvelopeCommand, SCHEMA_VERSION};
 pub use exit_codes::{SettingsOutcome, code_for};

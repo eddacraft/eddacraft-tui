@@ -9,6 +9,7 @@ mod discover;
 mod format;
 mod gate_section;
 mod migrations;
+mod mutation;
 mod parse;
 mod rule_modes;
 mod validation;
@@ -22,6 +23,7 @@ pub use migrations::{
     LEGACY_CAMEL_KEYS, SchemaMigration, apply_steps, legacy_keys_deprecation_note,
     normalize_legacy_keys, plan_for, plan_for_versions, production_migrations,
 };
+pub use mutation::{MutationLockError, mutation_lock_path};
 pub use parse::{MAX_CONFIG_FILE_BYTES, ParseError, parse_file, parse_str, read_to_string_bounded};
 pub use rule_modes::{RuleMode, RuleModeError, RuleModes};
 pub use validation::{HARD_PINNED_CLASSES, ValidationError, validate_hard_pinned_classes};

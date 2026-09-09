@@ -432,10 +432,22 @@ pub(crate) fn generate_config_with_force(
             .with_context(|| format!("failed to create {}/", config.planning_dir))?;
     }
 
-    // CIB-415: seed L4 acceptance policy only when no variant exists.
-    // `--force` still must not overwrite, merge, or normalise an
-    // existing `anvil/policy.{yaml,yml,json,toml}`.
-    let policy_written = crate::policy_load::seed_default_acceptance_policy(root)?;
+    // PSCAF-001: route the two functional foundation/policy slices through
+    // the shared additive engine. The public init presentation and removal of
+    // legacy runtime/scan ownership land in PSCAF-002; this seam ensures the
+    // current command no longer leaves L4 permanently unreachable meanwhile.
+    let foundation = crate::scaffold::reconcile_foundation(root)?;
+    if !foundation.satisfies_dependency() {
+        anyhow::bail!(
+            "foundation needs input: {}",
+            foundation
+                .diagnostic
+                .as_deref()
+                .unwrap_or("project foundation is not valid")
+        );
+    }
+    let policy = crate::scaffold::reconcile_acceptance_policy(root)?;
+    let policy_written = policy.outcome == crate::scaffold::MutationOutcome::Created;
 
     Ok(GeneratedConfig {
         config_path: path,

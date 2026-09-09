@@ -5,11 +5,11 @@
 
 | ID | Owner | Priority | Status | Progress |
 | --- | --- | --- | --- | --- |
-| PSCAF | @joshuaboys | P1 | Ready | 0/8 |
+| PSCAF | @joshuaboys | P1 | In Progress | 0/8 |
 
-**Status:** Ready (2026-09-09). The operator approved the product contract and
-[ADR-143](../decisions/143-project-scaffold-reconciliation.md). PSCAF-001 is the
-entry point; later items execute in dependency order.
+**Status:** In Progress (2026-09-09). The operator approved the product contract
+and [ADR-143](../decisions/143-project-scaffold-reconciliation.md). PSCAF-001 is
+active; later items execute in dependency order.
 
 **Origin:** a beta report that L4 never fires exposed the missing acceptance
 policy, followed by an operator review of what `anvil init` and `anvil start`
@@ -80,7 +80,7 @@ rewriting operator-owned files or claiming inactive protections are on.
 
 | ID | Task | Status | Depends on |
 | --- | --- | --- | --- |
-| PSCAF-001 | Catalogue and additive reconciliation kernel | Ready | — |
+| PSCAF-001 | Catalogue and additive reconciliation kernel | In Progress | — |
 | PSCAF-002 | `anvil init` project-scaffold interface | Ready | PSCAF-001 |
 | PSCAF-003 | Checks and enforcement component | Ready | PSCAF-001, PSCAF-002 |
 | PSCAF-004 | Planning-support component | Ready | PSCAF-001, PSCAF-002 |
@@ -91,7 +91,7 @@ rewriting operator-owned files or claiming inactive protections are on.
 
 ### PSCAF-001: Catalogue and additive reconciliation kernel
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Establish one internal source of component truth and a race-safe,
   additive engine usable by both public commands.
 - **Expected Outcome:** A typed catalogue defines foundation,

@@ -15,6 +15,16 @@ pub fn first_release_catalogue() -> Result<Catalogue, CatalogueError> {
     for entry in first_release_entries() {
         cat.register(entry)?;
     }
+    for (key, pointer) in [
+        ("project.schema_version", "/schema_version"),
+        ("project.format", "/format"),
+        ("project.planning.dir", "/planning_dir"),
+        ("project.architecture.source", "/architecture/source"),
+        ("protection.checks", "/checks"),
+        ("protection.enforcement.mode", "/enforcement/mode"),
+    ] {
+        cat.register_project_config_target(key, pointer)?;
+    }
     cat.validate()?;
     Ok(cat)
 }
@@ -22,6 +32,68 @@ pub fn first_release_catalogue() -> Result<Catalogue, CatalogueError> {
 #[allow(clippy::too_many_lines)]
 fn first_release_entries() -> Vec<CatalogueEntry> {
     vec![
+        entry(
+            "project.schema_version",
+            "Project config schema version",
+            SettingGroup::Project,
+            10,
+            ValueType::String,
+            Some(json!("1.0.0")),
+            MergeSemantics::Replace,
+            ConsequenceClass::C,
+            Sensitivity::Public,
+            EvidenceMode::Value,
+            HealthRelevance::Required,
+            None,
+            EvidenceTrust::None,
+        ),
+        entry(
+            "project.format",
+            "Project config format",
+            SettingGroup::Project,
+            20,
+            ValueType::Enum {
+                allowed: vec!["yaml".into(), "json".into(), "toml".into()],
+            },
+            Some(json!("yaml")),
+            MergeSemantics::Replace,
+            ConsequenceClass::C,
+            Sensitivity::Public,
+            EvidenceMode::Value,
+            HealthRelevance::Required,
+            None,
+            EvidenceTrust::None,
+        ),
+        entry(
+            "project.planning.dir",
+            "Planning directory",
+            SettingGroup::Project,
+            30,
+            ValueType::String,
+            Some(json!("plans")),
+            MergeSemantics::Replace,
+            ConsequenceClass::B,
+            Sensitivity::Public,
+            EvidenceMode::Value,
+            HealthRelevance::Advisory,
+            None,
+            EvidenceTrust::None,
+        ),
+        entry(
+            "project.architecture.source",
+            "Architecture definition source",
+            SettingGroup::Project,
+            40,
+            ValueType::String,
+            None,
+            MergeSemantics::Replace,
+            ConsequenceClass::B,
+            Sensitivity::Public,
+            EvidenceMode::Value,
+            HealthRelevance::Advisory,
+            None,
+            EvidenceTrust::None,
+        ),
         entry(
             "protection.checks",
             "Enabled checks",
@@ -329,5 +401,24 @@ mod catalogue_seed_tests {
         let secret = cat.get("privacy.license_token").unwrap();
         assert_eq!(secret.consequence_class, ConsequenceClass::D);
         assert_eq!(secret.sensitivity, Sensitivity::Secret);
+    }
+
+    #[test]
+    fn project_bootstrap_targets_are_canonical_settings_metadata() {
+        let cat = first_release_catalogue().expect("seed");
+        for (key, pointer) in [
+            ("project.schema_version", "/schema_version"),
+            ("project.format", "/format"),
+            ("project.planning.dir", "/planning_dir"),
+            ("project.architecture.source", "/architecture/source"),
+            ("protection.checks", "/checks"),
+            ("protection.enforcement.mode", "/enforcement/mode"),
+        ] {
+            let target = cat
+                .project_config_target(key)
+                .unwrap_or_else(|| panic!("missing {key}"));
+            assert_eq!(target.pointer, pointer);
+            assert_eq!(cat.get(key).unwrap().canonical_writer, "settings-service");
+        }
     }
 }

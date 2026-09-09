@@ -33,6 +33,7 @@ mod plan_dashboard;
 mod policy_load;
 mod policy_vocab;
 mod registration;
+mod scaffold;
 mod services;
 #[cfg(test)]
 mod settings_exit;

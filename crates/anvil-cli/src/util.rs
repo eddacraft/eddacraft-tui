@@ -3,6 +3,84 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
+/// Held, process-scoped exclusion for cooperating project-config writers.
+///
+/// The lock lives below Git's common directory, so linked worktrees contend on
+/// the same OS advisory lock. Acquisition never waits: callers can surface a
+/// patch and `needs_input` instead of wedging an interactive command.
+#[derive(Debug)]
+pub(crate) struct ConfigMutationLock {
+    _file: std::fs::File,
+}
+
+impl ConfigMutationLock {
+    pub(crate) fn try_acquire(repo_root: &Path) -> Result<Self> {
+        let lock_path = anvil_config::mutation_lock_path(repo_root)
+            .context("resolving the shared project-config mutation lock")?;
+        let parent = lock_path
+            .parent()
+            .with_context(|| format!("lock path has no parent: {}", lock_path.display()))?;
+        create_dir_all_nofollow(parent)
+            .with_context(|| format!("creating lock directory {}", parent.display()))?;
+        let file = open_config_lock_file(parent, &lock_path)?;
+        match fs2::FileExt::try_lock_exclusive(&file) {
+            Ok(()) => Ok(Self { _file: file }),
+            Err(error) if is_fs2_lock_contended(&error) => bail!(
+                "another anvil process is already modifying project configuration; retry after it finishes"
+            ),
+            Err(error) => Err(error).context("acquiring project-config mutation lock"),
+        }
+    }
+}
+
+fn is_fs2_lock_contended(error: &std::io::Error) -> bool {
+    error.kind() == std::io::ErrorKind::WouldBlock
+        || error.raw_os_error() == fs2::lock_contended_error().raw_os_error()
+}
+
+#[cfg(unix)]
+fn open_config_lock_file(parent: &Path, lock_path: &Path) -> Result<std::fs::File> {
+    use std::os::fd::AsFd;
+
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::{Mode, fchmod};
+
+    let parent_fd = open_dir_nofollow_unix(parent)?;
+    let leaf = lock_path
+        .file_name()
+        .with_context(|| format!("lock path has no file name: {}", lock_path.display()))?;
+    let flags =
+        OFlag::O_CREAT | OFlag::O_RDWR | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK;
+    let fd = openat(
+        parent_fd.as_fd(),
+        leaf,
+        flags,
+        Mode::from_bits_truncate(0o600),
+    )
+    .map_err(std::io::Error::from)
+    .with_context(|| format!("opening lock file {}", lock_path.display()))?;
+    fchmod(&fd, Mode::from_bits_truncate(0o600))
+        .map_err(std::io::Error::from)
+        .with_context(|| format!("securing lock file {}", lock_path.display()))?;
+    Ok(std::fs::File::from(fd))
+}
+
+#[cfg(windows)]
+fn open_config_lock_file(parent: &Path, lock_path: &Path) -> Result<std::fs::File> {
+    anvil_intercept_win32::path_nofollow::open_lock_file_nofollow(lock_path)
+        .with_context(|| format!("opening lock file below {}", parent.display()))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_config_lock_file(parent: &Path, lock_path: &Path) -> Result<std::fs::File> {
+    refuse_symlink_path_components(parent)?;
+    let mut options = std::fs::OpenOptions::new();
+    options.create(true).read(true).write(true).truncate(false);
+    options
+        .open(lock_path)
+        .with_context(|| format!("opening lock file {}", lock_path.display()))
+}
+
 /// Re-export of [`anvil_kernel::watcher::filter::is_ignored_dir_name`] —
 /// the canonical denylist lives in `anvil-kernel` so the watcher and the
 /// cli command surfaces (`audit`, `baseline`, `check`, `drift`, `gate`)
@@ -1224,6 +1302,60 @@ pub fn write_new(path: &Path, data: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Create a new file through a pinned, no-follow parent and never replace an
+/// existing leaf.
+pub fn write_new_nofollow(path: &Path, data: &[u8]) -> Result<()> {
+    let parent = path
+        .parent()
+        .filter(|candidate| !candidate.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path
+        .file_name()
+        .with_context(|| format!("write path has no file name: {}", path.display()))?;
+    create_dir_all_nofollow(parent)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::fd::AsFd;
+
+        use nix::fcntl::{OFlag, openat};
+        use nix::sys::stat::{Mode, fchmod};
+
+        let parent_fd = open_dir_nofollow_unix(parent)?;
+        let flags =
+            OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+        let fd = openat(
+            parent_fd.as_fd(),
+            leaf,
+            flags,
+            Mode::from_bits_truncate(0o600),
+        )
+        .map_err(std::io::Error::from)
+        .with_context(|| format!("creating {}", path.display()))?;
+        fchmod(&fd, Mode::from_bits_truncate(0o600))
+            .map_err(std::io::Error::from)
+            .with_context(|| format!("securing {}", path.display()))?;
+        let mut file = std::fs::File::from(fd);
+        file.write_all(data)
+            .with_context(|| format!("writing {}", path.display()))?;
+        file.flush()
+            .with_context(|| format!("flushing {}", path.display()))?;
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    {
+        anvil_intercept_win32::path_nofollow::write_new_nofollow(path, data)
+            .with_context(|| format!("creating {}", path.display()))
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        refuse_symlink_path_components(parent)?;
+        write_new(path, data)
+    }
+}
+
 #[cfg(windows)]
 fn current_user_sid() -> Result<String> {
     anvil_intercept_win32::current_user_sid()
@@ -2061,6 +2193,55 @@ mod tests {
             "keep-me",
             "write_new must not overwrite an existing file"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_new_nofollow_refuses_symlinked_parent() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        symlink(outside.path(), root.path().join("anvil")).unwrap();
+
+        let error = write_new_nofollow(&root.path().join("anvil/policy.yml"), b"policy")
+            .expect_err("symlinked parent");
+
+        assert!(format!("{error:#}").contains("symlink"));
+        assert!(!outside.path().join("policy.yml").exists());
+    }
+
+    #[test]
+    fn config_mutation_lock_is_shared_and_non_blocking() {
+        let repo = tempfile::tempdir().unwrap();
+        std::fs::create_dir(repo.path().join(".git")).unwrap();
+
+        let first = ConfigMutationLock::try_acquire(repo.path()).expect("first lock");
+        let error = ConfigMutationLock::try_acquire(repo.path()).expect_err("contended lock");
+
+        assert!(
+            format!("{error:#}").contains("already modifying project configuration"),
+            "unexpected contention error: {error:#}"
+        );
+        drop(first);
+        ConfigMutationLock::try_acquire(repo.path()).expect("released lock");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_mutation_lock_refuses_symlinked_lock_directory() {
+        use std::os::unix::fs::symlink;
+
+        let repo = tempfile::tempdir().unwrap();
+        let git_dir = repo.path().join(".git");
+        std::fs::create_dir(&git_dir).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        symlink(outside.path(), git_dir.join("anvil")).unwrap();
+
+        let error = ConfigMutationLock::try_acquire(repo.path()).expect_err("symlink refused");
+
+        assert!(format!("{error:#}").contains("symlink"));
+        assert!(!outside.path().join("config-mutation.lock").exists());
     }
 
     #[cfg(unix)]
