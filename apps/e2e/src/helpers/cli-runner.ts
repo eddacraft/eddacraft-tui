@@ -45,6 +45,10 @@ function isUsableBinary(p: string): boolean {
 }
 
 export function resolveCliBinary(): string | undefined {
+  const override = process.env.ANVIL_BIN?.trim();
+  if (override && isUsableBinary(override)) {
+    return override;
+  }
   return RUST_CANDIDATES.find(isUsableBinary);
 }
 
@@ -116,6 +120,16 @@ export function runCli(args: string[], options: CliRunOptions = {}): Promise<Cli
   })) {
     if (value !== undefined) childEnv[key] = value;
   }
+  // MCP activation probes resolve the bare `anvil` command on PATH. Keep the
+  // spawned binary's directory first so ANVIL_BIN / target/debug runs still
+  // satisfy those probes under journey:verify.
+  const binDir = resolve(binary, '..');
+  const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
+  const existingPath = childEnv[pathKey] ?? childEnv.PATH ?? '';
+  childEnv[pathKey] = existingPath
+    ? `${binDir}${process.platform === 'win32' ? ';' : ':'}${existingPath}`
+    : binDir;
+  childEnv.PATH = childEnv[pathKey];
 
   return new Promise((resolve) => {
     execFile(

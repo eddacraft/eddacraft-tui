@@ -1,5 +1,5 @@
 {
-  "description": "JREL-012 required product-journey scenarios. Missing files or skipped legs fail the gate.",
+  "description": "JREL-012 product-journey scenarios. Required legs fail the gate when missing or skipped; upgrade-previous-public is optional unless --require-upgrade is set.",
   "scenarios": [
     {
       "id": "daemon-identity",

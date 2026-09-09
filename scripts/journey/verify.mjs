@@ -44,22 +44,25 @@ function parseArgs(argv) {
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    const next = () => {
+    const next = (flag) => {
       i += 1;
+      if (i >= argv.length || argv[i] === undefined || String(argv[i]).startsWith('--')) {
+        fail(`${flag} requires a value`);
+      }
       return argv[i];
     };
     switch (arg) {
       case '--root':
-        options.root = resolve(next());
+        options.root = resolve(next('--root'));
         break;
       case '--catalog':
-        options.catalog = next();
+        options.catalog = next('--catalog');
         break;
       case '--bin':
-        options.bin = next();
+        options.bin = next('--bin');
         break;
       case '--identity-out':
-        options.identityOut = next();
+        options.identityOut = next('--identity-out');
         break;
       case '--list':
         options.list = true;
@@ -90,7 +93,12 @@ function loadCatalog(options) {
   if (!existsSync(path)) {
     fail(`catalog not found: ${path}`);
   }
-  const parsed = JSON.parse(readFileSync(path, 'utf8'));
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    fail(`catalog is not valid JSON: ${path}`, String(err));
+  }
   if (!Array.isArray(parsed.scenarios) || parsed.scenarios.length === 0) {
     fail(`catalog has no scenarios: ${path}`);
   }
