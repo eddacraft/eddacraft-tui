@@ -1347,6 +1347,7 @@ mod tests {
                 symbols: Vec::new(),
                 next_cursor: None,
                 redaction_summary: anvil_gctx_types::RedactionSummary::default(),
+                attestation: Default::default(),
             }),
             SearchSymbolsOutcome::NotReady {
                 recovery_hint: "warming".into(),
@@ -1400,6 +1401,7 @@ mod tests {
                 next_cursor: None,
                 redaction_summary: anvil_gctx_types::RedactionSummary::default(),
                 partial: false,
+                attestation: Default::default(),
             }),
             FindDependentsOutcome::NotReady {
                 recovery_hint: "warming".into(),
@@ -1460,6 +1462,7 @@ mod tests {
                 next_cursor: None,
                 redaction_summary: anvil_gctx_types::RedactionSummary::default(),
                 partial: false,
+                attestation: Default::default(),
             }),
             FindCallersOutcome::NotReady {
                 recovery_hint: "warming".into(),
@@ -1512,6 +1515,7 @@ mod tests {
                 dependent_files: Vec::new(),
                 known_tests: Vec::new(),
                 summary: anvil_gctx_types::ImpactSummary::default(),
+                attestation: Default::default(),
             }),
             ImpactOutcome::NotReady {
                 recovery_hint: "warming".into(),
@@ -1567,6 +1571,7 @@ mod tests {
                 coverage_gaps: Vec::new(),
                 heuristic: true,
                 summary: anvil_gctx_types::AffectedTestsSummary::default(),
+                attestation: Default::default(),
             }),
             AffectedTestsOutcome::NotReady {
                 recovery_hint: "warming".into(),
@@ -1631,6 +1636,7 @@ mod tests {
             snippets: Vec::new(),
             omitted_context: Vec::new(),
             redaction_summary: summary,
+            attestation: Default::default(),
         };
 
         for outcome in [

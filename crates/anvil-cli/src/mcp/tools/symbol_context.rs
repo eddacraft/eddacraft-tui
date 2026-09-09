@@ -492,6 +492,7 @@ mod tests {
             snippets: Vec::new(),
             omitted_context: Vec::new(),
             redaction_summary: summary,
+            attestation: Default::default(),
         };
         assert!(!should_rewarm(&SymbolContextOutcome::Ready(
             projection.clone()

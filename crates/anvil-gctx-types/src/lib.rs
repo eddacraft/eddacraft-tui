@@ -148,6 +148,107 @@ pub struct RedactionSummary {
     pub fields_suppressed: u32,
 }
 
+/// Closed budget that bound a projection section (ADR-142 §2). Counts-and-enums
+/// only — never a path, name, or span.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BoundBudget {
+    /// Paginated result-set page limit (search, `graph://` resources).
+    PageLimit,
+    /// Traversal node budget (impact / affected-tests walks, caller/dependent).
+    NodeBudget,
+    /// Traversal depth cap.
+    TraversalDepth,
+    /// Snippet or resource byte ceiling (CE-6).
+    ByteCeiling,
+    /// Per-session credit or byte/token ceiling.
+    SessionCeiling,
+}
+
+/// Named section a bound applied to (ADR-142 §2). A closed enum so a future
+/// tool cannot invent an undeclared section by omission of a string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BoundSection {
+    SearchPage,
+    Callers,
+    Dependents,
+    AffectedSymbols,
+    DependentClosure,
+    AffectedTests,
+    SnippetBytes,
+    SnippetTokens,
+    GraphResourcePage,
+    GraphResourceBytes,
+}
+
+/// Tagged pre-cap total. Never a bare integer (ADR-142 §3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "n", rename_all = "snake_case")]
+pub enum TaggedCount {
+    /// Honest pre-cap total (filtered scan, cheap to know).
+    Exact(usize),
+    /// Floor: a bounded walk did not finish, so the true total is unknown.
+    AtLeast(usize),
+}
+
+/// One fired bound on one section. Absent from [`Attestation::bounds`] when
+/// that section was not bounded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BoundEntry {
+    pub section: BoundSection,
+    pub budget: BoundBudget,
+    pub returned: usize,
+    pub total: TaggedCount,
+}
+
+/// Shared self-attestation block on every GCTX projection (ADR-142 §1).
+///
+/// Sibling of [`RedactionSummary`], not a fold into it: this is what the query
+/// could not resolve or fit, not what privacy removed. Every field is a count,
+/// a closed enum, or a version string (CE-1 / CE-11). Counts are taken after
+/// the CE-3 deny-list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Attestation {
+    /// Fired bounds. Empty when nothing capped. A section that was not bounded
+    /// contributes no entry.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bounds: Vec<BoundEntry>,
+    /// Estimated token cost of this answer (existing graph-cache estimator).
+    pub est_tokens: usize,
+    /// Estimator version that produced [`Self::est_tokens`]. Travels with the
+    /// number so it stays comparable and reads as an estimate.
+    pub estimator_version: String,
+}
+
+impl Default for Attestation {
+    fn default() -> Self {
+        Self {
+            bounds: Vec::new(),
+            est_tokens: 0,
+            estimator_version: String::new(),
+        }
+    }
+}
+
+impl Attestation {
+    /// Derived compatibility shim for retained `truncated: bool` fields
+    /// (ADR-142 §2): `true` iff at least one bound entry exists.
+    #[must_use]
+    pub fn truncated(&self) -> bool {
+        !self.bounds.is_empty()
+    }
+}
+
+/// Per-edge call-resolution fidelity (ADR-142 §4). GATT-003 fills producers;
+/// a caller-level `heuristic` flag is a derived summary of this set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EdgeFidelity {
+    Exact,
+    Heuristic,
+}
+
 /// The identity-only projection returned when the graph is readable.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchSymbolsProjection {
@@ -159,6 +260,9 @@ pub struct SearchSymbolsProjection {
     pub next_cursor: Option<OpaqueCursor>,
     /// Counts-only elision summary (CE-11).
     pub redaction_summary: RedactionSummary,
+    /// Shared self-attestation (ADR-142). Default empty until producers fill it.
+    #[serde(default)]
+    pub attestation: Attestation,
 }
 
 /// The status-tagged outcome of a search.
@@ -347,6 +451,9 @@ pub struct FindDependentsProjection {
     /// final page (that flag means "more pages follow", not budget exhaustion).
     #[serde(default)]
     pub partial: bool,
+    /// Shared self-attestation (ADR-142). Default empty until producers fill it.
+    #[serde(default)]
+    pub attestation: Attestation,
 }
 
 /// The status-tagged outcome of a dependents traversal.
@@ -482,6 +589,9 @@ pub struct FindCallersProjection {
     /// truncated caller set as complete (ADR-086 §1).
     #[serde(default)]
     pub partial: bool,
+    /// Shared self-attestation (ADR-142). Default empty until producers fill it.
+    #[serde(default)]
+    pub attestation: Attestation,
 }
 
 /// The status-tagged outcome of a caller traversal. Same named degradation
@@ -630,6 +740,10 @@ pub struct ImpactReport {
     pub known_tests: Vec<String>,
     /// Counts-only totals + truncation marker.
     pub summary: ImpactSummary,
+    /// Shared self-attestation (ADR-142). Cap entries for affected-symbols and
+    /// dependent-closure are separate when they fire.
+    #[serde(default)]
+    pub attestation: Attestation,
 }
 
 /// The status-tagged outcome of an impact-of-change report.
@@ -769,6 +883,10 @@ pub struct AffectedTestsReport {
     pub heuristic: bool,
     /// Counts-only totals + truncation marker.
     pub summary: AffectedTestsSummary,
+    /// Shared self-attestation (ADR-142). Reverse-walk node budget is its own
+    /// bound entry when it fires.
+    #[serde(default)]
+    pub attestation: Attestation,
 }
 
 /// The status-tagged outcome of an affected-tests report.
@@ -829,7 +947,7 @@ impl AffectedTestsOutcome {
 
 /// Workspace-wide graph counts (`graph://stats`). Counts-only and therefore
 /// itself safe to egress — it carries no names, paths, or content (CE-5).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GraphStatsProjection {
     /// Resident symbols in the workspace symbol graph.
     pub symbol_count: usize,
@@ -839,6 +957,10 @@ pub struct GraphStatsProjection {
     pub file_count: usize,
     /// Edges in the dependency graph (`importer → imported`).
     pub dependency_edge_count: usize,
+    /// Shared self-attestation (ADR-142). Cost self-report always; no
+    /// section-bound entry unless a cap actually fired.
+    #[serde(default)]
+    pub attestation: Attestation,
 }
 
 /// Status-tagged outcome of a `graph://stats` read. No query, so there is no
@@ -936,6 +1058,9 @@ pub struct GraphEdgesProjection {
     /// *this* set follow"). Defaults false.
     #[serde(default)]
     pub bounded: bool,
+    /// Shared self-attestation (ADR-142). Default empty until producers fill it.
+    #[serde(default)]
+    pub attestation: Attestation,
 }
 
 /// Status-tagged outcome of a `graph://edges` read (ADR-084 CE-7).
@@ -1168,6 +1293,10 @@ pub struct SymbolContextProjection {
     pub omitted_context: Vec<OmittedContext>,
     /// Counts-only elision + telemetry outcome (CE-11).
     pub redaction_summary: SymbolContextRedactionSummary,
+    /// Shared self-attestation (ADR-142). Union of search/impact plus snippet
+    /// byte-ceiling / token-budget bounds.
+    #[serde(default)]
+    pub attestation: Attestation,
 }
 
 /// The status-tagged outcome of an `anvil_symbol_context` call (GCTX-023).
@@ -1311,6 +1440,124 @@ mod tests {
         }
     }
 
+    fn sample_bound_entry() -> BoundEntry {
+        BoundEntry {
+            section: BoundSection::DependentClosure,
+            budget: BoundBudget::NodeBudget,
+            returned: 12,
+            total: TaggedCount::AtLeast(12),
+        }
+    }
+
+    #[test]
+    fn attestation_truncated_iff_a_bound_fired() {
+        let empty = Attestation::default();
+        assert!(!empty.truncated(), "unbounded answer is not truncated");
+
+        let bounded = Attestation {
+            bounds: vec![sample_bound_entry()],
+            est_tokens: 40,
+            estimator_version: "gctx-simple-v1".into(),
+        };
+        assert!(
+            bounded.truncated(),
+            "a fired bound makes truncated derived-true (ADR-142 §2 shim)"
+        );
+    }
+
+    #[test]
+    fn tagged_total_cannot_be_a_bare_integer() {
+        let exact = serde_json::to_value(TaggedCount::Exact(8)).unwrap();
+        let at_least = serde_json::to_value(TaggedCount::AtLeast(8)).unwrap();
+        assert_eq!(exact["kind"], "exact");
+        assert_eq!(exact["n"], 8);
+        assert_eq!(at_least["kind"], "at_least");
+        assert_ne!(
+            exact, at_least,
+            "Exact and AtLeast of the same n must not serialise identically"
+        );
+    }
+
+    #[test]
+    fn attestation_json_is_counts_enums_and_version_only() {
+        let att = Attestation {
+            bounds: vec![sample_bound_entry()],
+            est_tokens: 40,
+            estimator_version: "gctx-simple-v1".into(),
+        };
+        let v = serde_json::to_value(&att).unwrap();
+        let dumped = v.to_string();
+        for forbidden in [
+            "span", "path", "file", "name", "text", "body", "snippet", "content",
+        ] {
+            assert!(
+                !dumped.contains(&format!("\"{forbidden}\"")),
+                "attestation must not carry {forbidden}"
+            );
+        }
+        assert_eq!(v["est_tokens"], 40);
+        assert_eq!(v["estimator_version"], "gctx-simple-v1");
+        assert_eq!(v["bounds"][0]["section"], "dependent_closure");
+        assert_eq!(v["bounds"][0]["budget"], "node_budget");
+        assert_eq!(v["bounds"][0]["returned"], 12);
+        assert_eq!(v["bounds"][0]["total"]["kind"], "at_least");
+    }
+
+    #[test]
+    fn two_budgets_are_separate_bound_entries() {
+        let att = Attestation {
+            bounds: vec![
+                BoundEntry {
+                    section: BoundSection::AffectedSymbols,
+                    budget: BoundBudget::PageLimit,
+                    returned: 50,
+                    total: TaggedCount::Exact(80),
+                },
+                BoundEntry {
+                    section: BoundSection::DependentClosure,
+                    budget: BoundBudget::NodeBudget,
+                    returned: 12,
+                    total: TaggedCount::AtLeast(12),
+                },
+            ],
+            ..Attestation::default()
+        };
+        assert_eq!(att.bounds.len(), 2);
+        assert!(att.truncated());
+        assert_ne!(att.bounds[0].section, att.bounds[1].section);
+        assert_ne!(att.bounds[0].budget, att.bounds[1].budget);
+    }
+
+    #[test]
+    fn projection_exposes_a_forced_bound() {
+        let mut projection = sample_projection();
+        projection.attestation = Attestation {
+            bounds: vec![BoundEntry {
+                section: BoundSection::SearchPage,
+                budget: BoundBudget::PageLimit,
+                returned: 50,
+                total: TaggedCount::Exact(80),
+            }],
+            est_tokens: 12,
+            estimator_version: "gctx-simple-v1".into(),
+        };
+        let v = serde_json::to_value(&projection).unwrap();
+        assert_eq!(v["attestation"]["bounds"][0]["section"], "search_page");
+        assert_eq!(v["attestation"]["bounds"][0]["total"]["kind"], "exact");
+        assert_eq!(v["attestation"]["bounds"][0]["total"]["n"], 80);
+        assert!(
+            projection.attestation.truncated(),
+            "removing the bound entry must make this assertion fail"
+        );
+    }
+
+    #[test]
+    fn caller_heuristic_is_distinct_from_edge_fidelity() {
+        assert_ne!(EdgeFidelity::Exact, EdgeFidelity::Heuristic);
+        let exact = serde_json::to_value(EdgeFidelity::Exact).unwrap();
+        assert_eq!(exact, "exact");
+    }
+
     fn sample_projection() -> SearchSymbolsProjection {
         SearchSymbolsProjection {
             symbols: vec![sample_summary()],
@@ -1322,6 +1569,7 @@ mod tests {
                 omitted_sensitive_paths: 0,
                 ..Default::default()
             },
+            attestation: Attestation::default(),
         }
     }
 
@@ -1580,6 +1828,7 @@ mod tests {
         // Internally tagged: the projection fields sit beside the tag.
         assert!(v.get("symbols").is_some());
         assert!(v.get("redaction_summary").is_some());
+        assert!(v.get("attestation").is_some());
     }
 
     #[test]
@@ -1617,6 +1866,7 @@ mod tests {
                     symbols: Vec::new(),
                     next_cursor: None,
                     redaction_summary: RedactionSummary::default(),
+                    attestation: Attestation::default(),
                 }),
                 GctxOutcome::Miss,
                 "miss",
@@ -1697,6 +1947,7 @@ mod tests {
                 ..Default::default()
             },
             partial: false,
+            attestation: Attestation::default(),
         }
     }
 
@@ -1761,6 +2012,7 @@ mod tests {
                 ..Default::default()
             },
             partial: true,
+            attestation: Attestation::default(),
         }
     }
 
@@ -1811,6 +2063,7 @@ mod tests {
             next_cursor: None,
             redaction_summary: RedactionSummary::default(),
             partial: false,
+            attestation: Attestation::default(),
         });
         assert_eq!(empty.telemetry_outcome().as_str(), "miss");
 
@@ -1924,6 +2177,7 @@ mod tests {
                     next_cursor: None,
                     redaction_summary: RedactionSummary::default(),
                     partial: false,
+                    attestation: Attestation::default(),
                 }),
                 "miss",
             ),
@@ -1963,6 +2217,7 @@ mod tests {
                 truncated: false,
                 omitted_sensitive_paths: 0,
             },
+            attestation: Attestation::default(),
         }
     }
 
@@ -1979,6 +2234,7 @@ mod tests {
             keys,
             [
                 "affected_symbols",
+                "attestation",
                 "dependent_files",
                 "known_tests",
                 "summary"
@@ -2081,6 +2337,7 @@ mod tests {
             dependent_files: Vec::new(),
             known_tests: Vec::new(),
             summary: ImpactSummary::default(),
+            attestation: Attestation::default(),
         });
         assert_eq!(empty.telemetry_outcome().as_str(), "miss");
         for (outcome, label) in [
@@ -2120,6 +2377,7 @@ mod tests {
                 truncated: false,
                 omitted_sensitive_paths: 0,
             },
+            attestation: Attestation::default(),
         }
     }
 
@@ -2132,7 +2390,16 @@ mod tests {
         let obj = v.as_object().expect("report serialises to an object");
         let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
         keys.sort_unstable();
-        assert_eq!(keys, ["coverage_gaps", "heuristic", "summary", "tests"]);
+        assert_eq!(
+            keys,
+            [
+                "attestation",
+                "coverage_gaps",
+                "heuristic",
+                "summary",
+                "tests"
+            ]
+        );
 
         let test = obj["tests"][0].as_object().expect("test is an object");
         let mut tk: Vec<&str> = test.keys().map(String::as_str).collect();
@@ -2226,6 +2493,7 @@ mod tests {
             coverage_gaps: Vec::new(),
             heuristic: true,
             summary: AffectedTestsSummary::default(),
+            attestation: Attestation::default(),
         });
         assert_eq!(empty.telemetry_outcome().as_str(), "miss");
         for (outcome, label) in [
@@ -2273,6 +2541,7 @@ mod tests {
                 ..Default::default()
             },
             bounded: false,
+            attestation: Attestation::default(),
         }
     }
 
@@ -2283,9 +2552,10 @@ mod tests {
             symbol_edge_count: 30,
             file_count: 4,
             dependency_edge_count: 7,
+            attestation: Attestation::default(),
         };
-        let v = serde_json::to_value(projection).unwrap();
-        // Counts-only: no string values at all, so nothing to leak (CE-5).
+        let v = serde_json::to_value(&projection).unwrap();
+        // Counts-only plus the attestation version string (ADR-142, CE-11).
         assert_no_absolute_path_values(&v);
         assert_no_forbidden_keys(
             &v,
@@ -2356,6 +2626,7 @@ mod tests {
             next_cursor: None,
             redaction_summary: RedactionSummary::default(),
             bounded: false,
+            attestation: Attestation::default(),
         });
         assert_eq!(empty.telemetry_outcome().as_str(), "miss");
         for (outcome, label) in [

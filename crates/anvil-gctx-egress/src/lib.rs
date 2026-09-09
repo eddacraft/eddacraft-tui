@@ -4,8 +4,8 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    AffectedTestsReport, AffectedTestsSummary, CallerSummary, ContextSelector, ContextSnippet,
-    DependentSummary, EdgeSummary, FindCallersProjection, FindCallersQuery,
+    AffectedTestsReport, AffectedTestsSummary, Attestation, CallerSummary, ContextSelector,
+    ContextSnippet, DependentSummary, EdgeSummary, FindCallersProjection, FindCallersQuery,
     FindDependentsProjection, FindDependentsQuery, GctxOutcome, GraphEdgesProjection,
     GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary, OmittedContext,
     OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SnippetResult,
@@ -222,6 +222,7 @@ impl GctxProjector {
             },
             symbols: page,
             next_cursor,
+            attestation: Attestation::default(),
         })
     }
 
@@ -394,6 +395,7 @@ impl GctxProjector {
             dependents: page,
             next_cursor,
             partial: walk_truncated,
+            attestation: Attestation::default(),
         })
     }
 
@@ -525,6 +527,7 @@ impl GctxProjector {
             callers: page,
             next_cursor,
             partial: walk_truncated || callers_incomplete,
+            attestation: Attestation::default(),
         })
     }
 
@@ -746,6 +749,7 @@ impl GctxProjector {
             dependent_files: dependents,
             known_tests,
             summary,
+            attestation: Attestation::default(),
         }
     }
 
@@ -949,6 +953,7 @@ impl GctxProjector {
             coverage_gaps,
             heuristic: true,
             summary,
+            attestation: Attestation::default(),
         }
     }
 
@@ -968,6 +973,7 @@ impl GctxProjector {
             symbol_edge_count,
             file_count,
             dependency_edge_count,
+            attestation: Attestation::default(),
         }
     }
 
@@ -1136,6 +1142,7 @@ impl GctxProjector {
             edges: page,
             next_cursor,
             bounded,
+            attestation: Attestation::default(),
         })
     }
 
@@ -1459,6 +1466,7 @@ impl GctxProjector {
                 omitted_sensitive_paths: omitted_sensitive,
                 outcome: telemetry_outcome,
             },
+            attestation: Attestation::default(),
         }
     }
 }

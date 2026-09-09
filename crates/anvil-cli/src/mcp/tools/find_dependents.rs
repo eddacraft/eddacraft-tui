@@ -258,6 +258,7 @@ mod tests {
                 next_cursor: None,
                 redaction_summary: RedactionSummary::default(),
                 partial: false,
+                attestation: Default::default(),
             }
         )));
         assert!(!should_rewarm(&FindDependentsOutcome::Unavailable));

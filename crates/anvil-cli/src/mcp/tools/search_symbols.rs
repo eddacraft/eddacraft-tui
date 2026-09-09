@@ -280,6 +280,7 @@ mod tests {
                 symbols: Vec::new(),
                 next_cursor: None,
                 redaction_summary: RedactionSummary::default(),
+                attestation: Default::default(),
             }
         )));
         assert!(!should_rewarm(&SearchSymbolsOutcome::Unavailable));

@@ -246,6 +246,7 @@ mod tests {
             dependent_files: Vec::new(),
             known_tests: Vec::new(),
             summary: ImpactSummary::default(),
+            attestation: Default::default(),
         })));
         assert!(!should_rewarm(&ImpactOutcome::Unavailable));
         assert!(!should_rewarm(&ImpactOutcome::Disabled));

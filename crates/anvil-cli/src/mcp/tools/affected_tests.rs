@@ -252,6 +252,7 @@ mod tests {
                 coverage_gaps: Vec::new(),
                 heuristic: true,
                 summary: AffectedTestsSummary::default(),
+                attestation: Default::default(),
             }
         )));
         assert!(!should_rewarm(&AffectedTestsOutcome::Unavailable));

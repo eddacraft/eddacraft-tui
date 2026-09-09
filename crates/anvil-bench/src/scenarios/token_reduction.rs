@@ -356,6 +356,7 @@ fn impact_payload(fx: &Fixture) -> String {
         dependent_files: deps,
         known_tests: Vec::new(),
         summary,
+        attestation: Default::default(),
     };
 
     serde_json::to_string(&ImpactOutcome::Ready(report)).expect("impact outcome serialises")
