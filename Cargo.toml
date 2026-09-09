@@ -105,7 +105,7 @@ jsonschema = "0.52"
 # default-features off so the sole consumer (anvil-policy-engine) opts into a
 # pure-only feature subset for the POLENG-009 determinism fence; see that
 # crate's Cargo.toml.
-regorus = { version = "=0.11.0", default-features = false }
+regorus = { version = "=0.12.0", default-features = false }
 
 # TUI
 animate-core = { version = "=0.7.0" }

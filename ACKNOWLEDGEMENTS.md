@@ -184,7 +184,7 @@ named in the crate source linked from the inventory table.
 
 ## Licence summary
 
-- **MIT License** — 358 crates
+- **MIT License** — 368 crates
 - **Unicode License v3** — 19 crates
 - **Apache License 2.0** — 17 crates
 - **ISC License** — 7 crates
@@ -1498,7 +1498,7 @@ limitations under the License.
 
 Used by:
 
-- `regorus` 0.11.0
+- `regorus` 0.12.0
 
 <details>
 <summary>Licence text</summary>
@@ -2194,7 +2194,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Used by:
 
 - `aws-lc-sys` 0.44.0
-- `regorus` 0.11.0
+- `regorus` 0.12.0
 
 <details>
 <summary>Licence text</summary>
@@ -6953,8 +6953,8 @@ SOFTWARE.
 
 Used by:
 
-- `jsonschema` 0.47.0
-- `referencing` 0.47.0
+- `jsonschema` 0.49.9
+- `referencing` 0.49.9
 
 <details>
 <summary>Licence text</summary>
@@ -7424,14 +7424,16 @@ Used by:
 - `backtrace-ext` 0.2.1
 - `block2` 0.6.2
 - `chrono` 0.4.45
+- `convert_case` 0.4.0
 - `dispatch2` 0.3.1
-- `jsonschema-regex` 0.47.0
+- `jsonschema-regex` 0.49.9
+- `jsonschema-value` 0.49.9
 - `libm` 0.2.16
 - `minisign-verify` 0.2.5
 - `num-cmp` 0.1.0
 - `objc2-encode` 4.1.0
 - `objc2` 0.6.4
-- `regorus` 0.11.0
+- `regorus` 0.12.0
 - `tree-sitter-cpp` 0.23.4
 - `tree-sitter-java` 0.23.5
 - `tree-sitter-kotlin-ng` 1.1.0
@@ -7439,7 +7441,11 @@ Used by:
 - `tree-sitter-zig` 1.1.2
 - `tui-big-text` 0.8.8
 - `uuid-simd` 0.8.0
+- `verus_builtin` 0.0.0-2026-08-09-0044
+- `verus_builtin_macros` 0.0.0-2026-08-23-0033
+- `verus_state_machines_macros` 0.0.0-2026-08-02-0125
 - `vsimd` 0.8.0
+- `vstd` 0.0.0-2026-08-23-0033
 - `windows-collections` 0.2.0
 - `windows-core` 0.61.2
 - `windows-core` 0.62.2
@@ -7732,6 +7738,7 @@ Used by:
 - `fastrand` 2.5.0
 - `indoc` 2.0.7
 - `itoa` 1.0.18
+- `libyaml-rs` 0.3.0
 - `linux-raw-sys` 0.12.1
 - `once_cell` 1.21.4
 - `pin-project-lite` 0.2.17
@@ -7754,6 +7761,9 @@ Used by:
 - `thiserror` 2.0.20
 - `unicode-ident` 1.0.24
 - `unsafe-libyaml` 0.2.11
+- `verus_prettyplease` 0.0.0-2026-08-09-0044
+- `verus_syn` 0.0.0-2026-08-02-0125
+- `yaml_serde` 0.10.7
 - `zmij` 1.0.23
 
 <details>
@@ -7895,7 +7905,7 @@ SOFTWARE
 
 Used by:
 
-- `fancy-regex` 0.18.0
+- `fancy-regex` 0.19.0
 
 <details>
 <summary>Licence text</summary>
@@ -9493,7 +9503,7 @@ the following restrictions:
 | `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
 | `unicode-general-category` | 1.1.0 | Apache License 2.0 | https://github.com/yeslogic/unicode-general-category |
 | `self-replace` | 1.5.0 | Apache License 2.0 | https://github.com/mitsuhiko/self-replace |
-| `regorus` | 0.11.0 | Apache License 2.0 | https://github.com/microsoft/regorus |
+| `regorus` | 0.12.0 | Apache License 2.0 | https://github.com/microsoft/regorus |
 | `miette-derive` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
 | `supports-color` | 3.0.2 | Apache License 2.0 | https://github.com/zkat/supports-color |
 | `supports-hyperlinks` | 3.2.0 | Apache License 2.0 | https://github.com/zkat/supports-hyperlinks |
@@ -9506,7 +9516,7 @@ the following restrictions:
 | `matchit` | 0.8.4 | BSD 3-Clause "New" or "Revised" License | https://github.com/ibraheemdev/matchit |
 | `subtle` | 2.6.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/dalek-cryptography/subtle |
 | `aws-lc-sys` | 0.44.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/aws/aws-lc-rs |
-| `regorus` | 0.11.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/microsoft/regorus |
+| `regorus` | 0.12.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/microsoft/regorus |
 | `notify` | 8.2.0 | Creative Commons Zero v1.0 Universal | https://github.com/notify-rs/notify.git |
 | `untrusted` | 0.9.0 | ISC License | https://github.com/briansmith/untrusted |
 | `inotify-sys` | 0.1.8 | ISC License | https://github.com/hannobraun/inotify-sys |
@@ -9719,8 +9729,8 @@ the following restrictions:
 | `tokio-macros` | 2.7.2 | MIT License | https://github.com/tokio-rs/tokio |
 | `axum-core` | 0.5.6 | MIT License | https://github.com/tokio-rs/axum |
 | `owo-colors` | 4.3.0 | MIT License | https://github.com/owo-colors/owo-colors |
-| `jsonschema` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
-| `referencing` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema` | 0.49.9 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `referencing` | 0.49.9 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `compact_str` | 0.9.1 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
@@ -9738,14 +9748,16 @@ the following restrictions:
 | `backtrace-ext` | 0.2.1 | MIT License | https://github.com/gankra/backtrace-ext |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
 | `chrono` | 0.4.45 | MIT License | https://github.com/chronotope/chrono |
+| `convert_case` | 0.4.0 | MIT License | https://github.com/rutrum/convert-case |
 | `dispatch2` | 0.3.1 | MIT License | https://github.com/madsmtm/objc2 |
-| `jsonschema-regex` | 0.47.0 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema-regex` | 0.49.9 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema-value` | 0.49.9 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `libm` | 0.2.16 | MIT License | https://github.com/rust-lang/compiler-builtins |
 | `minisign-verify` | 0.2.5 | MIT License | https://github.com/jedisct1/rust-minisign-verify |
 | `num-cmp` | 0.1.0 | MIT License | https://github.com/lifthrasiir/num-cmp |
 | `objc2-encode` | 4.1.0 | MIT License | https://github.com/madsmtm/objc2 |
 | `objc2` | 0.6.4 | MIT License | https://github.com/madsmtm/objc2 |
-| `regorus` | 0.11.0 | MIT License | https://github.com/microsoft/regorus |
+| `regorus` | 0.12.0 | MIT License | https://github.com/microsoft/regorus |
 | `tree-sitter-cpp` | 0.23.4 | MIT License | https://github.com/tree-sitter/tree-sitter-cpp |
 | `tree-sitter-java` | 0.23.5 | MIT License | https://github.com/tree-sitter/tree-sitter-java |
 | `tree-sitter-kotlin-ng` | 1.1.0 | MIT License | https://github.com/tree-sitter-grammars/tree-sitter-kotlin |
@@ -9753,7 +9765,11 @@ the following restrictions:
 | `tree-sitter-zig` | 1.1.2 | MIT License | https://github.com/tree-sitter-grammars/tree-sitter-zig |
 | `tui-big-text` | 0.8.8 | MIT License | https://github.com/ratatui/tui-widgets |
 | `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
+| `verus_builtin` | 0.0.0-2026-08-09-0044 | MIT License | https://github.com/verus-lang/verus |
+| `verus_builtin_macros` | 0.0.0-2026-08-23-0033 | MIT License | https://github.com/verus-lang/verus |
+| `verus_state_machines_macros` | 0.0.0-2026-08-02-0125 | MIT License | https://github.com/verus-lang/verus |
 | `vsimd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
+| `vstd` | 0.0.0-2026-08-23-0033 | MIT License | https://github.com/verus-lang/verus |
 | `windows-collections` | 0.2.0 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-core` | 0.61.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-core` | 0.62.2 | MIT License | https://github.com/microsoft/windows-rs |
@@ -9799,6 +9815,7 @@ the following restrictions:
 | `fastrand` | 2.5.0 | MIT License | https://github.com/smol-rs/fastrand |
 | `indoc` | 2.0.7 | MIT License | https://github.com/dtolnay/indoc |
 | `itoa` | 1.0.18 | MIT License | https://github.com/dtolnay/itoa |
+| `libyaml-rs` | 0.3.0 | MIT License | https://github.com/yaml/libyaml-rs |
 | `linux-raw-sys` | 0.12.1 | MIT License | https://github.com/sunfishcode/linux-raw-sys |
 | `once_cell` | 1.21.4 | MIT License | https://github.com/matklad/once_cell |
 | `pin-project-lite` | 0.2.17 | MIT License | https://github.com/taiki-e/pin-project-lite |
@@ -9821,11 +9838,14 @@ the following restrictions:
 | `thiserror` | 2.0.20 | MIT License | https://github.com/dtolnay/thiserror |
 | `unicode-ident` | 1.0.24 | MIT License | https://github.com/dtolnay/unicode-ident |
 | `unsafe-libyaml` | 0.2.11 | MIT License | https://github.com/dtolnay/unsafe-libyaml |
+| `verus_prettyplease` | 0.0.0-2026-08-09-0044 | MIT License | https://github.com/dtolnay/prettyplease |
+| `verus_syn` | 0.0.0-2026-08-02-0125 | MIT License | https://github.com/dtolnay/syn |
+| `yaml_serde` | 0.10.7 | MIT License | https://github.com/yaml/yaml-serde |
 | `zmij` | 1.0.23 | MIT License | https://github.com/dtolnay/zmij |
 | `allocator-api2` | 0.2.21 | MIT License | https://github.com/zakarumych/allocator-api2 |
 | `winnow` | 1.0.4 | MIT License | https://github.com/winnow-rs/winnow |
 | `encode_unicode` | 1.0.0 | MIT License | https://github.com/tormol/encode_unicode |
-| `fancy-regex` | 0.18.0 | MIT License | https://github.com/fancy-regex/fancy-regex |
+| `fancy-regex` | 0.19.0 | MIT License | https://github.com/fancy-regex/fancy-regex |
 | `spin` | 0.12.2 | MIT License | https://codeberg.org/zesterer/spin |
 | `spin` | 0.9.9 | MIT License | https://github.com/mvdnes/spin-rs.git |
 | `tree-sitter-c` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-c |
