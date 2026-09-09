@@ -121,6 +121,13 @@ pub enum DriftClass {
         /// → /home/user/.cargo/bin/anvil".
         reason: String,
     },
+    /// Recognised anvil launch shape with an operator-owned command or
+    /// environment override. Daily repair must keep the entry in place and
+    /// must not mislabel it as absent or unsafe.
+    ExplicitOverride {
+        /// Human-readable reason surfaced by the install/ensure renderer.
+        reason: String,
+    },
     /// Existing entry's `command` field doesn't resolve to anvil, OR the
     /// key shape is unrecognised. Don't write; surface as `state: error`
     /// in the diagnostic with the cause.
@@ -181,6 +188,8 @@ pub enum RenderError {
     BadRoot,
     /// `mcpServers` (or equivalent) is present but not an object.
     BadServersKey,
+    /// Existing anvil server entry is not an object during a targeted repair.
+    BadEntry,
     /// Claude Code `permissions` is present but not an object.
     BadPermissionsKey,
     /// Claude Code `permissions.allow` is present but not an array of strings.
@@ -201,6 +210,7 @@ impl std::fmt::Display for RenderError {
         match self {
             RenderError::BadRoot => write!(f, "config root is not a JSON object"),
             RenderError::BadServersKey => write!(f, "`mcpServers` is present but not an object"),
+            RenderError::BadEntry => write!(f, "existing anvil entry is not an object"),
             RenderError::BadPermissionsKey => {
                 write!(f, "`permissions` is present but not an object")
             }
@@ -268,6 +278,14 @@ pub trait McpClient: Send + Sync {
     /// text ready to write atomically. Caller is responsible for the
     /// drift check before calling — this method always installs.
     fn merge_and_render(
+        &self,
+        parsed: &ParsedConfig,
+        fresh: &AnvilEntry,
+    ) -> Result<String, RenderError>;
+
+    /// Repair a recognised obsolete managed command while preserving every
+    /// other per-entry field. Called only for [`DriftClass::SafeDrift`].
+    fn repair_managed_drift(
         &self,
         parsed: &ParsedConfig,
         fresh: &AnvilEntry,
@@ -427,19 +445,10 @@ fn shape_label(v: &serde_json::Value) -> &'static str {
 ///   is also preserved in practice; document comments, trailing
 ///   commas, or other JSONC artefacts would not be (we use strict
 ///   JSON parsing).
-/// - The `mcpServers.<server_name>` value is **replaced wholesale** with
-///   the freshly-built `entry`. Any keys the user added inside their
-///   anvil entry (e.g. a custom `timeout`, `disabled`, `description`)
-///   are dropped on a `SafeDrift` rewrite.
-///
-/// The wholesale-replacement policy is deliberate (LAUNCH-009.5): the
-/// drift classifier (`classify_drift_by_args`, `entries_equivalent`)
-/// only treats the entry as anvil's when `args` and `command` match the
-/// canonical shape, so we are confident the entry was anvil-installed
-/// in the first place. A per-key merge would also need a schema for
-/// "anvil-owned vs user-owned keys", which we do not have. If you
-/// observe real-world configs that need preserved fields inside the
-/// anvil entry, revisit via LAUNCH-009.5 follow-up.
+/// - This general merge replaces `mcpServers.<server_name>` with `entry`; the
+///   install path uses it only when adding a missing server entry. Managed-path
+///   repair uses [`repair_json_mcp_command`] instead, so existing environment,
+///   disabled state and client-specific options survive.
 #[allow(dead_code)] // called by trait merge_and_render impls; orchestrator-driven (LAUNCH-006 follow-up)
 pub(crate) fn merge_json_mcp(
     parsed: &ParsedConfig,
@@ -454,6 +463,24 @@ pub(crate) fn merge_json_mcp(
     let map = servers.as_object_mut().ok_or(RenderError::BadServersKey)?;
     map.insert(server_name.to_string(), entry);
     serde_json::to_string_pretty(&root).map_err(|e| RenderError::Serialise(e.to_string()))
+}
+
+/// Replace only the command field of an existing JSON MCP entry. This is the
+/// managed-path migration primitive: environment, disabled state and client-
+/// specific options remain byte-for-byte equivalent at the JSON-value level.
+pub(crate) fn repair_json_mcp_command(
+    parsed: &ParsedConfig,
+    server_name: &str,
+    fresh: &AnvilEntry,
+) -> Result<String, RenderError> {
+    let mut entry = parsed.existing_entry.clone().ok_or(RenderError::BadEntry)?;
+    let object = entry.as_object_mut().ok_or(RenderError::BadEntry)?;
+    let AnvilEntry::Stdio { command, .. } = fresh;
+    object.insert(
+        "command".to_string(),
+        serde_json::Value::String(command_to_string(command)?),
+    );
+    merge_json_mcp(parsed, server_name, entry)
 }
 
 /// Shared `render_new` for the JSON-with-`mcpServers`-key shape.
@@ -624,8 +651,9 @@ pub(crate) fn render_new_toml_mcp(
     render_toml_document(root)
 }
 
-/// Shared drift classifier: same args + anvil-shaped command path = `SafeDrift`;
-/// same args + foreign command = `UnsafeDrift`;
+/// Shared drift classifier: same args + a recognised obsolete managed command
+/// path = `SafeDrift`; supported explicit command/environment choices are
+/// `ExplicitOverride`; same args + foreign command = `UnsafeDrift`;
 /// different args = `UnsafeDrift`; non-object existing = `UnsafeDrift`.
 /// Caller is responsible for the byte-for-byte equality check that produces
 /// `UpToDate`.
@@ -658,7 +686,7 @@ pub(crate) fn classify_drift_by_args(
     let AnvilEntry::Stdio {
         command: fresh_cmd,
         args: fresh_args,
-        ..
+        env: fresh_env,
     } = fresh;
 
     if existing_args != *fresh_args {
@@ -680,12 +708,46 @@ pub(crate) fn classify_drift_by_args(
         };
     }
 
-    DriftClass::SafeDrift {
-        reason: format!(
-            "version drift: existing command `{existing_cmd}` differs from fresh `{}`",
-            fresh_cmd.display()
-        ),
+    if is_obsolete_managed_command(existing_cmd) {
+        return DriftClass::SafeDrift {
+            reason: format!(
+                "obsolete managed command `{existing_cmd}` differs from fresh `{}`",
+                fresh_cmd.display()
+            ),
+        };
     }
+
+    let existing_env = obj
+        .get("env")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let expected_env = serde_json::to_value(fresh_env).unwrap_or_else(|_| serde_json::json!({}));
+    if existing_env != expected_env {
+        return DriftClass::ExplicitOverride {
+            reason: "existing entry has an explicit environment override".to_string(),
+        };
+    }
+
+    if existing_cmd != fresh_cmd.to_string_lossy() {
+        return DriftClass::ExplicitOverride {
+            reason: format!("existing entry keeps explicit command `{existing_cmd}`"),
+        };
+    }
+
+    DriftClass::ExplicitOverride {
+        reason: "existing entry has explicit client-specific launch options".to_string(),
+    }
+}
+
+/// Whether an anvil-shaped command is a known versioned path written by an
+/// older managed installer. Deliberate side-by-side, Cargo, Nix and other
+/// absolute commands are not inferred to be managed and therefore survive.
+pub(crate) fn is_obsolete_managed_command(command: &str) -> bool {
+    let normalised = command.replace('\\', "/").to_ascii_lowercase();
+    normalised.contains("/cellar/anvil/")
+        || normalised.contains("/cellar/eddacraft-anvil/")
+        || normalised.contains("/scoop/apps/anvil/")
+        || normalised.contains("/scoop/apps/eddacraft-anvil/")
 }
 
 /// True if `cmd` looks like an anvil binary path. Recognises bare
@@ -1814,9 +1876,9 @@ args = ["mcp", "serve", "--stdio"]
     }
 
     #[test]
-    fn classify_drift_by_args_allows_same_args_with_anvil_basename() {
-        // Same canonical args + anvil-shaped command (different prefix)
-        // = SafeDrift (legitimate version upgrade).
+    fn classify_drift_by_args_preserves_explicit_anvil_command() {
+        // Same canonical args + anvil-shaped command outside a recognised
+        // managed package path is an operator choice, not version drift.
         let drift = serde_json::json!({
             "command": "/nix/store/abc/bin/anvil",
             "args": ["mcp", "serve", "--stdio"],
@@ -1824,9 +1886,55 @@ args = ["mcp", "serve", "--stdio"]
         });
         let fresh = AnvilEntry::local_stdio(std::path::PathBuf::from("/usr/local/bin/anvil"));
         match classify_drift_by_args(&drift, &fresh) {
-            DriftClass::SafeDrift { .. } => {}
-            other => panic!("expected SafeDrift, got {other:?}"),
+            DriftClass::ExplicitOverride { reason } => {
+                assert!(reason.contains("/nix/store/abc/bin/anvil"));
+            }
+            other => panic!("expected ExplicitOverride, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn classify_drift_by_args_preserves_explicit_environment() {
+        let explicit = serde_json::json!({
+            "command": "anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {"ANVIL_HOME": "/srv/anvil"},
+        });
+        match classify_drift_by_args(&explicit, &AnvilEntry::preferred_stdio()) {
+            DriftClass::ExplicitOverride { reason } => {
+                assert!(reason.contains("environment"));
+            }
+            other => panic!("expected ExplicitOverride, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classify_drift_by_args_preserves_explicit_client_options() {
+        let explicit = serde_json::json!({
+            "type": "custom-stdio",
+            "command": "anvil",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        match classify_drift_by_args(&explicit, &AnvilEntry::preferred_stdio()) {
+            DriftClass::ExplicitOverride { reason } => {
+                assert!(reason.contains("client-specific"));
+            }
+            other => panic!("expected ExplicitOverride, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn classify_drift_by_args_recognises_windows_scoop_managed_path() {
+        let managed = serde_json::json!({
+            "command": "C:\\Users\\operator\\scoop\\apps\\anvil\\0.9.1\\anvil.exe",
+            "args": ["mcp", "serve", "--stdio"],
+            "env": {},
+        });
+        assert!(matches!(
+            classify_drift_by_args(&managed, &AnvilEntry::preferred_stdio()),
+            DriftClass::SafeDrift { .. }
+        ));
     }
 
     #[test]

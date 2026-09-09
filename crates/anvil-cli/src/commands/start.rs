@@ -1837,6 +1837,7 @@ fn install_outcome_label(outcome: &InstallOutcome) -> String {
                 DriftClass::NotPresent => "fresh",
                 DriftClass::UpToDate => "rewrote up-to-date entry",
                 DriftClass::SafeDrift { .. } => "rewrote drifted entry",
+                DriftClass::ExplicitOverride { .. } => "rewrote explicit configuration",
                 DriftClass::UnsafeDrift { .. } => "rewrote unsafe entry",
             };
             format!("installed at {} ({kind})", path.display())
@@ -1853,6 +1854,9 @@ fn install_outcome_label(outcome: &InstallOutcome) -> String {
         InstallOutcome::Skipped {
             reason: SkipReason::UnsafeDrift(reason),
         } => format!("skipped — refused to overwrite ({reason})"),
+        InstallOutcome::Skipped {
+            reason: SkipReason::ExplicitOverride(reason),
+        } => format!("skipped — preserved explicit configuration ({reason})"),
         InstallOutcome::Skipped {
             reason: SkipReason::AlreadyUpToDate,
         } => "skipped — already up to date".to_string(),
@@ -2860,7 +2864,8 @@ fn is_repeat_success(
             InstallOutcome::Skipped {
                 reason: SkipReason::AlreadyUpToDate
                     | SkipReason::EditorNotDetected
-                    | SkipReason::HealPinned,
+                    | SkipReason::HealPinned
+                    | SkipReason::ExplicitOverride(_),
             }
         )
     });

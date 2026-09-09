@@ -15,7 +15,7 @@ use super::super::diagnostic::{McpClientId, McpTier};
 use super::{
     AnvilEntry, ConfigCandidate, ConfigScope, DriftClass, McpClient, ParseError, ParsedConfig,
     RenderError, classify_drift_by_args, command_to_string, entries_equivalent, merge_json_mcp,
-    parse_json_mcp, render_new_json_mcp,
+    parse_json_mcp, render_new_json_mcp, repair_json_mcp_command,
 };
 
 /// Stable server-name key. Matches the `SERVER_NAME` constant in
@@ -84,6 +84,14 @@ impl McpClient for Cursor {
         merge_json_mcp(parsed, SERVER_NAME, entry)
     }
 
+    fn repair_managed_drift(
+        &self,
+        parsed: &ParsedConfig,
+        fresh: &AnvilEntry,
+    ) -> Result<String, RenderError> {
+        repair_json_mcp_command(parsed, SERVER_NAME, fresh)
+    }
+
     fn render_new(&self, fresh: &AnvilEntry) -> Result<String, RenderError> {
         let entry = build_entry(fresh)?;
         render_new_json_mcp(SERVER_NAME, entry)
@@ -102,7 +110,7 @@ impl McpClient for Cursor {
         if entries_equivalent(existing, &fresh_value)
             || matches!(
                 classify_drift_by_args(existing, fresh),
-                DriftClass::SafeDrift { .. }
+                DriftClass::SafeDrift { .. } | DriftClass::ExplicitOverride { .. }
             )
         {
             // Owned anvil-shaped entries stay RestartRequired so status
@@ -192,14 +200,14 @@ mod tests {
     }
 
     #[test]
-    fn classify_drift_different_command_is_safe_drift() {
+    fn classify_drift_explicit_command_is_preserved() {
         let raw = r#"{"mcpServers": {"anvil": {"command": "/nix/store/abc/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
         let parsed = Cursor.parse(raw).unwrap();
         match Cursor.classify_drift(&parsed, &fresh()) {
-            DriftClass::SafeDrift { reason } => {
+            DriftClass::ExplicitOverride { reason } => {
                 assert!(reason.contains("/nix/store/abc/bin/anvil"));
             }
-            other => panic!("expected SafeDrift, got {other:?}"),
+            other => panic!("expected ExplicitOverride, got {other:?}"),
         }
     }
 

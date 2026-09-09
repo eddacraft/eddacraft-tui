@@ -88,9 +88,13 @@ activation spine, not the only route to useful watch-time feedback.
 and configuration-shape registry. Detection and requested installation are
 separate: discovering a client does not authorise a write, and an explicit
 selection must use that client's supported scope and configuration kind. Managed
-writes carry provenance and are designed to be idempotent. ADR-106 owns the
-registry decision; client-specific rendering lives below
-[`mcp_client/`](src/activation/mcp_client).
+entries use split ownership: activation owns the recognised server identity and
+canonical arguments, while supported explicit executable, environment, disabled
+state, scope and client options remain operator-owned. Daily repair changes only
+recognised obsolete managed command paths and preserves every other entry field;
+foreign, corrupt or conflicting entries are refused. ADR-044 owns that repair
+boundary and ADR-106 owns the registry decision; client-specific rendering lives
+below [`mcp_client/`](src/activation/mcp_client).
 
 Activation failures remain observable in the diagnostic. A partial setup must
 not be rendered as `protecting`, and the read-only path must not mutate editor

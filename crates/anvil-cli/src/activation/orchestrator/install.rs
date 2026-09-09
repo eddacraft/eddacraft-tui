@@ -2,7 +2,7 @@
 //!
 //! Interactive: `MultiSelect` of detected clients (unticked by default).
 //! Non-interactive / CI: auto-install `NotPresent` and `SafeDrift` only.
-//! `UnsafeDrift` never overwritten. Fresh writes limited to enabled/detected
+//! Explicit overrides and `UnsafeDrift` are never overwritten. Fresh writes limited to enabled/detected
 //! editors (ACTMO-012). Atomic writes via `util::atomic_write`.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -50,6 +50,9 @@ pub enum SkipReason {
     /// drift-classifier path in `pick_install_target`, so the install
     /// flow always presents one "skipped — unsafe" face to the user.
     UnsafeDrift(String),
+    /// Recognised anvil entry with an operator-owned command or environment.
+    /// The entry remains managed, but daily repair leaves it unchanged.
+    ExplicitOverride(String),
     /// Existing entry already matches what we'd write.
     AlreadyUpToDate,
     /// Daily MCP self-heal is pinned; drifted owned entries are left
@@ -198,7 +201,7 @@ pub(crate) fn install_selected_clients(
 #[derive(Debug, Clone)]
 pub(crate) struct McpEnsureSummary {
     pub report: InstallReport,
-    /// Count of clients with `UpToDate` or `SafeDrift` (already owned).
+    /// Count of clients with `UpToDate`, `SafeDrift`, or an explicit override.
     pub managed: usize,
     /// Count of `NotPresent` candidates when nothing is managed (recovery).
     pub absent_for_recovery: usize,
@@ -207,7 +210,7 @@ pub(crate) struct McpEnsureSummary {
 /// ADR-114 bare ensure: repair already-owned MCP entries only.
 ///
 /// - `SafeDrift` → rewrite in place (ADR-044 ownership)
-/// - `UpToDate` → no write
+/// - `UpToDate` / `ExplicitOverride` → no write
 /// - `NotPresent` → never install (recovery is `anvil start`)
 /// - `UnsafeDrift` → never overwrite
 ///
@@ -232,7 +235,7 @@ pub(crate) fn ensure_existing_mcp_entries(
                 }
                 selected.insert(candidate.id, candidate.clone());
             }
-            DriftClass::UpToDate => {
+            DriftClass::UpToDate | DriftClass::ExplicitOverride { .. } => {
                 managed += 1;
             }
             DriftClass::NotPresent => {
@@ -335,7 +338,9 @@ fn resolve_chosen_ids(
             candidate_offerable(candidate, enabled)
                 && !matches!(
                     candidate.drift,
-                    DriftClass::UpToDate | DriftClass::UnsafeDrift { .. }
+                    DriftClass::UpToDate
+                        | DriftClass::ExplicitOverride { .. }
+                        | DriftClass::UnsafeDrift { .. }
                 )
         })
         .collect::<Vec<_>>();
@@ -423,6 +428,17 @@ fn install_candidate_outcome(
             );
             InstallOutcome::Skipped {
                 reason: SkipReason::UnsafeDrift(reason.clone()),
+            }
+        }
+        DriftClass::ExplicitOverride { reason } => {
+            tracing::debug!(
+                client = %candidate.id,
+                path = %candidate.target_path.display(),
+                reason = %reason,
+                "mcp install: preserving explicit configuration",
+            );
+            InstallOutcome::Skipped {
+                reason: SkipReason::ExplicitOverride(reason.clone()),
             }
         }
         DriftClass::NotPresent | DriftClass::SafeDrift { .. }
@@ -616,9 +632,10 @@ fn install_one(
     fresh: &AnvilEntry,
     refresh_claude_allow_list: bool,
 ) -> InstallOutcome {
-    let render_result = match &candidate.parsed {
-        Some(parsed) => client.merge_and_render(parsed, fresh),
-        None => client.render_new(fresh),
+    let render_result = match (&candidate.parsed, &candidate.drift) {
+        (Some(parsed), DriftClass::SafeDrift { .. }) => client.repair_managed_drift(parsed, fresh),
+        (Some(parsed), _) => client.merge_and_render(parsed, fresh),
+        (None, _) => client.render_new(fresh),
     };
     let body = match render_result {
         Ok(s) => s,
@@ -790,7 +807,7 @@ fn mcp_picker_options(candidates: &[&Candidate]) -> Vec<(McpClientId, String, bo
 
 /// Render the `demand::MultiSelect` picker and return the chosen ids.
 ///
-/// Caller filters out `UpToDate` (nothing to do) and `UnsafeDrift`
+/// Caller filters out `UpToDate` and explicit overrides (nothing to do), and `UnsafeDrift`
 /// (refused regardless of selection) before calling, so the picker
 /// only ever offers actionable installs. Every offered candidate starts
 /// unticked (CIB-184): a plain Enter writes no editor config, and
@@ -864,6 +881,7 @@ fn format_picker_label(candidate: &Candidate) -> String {
         DriftClass::NotPresent => "not configured",
         DriftClass::UpToDate => "already configured",
         DriftClass::SafeDrift { .. } => "update — version drift",
+        DriftClass::ExplicitOverride { .. } => "explicit configuration",
         DriftClass::UnsafeDrift { .. } => "UNSAFE",
     };
     format!("{display}  ({path})  [{state}]")
@@ -954,13 +972,13 @@ mod tests {
         let home = TempDir::new().unwrap();
         let cursor_path = home.path().join(".cursor/mcp.json");
         fs::create_dir_all(cursor_path.parent().unwrap()).unwrap();
-        // Anvil entry with a different command path → SafeDrift vs fresh().
+        // Recognised managed Cellar entry → SafeDrift vs fresh().
         fs::write(
             &cursor_path,
             r#"{
   "mcpServers": {
     "anvil": {
-      "command": "/old/path/anvil",
+      "command": "/opt/homebrew/Cellar/anvil/0.9.1/bin/anvil",
       "args": ["mcp", "serve", "--stdio"]
     }
   }
@@ -1059,6 +1077,168 @@ mod tests {
         let raw = fs::read_to_string(&cursor_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(v["mcpServers"]["anvil"]["command"], "anvil");
+    }
+
+    #[test]
+    fn ensure_existing_preserves_explicit_workspace_launch_choices_repeatedly() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let cursor_path = ws.path().join(".cursor/mcp.json");
+        fs::create_dir_all(cursor_path.parent().unwrap()).unwrap();
+        let explicit = r#"{
+  "mcpServers": {
+    "anvil": {
+      "command": "/opt/anvil-side-by-side/bin/anvil",
+      "args": ["mcp", "serve", "--stdio"],
+      "env": {"ANVIL_HOME": "/opt/anvil-side-by-side/state"},
+      "disabled": true,
+      "timeout": 45000
+    }
+  }
+}"#;
+        fs::write(&cursor_path, explicit).unwrap();
+        let before = fs::read(&cursor_path).unwrap();
+
+        for _ in 0..2 {
+            let summary = ensure_existing_mcp_entries(
+                ws.path(),
+                Some(home.path()),
+                &AnvilEntry::preferred_stdio(),
+            );
+            assert!(summary.managed >= 1, "explicit entry remains managed");
+            assert_eq!(summary.absent_for_recovery, 0);
+            assert_eq!(
+                fs::read(&cursor_path).unwrap(),
+                before,
+                "daily ensure must preserve the explicit command, environment and options"
+            );
+        }
+        assert!(
+            !home.path().join(".cursor/mcp.json").exists(),
+            "workspace scope must not be duplicated into global scope"
+        );
+    }
+
+    #[test]
+    fn auto_install_reports_and_preserves_explicit_override() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let cursor_path = ws.path().join(".cursor/mcp.json");
+        fs::create_dir_all(cursor_path.parent().unwrap()).unwrap();
+        let explicit = r#"{
+  "mcpServers": {
+    "anvil": {
+      "command": "/nix/store/abc/bin/anvil",
+      "args": ["mcp", "serve", "--stdio"],
+      "env": {"ANVIL_HOME": "/srv/anvil"},
+      "disabled": true
+    }
+  }
+}"#;
+        fs::write(&cursor_path, explicit).unwrap();
+        let before = fs::read(&cursor_path).unwrap();
+
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &AnvilEntry::preferred_stdio(),
+            false,
+            &all_enabled(),
+        );
+        match report_outcome(&report, McpClientId::Cursor) {
+            InstallOutcome::Skipped {
+                reason: SkipReason::ExplicitOverride(reason),
+            } => assert!(reason.contains("environment") || reason.contains("command")),
+            other => panic!("expected explicit override skip, got {other:?}"),
+        }
+        assert_eq!(fs::read(&cursor_path).unwrap(), before);
+    }
+
+    #[test]
+    fn ensure_existing_preserves_disabled_opencode_override_repeatedly() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let opencode_path = ws.path().join("opencode.json");
+        let explicit = r#"{
+  "mcp": {
+    "anvil": {
+      "type": "local",
+      "command": ["/opt/anvil-preview/bin/anvil", "mcp", "serve", "--stdio"],
+      "enabled": false,
+      "timeout": 30000
+    }
+  }
+}"#;
+        fs::write(&opencode_path, explicit).unwrap();
+        let before = fs::read(&opencode_path).unwrap();
+
+        for _ in 0..2 {
+            let summary = ensure_existing_mcp_entries(
+                ws.path(),
+                Some(home.path()),
+                &AnvilEntry::preferred_stdio(),
+            );
+            assert!(summary.managed >= 1, "disabled entry remains managed");
+            assert_eq!(summary.absent_for_recovery, 0);
+            assert_eq!(
+                fs::read(&opencode_path).unwrap(),
+                before,
+                "daily ensure must preserve disabled state and custom options"
+            );
+        }
+    }
+
+    #[test]
+    fn ensure_existing_migrates_only_cellar_command_and_preserves_options() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let cursor_path = home.path().join(".cursor/mcp.json");
+        fs::create_dir_all(cursor_path.parent().unwrap()).unwrap();
+        fs::write(
+            &cursor_path,
+            r#"{
+  "mcpServers": {
+    "anvil": {
+      "command": "/opt/homebrew/Cellar/anvil/0.9.2-beta/bin/anvil",
+      "args": ["mcp", "serve", "--stdio"],
+      "env": {"ANVIL_HOME": "/srv/anvil"},
+      "disabled": true,
+      "timeout": 45000
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let first = ensure_existing_mcp_entries(
+            ws.path(),
+            Some(home.path()),
+            &AnvilEntry::preferred_stdio(),
+        );
+        assert!(matches!(
+            first.report.per_client.get(&McpClientId::Cursor),
+            Some(InstallOutcome::Installed { .. })
+        ));
+        let raw = fs::read_to_string(&cursor_path).unwrap();
+        let value: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        let entry = &value["mcpServers"]["anvil"];
+        assert_eq!(entry["command"], "anvil");
+        assert_eq!(entry["env"]["ANVIL_HOME"], "/srv/anvil");
+        assert_eq!(entry["disabled"], true);
+        assert_eq!(entry["timeout"], 45000);
+
+        let after_first = fs::read(&cursor_path).unwrap();
+        let second = ensure_existing_mcp_entries(
+            ws.path(),
+            Some(home.path()),
+            &AnvilEntry::preferred_stdio(),
+        );
+        assert!(second.managed >= 1);
+        assert_eq!(
+            fs::read(&cursor_path).unwrap(),
+            after_first,
+            "the migrated entry must be stable on repeated ensure"
+        );
     }
 
     #[test]
@@ -1525,12 +1705,12 @@ mod tests {
 
     #[test]
     fn safe_drift_is_rewritten_on_auto_install() {
-        // Existing entry has anvil-shaped command at a different path —
-        // SafeDrift, eligible for auto-install rewrite.
+        // Existing entry has a recognised managed Cellar path — SafeDrift,
+        // eligible for auto-install repair.
         let ws = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         fs::create_dir_all(home.path().join(".cursor")).unwrap();
-        let cfg = r#"{"mcpServers": {"anvil": {"command": "/old/path/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
+        let cfg = r#"{"mcpServers": {"anvil": {"command": "/opt/homebrew/Cellar/anvil/0.9.1/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
         let cursor_path = home.path().join(".cursor/mcp.json");
         fs::write(&cursor_path, cfg).unwrap();
 
@@ -2072,13 +2252,13 @@ mod tests {
     #[test]
     fn existing_anvil_entry_is_managed_even_when_editor_not_enabled() {
         // The gate blocks only *fresh* writes. An existing anvil entry
-        // (here SafeDrift — anvil-shaped command at a stale path) must
+        // (here SafeDrift — recognised managed Cellar path) must
         // still be rewritten even when the editor is not in the enabled
         // set, so we never orphan a config anvil already manages.
         let ws = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         fs::create_dir_all(home.path().join(".cursor")).unwrap();
-        let cfg = r#"{"mcpServers": {"anvil": {"command": "/old/path/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
+        let cfg = r#"{"mcpServers": {"anvil": {"command": "/opt/homebrew/Cellar/anvil/0.9.1/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
         fs::write(home.path().join(".cursor/mcp.json"), cfg).unwrap();
 
         let report = install_for_clients(

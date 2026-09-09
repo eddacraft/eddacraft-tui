@@ -215,6 +215,7 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
                     // future refactor lets one through, the surface
                     // text stays informative rather than panicking.
                     DriftClass::UpToDate => "rewrote up-to-date entry",
+                    DriftClass::ExplicitOverride { .. } => "rewrote explicit configuration",
                     DriftClass::UnsafeDrift { .. } => "rewrote unsafe entry",
                 };
                 format!("installed at {} ({kind})", path.display())
@@ -234,6 +235,9 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
             InstallOutcome::Skipped {
                 reason: SkipReason::UnsafeDrift(reason),
             } => format!("skipped — refused to overwrite ({reason})"),
+            InstallOutcome::Skipped {
+                reason: SkipReason::ExplicitOverride(reason),
+            } => format!("skipped — preserved explicit configuration ({reason})"),
             InstallOutcome::Skipped {
                 reason: SkipReason::EditorNotDetected,
             } => {

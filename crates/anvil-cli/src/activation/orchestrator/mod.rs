@@ -903,6 +903,7 @@ fn build_tui_consent_plan_with_project_options(
                 || matches!(
                     candidate.drift,
                     crate::activation::mcp_client::DriftClass::UpToDate
+                        | crate::activation::mcp_client::DriftClass::ExplicitOverride { .. }
                 )
             {
                 continue;
@@ -919,7 +920,10 @@ fn build_tui_consent_plan_with_project_options(
                 crate::activation::mcp_client::DriftClass::NotPresent => "Write",
                 crate::activation::mcp_client::DriftClass::SafeDrift { .. } => "Update",
                 crate::activation::mcp_client::DriftClass::UnsafeDrift { .. } => "Inspect",
-                crate::activation::mcp_client::DriftClass::UpToDate => unreachable!(),
+                crate::activation::mcp_client::DriftClass::UpToDate
+                | crate::activation::mcp_client::DriftClass::ExplicitOverride { .. } => {
+                    unreachable!()
+                }
             };
             offers.push(TuiConsentOffer {
                 id: id.clone(),
@@ -1919,6 +1923,7 @@ fn tui_mcp_offer_available(
                 && !matches!(
                     candidate.drift,
                     crate::activation::mcp_client::DriftClass::UpToDate
+                        | crate::activation::mcp_client::DriftClass::ExplicitOverride { .. }
                 )
         })
 }

@@ -1,4 +1,4 @@
-# ADR-044: Anvil MCP Entries Are Activation-Owned; Backend Swaps Overwrite In Place
+# ADR-044: Anvil MCP Entries Are Activation-Owned; Managed Backend Paths Migrate In Place
 
 ## Status
 
@@ -22,16 +22,17 @@ The activation orchestrator at
 classifies drift between the on-disk entry and a freshly-built
 `AnvilEntry`, and already has an explicit policy table:
 
-| `DriftClass`  | Interactive default       | Non-interactive default   | Notes                                            |
-|---------------|---------------------------|---------------------------|--------------------------------------------------|
-| `NotPresent`  | pre-selected in picker    | auto-install              | fresh write; nothing to merge                    |
-| `SafeDrift`   | pre-selected in picker    | auto-install              | recognised Anvil entry differs — rewrite in place |
-| `UpToDate`    | not shown                 | skip                      | nothing to do                                    |
-| `UnsafeDrift` | hidden from picker, refused | skipped with note         | foreign tool / unparseable — **never overwrite** |
+| `DriftClass`       | Interactive default        | Non-interactive default | Notes                                                        |
+| ------------------ | -------------------------- | ----------------------- | ------------------------------------------------------------ |
+| `NotPresent`       | offered unticked           | auto-install            | fresh write; nothing to merge                                |
+| `SafeDrift`        | offered unticked           | auto-repair             | recognised obsolete managed path; replace command path only  |
+| `UpToDate`         | not shown                  | skip                    | nothing to do                                                |
+| `ExplicitOverride` | not shown                  | preserve                | supported command/environment choice; no write               |
+| `UnsafeDrift`      | hidden from picker, refused | skipped with note       | foreign tool / unparseable — **never overwrite**             |
 
-The interactive picker is pre-selected for `SafeDrift`, meaning the user
-sees the editor surface in a checklist with the box already ticked and
-confirms with Enter. `UnsafeDrift` is never offered for overwrite at any
+The interactive picker offers `NotPresent` and `SafeDrift` candidates unticked.
+`ExplicitOverride` is managed but not actionable, so it is not offered.
+`UnsafeDrift` is never offered for overwrite at any
 level (filtered out of the picker, and the install gate independently
 refuses it). Other server entries (`mcpServers.other`, etc.) and
 unrelated top-level keys (`theme`, `extensions`) are preserved on every
@@ -47,7 +48,7 @@ on detected drift. Every other Anvil-touched file is **write-once**:
 | `.anvilrc`                    | write-only-if-missing              | delete the file, re-run `anvil start` |
 | `.anvil/baseline.json`        | write-only-if-missing (LAUNCH-010) | `rm .anvil/baseline.json`             |
 | `.anvil/architecture.json`    | write-only-if-missing              | delete and re-run                     |
-| `mcpServers.anvil` (editors)  | drift-classify (see table above)   | `anvil start` (this ADR)              |
+| `mcpServers.anvil` (editors)  | drift-classify; preserve explicit fields | `anvil start` (this ADR)        |
 
 The MCP entry is special because it is a **self-registration in someone
 else's config file**. Unlike project-local files, the user did not
@@ -96,9 +97,11 @@ treating it as someone else's problem is not.
 
 ## Decision
 
-The `mcpServers.anvil` entry is **owned by the activation flow**. On
-every `anvil start`, drift is classified per the existing policy table
-and the entry is rewritten when classified as `SafeDrift`. The user
+The activation flow owns the recognised server key and the canonical launch
+shape it writes; supported operator choices inside that entry remain
+operator-owned. On every `anvil start`, drift is classified per the policy table.
+For `SafeDrift`, only the obsolete managed command path is replaced; environment,
+disabled state and client-specific options are retained. The user
 sees a single-line notice when a rewrite happens. Interactive flows
 offer a picker (amended 2026-07-11: candidates start unticked — see
 Amendments); non-interactive flows auto-apply.
@@ -110,17 +113,25 @@ on user upgrades.
 
 Concretely:
 
-1. **Single owner.** Only `anvil start` and `anvil mcp-config` may write
-   the `mcpServers.anvil` key. Other commands read but never modify it.
+1. **Split ownership within the recognised entry.** Only `anvil start` and
+   `anvil mcp-config` may create the `mcpServers.anvil` key. The activation flow
+   owns the canonical server identity and launch arguments it originally wrote.
+   A supported explicit executable, environment, disabled state, scope and
+   client-specific option remain operator-owned and survive repair.
+   Other commands read but never modify the entry except the explicit MCP repair
+   surfaces governed by this policy.
    `anvil uninstall --global` removes the key entirely (surgical JSON
    edit; other servers preserved).
 2. **Drift policy (pinned).** The orchestrator's existing
    `DriftClass` → action mapping is now contract:
    - `NotPresent`: install (interactive offered unticked — amended
      2026-07-11; non-interactive auto)
-   - `SafeDrift`: rewrite in place (interactive offered unticked —
-     amended 2026-07-11; non-interactive auto)
+   - `SafeDrift`: replace only a recognised obsolete managed command path
+     (interactive offered unticked; non-interactive auto); preserve all other
+     fields
    - `UpToDate`: skip
+   - `ExplicitOverride`: preserve without prompting or writing; count as an
+     existing managed entry for status and recovery reporting
    - `UnsafeDrift`: **never overwrite**. Skipped with note. Recovery
      is `anvil uninstall --global && anvil start`.
 3. **User-visible notice (renderer follow-up).** When the orchestrator
@@ -147,11 +158,10 @@ Concretely:
    tick rather than a one-keystroke accept; Enter with nothing ticked
    writes nothing. The picker remains a single prompt, not a
    re-confirm-every-start flow.
-5. **Opt-out flag.** `anvil start --keep-mcp` skips MCP entry rewrites
+5. **Opt-out flag.** `anvil start --keep-mcp` skips managed-path repair
    entirely (`SafeDrift` is treated as `UpToDate` for the duration of
-   that invocation). Intended for users who have customised the entry
-   on purpose (e.g. wrapping Anvil's command in a launcher). Default
-   remains automatic rewrite.
+   that invocation). Explicit launch choices no longer require this flag: they
+   classify as `ExplicitOverride` and are preserved by default.
 6. **Heavy reset is always available.** `anvil uninstall --global` +
    `anvil start` is the documented fallback for any user whose entry
    has drifted into `UnsafeDrift` territory or who otherwise wants a
@@ -218,7 +228,7 @@ backend is about to swap from a Node-based shim to a Rust binary.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Codify existing behaviour: pre-selected picker interactive, auto non-interactive, with notice + discovery** (chosen) | No code change to install path; matches current UX; pinned by ADR + tests; discovery requirement closes the upgrade gap | Discovery work falls on DISTRIB; ADR depends on cross-module follow-through |
+| **Target recognised managed paths; preserve explicit fields; auto-repair non-interactively with notice + discovery** (chosen) | Routine package-path migration remains automatic; operator choices and client options survive; pinned by ADR + tests | Requires shape-aware targeted repair for each supported client format; discovery work still falls on DISTRIB |
 | Fully silent overwrite, remove the interactive picker | Lowest friction | Reduces user visibility; users may not notice their MCP config changed; conflicts with current install UX users have learned |
 | Interactive prompt on every detected drift | Maximum visibility | Friction every start after upgrade; users will mash `y`; conflicts with planless-first |
 | Manual `anvil migrate` only; activation flow leaves entries alone | Maximally explicit | Existing users stuck on the old backend until they discover and run a migration command; defeats automatic upgrade |
@@ -241,10 +251,10 @@ backend is about to swap from a Node-based shim to a Rust binary.
   upgrades.
 - **Positive:** `anvil uninstall --global` becomes the universal "reset
   my MCP config" answer when anything weird happens, simplifying support.
-- **Negative:** Users who have manually customised the `mcpServers.anvil`
-  entry lose their customisation on next `anvil start` unless they pass
-  `--keep-mcp`. This trade-off is acceptable because the entry is
-  documented as Anvil-managed and the opt-out flag exists.
+- **Positive:** Supported explicit commands, environments, disabled state,
+  scope and client-specific options survive repeated activation and repair.
+- **Negative:** Every supported MCP config shape needs a targeted command-path
+  repair adapter and preservation regression coverage.
 - **Negative:** The user-visible notice becomes load-bearing copy. It
   must be terse, accurate, and easy to grep for in CI logs.
 - **Negative:** Discovery depends on DISTRIB landing the hints described
@@ -303,6 +313,29 @@ backend is about to swap from a Node-based shim to a Rust binary.
   - `crates/anvil-cli/src/commands/uninstall.rs` (heavy-reset path)
 
 ## Amendments
+
+### 2026-09-10 — preserve explicit launch choices; narrow managed repair (JREL-009)
+
+The original decision treated any recognised anvil-shaped command with
+canonical arguments as `SafeDrift` and replaced the complete server entry. That
+made activation ownership too broad: daily ensure could replace deliberate
+side-by-side or Nix executables, environment selection, disabled state and
+client-specific options.
+
+JREL-009 narrows ownership. Only recognised obsolete package-managed command
+paths (including versioned Homebrew Cellar and Scoop application paths) are
+`SafeDrift`; their repair replaces the command path alone. Supported explicit
+commands or environments are `ExplicitOverride`, remain configured, and are
+preserved without a picker offer or write. Scope continues to follow the
+existing entry selected by normal precedence. Extra per-entry fields are always
+retained, including when a managed path is repaired. Pins still suppress daily
+managed-path repair, while corrupt, conflicting or foreign entries remain
+`UnsafeDrift` and are never overwritten.
+
+This amendment supersedes the earlier claim that manual customisation is lost
+unless `--keep-mcp` is supplied. It does not transfer ownership of the server
+identity or canonical protocol arguments, relax unsafe-drift refusal, or change
+the explicit heavy-reset path.
 
 ### 2026-07-11 — interactive picker defaults unticked (CIB-184)
 

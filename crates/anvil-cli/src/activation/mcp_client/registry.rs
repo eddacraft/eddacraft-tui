@@ -129,6 +129,61 @@ impl McpClient for RegistryClient {
         }
     }
 
+    fn repair_managed_drift(
+        &self,
+        parsed: &ParsedConfig,
+        fresh: &AnvilEntry,
+    ) -> Result<String, RenderError> {
+        let kind = self.kind();
+        let mut entry = parsed.existing_entry.clone().ok_or(RenderError::BadEntry)?;
+        let object = entry.as_object_mut().ok_or(RenderError::BadEntry)?;
+        let AnvilEntry::Stdio { command, .. } = fresh;
+        let command = command_to_string(command)?;
+
+        match kind {
+            McpConfigKind::OpenCodeJson => {
+                let command_array = object
+                    .get_mut("command")
+                    .and_then(Value::as_array_mut)
+                    .ok_or(RenderError::BadEntry)?;
+                let first = command_array.first_mut().ok_or(RenderError::BadEntry)?;
+                if !first.is_string() {
+                    return Err(RenderError::BadEntry);
+                }
+                *first = Value::String(command);
+            }
+            McpConfigKind::ZedContextServersJson => {
+                let command_object = object
+                    .get_mut("command")
+                    .and_then(Value::as_object_mut)
+                    .ok_or(RenderError::BadEntry)?;
+                let path = command_object
+                    .get_mut("path")
+                    .filter(|path| path.is_string())
+                    .ok_or(RenderError::BadEntry)?;
+                *path = Value::String(command);
+            }
+            _ => {
+                let existing = object
+                    .get_mut("command")
+                    .filter(|command| command.is_string())
+                    .ok_or(RenderError::BadEntry)?;
+                *existing = Value::String(command);
+            }
+        }
+
+        if let Some(table) = kind.toml_servers_table() {
+            merge_toml_mcp(parsed, table, SERVER_NAME, entry)
+        } else if let Some(keys) = kind.json_object_path() {
+            merge_json_at(parsed, keys, SERVER_NAME, entry)
+        } else {
+            Err(RenderError::Serialise(format!(
+                "{} has no MCP config adapter",
+                self.id.display_name()
+            )))
+        }
+    }
+
     fn render_new(&self, fresh: &AnvilEntry) -> Result<String, RenderError> {
         let kind = self.kind();
         let entry = build_entry(self.id, kind, fresh)?;
@@ -160,7 +215,7 @@ impl McpClient for RegistryClient {
         if entries_equivalent(&existing, &fresh_value)
             || matches!(
                 classify_drift_by_args(&existing, fresh),
-                DriftClass::SafeDrift { .. }
+                DriftClass::SafeDrift { .. } | DriftClass::ExplicitOverride { .. }
             )
         {
             McpTier::RestartRequired
@@ -335,5 +390,66 @@ args = ["mcp", "serve", "--stdio"]
                 assert_eq!(args, vec!["mcp", "serve", "--stdio"]);
             }
         }
+    }
+
+    #[test]
+    fn opencode_managed_repair_preserves_disabled_state_and_options() {
+        let raw = r#"{"mcp":{"anvil":{"type":"local","command":["/opt/homebrew/Cellar/anvil/0.9.1/bin/anvil","mcp","serve","--stdio"],"enabled":false,"timeout":30000}}}"#;
+        let parsed = OPEN_CODE.parse(raw).unwrap();
+        assert!(matches!(
+            OPEN_CODE.classify_drift(&parsed, &fresh()),
+            DriftClass::SafeDrift { .. }
+        ));
+
+        let rendered = OPEN_CODE.repair_managed_drift(&parsed, &fresh()).unwrap();
+        let value: Value = serde_json::from_str(&rendered).unwrap();
+        let entry = &value["mcp"]["anvil"];
+        assert_eq!(entry["command"][0], "/usr/local/bin/anvil");
+        assert_eq!(entry["command"][1], "mcp");
+        assert_eq!(entry["command"][3], "--stdio");
+        assert_eq!(entry["enabled"], false);
+        assert_eq!(entry["timeout"], 30000);
+    }
+
+    #[test]
+    fn zed_managed_repair_preserves_nested_environment_and_options() {
+        let raw = r#"{"context_servers":{"anvil":{"command":{"path":"/opt/homebrew/Cellar/anvil/0.9.1/bin/anvil","args":["mcp","serve","--stdio"],"env":{"ANVIL_HOME":"/srv/anvil"}},"settings":{"tool_timeout":45}}}}"#;
+        let parsed = ZED.parse(raw).unwrap();
+        assert!(matches!(
+            ZED.classify_drift(&parsed, &fresh()),
+            DriftClass::SafeDrift { .. }
+        ));
+
+        let rendered = ZED.repair_managed_drift(&parsed, &fresh()).unwrap();
+        let value: Value = serde_json::from_str(&rendered).unwrap();
+        let entry = &value["context_servers"]["anvil"];
+        assert_eq!(entry["command"]["path"], "/usr/local/bin/anvil");
+        assert_eq!(entry["command"]["env"]["ANVIL_HOME"], "/srv/anvil");
+        assert_eq!(entry["settings"]["tool_timeout"], 45);
+    }
+
+    #[test]
+    fn toml_managed_repair_preserves_environment_and_options() {
+        let raw = r#"
+[mcp_servers.anvil]
+command = "/opt/homebrew/Cellar/anvil/0.9.1/bin/anvil"
+args = ["mcp", "serve", "--stdio"]
+startup_timeout_sec = 30
+
+[mcp_servers.anvil.env]
+ANVIL_HOME = "/srv/anvil"
+"#;
+        let parsed = GROK.parse(raw).unwrap();
+        assert!(matches!(
+            GROK.classify_drift(&parsed, &fresh()),
+            DriftClass::SafeDrift { .. }
+        ));
+
+        let rendered = GROK.repair_managed_drift(&parsed, &fresh()).unwrap();
+        let value: toml::Value = toml::from_str(&rendered).unwrap();
+        let entry = &value["mcp_servers"]["anvil"];
+        assert_eq!(entry["command"].as_str(), Some("/usr/local/bin/anvil"));
+        assert_eq!(entry["env"]["ANVIL_HOME"].as_str(), Some("/srv/anvil"));
+        assert_eq!(entry["startup_timeout_sec"].as_integer(), Some(30));
     }
 }
