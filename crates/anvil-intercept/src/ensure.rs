@@ -488,6 +488,14 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
         EndpointLiveness::None => {}
     }
 
+    if remaining().is_zero() {
+        return EnsureOutcome::Failed {
+            recovery: "the daemon lifecycle budget elapsed before spawn; not launching \
+                       a daemon that cannot be waited for. Retry with bare `anvil`"
+                .to_owned(),
+        };
+    }
+
     // 5. Spawn the detached daemon. Its own IpcListener bind unlinks any stale
     //    socket it owns, so we never unlink an endpoint here.
     let spawned_pid = match params.launcher.spawn_detached(params.log_path) {
@@ -1845,6 +1853,45 @@ mod tests {
             "coordinator wait must not block past the lifecycle budget"
         );
         assert_eq!(launcher.spawns(), 0);
+    }
+
+    #[test]
+    fn exhausted_budget_after_reprobe_does_not_spawn() {
+        struct SleepyAbsentProbe {
+            sleep: Duration,
+        }
+        impl DaemonProbe for SleepyAbsentProbe {
+            fn probe(&self) -> Liveness {
+                std::thread::sleep(self.sleep);
+                Liveness::Unreachable
+            }
+        }
+
+        let fx = fixture();
+        let probe = SleepyAbsentProbe {
+            sleep: Duration::from_millis(25),
+        };
+        let launcher = FakeLauncher::never_binds();
+        let p = EnsureParams {
+            lifecycle_budget: Duration::from_millis(40),
+            lock_timeout: Duration::from_millis(10),
+            bind_timeout: Duration::from_millis(80),
+            ..params(&probe, &launcher, &fx.lock, &fx.log)
+        };
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Failed { recovery } => {
+                assert!(
+                    recovery.contains("lifecycle budget"),
+                    "recovery must name the budget: {recovery}"
+                );
+            }
+            other => panic!("expected Failed when the budget is spent, got {other:?}"),
+        }
+        assert_eq!(
+            launcher.spawns(),
+            0,
+            "must not spawn a daemon that cannot be waited for"
+        );
     }
 
     #[test]
