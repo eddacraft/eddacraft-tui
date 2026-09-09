@@ -907,8 +907,18 @@ pub(crate) fn read_core_hooks_path(workspace_root: &Path) -> Option<String> {
     if !output.status.success() {
         return None;
     }
-    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let value = String::from_utf8_lossy(strip_git_line_ending(&output.stdout)).into_owned();
     if value.is_empty() { None } else { Some(value) }
+}
+
+fn strip_git_line_ending(mut value: &[u8]) -> &[u8] {
+    if let Some(without_lf) = value.strip_suffix(b"\n") {
+        value = without_lf;
+    }
+    if let Some(without_cr) = value.strip_suffix(b"\r") {
+        value = without_cr;
+    }
+    value
 }
 
 /// Ask Git for the effective hook path after applying core.hooksPath path
@@ -924,11 +934,18 @@ fn resolve_git_hook_path(workspace_root: &Path, event: &str) -> Option<PathBuf> 
     if !output.status.success() {
         return None;
     }
-    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let value = strip_git_line_ending(&output.stdout);
     if value.is_empty() {
         return None;
     }
-    let path = PathBuf::from(value);
+    #[cfg(unix)]
+    let path = {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+        PathBuf::from(OsString::from_vec(value.to_vec()))
+    };
+    #[cfg(not(unix))]
+    let path = PathBuf::from(String::from_utf8_lossy(value).into_owned());
     Some(if path.is_absolute() {
         path
     } else {
@@ -944,6 +961,62 @@ fn resolve_effective_hooks_dir(workspace_root: &Path) -> Result<PathBuf> {
             .context("Git returned a hook path without a parent directory");
     }
     Ok(resolve_git_dir(workspace_root)?.join("hooks"))
+}
+
+fn file_mode_hook_dirs(workspace_root: &Path) -> Result<Vec<(PathBuf, String)>> {
+    let effective = resolve_effective_hooks_dir(workspace_root)?;
+    let location = effective.strip_prefix(workspace_root).map_or_else(
+        |_| effective.to_string_lossy().into_owned(),
+        |relative| relative.to_string_lossy().into_owned(),
+    );
+    let mut dirs = vec![(effective.clone(), location)];
+    let husky = workspace_root.join(".husky");
+    if husky != effective {
+        dirs.push((husky, ".husky".to_string()));
+    }
+    Ok(dirs)
+}
+
+fn uninstall_file_mode_hooks(
+    workspace_root: &Path,
+    pre_commit_only: bool,
+    pre_push_only: bool,
+) -> Result<Vec<HookResult>> {
+    let mut results = Vec::new();
+    for (dir, _) in file_mode_hook_dirs(workspace_root)? {
+        if !dir.exists() {
+            continue;
+        }
+        if !pre_push_only {
+            results.push(uninstall_hook(&dir, "pre-commit")?);
+            results.push(uninstall_hook(&dir, "post-commit")?);
+        }
+        if !pre_commit_only {
+            results.push(uninstall_hook(&dir, "pre-push")?);
+        }
+    }
+    Ok(results)
+}
+
+fn collect_file_mode_hook_status(workspace_root: &Path) -> Result<Vec<HookStatusInfo>> {
+    let mut hooks = Vec::new();
+    for (dir, location) in file_mode_hook_dirs(workspace_root)? {
+        if !dir.exists() {
+            continue;
+        }
+        for hook_name in ["pre-commit", "post-commit", "pre-push"] {
+            let path = dir.join(hook_name);
+            let installed = path.is_file();
+            let anvil_managed = installed && is_anvil_managed(&path);
+            hooks.push(HookStatusInfo {
+                location: location.clone(),
+                hook: hook_name.to_string(),
+                installed,
+                anvil_managed,
+            });
+        }
+    }
+    Ok(hooks)
 }
 
 /// Resolve the file-mode hook paths Git would actually consult for `event`
@@ -1064,7 +1137,7 @@ fn print_coexistence_report(report: &CoexistenceReport, anvil_managed_config_ent
 /// the hooks command's renderer.
 ///
 /// Calls the inner primitives (`uninstall_hook`, `uninstall_config_hook`)
-/// directly across both file-mode locations (`.git/hooks/`, `.husky/`)
+/// directly across Git's effective file-mode directory plus `.husky/`
 /// and config-mode (Git 2.54 `hook.<event>.command`) for the
 /// pre-commit, post-commit, and pre-push events. Each primitive is a
 /// no-op when its target is not present, so the whole call is
@@ -1109,8 +1182,9 @@ pub fn uninstall_all_managed_hooks_silent() -> Result<()> {
 /// `anvil start` uses this for ACTMO-005 so the MCP-optional activation spine
 /// includes commit and push hooks. The install policy mirrors the default
 /// `anvil hooks install` path: prefer a detected Husky directory, otherwise
-/// write Anvil-managed file-mode hooks under `.git/hooks/`. Existing unmanaged
-/// hooks are preserved by [`install_hook`]'s non-force skip semantics.
+/// write Anvil-managed file-mode hooks under Git's effective hook directory.
+/// Existing unmanaged hooks are preserved by [`install_hook`]'s non-force
+/// skip semantics.
 ///
 /// CIB-164: returns whether the commit, SHA-binding, and push hooks are
 /// actually anvil-managed after the call, so the first-run `verify:` block
@@ -1435,19 +1509,8 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 return Ok(());
             }
 
-            let mut results = Vec::new();
-            for dir in [git_dir.join("hooks"), workspace_root.join(".husky")] {
-                if !dir.exists() {
-                    continue;
-                }
-                if !*pre_push_only {
-                    results.push(uninstall_hook(&dir, "pre-commit")?);
-                    results.push(uninstall_hook(&dir, "post-commit")?);
-                }
-                if !*pre_commit_only {
-                    results.push(uninstall_hook(&dir, "pre-push")?);
-                }
-            }
+            let results =
+                uninstall_file_mode_hooks(&workspace_root, *pre_commit_only, *pre_push_only)?;
 
             if global.json {
                 crate::output::json::print(&results)?;
@@ -1464,27 +1527,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
         }
         HooksCommand::Status => {
             let (husky_detected, _) = detect_husky(&workspace_root);
-            let mut hooks = Vec::new();
-
-            for (dir, name) in [
-                (git_dir.join("hooks"), ".git/hooks"),
-                (workspace_root.join(".husky"), ".husky"),
-            ] {
-                if !dir.exists() {
-                    continue;
-                }
-                for hook_name in ["pre-commit", "post-commit", "pre-push"] {
-                    let path = dir.join(hook_name);
-                    let installed = path.exists();
-                    let anvil_managed = installed && is_anvil_managed(&path);
-                    hooks.push(HookStatusInfo {
-                        location: name.to_string(),
-                        hook: hook_name.to_string(),
-                        installed,
-                        anvil_managed,
-                    });
-                }
-            }
+            let hooks = collect_file_mode_hook_status(&workspace_root)?;
 
             // Build a coexistence report per event the status surface
             // covers. Live anvil-managed config entries are also counted
@@ -1825,6 +1868,37 @@ mod tests {
             !ineffective.exists(),
             "installer must not write the per-worktree administrative directory",
         );
+
+        let statuses = collect_file_mode_hook_status(&linked).unwrap();
+        assert!(statuses.iter().any(|status| {
+            status.hook == "pre-push" && status.installed && status.anvil_managed
+        }));
+        let removed = uninstall_file_mode_hooks(&linked, false, true).unwrap();
+        assert!(removed.iter().any(|result| result.action == "removed"));
+        assert!(
+            !effective.exists(),
+            "uninstall must remove the common effective linked-worktree hook",
+        );
+    }
+
+    #[test]
+    fn custom_hooks_path_status_and_uninstall_follow_effective_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        git_config(dir.path(), &["core.hooksPath", ".custom-hooks"]).unwrap();
+
+        let custom_dir = dir.path().join(".custom-hooks");
+        std::fs::create_dir_all(&custom_dir).unwrap();
+        install_hook(&custom_dir, "pre-push", PRE_PUSH_HOOK, false).unwrap();
+
+        let statuses = collect_file_mode_hook_status(dir.path()).unwrap();
+        assert!(statuses.iter().any(|status| {
+            status.hook == "pre-push" && status.installed && status.anvil_managed
+        }));
+
+        let removed = uninstall_file_mode_hooks(dir.path(), false, true).unwrap();
+        assert!(removed.iter().any(|result| result.action == "removed"));
+        assert!(!custom_dir.join("pre-push").exists());
     }
 
     /// CIB-164: outside a Git repo there is nowhere to install hooks. The
@@ -2619,6 +2693,18 @@ mod tests {
                 "tilde core.hooksPath must resolve exactly as Git does: {report:?}",
             );
         });
+    }
+
+    #[test]
+    fn git_hook_path_preserves_leading_whitespace() {
+        let dir = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        git_config(dir.path(), &["core.hooksPath", " leading-hooks"]).unwrap();
+
+        assert_eq!(
+            resolve_git_hook_path(dir.path(), "pre-push"),
+            Some(dir.path().join(" leading-hooks/pre-push")),
+        );
     }
 
     /// Regression: when `core.hooksPath` is set, a stale `.git/hooks/<event>`

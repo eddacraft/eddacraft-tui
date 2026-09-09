@@ -15,8 +15,8 @@ use serde::Serialize;
 use crate::GlobalArgs;
 use crate::activation;
 use crate::commands::hooks::{
-    config_hooks_enabled, is_config_mode_hook_path, list_config_hook_commands,
-    resolve_file_mode_hook_paths,
+    HookInterpreterStatus, config_hooks_enabled, hook_interpreter_status, is_config_mode_hook_path,
+    list_config_hook_commands, resolve_file_mode_hook_paths,
 };
 use crate::commands::protection_claim_section;
 use crate::commands::status_mcp;
@@ -271,6 +271,7 @@ fn gather_status_data(root: &str) -> StatusData {
 ///    anvil's.
 fn gather_hooks(root: &Path) -> Vec<HookStatus> {
     let mut hooks = Vec::new();
+    let interpreter = hook_interpreter_status();
     for event in ["pre-commit", "pre-push", "post-merge"] {
         let mut found = false;
         for hook_path in resolve_file_mode_hook_paths(root, event) {
@@ -284,7 +285,7 @@ fn gather_hooks(root: &Path) -> Vec<HookStatus> {
             };
             hooks.push(HookStatus {
                 name: event.to_string(),
-                active: is_executable(&hook_path),
+                active: file_hook_is_active(&hook_path, interpreter),
                 path,
             });
         }
@@ -523,12 +524,16 @@ fn resolve_git_dir(root: &Path) -> std::path::PathBuf {
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     path.metadata()
-        .is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
+        .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
 }
 
 #[cfg(not(unix))]
 fn is_executable(path: &Path) -> bool {
-    path.exists()
+    path.is_file()
+}
+
+fn file_hook_is_active(path: &Path, interpreter: HookInterpreterStatus) -> bool {
+    is_executable(path) && !matches!(interpreter, HookInterpreterStatus::Missing)
 }
 
 // ---------------------------------------------------------------------------
@@ -2047,6 +2052,25 @@ mod tests {
         assert_eq!(pre_commit.path, ".husky/pre-commit");
 
         cleanup(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn file_hook_activity_rejects_directories_and_missing_interpreter() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(!file_hook_is_active(
+            dir.path(),
+            HookInterpreterStatus::Available,
+        ));
+
+        let hook = dir.path().join("pre-push");
+        std::fs::write(&hook, "#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(file_hook_is_active(&hook, HookInterpreterStatus::Available,));
+        assert!(!file_hook_is_active(&hook, HookInterpreterStatus::Missing,));
     }
 
     #[test]
