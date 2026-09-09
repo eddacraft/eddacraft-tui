@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 8/13 |
+| JREL | Josh | high | In Progress | 9/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -319,7 +319,14 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-012: Require executable product-journey verification
 
-- **Status:** In Progress
+- **Status:** Merged — PR #4523 (claim #4516) at `c3a8763c5`. Fail-closed
+  `pnpm journey:verify` builds or consumes a real anvil binary, runs the
+  catalogued cargo and E2E legs, and fails on missing files or skipped
+  required scenarios. `--verify` stays exit 0 with daemon-repair guidance
+  when MCP is wired and daemon evidence is absent; `--json` still
+  fail-closes when selected save-time coverage is unavailable. Hosted
+  Journey verification and required checks were green before protected
+  rebase-merge.
 - **Priority:** P1
 - **Intent:** A green journey job proves the actual anvil binary and required scenarios ran.
 - **Expected Outcome:** Existing CI/test tooling can build or consume a binary from a pinned main commit and fails when a required binary, scenario or expected test is missing/skipped. It exercises normal activation and real daemon/MCP transport, not only dev/no-daemon/no-MCP shortcuts. The reusable gate records source/binary/platform/client identity, supports previous-public-build upgrade testing, and provides a documented command for conductor rehearsals without an internal release service.
