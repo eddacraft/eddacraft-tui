@@ -1,8 +1,8 @@
 # Testing Best Practices
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-09-09 against `package.json`, `Cargo.toml`, `apps/e2e/vitest.config.ts`, `.github/workflows/neon-integration.yml`, `.github/workflows/rust-tests.yml`, `crates/anvil-checks/tests/secret_calibration.rs`, and `crates/anvil-checks/tests/corpus/secret/manifest.json`: dropped `.github/workflows/ci.yml` and `.github/workflows/rust.yml` from Upstream (docs-owed churn reduction). Documented test catalogue and Neon routing unchanged. |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | TEST  | Live   | Last reviewed 2026-09-09 against `package.json`, `Cargo.toml`, `apps/e2e/vitest.config.ts`, `.github/workflows/neon-integration.yml`, `.github/workflows/rust-tests.yml`, `crates/anvil-checks/tests/secret_calibration.rs`, and `crates/anvil-checks/tests/corpus/secret/manifest.json`: recorded JREL-012 `pnpm journey:verify` as the no-skip product-journey rehearsal. Prior review dropped `.github/workflows/ci.yml` and `.github/workflows/rust.yml` from Upstream (docs-owed churn reduction). |
 
 | Upstream                                                                                                                                                                                                                                                                                                  | Downstream                                                                              |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -33,6 +33,8 @@ coverage notes, and OPA/Regal policy-test notes.
 pnpm test                    # Run all unit tests
 pnpm test:coverage           # With coverage reports
 pnpm test:e2e:harness        # Vitest E2E harness
+pnpm test:journey-gate       # Fail-closed journey gate unit tests (no binary)
+pnpm journey:verify          # No-skip product-journey rehearsal (requires anvil binary)
 pnpm --dir apps/anvil-api test:neon  # Live Neon integration (credentials required)
 npx nx test core             # Test specific package
 npx nx test adapters --testNamePattern="BMAD"  # Run matching tests
@@ -247,6 +249,16 @@ workspace config at `apps/e2e/vitest.config.ts`. Keep E2E tests focused on
 observable CLI, daemon, hook, or workflow behaviour that cannot be proven with a
 unit test alone. Use isolated HOME/runtime directories and temporary workspaces
 so tests do not mutate the developer's real Anvil, Git, or editor state.
+
+The TypeScript E2E harness still skips CLI suites when the anvil binary is
+absent (`cliBinaryAvailable()`), so a TypeScript-only job can stay green. The
+product-journey rehearsal must not: `pnpm journey:verify` builds or consumes the
+real binary, runs the required cargo and E2E scenarios listed in
+`scripts/journey/scenarios.json`, and fails if a required binary, scenario file,
+or executed leg is missing or skipped. JOURNEY-014/-015 consume that exact
+command against a pinned build. Supply
+`ANVIL_PREVIOUS_PUBLIC_BIN=/path/to/anvil` (and `--require-upgrade`) when the
+previous public binary is part of the rehearsal.
 
 ### Credentialed Neon Integration
 

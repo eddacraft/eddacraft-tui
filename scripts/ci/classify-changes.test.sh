@@ -62,6 +62,10 @@ assert_json_contains "${e2e_harness}" '.pathClasses | index("e2e")' 'harness pat
 assert_json_contains "${e2e_harness}" '.requiredChecks | index("e2e")' 'harness paths require the e2e check'
 assert_json_contains "${e2e_harness}" '.pathClasses | index("unknown") == null' 'harness paths do NOT fall through to unknown'
 
+journey_gate=$(run_case journey-gate scripts/journey/verify.mjs scripts/journey/scenarios.json)
+assert_json_contains "${journey_gate}" '.pathClasses | index("e2e")' 'journey gate scripts route to the e2e class'
+assert_json_contains "${journey_gate}" '.requiredChecks | index("e2e")' 'journey gate scripts require the e2e check'
+
 rust=$(run_case rust crates/anvil-cli/src/main.rs Cargo.toml Cargo.lock rust-toolchain.toml dist-workspace.toml)
 assert_json_contains "${rust}" '.pathClasses | index("rust")' 'Rust path class'
 assert_json_contains "${rust}" '.requiredChecks | index("cargo-check")' 'Rust requires cargo check'

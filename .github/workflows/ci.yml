@@ -1226,7 +1226,9 @@ jobs:
   # Cross-surface TypeScript E2E tests (apps/e2e) — runs when any TS
   # source or the harness itself changes. CLI suites are Rust-only and
   # skip themselves when the anvil binary is absent (see apps/e2e helpers),
-  # so the Rust CLI is not required in this job.
+  # so the Rust CLI is not required in this job. JREL-012's fail-closed
+  # product-journey gate lives in `journey-verify` below; it builds the
+  # binary and forbids skip.
   e2e-harness:
     name: E2E Harness (Node 22.x)
     timeout-minutes: 30
@@ -1273,6 +1275,59 @@ jobs:
           path: coverage/e2e-results.json
           if-no-files-found: warn
 
+  # JREL-012: fail-closed product-journey verification. Builds the real
+  # anvil binary and runs `pnpm journey:verify`, which refuses missing
+  # binaries, missing required scenarios, and skipped required legs.
+  # TINT-005's skip-ok e2e-harness job above is unchanged.
+  journey-verify:
+    name: Journey verification
+    timeout-minutes: 60
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    needs: detect-changes
+    if: |
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.rust-changed == 'true' ||
+        needs.detect-changes.outputs.e2e-changed == 'true'
+      )
+    steps:
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-workspace
+
+      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: rust-ci
+          save-if: 'false'
+
+      - name: Build anvil CLI
+        run: cargo build -p eddacraft-anvil
+
+      - name: Run fail-closed journey verification
+        env:
+          ANVIL_E2E_REQUIRE_BIN: '1'
+        run: pnpm journey:verify
+
+      - name: Upload journey identity
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: journey-identity
+          path: coverage/journey-identity.json
+          if-no-files-found: warn
+
   # NOTE: Playwright E2E (e2e-tests) and TUI E2E (tui-tests) jobs removed
   # pre-beta. Playwright: no tests written yet — re-add when website E2E
   # exists. TUI tests: were cargo test in a Node job — covered by rust.yml.
@@ -1314,6 +1369,7 @@ jobs:
       - test
       - build
       - e2e-harness
+      - journey-verify
     steps:
       - name: Emit integration readiness summary
         env:
@@ -1332,6 +1388,7 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           E2E_RESULT: ${{ needs.e2e-harness.result }}
+          JOURNEY_RESULT: ${{ needs.journey-verify.result }}
         shell: bash
         run: |
           summary() {
@@ -1375,6 +1432,7 @@ jobs:
           summary "| Unit Tests (Node 22.x, ubuntu-latest) | ${TEST_RESULT} |"
           summary "| Build (Node 22.x) | ${BUILD_RESULT} |"
           summary "| E2E Harness (Node 22.x) | ${E2E_RESULT} |"
+          summary "| Journey verification | ${JOURNEY_RESULT} |"
 
       - name: Fail if any required integration job failed
         env:
@@ -1387,6 +1445,7 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           E2E_RESULT: ${{ needs.e2e-harness.result }}
+          JOURNEY_RESULT: ${{ needs.journey-verify.result }}
         shell: bash
         run: |
           # `aps-drift` is intentionally excluded — it is continue-on-error
@@ -1400,7 +1459,8 @@ jobs:
             "Type Check:${TYPECHECK_RESULT}" \
             "Unit Tests:${TEST_RESULT}" \
             "Build:${BUILD_RESULT}" \
-            "E2E Harness:${E2E_RESULT}"; do
+            "E2E Harness:${E2E_RESULT}" \
+            "Journey verification:${JOURNEY_RESULT}"; do
             label="${label_result%%:*}"
             result="${label_result##*:}"
             # `skipped` is acceptable (path-gated job did not need to run).

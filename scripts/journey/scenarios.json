@@ -1,0 +1,46 @@
+{
+  "description": "JREL-012 required product-journey scenarios. Missing files or skipped legs fail the gate.",
+  "scenarios": [
+    {
+      "id": "daemon-identity",
+      "kind": "cargo-test",
+      "package": "eddacraft-anvil",
+      "test": "daemon_identity",
+      "platforms": ["linux", "macos"]
+    },
+    {
+      "id": "save-time-driver-recovery",
+      "kind": "cargo-test",
+      "package": "eddacraft-anvil",
+      "test": "save_time_driver_recovery",
+      "platforms": ["linux", "macos"]
+    },
+    {
+      "id": "mcp-protection-claim",
+      "kind": "cargo-test",
+      "package": "eddacraft-anvil",
+      "test": "mcp_protection_claim",
+      "platforms": ["linux", "macos"]
+    },
+    {
+      "id": "mcp-stdio",
+      "kind": "cargo-test",
+      "package": "eddacraft-anvil",
+      "test": "mcp_serve_stdio"
+    },
+    {
+      "id": "e2e-cli",
+      "kind": "pnpm-e2e",
+      "script": "test:cli"
+    },
+    {
+      "id": "e2e-smoke",
+      "kind": "pnpm-e2e",
+      "script": "test:smoke"
+    },
+    {
+      "id": "upgrade-previous-public",
+      "kind": "upgrade"
+    }
+  ]
+}

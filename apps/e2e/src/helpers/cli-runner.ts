@@ -7,7 +7,9 @@
  * The CLI is now a Rust binary (ADR-011/011a). When a Rust build is present
  * the runner spawns it; when absent, `cliBinaryAvailable()` returns false so
  * test suites can skip gracefully rather than fail hard. A pure TypeScript
- * test run therefore does not require `cargo build`.
+ * test run therefore does not require `cargo build`. Set
+ * `ANVIL_E2E_REQUIRE_BIN=1` (JREL-012 `pnpm journey:verify`) to fail closed
+ * instead of skipping.
  */
 
 import { execFile } from 'node:child_process';
@@ -62,9 +64,20 @@ export interface CliRunOptions {
   forceNonInteractive?: boolean;
 }
 
+function requireCliBinary(): boolean {
+  return process.env.ANVIL_E2E_REQUIRE_BIN === '1' || process.env.ANVIL_E2E_REQUIRE_BIN === 'true';
+}
+
 /** Returns true when a Rust `anvil` binary exists to run against. */
 export function cliBinaryAvailable(): boolean {
-  return resolveCliBinary() !== undefined;
+  const available = resolveCliBinary() !== undefined;
+  if (!available && requireCliBinary()) {
+    throw new Error(
+      `anvil CLI binary not found — journey verification forbids skip.\n` +
+        `Searched:\n  - ${RUST_CANDIDATES.join('\n  - ')}`
+    );
+  }
+  return available;
 }
 
 /**

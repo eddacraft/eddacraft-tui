@@ -311,14 +311,14 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-012: Require executable product-journey verification
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** A green journey job proves the actual anvil binary and required scenarios ran.
 - **Expected Outcome:** Existing CI/test tooling can build or consume a binary from a pinned main commit and fails when a required binary, scenario or expected test is missing/skipped. It exercises normal activation and real daemon/MCP transport, not only dev/no-daemon/no-MCP shortcuts. The reusable gate records source/binary/platform/client identity, supports previous-public-build upgrade testing, and provides a documented command for conductor rehearsals without an internal release service.
 - **Dependencies:** none
 - **Coordinates with:** JOURNEY-014/-015 own acceptance; existing apps/e2e and Rust PTY/process suites remain in place.
-- **Files:** `.github/workflows/ci.yml`, `.github/workflows/rust.yml`, `apps/e2e/`, `crates/anvil-cli/tests/`, `package.json`
-- **Validation:** `pnpm --filter @eddacraft/anvil-e2e test:cli`; `pnpm --filter @eddacraft/anvil-e2e test:smoke`; `cargo test -p eddacraft-anvil --no-fail-fast`; remove the binary and a required scenario to prove the gate fails. Completion publishes the exact no-skip rehearsal command consumed by JOURNEY-014/-015.
+- **Files:** `.github/workflows/ci.yml`, `.github/workflows/rust.yml`, `apps/e2e/`, `crates/anvil-cli/tests/`, `package.json`, `scripts/journey/`, `docs/guides/testing.md`
+- **Validation:** `pnpm test:journey-gate`; `pnpm journey:verify`; `pnpm --filter @eddacraft/anvil-e2e test:cli`; `pnpm --filter @eddacraft/anvil-e2e test:smoke`; `cargo test -p eddacraft-anvil --no-fail-fast`; remove the binary and a required scenario to prove the gate fails. The published no-skip rehearsal command for JOURNEY-014/-015 is `pnpm journey:verify`.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
 
 ### JREL-013: Scope pre-write protection evidence to one worktree

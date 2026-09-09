@@ -205,6 +205,7 @@ runs:
         DOCS_ONLY=false
         CODE_CHANGED=true
         SOURCE_CHANGED=false
+        E2E_CHANGED=false
         RUST_CHANGED=false
         DIAGRAM_IMPACT_REQUIRED=false
         MARKDOWNLINT_REQUIRED=false

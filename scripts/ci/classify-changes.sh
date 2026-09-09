@@ -178,7 +178,7 @@ for path in "${paths[@]}"; do
   # that let an observability source break skip E2E on its PR (which gated only
   # on apps/e2e edits) and land the failure on the integration branch.
   case "${path}" in
-    apps/e2e/* | apps/e2e/**/* | playwright.config.ts)
+    apps/e2e/* | apps/e2e/**/* | playwright.config.ts | scripts/journey/* | scripts/journey/**/*)
       add_unique path_classes 'e2e'
       add_unique risk_classes 'source'
       matched=true

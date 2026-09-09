@@ -1,5 +1,10 @@
 name: Rust
 
+# JREL-012's fail-closed product-journey rehearsal is `pnpm journey:verify`
+# (CI job `journey-verify` in ci.yml). This workflow still owns cargo check,
+# clippy, and the crate-wide test surface that those required cargo scenarios
+# are a subset of.
+
 on:
   push:
     branches: [main, 'rust-*', 'release/*']

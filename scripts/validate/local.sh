@@ -218,6 +218,7 @@ else
         ;;
       script-fixtures)
         add_command 'pnpm test:ci-classify'
+        add_command 'pnpm test:journey-gate'
         add_command 'pnpm test:ci-cost'
         add_command 'pnpm test:ci-fast-pr'
         add_command 'pnpm test:ci-council-gate-workflow'
