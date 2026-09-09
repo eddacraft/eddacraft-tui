@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ------ | ------ | --------- |
-| Spec | Advisory | CCTX | Draft (eval coordination) | 2026-09-09 — T11–T15 recorded by eval/cctx-v1-batch-C; T16–T20 recorded by eval/cctx-v1-batch-D; T01–T05 remain claimed by CCTX-004 / #4466 |
+| Spec | Advisory | CCTX | Draft (eval coordination) | 2026-09-09 — T06–T10 recorded by eval/cctx-v1-batch-B (this PR); T11–T15 recorded by eval/cctx-v1-batch-C; T16–T20 recorded by eval/cctx-v1-batch-D; T01–T05 remain claimed by CCTX-004 / #4466 |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -31,11 +31,11 @@ residual is the done bar for a first PR.
 | T03 | orientation | claimed | CCTX-004 #4466 | |
 | T04 | localised bug | claimed | CCTX-004 #4466 | GATT / `ImpactSummary.truncated` |
 | T05 | localised bug | claimed | CCTX-004 #4466 | CALL-1 heuristic OR-across-edges |
-| T06 | localised bug | available | — | Sibling batch candidate |
-| T07 | localised bug | available | — | Sibling batch candidate |
-| T08 | cross-module change | available | — | Blast-radius scoring applies |
-| T09 | cross-module change | available | — | Blast-radius scoring applies |
-| T10 | cross-module change | available | — | Blast-radius scoring applies |
+| T06 | localised bug | recorded | eval/cctx-v1-batch-B (this PR; T06–T10) | Sibling batch candidate |
+| T07 | localised bug | recorded | eval/cctx-v1-batch-B (this PR; T06–T10) | Sibling batch candidate |
+| T08 | cross-module change | recorded | eval/cctx-v1-batch-B (this PR; T06–T10) | Blast-radius scoring applies |
+| T09 | cross-module change | recorded | eval/cctx-v1-batch-B (this PR; T06–T10) | Blast-radius scoring applies |
+| T10 | cross-module change | recorded | eval/cctx-v1-batch-B (this PR; T06–T10) | Blast-radius scoring applies |
 | T11 | cross-module change | recorded | eval/cctx-v1-batch-C (T11–T15) | Blast-radius scoring applies |
 | T12 | policy-sensitive change | recorded | eval/cctx-v1-batch-C (T11–T15) | |
 | T13 | policy-sensitive change | recorded | eval/cctx-v1-batch-C (T11–T15) | **High priority** — live leakage score (council should_fix). Keep `anvil_validate_write`. |

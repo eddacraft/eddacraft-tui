@@ -1,13 +1,178 @@
 {
   "run": {
     "id": "cctx-004-2026-09-08-v1-score",
-    "at": "2026-09-09T06:59:54Z",
+    "at": "2026-09-09T07:17:47Z",
     "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
     "kind": "live-v1-session-score",
     "scorer": "score_v1.py"
   },
-  "n_records": 10,
+  "n_records": 15,
   "tasks": [
+    {
+      "task": "T06",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T06.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "plans/**",
+          "markdownlint",
+          "CIB-390"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 160,
+      "first_useful_action": {
+        "at_s": 25,
+        "path": ".markdownlintignore",
+        "note": "Found plans/** excluded from markdownlint \u2014 empty file list exits 0."
+      }
+    },
+    {
+      "task": "T07",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T07.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "start.rs",
+          "CIB-392",
+          "fixture"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 140,
+      "first_useful_action": {
+        "at_s": 30,
+        "path": "crates/anvil-cli/src/commands/start.rs",
+        "note": "Found AKIAQRSTUVWXYZ123456 built-in sample fixture / recipe / unit pin."
+      }
+    },
+    {
+      "task": "T08",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T08.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "anvil-gctx-types",
+          "anvil-graph-cache",
+          "CE-5"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 210,
+      "first_useful_action": {
+        "at_s": 40,
+        "path": "crates/anvil-gctx-types/src/lib.rs",
+        "note": "Confirmed sealed identity-only DTOs and CE-5 structural no-leak tests."
+      }
+    },
+    {
+      "task": "T09",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T09.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "call_graph.rs",
+          "GCALL",
+          "GCTX"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 190,
+      "first_useful_action": {
+        "at_s": 35,
+        "path": "crates/anvil-graph-cache/src/call_graph.rs",
+        "note": "Found GCALL-003 callers_of substrate that GCTX-014 projects."
+      }
+    },
+    {
+      "task": "T10",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T10.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "105-shared-base-graph-persistence.md",
+          "ARCHITECTURE.md",
+          "per-worktree"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 210,
+      "first_useful_action": {
+        "at_s": 40,
+        "path": "plans/decisions/105-shared-base-graph-persistence.md",
+        "note": "ADR-105: shared write-once base per merge-base + live per-worktree overlay."
+      }
+    },
     {
       "task": "T11",
       "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T11.json",

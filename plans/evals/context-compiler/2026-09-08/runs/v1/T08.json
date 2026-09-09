@@ -1,0 +1,78 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/anvil-cctx-v1-batch-B/.worktrees/cctx-v1-corpus-B",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "task": "T08",
+  "session_id": "cctx-v1-batch-B-T08-2026-09-09",
+  "started_at": "2026-09-09T06:29:50Z",
+  "ended_at": "2026-09-09T06:33:20Z",
+  "wall_time_s": 210,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 6
+    },
+    {
+      "name": "read",
+      "count": 5
+    }
+  ],
+  "search_queries": [
+    "CE-5|identity-only|no-leak in anvil-gctx-types and anvil-gctx-egress",
+    "MCP tool registry GCTX search_symbols find_dependents",
+    "CE-5 sealed egress DTO in docs/architecture/graph-context-delivery-spec.md",
+    "anvil-graph-cache substrate vs GctxProjector"
+  ],
+  "files_read": [
+    "crates/anvil-gctx-types/src/lib.rs",
+    "crates/anvil-gctx-egress/src/lib.rs",
+    "crates/anvil-cli/src/mcp/tools/registry.rs",
+    "crates/anvil-cli/src/mcp/tools/search_symbols.rs",
+    "docs/architecture/graph-context-delivery-spec.md"
+  ],
+  "first_useful_action": {
+    "at_s": 40,
+    "path": "crates/anvil-gctx-types/src/lib.rs",
+    "note": "Confirmed sealed identity-only DTOs and CE-5 structural no-leak tests."
+  },
+  "answer": "To add a new identity-only GCTX MCP tool without leaking source text, touch the CE-5 spine end-to-end: (1) crates/anvil-gctx-types \u2014 sealed egress DTOs plus the CE-5 structural no-leak serialised-shape tests (hard gate; crate depends only on anvil_kernel_types + serde, never anvil-graph-cache); (2) crates/anvil-gctx-egress \u2014 extend GctxProjector, the single CE-5 choke point that builds identity-only DTOs from the warm graph; (3) crates/anvil-graph-cache only if the tool needs new substrate reads (hot index / walks), keeping producer internals off the wire; (4) crates/anvil-cli MCP dispatch \u2014 new tool module under mcp/tools/ plus registry registration (charges_graph_egress, identity-only descriptor); (5) docs/architecture/graph-context-delivery-spec.md CE-5 / CE-1 contract and any proto/RPC if a new anvil/gctx/* method is required. Default remains identity-only (no source text); SnippetResult is the lone CE-1 carve-out behind egress consent. Keep anvil_validate_write on edits. This V1 session used no GCTX tools and no Decision Brief as a gate.",
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path requiring recovery."
+  },
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "anvil-gctx-types",
+      "anvil-graph-cache",
+      "CE-5"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

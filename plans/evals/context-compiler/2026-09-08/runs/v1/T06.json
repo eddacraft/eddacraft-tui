@@ -1,0 +1,77 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/anvil-cctx-v1-batch-B/.worktrees/cctx-v1-corpus-B",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "task": "T06",
+  "session_id": "cctx-v1-batch-B-T06-2026-09-09",
+  "started_at": "2026-09-09T06:24:30Z",
+  "ended_at": "2026-09-09T06:27:10Z",
+  "wall_time_s": 160,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 5
+    },
+    {
+      "name": "read",
+      "count": 4
+    }
+  ],
+  "search_queries": [
+    "markdownlint in .markdownlintignore package.json workflows",
+    "plans/** exclude markdownlint",
+    "CIB-390 continuous-improvement-backlog",
+    "Reading PR readiness in .github/workflows/README.md"
+  ],
+  "files_read": [
+    ".markdownlintignore",
+    ".markdownlint.json",
+    "plans/modules/continuous-improvement-backlog.aps.md",
+    ".github/workflows/README.md"
+  ],
+  "first_useful_action": {
+    "at_s": 25,
+    "path": ".markdownlintignore",
+    "note": "Found plans/** excluded from markdownlint \u2014 empty file list exits 0."
+  },
+  "answer": "No \u2014 exit 0 is not a pass when the only named inputs sit under plans/**. .markdownlintignore deliberately excludes plans/** (\"internal planning content with its own conventions\"), so `markdownlint --ignore-path .markdownlintignore` on a plans/ APS module receives an empty file list, prints its usage banner, and still exits 0 without examining anything. That non-verdict-as-pass defect is recorded as CIB-390 in plans/modules/continuous-improvement-backlog.aps.md (shape A); do not remove plans/** from the ignore file \u2014 APS has its own lint. .github/workflows/README.md \"Reading PR readiness (CIB-390)\" covers the sibling shape B (mid-flight CI read as a settled pass). Keep treating anvil_validate_write as the write gate; this V1 session used no GCTX tools and no Decision Brief.",
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path requiring recovery."
+  },
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "plans/**",
+      "markdownlint",
+      "CIB-390"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

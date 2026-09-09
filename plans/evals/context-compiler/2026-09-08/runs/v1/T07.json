@@ -1,0 +1,74 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/anvil-cctx-v1-batch-B/.worktrees/cctx-v1-corpus-B",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "task": "T07",
+  "session_id": "cctx-v1-batch-B-T07-2026-09-09",
+  "started_at": "2026-09-09T06:27:20Z",
+  "ended_at": "2026-09-09T06:29:40Z",
+  "wall_time_s": 140,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 4
+    },
+    {
+      "name": "read",
+      "count": 2
+    }
+  ],
+  "search_queries": [
+    "AKIA|AWS Key|fixture in crates/anvil-cli/src/commands/start.rs",
+    "CIB-392 MCP pre-write secret fixture",
+    "built-in sample fixture anvil_validate_write"
+  ],
+  "files_read": [
+    "crates/anvil-cli/src/commands/start.rs",
+    "plans/modules/continuous-improvement-backlog.aps.md"
+  ],
+  "first_useful_action": {
+    "at_s": 30,
+    "path": "crates/anvil-cli/src/commands/start.rs",
+    "note": "Found AKIAQRSTUVWXYZ123456 built-in sample fixture / recipe / unit pin."
+  },
+  "answer": "No \u2014 those are not live secrets. anvil_validate_write on crates/anvil-cli/src/commands/start.rs interrupts on the deliberate AWS-key-shaped fixture string AKIAQRSTUVWXYZ123456 at the recipe, cleanup, and unit-test sites (documented at lines 791, 2612, 5172 in CIB-392). They exist so anvil start's first-run recipe can prove secret detection works, plus the test that pins pattern_name == \"AWS Key\". CIB-392 (plans/modules/continuous-improvement-backlog.aps.md) records the MCP pre-write gate crying wolf on anvil's own fixture when tiering falls back to a whole-file scan; the findings are pre-existing and unrelated to an edit that does not introduce them. Do not delete the fixture to dodge the scanner. Keep anvil_validate_write; this V1 session used no GCTX tools and no Decision Brief.",
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path requiring recovery."
+  },
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "start.rs",
+      "CIB-392",
+      "fixture"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

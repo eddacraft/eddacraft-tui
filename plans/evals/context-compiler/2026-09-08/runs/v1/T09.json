@@ -1,0 +1,79 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/anvil-cctx-v1-batch-B/.worktrees/cctx-v1-corpus-B",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "task": "T09",
+  "session_id": "cctx-v1-batch-B-T09-2026-09-09",
+  "started_at": "2026-09-09T06:33:30Z",
+  "ended_at": "2026-09-09T06:36:40Z",
+  "wall_time_s": 190,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 5
+    },
+    {
+      "name": "read",
+      "count": 5
+    }
+  ],
+  "search_queries": [
+    "callers_of|GCALL-003 in call_graph.rs",
+    "anvil_find_callers MCP tool GCTX-014",
+    "GCALL versus GCTX in symbol-call-graph.aps.md",
+    "collect_callers GctxProjector",
+    "ADR-086 symbol call graph substrate"
+  ],
+  "files_read": [
+    "crates/anvil-graph-cache/src/call_graph.rs",
+    "crates/anvil-cli/src/mcp/tools/find_callers.rs",
+    "crates/anvil-gctx-egress/src/lib.rs",
+    "plans/archive/modules/symbol-call-graph.aps.md",
+    "plans/decisions/086-symbol-call-graph-substrate.md"
+  ],
+  "first_useful_action": {
+    "at_s": 35,
+    "path": "crates/anvil-graph-cache/src/call_graph.rs",
+    "note": "Found GCALL-003 callers_of substrate that GCTX-014 projects."
+  },
+  "answer": "Trace: producer substrate is GCALL (archived module symbol-call-graph) \u2014 extraction lifts Calls edges; GCALL-003 call_graph.rs exposes bounded callers_of over resident Calls edges (CallerResult with distance + heuristic overload fan-out). At warm-start compose, anvil-graph-cache holds that graph. GCTX's job is assistant-facing projection only: GctxProjector::collect_callers seals callers into identity-only CallerSummary DTOs; MCP tool anvil_find_callers (GCTX-014) in anvil-cli validates workspace root, RPCs anvil/gctx/find_callers, and returns the sealed DTO without linking the graph crate (CE-5). GCALL owns producer/substrate honesty (static over-approx, CALL-1 heuristic); GCTX owns egress posture, pagination, partial flags, and MCP/CLI delivery. ADR-086 freezes the substrate; GCALL-007 ratifies caller-egress privacy into GCTX-014. Keep anvil_validate_write; no GCTX tools invoked in this V1 session.",
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path requiring recovery."
+  },
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "call_graph.rs",
+      "GCALL",
+      "GCTX"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

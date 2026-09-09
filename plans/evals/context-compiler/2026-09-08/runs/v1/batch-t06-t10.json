@@ -1,0 +1,114 @@
+{
+  "run": {
+    "id": "cctx-v1-batch-B-t06-t10-2026-09-09",
+    "at": "2026-09-09T06:28:58Z",
+    "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+    "variant": "V1",
+    "kind": "live-v1-batch-rollup",
+    "branch": "eval/cctx-v1-batch-B",
+    "relates_to": "#4466"
+  },
+  "tasks": [
+    {
+      "task": "T06",
+      "session_id": "cctx-v1-batch-B-T06-2026-09-09",
+      "wall_time_s": 160,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 25,
+        "path": ".markdownlintignore",
+        "note": "Found plans/** excluded from markdownlint \u2014 empty file list exits 0."
+      },
+      "notes": null
+    },
+    {
+      "task": "T07",
+      "session_id": "cctx-v1-batch-B-T07-2026-09-09",
+      "wall_time_s": 140,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 30,
+        "path": "crates/anvil-cli/src/commands/start.rs",
+        "note": "Found AKIAQRSTUVWXYZ123456 built-in sample fixture / recipe / unit pin."
+      },
+      "notes": null
+    },
+    {
+      "task": "T08",
+      "session_id": "cctx-v1-batch-B-T08-2026-09-09",
+      "wall_time_s": 210,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 40,
+        "path": "crates/anvil-gctx-types/src/lib.rs",
+        "note": "Confirmed sealed identity-only DTOs and CE-5 structural no-leak tests."
+      },
+      "notes": null
+    },
+    {
+      "task": "T09",
+      "session_id": "cctx-v1-batch-B-T09-2026-09-09",
+      "wall_time_s": 190,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 35,
+        "path": "crates/anvil-graph-cache/src/call_graph.rs",
+        "note": "Found GCALL-003 callers_of substrate that GCTX-014 projects."
+      },
+      "notes": null
+    },
+    {
+      "task": "T10",
+      "session_id": "cctx-v1-batch-B-T10-2026-09-09",
+      "wall_time_s": 210,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 40,
+        "path": "plans/decisions/105-shared-base-graph-persistence.md",
+        "note": "ADR-105: shared write-once base per merge-base + live per-worktree overlay."
+      },
+      "notes": null
+    }
+  ],
+  "summary": {
+    "n": 5,
+    "all_success": true,
+    "all_mentioned": true,
+    "leakage_any": false
+  }
+}
