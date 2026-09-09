@@ -1156,7 +1156,9 @@ fn l4_policy_next_action(data: &StatusData, repo_root: &Path) -> Option<&'static
     }
     match crate::policy_load::load_policy(repo_root) {
         Ok(Some(_)) => None,
-        Ok(None) => Some("L4 policy is missing. Run `anvil init` to create `anvil/policy.yml`."),
+        Ok(None) => {
+            Some("L4 policy is missing. Create `anvil/policy.yml`, then run `anvil status` again.")
+        }
         Err(_) => {
             Some("L4 policy is invalid. Fix `anvil/policy.*`, then run `anvil status` again.")
         }
@@ -2403,7 +2405,9 @@ mod tests {
             SaveTimePosture::Hidden,
         );
         assert!(
-            snapshot.next_action.contains("policy") && snapshot.next_action.contains("anvil init"),
+            snapshot.next_action.contains("Create")
+                && snapshot.next_action.contains("anvil/policy.yml")
+                && !snapshot.next_action.contains("anvil init"),
             "missing policy guidance must be actionable: {}",
             snapshot.next_action,
         );

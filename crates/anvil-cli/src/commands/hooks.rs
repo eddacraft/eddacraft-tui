@@ -911,6 +911,41 @@ pub(crate) fn read_core_hooks_path(workspace_root: &Path) -> Option<String> {
     if value.is_empty() { None } else { Some(value) }
 }
 
+/// Ask Git for the effective hook path after applying core.hooksPath path
+/// semantics, including tilde expansion and worktree git-dir resolution.
+fn resolve_git_hook_path(workspace_root: &Path, event: &str) -> Option<PathBuf> {
+    let hook = format!("hooks/{event}");
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(workspace_root)
+        .args(["rev-parse", "--git-path", &hook])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if value.is_empty() {
+        return None;
+    }
+    let path = PathBuf::from(value);
+    Some(if path.is_absolute() {
+        path
+    } else {
+        workspace_root.join(path)
+    })
+}
+
+fn resolve_effective_hooks_dir(workspace_root: &Path) -> Result<PathBuf> {
+    if let Some(hook_path) = resolve_git_hook_path(workspace_root, "pre-commit") {
+        return hook_path
+            .parent()
+            .map(Path::to_path_buf)
+            .context("Git returned a hook path without a parent directory");
+    }
+    Ok(resolve_git_dir(workspace_root)?.join("hooks"))
+}
+
 /// Resolve the file-mode hook paths Git would actually consult for `event`
 /// at this repo. Mirrors Git's resolution rules so detection in `status`,
 /// `doctor`, `install --config`, and onboarding all agree:
@@ -928,6 +963,9 @@ pub(crate) fn read_core_hooks_path(workspace_root: &Path) -> Option<String> {
 /// detection still works in environments without git on PATH.
 pub(crate) fn resolve_file_mode_hook_paths(workspace_root: &Path, event: &str) -> Vec<PathBuf> {
     if let Some(custom) = read_core_hooks_path(workspace_root) {
+        if let Some(effective) = resolve_git_hook_path(workspace_root, event) {
+            return vec![effective];
+        }
         let custom_path = Path::new(&custom);
         let resolved = if custom_path.is_absolute() {
             custom_path.to_path_buf()
@@ -936,8 +974,13 @@ pub(crate) fn resolve_file_mode_hook_paths(workspace_root: &Path, event: &str) -
         };
         return vec![resolved.join(event)];
     }
-    let git_dir = resolve_git_dir(workspace_root).unwrap_or_else(|_| workspace_root.join(".git"));
-    let mut paths = vec![git_dir.join("hooks").join(event)];
+    let effective = resolve_git_hook_path(workspace_root, event).unwrap_or_else(|| {
+        resolve_git_dir(workspace_root)
+            .unwrap_or_else(|_| workspace_root.join(".git"))
+            .join("hooks")
+            .join(event)
+    });
+    let mut paths = vec![effective];
     let husky = workspace_root.join(".husky").join(event);
     if husky != paths[0] {
         paths.push(husky);
@@ -1038,12 +1081,12 @@ pub fn uninstall_all_managed_hooks_silent() -> Result<()> {
     let Ok(workspace_root) = find_repo_root() else {
         return Ok(());
     };
-    let Ok(git_dir) = resolve_git_dir(&workspace_root) else {
+    let Ok(effective_hooks_dir) = resolve_effective_hooks_dir(&workspace_root) else {
         return Ok(());
     };
 
-    // File-mode hooks: `.git/hooks/` and `.husky/`.
-    for dir in [git_dir.join("hooks"), workspace_root.join(".husky")] {
+    // File-mode hooks: Git's effective hook directory and `.husky/`.
+    for dir in [effective_hooks_dir, workspace_root.join(".husky")] {
         if !dir.exists() {
             continue;
         }
@@ -1090,14 +1133,17 @@ pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<b
         );
         return Ok(false);
     }
-    let git_dir = resolve_git_dir(workspace_root)?;
-    let hooks_dir = {
+    let hooks_dir = if read_core_hooks_path(workspace_root).is_some() {
+        let dir = resolve_effective_hooks_dir(workspace_root)?;
+        std::fs::create_dir_all(&dir).context("creating effective hooks directory")?;
+        dir
+    } else {
         let (_detected, husky_dir_opt) = detect_husky(workspace_root);
         if let Some(dir) = husky_dir_opt {
             std::fs::create_dir_all(&dir).context("creating detected .husky directory")?;
             dir
         } else {
-            let dir = git_dir.join("hooks");
+            let dir = resolve_effective_hooks_dir(workspace_root)?;
             std::fs::create_dir_all(&dir).context("creating hooks directory")?;
             dir
         }
@@ -1140,10 +1186,13 @@ pub(crate) fn activation_hooks_active(workspace_root: &Path) -> Result<bool> {
     if !workspace_root.join(".git").exists() {
         return Ok(false);
     }
-    let git_dir = resolve_git_dir(workspace_root)?;
-    let hooks_dir = detect_husky(workspace_root)
-        .1
-        .unwrap_or_else(|| git_dir.join("hooks"));
+    let hooks_dir = if read_core_hooks_path(workspace_root).is_some() {
+        resolve_effective_hooks_dir(workspace_root)?
+    } else {
+        detect_husky(workspace_root)
+            .1
+            .map_or_else(|| resolve_effective_hooks_dir(workspace_root), Ok)?
+    };
     let managed = is_anvil_managed(&hooks_dir.join("pre-commit"))
         && is_anvil_managed(&hooks_dir.join("post-commit"))
         && is_anvil_managed(&hooks_dir.join("pre-push"));
@@ -1254,6 +1303,10 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 let dir = workspace_root.join(".husky");
                 std::fs::create_dir_all(&dir).context("creating .husky directory")?;
                 dir
+            } else if read_core_hooks_path(&workspace_root).is_some() {
+                let dir = resolve_effective_hooks_dir(&workspace_root)?;
+                std::fs::create_dir_all(&dir).context("creating effective hooks directory")?;
+                dir
             } else {
                 let (_detected, husky_dir_opt) = detect_husky(&workspace_root);
                 if let Some(dir) = husky_dir_opt {
@@ -1261,7 +1314,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                     eprintln!("Husky detected -- installing hooks in .husky directory");
                     dir
                 } else {
-                    let dir = git_dir.join("hooks");
+                    let dir = resolve_effective_hooks_dir(&workspace_root)?;
                     std::fs::create_dir_all(&dir).context("creating hooks directory")?;
                     dir
                 }
@@ -1721,6 +1774,56 @@ mod tests {
         assert!(
             pre_commit.contains("hook pre-commit"),
             "activation pre-commit must run the L3 witness path"
+        );
+    }
+
+    /// Linked worktrees share the main repository's hook directory. Installing
+    /// beneath .git/worktrees/<name>/hooks creates a file Git never executes.
+    #[cfg(unix)]
+    #[test]
+    fn install_activation_hooks_uses_linked_worktree_effective_hook_dir() {
+        let root = tempfile::tempdir().unwrap();
+        let main = root.path().join("main");
+        let linked = root.path().join("linked");
+        std::fs::create_dir(&main).unwrap();
+        init_repo(&main);
+        let committed = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&main)
+            .args([
+                "-c",
+                "user.name=Anvil Test",
+                "-c",
+                "user.email=anvil@example.invalid",
+                "commit",
+                "--allow-empty",
+                "-q",
+                "-m",
+                "initial",
+            ])
+            .status()
+            .expect("git commit");
+        assert!(committed.success());
+        let added = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&main)
+            .args(["worktree", "add", "-q", "-b", "linked-test"])
+            .arg(&linked)
+            .status()
+            .expect("git worktree add");
+        assert!(added.success());
+
+        assert!(install_activation_hooks_silent(&linked).unwrap());
+        let effective = main.join(".git/hooks/pre-push");
+        assert!(
+            is_anvil_managed(&effective),
+            "installer must write Git's common effective hook path: {}",
+            effective.display(),
+        );
+        let ineffective = resolve_git_dir(&linked).unwrap().join("hooks/pre-push");
+        assert!(
+            !ineffective.exists(),
+            "installer must not write the per-worktree administrative directory",
         );
     }
 
@@ -2493,6 +2596,29 @@ mod tests {
             report.file_mode_paths.iter().any(|p| p == &hook_path),
             "expected core.hooksPath/pre-commit to surface as a file-mode hook: {report:?}"
         );
+    }
+
+    /// Git expands a leading tilde in core.hooksPath against HOME. The
+    /// shared resolver must return the same effective path Git executes.
+    #[cfg(unix)]
+    #[test]
+    fn coexistence_expands_tilde_core_hooks_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        init_repo(dir.path());
+        git_config(dir.path(), &["core.hooksPath", "~/custom-hooks"]).unwrap();
+
+        let hook_path = home.path().join("custom-hooks/pre-push");
+        std::fs::create_dir_all(hook_path.parent().unwrap()).unwrap();
+        std::fs::write(&hook_path, "#!/bin/sh\nexit 0\n").unwrap();
+
+        temp_env::with_var("HOME", Some(home.path().as_os_str()), || {
+            let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-push");
+            assert!(
+                report.file_mode_paths.iter().any(|path| path == &hook_path),
+                "tilde core.hooksPath must resolve exactly as Git does: {report:?}",
+            );
+        });
     }
 
     /// Regression: when `core.hooksPath` is set, a stale `.git/hooks/<event>`
