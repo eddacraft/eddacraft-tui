@@ -2,7 +2,7 @@
 
 | Type  | Authority | Owner   | Status | Freshness                                                                                                                                       |
 | ----- | --------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Advisory  | ARCHCFG | Live   | Last reviewed 2026-08-13 against `anvil architecture --help`, `crates/anvil-cli/src/commands/architecture.rs`, and the UCFG-008 resolution seam |
+| Guide | Advisory  | ARCHCFG | Live   | Last reviewed 2026-09-09 against `anvil architecture --help`, `crates/anvil-cli/src/commands/architecture.rs`, and the UCFG-008 resolution seam |
 
 | Upstream                                                                                                                           | Downstream                                                   |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
