@@ -642,7 +642,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     readiness_worktree.as_deref(),
                     readiness_selection,
                 )
-                .with_worktree_registration_report(registration_report.as_ref());
+                .with_worktree_registration_failure(registration_report.as_ref());
                 let mut post_consent_output = render_start_human_output(
                     root,
                     read_only,

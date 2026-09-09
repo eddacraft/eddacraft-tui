@@ -174,14 +174,7 @@ impl EnsureReadiness {
         let Some(report) = report else {
             return self;
         };
-        let daemon_disabled = self.components.daemon.state == EnsureReadinessState::Disabled;
-        if !(daemon_disabled
-            && matches!(report.registration, WorktreeRegistration::DaemonUnavailable))
-            && let Some(detail) = failed_worktree_registration_detail(report)
-        {
-            self.components.worktree =
-                EnsureComponentReadiness::new(EnsureReadinessState::Failed, detail);
-        }
+        self = self.with_worktree_registration_failure(Some(report));
         let driver_disabled = self.components.save_time.state == EnsureReadinessState::Disabled;
         let driver_state = classify_save_time_readiness(
             self.components.daemon.state,
@@ -193,6 +186,28 @@ impl EnsureReadiness {
             driver_state,
             format_save_time_registration_detail(report),
         );
+        Self::from_components(self.components)
+    }
+
+    /// Preserve a refusal from this activation attempt without overwriting a
+    /// later daemon snapshot's recoverable driver evidence. This is the
+    /// post-consent merge: the user may have spent arbitrarily long in the
+    /// consent phase, so the fresh measurement owns watcher readiness.
+    pub(crate) fn with_worktree_registration_failure(
+        mut self,
+        report: Option<&registration::WorktreeRegistrationReport>,
+    ) -> Self {
+        let Some(report) = report else {
+            return self;
+        };
+        let daemon_disabled = self.components.daemon.state == EnsureReadinessState::Disabled;
+        if !(daemon_disabled
+            && matches!(report.registration, WorktreeRegistration::DaemonUnavailable))
+            && let Some(detail) = failed_worktree_registration_detail(report)
+        {
+            self.components.worktree =
+                EnsureComponentReadiness::new(EnsureReadinessState::Failed, detail);
+        }
         Self::from_components(self.components)
     }
 
@@ -1006,6 +1021,31 @@ mod tests {
         assert_eq!(readiness.state, EnsureReadinessState::Failed);
         assert_eq!(readiness.failing_component, Some("save_time"));
         assert_eq!(readiness.components.save_time.detail, "driver failed");
+    }
+
+    #[test]
+    fn post_consent_membership_overlay_preserves_fresh_driver_evidence() {
+        let measured = EnsureReadiness::from_components(EnsureReadinessComponents {
+            config: component(EnsureReadinessState::Ready, "valid"),
+            daemon: component(EnsureReadinessState::Ready, "daemon serving"),
+            worktree: component(EnsureReadinessState::Ready, "durably registered"),
+            save_time: component(EnsureReadinessState::Ready, "watches-installed"),
+            mcp: component(EnsureReadinessState::Disabled, "not selected"),
+        });
+        let stale_pre_consent_report = WorktreeRegistrationReport {
+            registration: WorktreeRegistration::Refreshed,
+            driver: Some(SaveTimeDriverReadiness::Failed),
+        };
+
+        let readiness =
+            measured.with_worktree_registration_failure(Some(&stale_pre_consent_report));
+
+        assert_eq!(readiness.state, EnsureReadinessState::Ready);
+        assert_eq!(
+            readiness.components.save_time.state,
+            EnsureReadinessState::Ready
+        );
+        assert_eq!(readiness.components.save_time.detail, "watches-installed");
     }
 
     #[test]
