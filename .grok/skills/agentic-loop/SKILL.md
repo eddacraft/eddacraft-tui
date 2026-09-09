@@ -104,6 +104,13 @@ a coherent problem.
 Run the deterministic validation appropriate to the changed surface through
 `evidence-gate`. An agent success statement is never evidence.
 
+When the change set moves paths declared as docs Upstream (file-level), or
+otherwise makes docs-owed fail, settle Freshness in the same PR before CI:
+run `pnpm docs:redate --since <base>` (add `--write --note "..."` when applying),
+include the resulting Freshness updates, and load `docs-workflow` for closeout.
+See `docs/guides/documentation-governance.md#change-impact-review`. Do not add a
+calendar grace window.
+
 ### 6. Verify
 
 Run fresh blind `verify-loop` against the immutable candidate. Bind the decision
@@ -198,6 +205,7 @@ leaf skill; load the leaf when you reach its stage rather than up front.
 | Implement (test-first) | `loop-build-tdd` |
 | Diagnose a failure | `loop-debug` |
 | Evidence | `evidence-gate` |
+| Docs Freshness / closeout | `docs-workflow` |
 | Verify | `verify-loop` |
 | PR feedback and base sync | `address-reviews` |
 | Land | `land-branch` |

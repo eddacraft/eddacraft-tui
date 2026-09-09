@@ -118,6 +118,13 @@ than exceeding it.
 run checkpoint via `aps-resume`, then verifies before acting. Never replay
 non-idempotent work on the strength of a checkpoint alone.
 
+## Docs Freshness (code-changing runs)
+
+When changed paths are declared docs Upstream, or `docs-owed` would fail, settle
+Freshness in the same PR before CI with `pnpm docs:redate --since <base>` (add
+`--write --note "..."` when applying). Details live in `agentic-loop` Evidence and
+`docs-workflow`. Do not add a calendar grace window.
+
 ## Non-negotiable changes from the legacy loop
 
 - The active native harness **lead implements directly by default**.

@@ -56,6 +56,7 @@ Prefer a single repo-provided closeout command when one exists. For example,
 | Markdown files changed but no docs script exists     | Run the repo's formatter/linter pair, or state that no repo docs gate was found and list what you checked. |
 | Links or anchors changed                             | Run the repo link/anchor check if present; otherwise manually inspect the changed targets.                 |
 | Code examples, commands, or generated output changed | Verify the examples against current source, CLI output, tests, or schemas.                                 |
+| Code change moves declared docs Upstream / docs-owed | Run `pnpm docs:redate --since <base>`; add `--write --note "..."` when settling; include Freshness updates in the same PR. See documentation-governance change-impact review. Do not add a calendar grace window. |
 
 Never claim validation passed without exit 0 evidence from the command that was
 actually run. If a command cannot be run, say why and name the remaining risk.
@@ -75,7 +76,11 @@ actually run. If a command cannot be run, say why and name the remaining risk.
    update inbound links or avoid the rename.
 6. **Run docs validation.** Use the project-specific mandatory command table
    above.
-7. **Close out with evidence.** Return the Docs Closeout block.
+7. **Settle docs-owed Freshness when Upstreams moved.** If the change set
+   touches declared file-level docs Upstream paths (or CI would fail
+   docs-owed), run `pnpm docs:redate --since <base>` and include the Freshness
+   updates in the same PR before opening or updating review-ready CI.
+8. **Close out with evidence.** Return the Docs Closeout block.
 
 ## Docs Closeout
 
