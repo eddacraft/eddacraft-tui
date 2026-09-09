@@ -17,10 +17,10 @@ remain after SETCON-012 merged via
 [#4216](https://github.com/eddacraft/anvil-001/pull/4216) (`965a9e7f4`). The
 source set remains the
 [2026-08-28 complete-store triage](../../docs/reviews/2026-08-28-clawpatch-open-findings.md)
-selected for this repair wave. CLAWOPEN-001, -002, -003, -004, -005, -006, -008,
+selected for this repair wave. CLAWOPEN-001, -002, -003, -004, -005, -006,
 -007, -008, -010, and -012 are Merged. CLAWOPEN-011 is Complete on its hosted
 Neon proof; CLAWOPEN-009 is In Progress under EMBERRS-001 retirement authority.
-Stored `N/M` is left to the `pnpm aps:index` reconcile (ADR-053).
+Stored `N/M` reconciled 2026-09-09 via `pnpm aps:index` (ADR-053).
 
 > **Exclusive module.** The wave orchestrator is the only plan writer. Parallel
 > executors own isolated code/test workspaces and do not edit this module, the
