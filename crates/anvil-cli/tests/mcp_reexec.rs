@@ -41,6 +41,7 @@ fn mcp_reexec_unix_lands_on_preferred_after_forced_skew() {
 }
 
 #[test]
+#[cfg(unix)]
 fn mcp_reexec_kill_switch_stays_on_current_image() {
     let (_dir, preferred) = copy_anvil_as_preferred();
     let mut child = spawn_serve(&[
@@ -58,14 +59,9 @@ fn mcp_reexec_kill_switch_stays_on_current_image() {
     #[cfg(target_os = "linux")]
     assert_running_image(&child, Path::new(ANVIL_BIN));
 
-    drop(child.stdin.take());
-    let status = wait_for_exit(&mut child);
-    assert!(
-        status.success(),
-        "serve must exit cleanly after EOF: {status:?}"
-    );
-
-    let stderr = drain_lines(&stderr_rx);
+    // Recovery hint is written from a detached stderr thread; await it while
+    // the child is still alive so process exit cannot race the write away.
+    let mut stderr = recv_lines_until(&mut child, &stderr_rx, "ANVIL_MCP_NO_REEXEC");
     assert!(
         stderr.contains("ANVIL_MCP_NO_REEXEC") || stderr.contains("not the preferred"),
         "kill-switch must surface honest skew, got: {stderr}"
@@ -73,6 +69,18 @@ fn mcp_reexec_kill_switch_stays_on_current_image() {
     assert!(
         !stderr.to_ascii_lowercase().contains("restart your editor"),
         "kill-switch hint must not lead with editor restart: {stderr}"
+    );
+
+    drop(child.stdin.take());
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "serve must exit cleanly after EOF: {status:?}"
+    );
+    stderr.push_str(&drain_lines(&stderr_rx));
+    assert!(
+        !stderr.to_ascii_lowercase().contains("restart your editor"),
+        "kill-switch hint must not lead with editor restart after exit: {stderr}"
     );
 }
 
