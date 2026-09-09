@@ -317,7 +317,7 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-011: Bound the complete lifecycle and integration exchange
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** Every startup or repair attempt completes within an explicit overall deadline.
 - **Expected Outcome:** Lock acquisition, endpoint discovery, spawn, registration and readiness share a measured monotonic budget; slow partial replies cannot extend it indefinitely. Unresponsive and absent stay distinct without unsafe duplicate spawning. CIB-405 owns connection-reuse migrations and issue #4231 owns its MCP-validation timeout fix; their verified outcomes are integrated here without duplicate implementations.

@@ -28,6 +28,18 @@ const DAEMON_BIND_TIMEOUT: Duration = Duration::from_secs(10);
 #[cfg(any(unix, windows))]
 const BIND_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
+/// Shared wall-clock budget for one ensure attempt: coordinator lock, start
+/// lock, endpoint discovery, spawn and bind-wait (JREL-011). Slow partial
+/// replies cannot extend it. Lock wait is capped separately so a stuck holder
+/// fails fast instead of consuming the whole bind budget.
+#[cfg(any(unix, windows))]
+const LIFECYCLE_BUDGET: Duration = Duration::from_secs(12);
+
+/// Cap on rendezvous-coordinator and per-install start-lock wait. A stuck
+/// holder must not block ensure indefinitely (JREL-004 residual / JREL-011).
+#[cfg(any(unix, windows))]
+const LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// Why a caller must not spawn a daemon, even though no live one was found.
 ///
 /// Kept as a typed enum so `start`/`watch` can render a platform-specific
@@ -320,6 +332,8 @@ pub(crate) fn ensure_daemon_at(
         log_path: &log_path,
         bind_timeout: DAEMON_BIND_TIMEOUT,
         poll_interval: BIND_POLL_INTERVAL,
+        lifecycle_budget: LIFECYCLE_BUDGET,
+        lock_timeout: LOCK_ACQUIRE_TIMEOUT,
     };
     ensure_with(&params, capability)
 }
@@ -371,6 +385,8 @@ pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher)
         log_path: &log_path,
         bind_timeout: DAEMON_BIND_TIMEOUT,
         poll_interval: BIND_POLL_INTERVAL,
+        lifecycle_budget: LIFECYCLE_BUDGET,
+        lock_timeout: LOCK_ACQUIRE_TIMEOUT,
     };
     ensure_with(&params, capability)
 }
@@ -416,12 +432,19 @@ struct EnsureParams<'a> {
     log_path: &'a Path,
     bind_timeout: Duration,
     poll_interval: Duration,
+    /// Overall monotonic budget for this ensure attempt (JREL-011).
+    lifecycle_budget: Duration,
+    /// Cap on coordinator / start-lock wait within that budget.
+    lock_timeout: Duration,
 }
 
 /// The platform-agnostic ensure state machine. Pure but for the lock files, the
 /// injected probes, and the injected launcher — so every branch is unit-tested.
 #[cfg(any(unix, windows))]
 fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> EnsureOutcome {
+    let deadline = Instant::now() + params.lifecycle_budget;
+    let remaining = || deadline.saturating_duration_since(Instant::now());
+
     // 1. Probes are read-only and always allowed, even for non-spawning
     //    callers: a live daemon at any verified endpoint of this scope is
     //    reused regardless of capability.
@@ -429,6 +452,9 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
         EndpointLiveness::One => return EnsureOutcome::Reused,
         EndpointLiveness::Conflict { live, endpoints } => {
             return conflict_outcome(live, &endpoints);
+        }
+        EndpointLiveness::Unresponsive { endpoint } => {
+            return unresponsive_outcome(&endpoint);
         }
         EndpointLiveness::None => {}
     }
@@ -438,22 +464,11 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
         return EnsureOutcome::NoStart { reason };
     }
 
-    // 3. Serialise the spawn critical section. The rendezvous coordinator is
-    //    shared by every shell of this execution scope whatever it considers
-    //    canonical (it is the lock doctor's socket repair holds, taken in the
-    //    same order: coordinator before any per-install start lock), then the
-    //    per-`ANVIL_HOME` start lock serialises same-environment callers.
-    let _rendezvous = hold_spawn_rendezvous(params.rendezvous_candidates);
-    let _lock = match acquire_ensure_lock(params.lock_path) {
-        Ok(lock) => lock,
-        Err(err) => {
-            return EnsureOutcome::Failed {
-                recovery: format!(
-                    "could not acquire the daemon-start lock at {}: {err}",
-                    params.lock_path.display()
-                ),
-            };
-        }
+    // 3. Serialise the spawn critical section. Coordinator then per-install
+    //    start lock, both inside the remaining lifecycle budget (JREL-011).
+    let (_rendezvous, _lock) = match hold_spawn_serialisation(params, deadline) {
+        Ok(locks) => locks,
+        Err(outcome) => return outcome,
     };
 
     // 4. Re-probe under the locks: a racing caller — from this environment or
@@ -466,6 +481,9 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
         }
         EndpointLiveness::Conflict { live, endpoints } => {
             return conflict_outcome(live, &endpoints);
+        }
+        EndpointLiveness::Unresponsive { endpoint } => {
+            return unresponsive_outcome(&endpoint);
         }
         EndpointLiveness::None => {}
     }
@@ -487,7 +505,10 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
 
     // 6. Bound-wait for the new daemon to bind and answer, then advertise the
     //    canonical endpoint at the coordinator so later shells can find it.
-    if wait_until_answered(params.probe, params.bind_timeout, params.poll_interval) {
+    //    Bind-wait shares the remaining lifecycle budget so lock wait cannot
+    //    extend the overall ceiling (JREL-011).
+    let bind_wait = remaining().min(params.bind_timeout);
+    if wait_until_answered(params.probe, bind_wait, params.poll_interval) {
         if let (Some(dir), Some(socket)) = (params.coordinator_dir, params.canonical_socket) {
             publish_live_endpoint_record(dir, socket, spawned_pid);
         }
@@ -509,6 +530,65 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
     }
 }
 
+#[cfg(any(unix, windows))]
+fn unresponsive_outcome(endpoint: &str) -> EnsureOutcome {
+    EnsureOutcome::Failed {
+        recovery: format!(
+            "the intercept daemon at {endpoint} accepted a connection but did not \
+             answer within the lifecycle budget; not spawning a second daemon. \
+             Run `anvil doctor --fix` or retry with bare `anvil`"
+        ),
+    }
+}
+
+/// Take the rendezvous coordinator then the per-install start lock, sharing
+/// the remaining lifecycle budget. Failure is a typed [`EnsureOutcome::Failed`]
+/// so a stuck holder cannot spawn a duplicate (JREL-011).
+#[cfg(any(unix, windows))]
+fn hold_spawn_serialisation(
+    params: &EnsureParams<'_>,
+    deadline: Instant,
+) -> Result<(Option<std::fs::File>, std::fs::File), EnsureOutcome> {
+    let remaining = || deadline.saturating_duration_since(Instant::now());
+    if remaining().is_zero() {
+        return Err(EnsureOutcome::Failed {
+            recovery: "the daemon lifecycle budget elapsed before the start lock \
+                       could be taken. Retry with bare `anvil`"
+                .to_owned(),
+        });
+    }
+    let lock_wait = remaining().min(params.lock_timeout);
+    let rendezvous = match hold_spawn_rendezvous(params.rendezvous_candidates, lock_wait) {
+        Ok(lock) => lock,
+        Err(err) => {
+            return Err(EnsureOutcome::Failed {
+                recovery: format!(
+                    "could not hold the daemon rendezvous coordinator within the \
+                     lifecycle budget: {err}. Not spawning a second daemon. Retry \
+                     with bare `anvil` or run `anvil doctor --fix`"
+                ),
+            });
+        }
+    };
+    if remaining().is_zero() {
+        return Err(EnsureOutcome::Failed {
+            recovery: "the daemon lifecycle budget elapsed while waiting for the \
+                       rendezvous coordinator. Retry with bare `anvil`"
+                .to_owned(),
+        });
+    }
+    let lock_wait = remaining().min(params.lock_timeout);
+    let lock =
+        acquire_ensure_lock(params.lock_path, lock_wait).map_err(|err| EnsureOutcome::Failed {
+            recovery: format!(
+                "could not acquire the daemon-start lock at {} within the \
+                 lifecycle budget: {err}",
+                params.lock_path.display()
+            ),
+        })?;
+    Ok((rendezvous, lock))
+}
+
 /// Hold the cross-candidate rendezvous coordinator across the spawn critical
 /// section, or `None` when the caller already holds it.
 ///
@@ -516,32 +596,29 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
 /// canonical start: same-environment callers remain serialised by the
 /// per-install start lock the caller takes next.
 #[cfg(unix)]
-fn hold_spawn_rendezvous(candidates: Option<&[PathBuf]>) -> Option<std::fs::File> {
-    candidates.and_then(|candidates| {
-        match acquire_daemon_rendezvous_repair_lock_for_socket_candidates(candidates) {
-            Ok(lock) => Some(lock),
-            Err(err) => {
-                tracing::warn!(
-                    target: "anvil_intercept::ensure",
-                    error = %err,
-                    "could not hold the daemon rendezvous coordinator; \
-                     serialising on the per-install start lock only"
-                );
-                None
-            }
-        }
-    })
+fn hold_spawn_rendezvous(
+    candidates: Option<&[PathBuf]>,
+    timeout: Duration,
+) -> io::Result<Option<std::fs::File>> {
+    let Some(candidates) = candidates else {
+        return Ok(None);
+    };
+    acquire_daemon_rendezvous_repair_lock_for_socket_candidates_within(candidates, timeout)
+        .map(Some)
 }
 
 /// Windows has one pipe location per user, so there is no sibling candidate to
 /// coordinate and no coordinator to hold.
 #[cfg(windows)]
-fn hold_spawn_rendezvous(candidates: Option<&[PathBuf]>) -> Option<std::fs::File> {
+fn hold_spawn_rendezvous(
+    candidates: Option<&[PathBuf]>,
+    _timeout: Duration,
+) -> io::Result<Option<std::fs::File>> {
     debug_assert!(
         candidates.is_none(),
         "the Windows pipe namespace has no sibling candidate to coordinate"
     );
-    None
+    Ok(None)
 }
 
 /// How many of this scope's endpoints carry a daemon to reuse.
@@ -552,6 +629,12 @@ enum EndpointLiveness {
     None,
     /// Exactly one endpoint carries a daemon: reuse it.
     One,
+    /// A listener accepted a connection but never answered. Distinct from
+    /// absence: spawning would risk a duplicate (JREL-011).
+    Unresponsive {
+        /// Operator-facing endpoint label.
+        endpoint: String,
+    },
     /// More than one same-scope endpoint carries a daemon. ADR-036 allows one
     /// daemon per execution scope, so this is reported, never resolved by
     /// silently picking one (JREL-004).
@@ -571,11 +654,19 @@ enum EndpointLiveness {
 #[cfg(any(unix, windows))]
 fn live_endpoints(params: &EnsureParams<'_>) -> EndpointLiveness {
     let mut answered = Vec::new();
+    let mut unresponsive: Option<String> = None;
     #[cfg(unix)]
     let mut seen_inodes: Vec<(u64, u64)> = Vec::new();
     let mut consider = |probe: &dyn DaemonProbe, label: String| {
-        if probe.probe() != Liveness::Answered {
-            return;
+        match probe.probe() {
+            Liveness::Answered => {}
+            Liveness::ConnectedNoAnswer => {
+                if unresponsive.is_none() {
+                    unresponsive = Some(label);
+                }
+                return;
+            }
+            Liveness::Unreachable => return,
         }
         #[cfg(unix)]
         {
@@ -619,7 +710,10 @@ fn live_endpoints(params: &EnsureParams<'_>) -> EndpointLiveness {
         }
     }
     match answered.len() {
-        0 => EndpointLiveness::None,
+        0 => match unresponsive {
+            Some(endpoint) => EndpointLiveness::Unresponsive { endpoint },
+            None => EndpointLiveness::None,
+        },
         1 => EndpointLiveness::One,
         live => EndpointLiveness::Conflict {
             live,
@@ -672,14 +766,15 @@ fn wait_until_answered(probe: &dyn DaemonProbe, timeout: Duration, interval: Dur
 /// Acquire the same-user advisory lock around the spawn critical section. Mirrors
 /// the daemon's own PID-file lock pattern (`lib.rs`), but on a distinct
 /// `intercept.ensure.lock` file so it never contends with the daemon it is about
-/// to spawn. Blocks until acquired; released when the returned guard drops.
+/// to spawn. Waits up to `timeout` then fails rather than blocking indefinitely
+/// (JREL-011). Released when the returned guard drops.
 ///
 /// The lock file is opened with the default close-on-exec flag, so a detached
 /// daemon child spawned while the lock is held never inherits (and therefore
 /// never wedges) it.
 #[cfg(any(unix, windows))]
-fn acquire_ensure_lock(lock_path: &Path) -> io::Result<std::fs::File> {
-    use std::fs::OpenOptions;
+fn acquire_ensure_lock(lock_path: &Path, timeout: Duration) -> io::Result<std::fs::File> {
+    use std::fs::{OpenOptions, TryLockError};
 
     if let Some(parent) = lock_path.parent() {
         crate::ensure_secure_runtime_dir(parent)
@@ -691,8 +786,29 @@ fn acquire_ensure_lock(lock_path: &Path) -> io::Result<std::fs::File> {
         .create(true)
         .truncate(false)
         .open(lock_path)?;
-    file.lock()?;
-    Ok(file)
+    let deadline = Instant::now() + timeout;
+    let mut backoff = Duration::from_millis(5);
+    loop {
+        match file.try_lock() {
+            Ok(()) => return Ok(file),
+            Err(TryLockError::WouldBlock) => {
+                let now = Instant::now();
+                if now >= deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        format!(
+                            "timed out after {}ms waiting for the daemon-start lock",
+                            timeout.as_millis()
+                        ),
+                    ));
+                }
+                let remaining = deadline.saturating_duration_since(now);
+                std::thread::sleep(backoff.min(remaining).min(Duration::from_millis(50)));
+                backoff = (backoff * 2).min(Duration::from_millis(50));
+            }
+            Err(TryLockError::Error(err)) => return Err(err),
+        }
+    }
 }
 
 /// Hold the per-install daemon-start lock while an operator repairs endpoint
@@ -705,7 +821,10 @@ fn acquire_ensure_lock(lock_path: &Path) -> io::Result<std::fs::File> {
 #[cfg(unix)]
 pub fn acquire_daemon_start_lock_for_pid_file(pid_path: &Path) -> io::Result<std::fs::File> {
     let runtime_dir = pid_path.parent().unwrap_or_else(|| Path::new("."));
-    acquire_ensure_lock(&runtime_dir.join("intercept.ensure.lock"))
+    acquire_ensure_lock(
+        &runtime_dir.join("intercept.ensure.lock"),
+        LOCK_ACQUIRE_TIMEOUT,
+    )
 }
 
 /// Serialise operator repair and background start across every socket
@@ -736,6 +855,18 @@ pub fn acquire_daemon_start_lock_for_pid_file(pid_path: &Path) -> io::Result<std
 pub fn acquire_daemon_rendezvous_repair_lock_for_socket_candidates(
     socket_candidates: &[PathBuf],
 ) -> io::Result<std::fs::File> {
+    acquire_daemon_rendezvous_repair_lock_for_socket_candidates_within(
+        socket_candidates,
+        LOCK_ACQUIRE_TIMEOUT,
+    )
+}
+
+/// Acquire the rendezvous coordinator with an explicit wait budget (JREL-011).
+#[cfg(unix)]
+pub fn acquire_daemon_rendezvous_repair_lock_for_socket_candidates_within(
+    socket_candidates: &[PathBuf],
+    timeout: Duration,
+) -> io::Result<std::fs::File> {
     let coordinator = select_rendezvous_coordinator_dir(socket_candidates).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -753,7 +884,7 @@ pub fn acquire_daemon_rendezvous_repair_lock_for_socket_candidates(
             ),
         )
     })?;
-    acquire_ensure_lock(&physical.join("intercept.rendezvous-repair.lock"))
+    acquire_ensure_lock(&physical.join("intercept.rendezvous-repair.lock"), timeout)
 }
 
 /// Prefer physical `$HOME/.local/state/anvil` when that parent is in the
@@ -1548,6 +1679,8 @@ mod tests {
             log_path,
             bind_timeout: Duration::from_secs(5),
             poll_interval: Duration::from_millis(5),
+            lifecycle_budget: Duration::from_secs(12),
+            lock_timeout: Duration::from_secs(2),
         }
     }
 
@@ -1592,9 +1725,8 @@ mod tests {
 
     #[test]
     fn connected_but_silent_endpoint_is_not_reused() {
-        // A listener that accepts but never answers is not a live daemon: treating
-        // it as one wedged every command when any same-user process bound a
-        // sibling path. Spawn is attempted instead.
+        // A listener that accepts but never answers is unresponsive, not absent.
+        // Spawning would risk a duplicate (JREL-011).
         let fx = fixture();
         let probe = FlagProbe {
             ready: Arc::new(AtomicBool::new(false)),
@@ -1607,14 +1739,113 @@ mod tests {
         };
 
         match ensure_with(&p, StartCapability::MaySpawn) {
-            EnsureOutcome::Failed { .. } => {}
+            EnsureOutcome::Failed { recovery } => {
+                assert!(
+                    recovery.contains("not spawning a second daemon"),
+                    "recovery must refuse a duplicate spawn: {recovery}"
+                );
+            }
             other => panic!("silent listener must not be reused, got {other:?}"),
         }
         assert_eq!(
             launcher.spawns(),
-            1,
-            "a silent listener is not a daemon to reuse"
+            0,
+            "an unresponsive listener must not be spawned over"
         );
+    }
+
+    #[test]
+    fn delayed_start_lock_fails_within_lifecycle_budget_without_spawning() {
+        let fx = fixture();
+        let _holder =
+            acquire_ensure_lock(&fx.lock, Duration::from_secs(2)).expect("hold start lock");
+        let (probe, _ready) = FlagProbe::absent();
+        let launcher = FakeLauncher::never_binds();
+        let p = EnsureParams {
+            lock_timeout: Duration::from_millis(80),
+            lifecycle_budget: Duration::from_millis(120),
+            bind_timeout: Duration::from_millis(80),
+            ..params(&probe, &launcher, &fx.lock, &fx.log)
+        };
+        let started = Instant::now();
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Failed { recovery } => {
+                assert!(
+                    recovery.contains("lifecycle budget") || recovery.contains("timed out"),
+                    "recovery must name the budget/timeout: {recovery}"
+                );
+            }
+            other => panic!("expected Failed on delayed lock, got {other:?}"),
+        }
+        assert!(
+            started.elapsed() < Duration::from_millis(800),
+            "delayed lock must not block past the lifecycle budget"
+        );
+        assert_eq!(
+            launcher.spawns(),
+            0,
+            "must not spawn while the lock is held"
+        );
+    }
+
+    #[test]
+    fn slow_drip_bind_wait_cannot_extend_lifecycle_budget() {
+        let fx = fixture();
+        let (probe, _ready) = FlagProbe::absent();
+        let launcher = FakeLauncher::never_binds();
+        let p = EnsureParams {
+            bind_timeout: Duration::from_millis(60),
+            lifecycle_budget: Duration::from_millis(80),
+            poll_interval: Duration::from_millis(15),
+            ..params(&probe, &launcher, &fx.lock, &fx.log)
+        };
+        let started = Instant::now();
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Failed { .. } => {}
+            other => panic!("expected Failed when bind wait expires, got {other:?}"),
+        }
+        assert!(
+            started.elapsed() < Duration::from_millis(800),
+            "slow bind-wait polls must not extend the lifecycle budget"
+        );
+        assert_eq!(launcher.spawns(), 1);
+    }
+
+    #[test]
+    fn delayed_rendezvous_coordinator_fails_within_budget_without_spawning() {
+        let fx = fixture();
+        let socket = fx.lock.parent().expect("rt").join("intercept.sock");
+        let candidates = [socket];
+        let _holder = acquire_daemon_rendezvous_repair_lock_for_socket_candidates_within(
+            &candidates,
+            Duration::from_secs(2),
+        )
+        .expect("hold coordinator");
+        let (probe, _ready) = FlagProbe::absent();
+        let launcher = FakeLauncher::never_binds();
+        let p = EnsureParams {
+            rendezvous_candidates: Some(&candidates),
+            lock_timeout: Duration::from_millis(80),
+            lifecycle_budget: Duration::from_millis(150),
+            bind_timeout: Duration::from_millis(80),
+            ..params(&probe, &launcher, &fx.lock, &fx.log)
+        };
+        let started = Instant::now();
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Failed { recovery } => {
+                assert!(
+                    recovery.contains("rendezvous coordinator")
+                        || recovery.contains("lifecycle budget"),
+                    "recovery must name the coordinator budget: {recovery}"
+                );
+            }
+            other => panic!("expected Failed on delayed coordinator, got {other:?}"),
+        }
+        assert!(
+            started.elapsed() < Duration::from_millis(800),
+            "coordinator wait must not block past the lifecycle budget"
+        );
+        assert_eq!(launcher.spawns(), 0);
     }
 
     #[test]
