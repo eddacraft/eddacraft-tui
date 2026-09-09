@@ -1446,7 +1446,7 @@ fn build_query_status_frame_bytes_scoped(
         "id": id,
     });
     if let Some(worktree) = worktree {
-        frame["params"] = serde_json::json!({ "worktree": worktree });
+        frame["params"] = serde_json::json!({ "worktree": worktree.to_string_lossy() });
     }
     let mut out = frame.to_string().into_bytes();
     out.push(b'\n');

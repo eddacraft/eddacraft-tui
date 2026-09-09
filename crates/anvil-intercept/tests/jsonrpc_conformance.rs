@@ -1174,7 +1174,7 @@ async fn query_status_with_traffic_carries_p50_and_p95() {
 }
 
 #[tokio::test]
-async fn query_status_worktree_param_does_not_materialise_other_sessions() {
+async fn query_status_worktree_param_returns_only_that_worktree_sessions() {
     use anvil_intercept::status::{DaemonStatus, IpcState, StatusProvider, build_status};
     use anvil_intercept_proto::SessionStatus;
     use std::path::PathBuf;
