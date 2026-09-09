@@ -74,7 +74,16 @@ pub fn call(arguments: &Value) -> Value {
                         "message": MCP_SERVER_ROOT_NOT_ADMITTED,
                         "retriable": false
                     },
-                    "safeDefault": "do-not-write"
+                    "safeDefault": "do-not-write",
+                    "correlation": {
+                        "id": "corr_mcp_apply_patch",
+                        "surface": "mcp",
+                        "mode": "preWrite",
+                        "backend": ValidationBackend::Embedded.as_str(),
+                        "daemonStatus": DaemonStatus::NotWired.as_str(),
+                        "path": "<server-cwd>",
+                        "enforcementMode": MCP_DEFAULT_ENFORCEMENT.as_str()
+                    }
                 }));
             }
         },
