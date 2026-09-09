@@ -98,9 +98,10 @@ Before you touch a file, learn what depends on it.
   dependent files, and a best-effort `known_tests` subset. Answers "what might
   break if I change these?".
 - **`anvil_find_callers`** — the symbols that call a given symbol. A best-effort
-  static over-approximation: it flags overload fan-out as `heuristic` and an
-  incomplete walk as `partial`, and cannot see dynamic dispatch — do not treat
-  it as an authoritative caller set.
+  static over-approximation: each call edge is `exact` or `heuristic`; the
+  caller-level `heuristic` flag summarises that set. An incomplete walk is
+  `partial`. Cannot see dynamic dispatch — do not treat it as an authoritative
+  caller set.
 
 ### 3. Get affected tests before validating
 
@@ -166,16 +167,16 @@ A worked safe-refactor sequence ties the loop together:
 
 ## Tools at a glance
 
-| Tool                     | Use it to…                                           | Watch out for                                                       |
-| ------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `anvil_search_symbols`   | Find where a symbol is                               | Substring match is case-insensitive; paginates                      |
-| `anvil_find_dependents`  | File-level blast radius (who imports this file)      | Caps the walk at 2 hops                                             |
-| `anvil_find_callers`     | Symbol-level callers (who calls this function)       | Over-approximation; `heuristic`/`partial`; no dynamic dispatch      |
-| `anvil_impact_of_change` | What breaks if I change these files                  | Paths only, never diffs; ≤200 files; 2-hop depth                    |
-| `anvil_affected_tests`   | Which tests to run; coverage gaps                    | Import heuristic, not verified coverage                             |
-| `anvil_symbol_context`   | Understand one symbol without reading the whole file | Snippets are opt-in; can return `bounded` partials                  |
-| `anvil_validate_write`   | Check a write before applying it                     | Regex + secrets, not AST; honour `block`; `decision` alone on allow |
-| `anvil_apply_patch`      | Lean pre-write check of a unified diff               | Scans added lines only; same decision table as validate_write       |
+| Tool                     | Use it to…                                           | Watch out for                                                                                 |
+| ------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `anvil_search_symbols`   | Find where a symbol is                               | Substring match is case-insensitive; paginates                                                |
+| `anvil_find_dependents`  | File-level blast radius (who imports this file)      | Caps the walk at 2 hops                                                                       |
+| `anvil_find_callers`     | Symbol-level callers (who calls this function)       | Per-edge `exact`/`heuristic`; caller `heuristic` is a summary; `partial`; no dynamic dispatch |
+| `anvil_impact_of_change` | What breaks if I change these files                  | Paths only, never diffs; ≤200 files; 2-hop depth; read `attestation.bounds`                   |
+| `anvil_affected_tests`   | Which tests to run; coverage gaps                    | Import heuristic, not verified coverage                                                       |
+| `anvil_symbol_context`   | Understand one symbol without reading the whole file | Snippets are opt-in; can return `bounded` partials                                            |
+| `anvil_validate_write`   | Check a write before applying it                     | Regex + secrets, not AST; honour `block`; `decision` alone on allow                           |
+| `anvil_apply_patch`      | Lean pre-write check of a unified diff               | Scans added lines only; same decision table as validate_write                                 |
 
 For clients that prefer MCP resources to tool calls, three identity-only
 `graph://` resources expose the resident graph directly — `graph://stats`
@@ -204,6 +205,31 @@ A graph tool may return a named outcome instead of a result. Handle each:
 truncated the slice) or **`budget_exceeded`** (per-session snippet byte ceiling
 hit) — both carry partial results, not errors. To get a complete response,
 narrow the scope or disable snippets.
+
+## Reading attestation (route on it)
+
+Every ready graph-context payload includes `attestation`. **Read it before
+trusting the rows.** It is counts and closed enums, not source text.
+
+- **`bounds` empty** — nothing capped this answer; treat the set as complete for
+  this query (still identity-only, still best-effort on callers/tests).
+- **`page_limit` + `next_cursor`** — page. Echo the cursor. Do not answer from
+  the first page alone.
+- **`total.kind: "at_least"` or `node_budget` / `byte_ceiling` /
+  `session_ceiling`** — bounded prefix, not the full set. Narrow the query or
+  say so. Do not invent the missing tail.
+- **`truncated` on impact / affected-tests** — one-release shim (`true` iff any
+  bound fired). Prefer `bounds` to learn _which_ budget fired.
+  `redaction_summary.truncated` on listing tools still means "more pages
+  follow", which is not the same as a walk that hit its node budget.
+- **`CallerSummary.edges`** — per-edge `exact` / `heuristic`. Treat only
+  heuristic edges as unconfirmed. The caller-level `heuristic` flag summarises
+  the edge set; it does not taint the exact edges.
+- **`est_tokens` + `estimator_version`** — estimate of this envelope (today
+  `gctx-simple-v1`), not a measurement and not a cap. If it is large versus
+  remaining context, narrow `limit` / `file` / depth or disable snippets before
+  spending the payload. Absent cost fields mean the estimator could not run —
+  not zero.
 
 ## Privacy: identity-only by default
 

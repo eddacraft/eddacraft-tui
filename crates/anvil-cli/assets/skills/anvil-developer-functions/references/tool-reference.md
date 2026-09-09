@@ -62,9 +62,17 @@ matching the daemon's impact-depth limit.
 | `anvil_symbol_context`   | a seed symbol or file; token budget; `includeSource`         | Neighbourhood symbols, one-hop importers, direct callers (symbol seeds), spans-as-location |
 
 `anvil_find_callers` is a best-effort static over-approximation and cannot see
-dynamic dispatch — never treat its output as an authoritative caller set.
-`anvil_affected_tests` relevance is an import heuristic, not execution-verified
-coverage.
+dynamic dispatch — never treat its output as an authoritative caller set. Each
+call edge is `exact` or `heuristic`; the caller-level `heuristic` flag is a
+summary of that edge set. `anvil_affected_tests` relevance is an import
+heuristic, not execution-verified coverage.
+
+Every ready projection includes `attestation` (ADR-142). Route on it: page when
+`bounds` names `page_limit` and `next_cursor` is present; treat `at_least`
+totals and `node_budget` / byte / session bounds as a prefix, not a complete
+set; read `est_tokens` + `estimator_version` before spending a large envelope.
+The routing table lives in
+[`../SKILL.md`](../SKILL.md#reading-attestation-route-on-it).
 
 ## `graph://` resources
 
@@ -163,7 +171,8 @@ Internal anvil-repo paths — not available in consuming projects; for maintaine
 only. These are the upstream authorities this skill is distilled from; consult
 them in the anvil repository if behaviour seems to have changed:
 
-- `docs/guides/ai-context-delivery.md` — the graph-context surface and egress
+- `docs/guides/ai-context-delivery.md` — the graph-context surface, egress, and
+  attestation routing (GATT-006)
 - `docs/public/anvil/integrations/mcp.md` — client setup and tool reference
 - `docs/public/anvil/guides/save-time-validation.md` — the
   `anvil_validate_write` enforcement path

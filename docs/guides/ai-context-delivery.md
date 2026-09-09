@@ -1,8 +1,8 @@
 # AI Context Delivery
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | GCTX  | Live   | Last reviewed 2026-09-10 GATT-003: per-edge call-resolution fidelity on callers_of (call_graph); diagram contract unchanged Prior review 2026-09-09 for GATT-001: the GCTX delivery spec gained ADR-142 self-attestation (shared Attestation block). This guide's consumer-routing prose is unchanged; teaching the new disclosures is GATT-006. No depicted topology, trust boundary, or workflow moved. Prior review 2026-09-03 against the CIB-398 graph-root rule in the GCTX spec (CE-8): the six graph tools refuse a nested `workspaceRoot`. Prior review 2026-08-31 against the CIB-385 graph-cache ARCHITECTURE honesty re-date |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | GCTX  | Live   | Last reviewed 2026-09-10 GATT-006: consumer routing on attestation (page on PageLimit, treat Heuristic edges as unconfirmed, treat AtLeast as a bounded prefix, budget from est_tokens). Prior 2026-09-10 GATT-003: per-edge call-resolution fidelity on callers_of (call_graph); diagram contract unchanged. Prior review 2026-09-09 for GATT-001: the GCTX delivery spec gained ADR-142 self-attestation (shared Attestation block). No depicted topology, trust boundary, or workflow moved. Prior review 2026-09-03 against the CIB-398 graph-root rule in the GCTX spec (CE-8): the six graph tools refuse a nested `workspaceRoot`. Prior review 2026-08-31 against the CIB-385 graph-cache ARCHITECTURE honesty re-date |
 
 | Upstream                                                                                                                                          | Downstream                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -124,9 +124,10 @@ sensitive-path filter described below.
 - **`anvil_find_dependents`** — the files that import a given file (its blast
   radius), each with a hop distance (`1` = direct importer, `2` = transitive).
 - **`anvil_find_callers`** — the symbols that call a given symbol. A best-effort
-  static over-approximation: it marks overload fan-out as `heuristic` and an
-  incomplete walk as `partial`, and cannot see dynamic dispatch — do not treat
-  it as an authoritative caller set.
+  static over-approximation: each call edge is `exact` or `heuristic`; the
+  caller-level `heuristic` flag is a **summary of that edge set**, not a
+  property of the caller. An incomplete walk is `partial`. The walk cannot see
+  dynamic dispatch — do not treat the set as authoritative.
 - **`anvil_impact_of_change`** — given changed file _paths_ (never diff content;
   up to 200 files), the affected symbols, the depth-bounded set of dependent
   files, and a best-effort `known_tests` subset. "What might break if I change
@@ -251,6 +252,66 @@ carrying **partial** results up to the limit (not an error): `bounded` when the
 caller's token budget truncated the slice, and `budget_exceeded` when the
 per-session snippet byte ceiling did. To get a complete response, narrow the
 scope or disable snippets.
+
+## Reading attestation
+
+Every ready graph-context projection carries a shared `attestation` block
+(ADR-142). It is counts and closed enums only. Read it **before** treating the
+payload as complete. Privacy redaction (`redaction_summary`) and workspace
+assurance remain separate: attestation is what the query itself could not
+resolve or fit.
+
+### Bounds — when the answer is a prefix
+
+`attestation.bounds` is empty when nothing capped the answer. Each fired bound
+names:
+
+- `section` — which part of the report (search page, callers, dependents,
+  affected symbols, dependent closure, affected tests, snippet tokens/bytes,
+  graph-resource page/bytes)
+- `budget` — which ceiling fired (`page_limit`, `node_budget`,
+  `traversal_depth`, `byte_ceiling`, `session_ceiling`)
+- `returned` — how many items of that section were emitted
+- `total` — tagged, never a bare integer: `{ "kind": "exact", "n": N }` when the
+  pre-cap count is known, or `{ "kind": "at_least", "n": N }` when a bounded
+  walk stopped and the true total is unknowable
+
+Route on that:
+
+- **Page.** A `page_limit` bound with `next_cursor` means more of _this_ set
+  follows. Echo the cursor. Do not summarise from the first page alone.
+- **Treat as a bounded prefix.** An `at_least` total or a `node_budget` /
+  `byte_ceiling` / `session_ceiling` bound means the walk or slice stopped. The
+  returned rows are a deterministic prefix, not the full set. Narrow the query
+  or accept incompleteness — do not invent the missing tail.
+- **Do not trust the old `truncated` bool as which budget fired.** On
+  `ImpactSummary` and `AffectedTestsSummary` it is a one-release shim: `true`
+  iff any bound entry exists. Prefer the bound list. On listing tools,
+  `redaction_summary.truncated` still means "more pages follow", which is
+  different from a walk that hit its node budget (`partial` / a `node_budget`
+  bound on the last page).
+
+`graph://stats` normally has no bound entry (counts only). `graph://edges` may
+carry a `node_budget` bound when the enumeration cap fired, independently of
+pagination.
+
+### Edges — when a caller is mixed
+
+On `anvil_find_callers`, each `CallerSummary.edges` entry is `exact` or
+`heuristic`. Count them. A caller with three exact edges and one heuristic edge
+is not "a heuristic caller": treat only the heuristic edges as unconfirmed
+(overload fan-out or an unresolved site). The caller-level `heuristic` flag is
+derived from that set. Do not skip the exact edges.
+
+### Cost — budget before spending
+
+`attestation.est_tokens` is an estimate of this envelope, with
+`estimator_version` (today `gctx-simple-v1`) so the number stays comparable
+across releases. It is an estimate, not a measurement, and it does not enforce a
+budget. If the number is large relative to the remaining context window, narrow
+the query (`limit`, `file`, a shallower `max_depth`, or disable snippets) before
+spending the payload. Absent cost fields mean the estimator could not run (for
+example the envelope exceeded its input cap) — do not read absence as zero.
 
 ## Example workflows
 
