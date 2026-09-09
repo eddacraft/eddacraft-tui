@@ -2,13 +2,13 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Spec | Historical MCPLH v1 design, amended by ADR-143 | [MCPLH](../modules/mcp-live-heal.aps.md) | Accepted with amendment | 2026-09-07 — JREL-001 continuity correction |
+| Spec | Historical MCPLH v1 design, amended by ADR-144 | [MCPLH](../modules/mcp-live-heal.aps.md) | Accepted with amendment | 2026-09-07 — JREL-001 continuity correction |
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| Field evidence (multi-session Grok/Claude/Codex MCP skew after brew upgrade), [CIB-242](../modules/continuous-improvement-backlog.aps.md) (status skew hint; no auto-kill), [MCPX](../archive/modules/mcp-client-expansion.aps.md), [MCP26](../modules/mcp-dual-era-support.aps.md), [ADR-083](../decisions/083-gctx-mcp-delivery-target.md), [bare ensure](./2026-08-01-bare-anvil-ensure.md) | [MCPLH](../modules/mcp-live-heal.aps.md), [ADR-143](../decisions/143-established-mcp-session-continuity.md), [JREL-001](../modules/journey-reliability.aps.md) |
+| Field evidence (multi-session Grok/Claude/Codex MCP skew after brew upgrade), [CIB-242](../modules/continuous-improvement-backlog.aps.md) (status skew hint; no auto-kill), [MCPX](../archive/modules/mcp-client-expansion.aps.md), [MCP26](../modules/mcp-dual-era-support.aps.md), [ADR-083](../decisions/083-gctx-mcp-delivery-target.md), [bare ensure](./2026-08-01-bare-anvil-ensure.md) | [MCPLH](../modules/mcp-live-heal.aps.md), [ADR-144](../decisions/144-established-mcp-session-continuity.md), [JREL-001](../modules/journey-reliability.aps.md) |
 
-> **2026-09-07 amendment:** ADR-143 supersedes every post-read re-exec
+> **2026-09-07 amendment:** ADR-144 supersedes every post-read re-exec
 > requirement below. Re-exec remains allowed at startup before the first stdin
 > read. Once a request is consumed, the established process handles it on the
 > current image, preserves buffered input and negotiated protocol state, and
@@ -403,7 +403,7 @@ Filed as exclusive module [MCPLH](../modules/mcp-live-heal.aps.md) (2026-08-09).
 | Slice | Work item | Outcome | Session restart needed? |
 | ----- | --------- | ------- | ----------------------- |
 | **A** | **MCPLH-001 Ready** | PATH-stable install: never write Cellar/versioned absolute by default | No (prevents new skew) |
-| **B** | **MCPLH-002 Released; amended by ADR-143** | Startup re-exec before stdin read; established sessions preserve requests and report reconnect | Targeted MCP reconnect for an established skewed child |
+| **B** | **MCPLH-002 Released; amended by ADR-144** | Startup re-exec before stdin read; established sessions preserve requests and report reconnect | Targeted MCP reconnect for an established skewed child |
 | **C** | **MCPLH-003 Ready** | `anvil mcp refresh`: config bulk rewrite + generation bump + report | No |
 | **D** | **MCPLH-004 Ready** | Daemon auto-recycle on skew inside refresh / ensure | No |
 | **E** | **MCPLH-005 Ready** | status/verify: mcp process inventory + `mcp_skew` + split ready claims | No |
@@ -462,7 +462,7 @@ heal mechanics rather than replacing its non-kill rule.
 | Orphan cleanup | Opt-in |
 | Supervisor | MCPLH-007 only, if transparent established-worker replacement is pursued |
 | Graph warm | Separate from live-heal |
-| Doc authority | Historical MCPLH design as amended by ADR-143 and JREL-001 |
+| Doc authority | Historical MCPLH design as amended by ADR-144 and JREL-001 |
 
 ## 18. References
 

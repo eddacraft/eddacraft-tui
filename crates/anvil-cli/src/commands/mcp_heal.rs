@@ -4,7 +4,7 @@
 //! MCP entries and signal live children to re-check when the CLI, daemon, or
 //! configs change. Established sessions preserve accepted and buffered
 //! requests on their current image and emit targeted reconnect guidance
-//! (ADR-143). `anvil mcp refresh` remains the explicit emergency cascade.
+//! (ADR-144). `anvil mcp refresh` remains the explicit emergency cascade.
 //!
 //! Pin (`anvil mcp pin` or `ANVIL_MCP_PIN`) freezes daily heal and
 //! startup re-exec. Emergency refresh still runs.

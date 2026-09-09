@@ -8,7 +8,7 @@
 **Released/Shipped** via `v0.9.5-beta` (`5c4b61a7`). MCPLH-007 remains
 Draft until soak evidence and is not that claim.
 
-**Contract amendment (2026-09-07):** [ADR-143](../decisions/143-established-mcp-session-continuity.md)
+**Contract amendment (2026-09-07):** [ADR-144](../decisions/144-established-mcp-session-continuity.md)
 supersedes the post-read re-exec parts of the original v1 design. Established
 sessions preserve requests and require a targeted MCP reconnect to change image.
 
@@ -31,10 +31,10 @@ targeted reconnect guidance.
 | Document | Role |
 | -------- | ---- |
 | [`2026-08-09-mcp-live-heal-without-harness-restart.md`](../specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Accepted design contract for this module (re-exec, refresh cascade, process policy, non-goals) |
-| [ADR-143](../decisions/143-established-mcp-session-continuity.md) | Current established-session continuity contract; supersedes post-read re-exec |
+| [ADR-144](../decisions/144-established-mcp-session-continuity.md) | Current established-session continuity contract; supersedes post-read re-exec |
 
 Open questions OQ-1..OQ-6 in the original spec remain historical unless
-ADR-143 resolves them.
+ADR-144 resolves them.
 
 ## In scope
 
@@ -111,7 +111,7 @@ refresh verb; honest `mcp_skew` / process inventory on status surfaces.
 - **Status:** Released/Shipped via v0.9.5-beta (5c4b61a7 · 2026-08-16)
 - **Historical Outcome:** v0.9.5 attempted to recycle long-lived MCP children to
   the preferred binary under a live harness stdio pipe.
-- **Current Correction (ADR-143 / JREL-001):** `execve` is safe only at
+- **Current Correction (ADR-144 / JREL-001):** `execve` is safe only at
   startup, before the first stdin read. On `initialize`, `tools/list`, and
   `tools/call`, an established session detects skew but handles the consumed
   request on its current image, preserves pipelined input and negotiated

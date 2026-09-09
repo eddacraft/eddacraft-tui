@@ -4,7 +4,7 @@
 //! preferred anvil binary. Once a request has been read, process-local
 //! negotiation and buffered frames make replacement unsafe: the established
 //! process handles the request and emits a targeted reconnect instruction.
-//! See ADR-143.
+//! See ADR-144.
 //!
 //! Re-exec is never attempted after a frame has been read.
 //! At most one attempt per process (`ANVIL_MCP_REEXECED`). Kill-switch:
@@ -364,7 +364,7 @@ pub(crate) fn maybe_reexec_at_startup() {
 }
 
 /// Re-check skew without replacing a process that has consumed session input.
-/// ADR-143 preserves request, pipeline, and negotiated protocol state.
+/// ADR-144 preserves request, pipeline, and negotiated protocol state.
 pub(crate) fn check_established_session(message: &Value) {
     let method = message.get("method").and_then(Value::as_str);
     if !method.is_some_and(is_trigger_method) {

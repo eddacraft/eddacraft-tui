@@ -1,4 +1,4 @@
-# ADR-143: Preserve established MCP sessions across binary updates
+# ADR-144: Preserve established MCP sessions across binary updates
 
 ## Status
 
