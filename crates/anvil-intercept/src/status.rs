@@ -362,6 +362,13 @@ fn uptime_to_seconds(uptime: Duration) -> u64 {
 /// fence store, and latency aggregator.
 pub trait StatusProvider: Send + Sync {
     fn query_status(&self) -> DaemonStatus;
+
+    /// JREL-013: snapshot for one worktree's attestation. Default
+    /// filters a full snapshot; production providers override to avoid
+    /// materialising unrelated sessions.
+    fn query_status_for_worktree(&self, worktree: &Path) -> DaemonStatus {
+        filter_status_to_worktree(self.query_status(), worktree)
+    }
 }
 
 impl<F> StatusProvider for F
@@ -478,10 +485,9 @@ impl DaemonStatusProvider {
     }
 }
 
-impl StatusProvider for DaemonStatusProvider {
-    fn query_status(&self) -> DaemonStatus {
+impl DaemonStatusProvider {
+    fn assemble_snapshot(&self, sessions: Vec<SessionRecord>) -> DaemonStatus {
         let now = Instant::now();
-        let sessions = self.registry.active_sessions();
         // Fence loading errors are surfaced as an empty fence list —
         // the persisted store is a soft input here. A daemon that
         // cannot read its fence file is already tearing the listener
@@ -564,6 +570,27 @@ impl StatusProvider for DaemonStatusProvider {
         }
         status
     }
+}
+
+impl StatusProvider for DaemonStatusProvider {
+    fn query_status(&self) -> DaemonStatus {
+        self.assemble_snapshot(self.registry.active_sessions())
+    }
+
+    fn query_status_for_worktree(&self, worktree: &Path) -> DaemonStatus {
+        self.assemble_snapshot(self.registry.sessions_for_worktree(worktree))
+    }
+}
+
+/// Keep daemon-global health/latency, drop sessions and worktrees that
+/// are not the queried worktree (JREL-013).
+fn filter_status_to_worktree(mut status: DaemonStatus, worktree: &Path) -> DaemonStatus {
+    status
+        .sessions
+        .retain(|session| session.worktree == worktree);
+    status.worktrees.retain(|entry| entry.worktree == worktree);
+    status.fences.retain(|fence| fence.worktree == worktree);
+    status
 }
 
 /// Render the status snapshot in the operator-facing text format used
@@ -898,6 +925,27 @@ mod tests {
             agent_tag: None,
             daemon_issued_tag: None,
         }
+    }
+
+    #[test]
+    fn filter_status_to_worktree_drops_unrelated_sessions() {
+        let snapshot = sample_status(
+            vec![
+                sample_session("s-a", "/tmp/wt-a"),
+                sample_session("s-b", "/tmp/wt-b"),
+            ],
+            &[],
+            IpcState::Serving,
+        );
+        let scoped = filter_status_to_worktree(snapshot, Path::new("/tmp/wt-a"));
+        assert_eq!(scoped.sessions.len(), 1);
+        assert_eq!(scoped.sessions[0].id.as_str(), "s-a");
+        assert!(
+            scoped
+                .worktrees
+                .iter()
+                .all(|entry| entry.worktree == Path::new("/tmp/wt-a"))
+        );
     }
 
     fn sample_rollup(p50_ms: f64, p95_ms: f64) -> LatencyRollup {

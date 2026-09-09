@@ -861,6 +861,15 @@ pub(crate) fn query_daemon_status_at_with_timeout(
     socket_path: &std::path::Path,
     request_timeout: std::time::Duration,
 ) -> Result<DaemonStatusV1> {
+    query_daemon_status_at_with_timeout_scoped(socket_path, request_timeout, None)
+}
+
+#[cfg(unix)]
+pub(crate) fn query_daemon_status_at_with_timeout_scoped(
+    socket_path: &std::path::Path,
+    request_timeout: std::time::Duration,
+    worktree: Option<&std::path::Path>,
+) -> Result<DaemonStatusV1> {
     use std::io::{Read, Write};
     use std::os::unix::net::UnixStream;
     use std::time::Instant;
@@ -900,7 +909,8 @@ pub(crate) fn query_daemon_status_at_with_timeout(
     // changing on-the-wire behaviour for existing operator scripts;
     // the daemon dual-routes both names so this is a deliberate
     // continuity choice rather than a missed migration.
-    let frame_bytes = build_query_status_frame_bytes(LEGACY_QUERY_STATUS_METHOD, REQUEST_ID);
+    let frame_bytes =
+        build_query_status_frame_bytes_scoped(LEGACY_QUERY_STATUS_METHOD, REQUEST_ID, worktree);
     stream
         .write_all(&frame_bytes)
         .context("failed to send query_status frame")?;
@@ -1017,6 +1027,15 @@ pub(crate) fn query_daemon_status_windows_at_with_timeout(
     pipe_name: &str,
     timeout: std::time::Duration,
 ) -> Result<DaemonStatusV1> {
+    query_daemon_status_windows_at_with_timeout_scoped(pipe_name, timeout, None)
+}
+
+#[cfg(windows)]
+pub(crate) fn query_daemon_status_windows_at_with_timeout_scoped(
+    pipe_name: &str,
+    timeout: std::time::Duration,
+    worktree: Option<&std::path::Path>,
+) -> Result<DaemonStatusV1> {
     use std::sync::mpsc;
     use std::thread;
     use std::time::Instant;
@@ -1092,7 +1111,8 @@ pub(crate) fn query_daemon_status_windows_at_with_timeout(
         }
     };
 
-    let frame_bytes = build_query_status_frame_bytes(ANVIL_STATUS_QUERY, REQUEST_ID);
+    let frame_bytes =
+        build_query_status_frame_bytes_scoped(ANVIL_STATUS_QUERY, REQUEST_ID, worktree);
     client
         .write_all(&frame_bytes)
         .context("failed to send query_status frame")?;
@@ -1411,11 +1431,23 @@ fn parse_unblock_response_bytes(
 /// Centralised so the Unix and Windows paths cannot drift on
 /// jsonrpc/version/id semantics.
 fn build_query_status_frame_bytes(method: &str, id: &str) -> Vec<u8> {
-    let frame = serde_json::json!({
+    build_query_status_frame_bytes_scoped(method, id, None)
+}
+
+/// JREL-013: optional `worktree` param scopes the daemon snapshot.
+fn build_query_status_frame_bytes_scoped(
+    method: &str,
+    id: &str,
+    worktree: Option<&std::path::Path>,
+) -> Vec<u8> {
+    let mut frame = serde_json::json!({
         "jsonrpc": "2.0",
         "method": method,
         "id": id,
     });
+    if let Some(worktree) = worktree {
+        frame["params"] = serde_json::json!({ "worktree": worktree });
+    }
     let mut out = frame.to_string().into_bytes();
     out.push(b'\n');
     out
@@ -2326,6 +2358,22 @@ mod tests {
         assert!(s.contains("\"jsonrpc\":\"2.0\""), "got {s}");
         assert!(s.contains("\"method\":\"anvil/status/query\""), "got {s}");
         assert!(s.contains("\"id\":\"id-1\""), "got {s}");
+        assert!(
+            !s.contains("params"),
+            "unscoped frame must omit params: {s}"
+        );
+    }
+
+    #[test]
+    fn build_query_status_frame_bytes_scoped_includes_worktree() {
+        let bytes = super::build_query_status_frame_bytes_scoped(
+            "query_status",
+            "id-1",
+            Some(std::path::Path::new("/tmp/wt-a")),
+        );
+        let s = std::str::from_utf8(&bytes).expect("utf8 frame");
+        assert!(s.contains("\"worktree\":\"/tmp/wt-a\""), "got {s}");
+        assert!(s.contains("\"params\""), "got {s}");
     }
 
     /// Pin: response parser rejects the reply if the daemon answers

@@ -1174,6 +1174,99 @@ async fn query_status_with_traffic_carries_p50_and_p95() {
 }
 
 #[tokio::test]
+async fn query_status_worktree_param_does_not_materialise_other_sessions() {
+    use anvil_intercept::status::{DaemonStatus, IpcState, StatusProvider, build_status};
+    use anvil_intercept_proto::SessionStatus;
+    use std::path::PathBuf;
+
+    struct TwoWorktrees;
+    impl StatusProvider for TwoWorktrees {
+        fn query_status(&self) -> DaemonStatus {
+            let started = std::time::Instant::now();
+            build_status(
+                vec![
+                    SessionRecord {
+                        id: SessionId::new("s-a"),
+                        worktree: PathBuf::from("/tmp/wt-a"),
+                        pid: Some(1),
+                        pgid: Some(1),
+                        started_at_unix: 1,
+                        last_heartbeat_unix: 1,
+                        status: SessionStatus::Active,
+                        agent_tag: None,
+                        daemon_issued_tag: None,
+                    },
+                    SessionRecord {
+                        id: SessionId::new("s-b"),
+                        worktree: PathBuf::from("/tmp/wt-b"),
+                        pid: Some(2),
+                        pgid: Some(2),
+                        started_at_unix: 1,
+                        last_heartbeat_unix: 1,
+                        status: SessionStatus::Active,
+                        agent_tag: None,
+                        daemon_issued_tag: None,
+                    },
+                ],
+                &[],
+                &[],
+                None,
+                started,
+                started,
+                "test-version",
+                IpcState::Serving,
+                None,
+                None,
+                0,
+            )
+        }
+    }
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o700))
+        .expect("secure tempdir permissions");
+    let socket = tmp.path().join("intercept.sock");
+    let listener = anvil_intercept::ipc::IpcListener::bind_with_scan_buffer_service(
+        &socket,
+        anvil_intercept::ipc::NoopDispatcher,
+        anvil_intercept::midedit::ScanBufferService::default(),
+    )
+    .expect("bind listener")
+    .with_status_provider(std::sync::Arc::new(TwoWorktrees));
+    let (shutdown, token) = anvil_intercept::Shutdown::new();
+    let handle = tokio::spawn(async move { listener.serve(token).await });
+
+    let mut client = tokio::net::UnixStream::connect(&socket)
+        .await
+        .expect("connect");
+    client
+        .write_all(
+            br#"{"jsonrpc":"2.0","method":"query_status","params":{"worktree":"/tmp/wt-a"},"id":"scoped"}
+"#,
+        )
+        .await
+        .expect("write request");
+    let mut reader = BufReader::new(client);
+    let mut line = String::new();
+    tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
+        .await
+        .expect("response timeout")
+        .expect("read response");
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(5), handle)
+        .await
+        .expect("listener timeout")
+        .expect("listener join")
+        .expect("listener ok");
+
+    let response: Value = serde_json::from_str(line.trim_end()).expect("response json");
+    assert!(response.get("error").is_none(), "error: {response}");
+    let sessions = response["result"]["sessions"].as_array().expect("sessions");
+    assert_eq!(sessions.len(), 1, "{response}");
+    assert_eq!(sessions[0]["id"], "s-a");
+}
+
+#[tokio::test]
 async fn query_status_rejects_params() {
     let response = request(json!({
         "jsonrpc": "2.0",

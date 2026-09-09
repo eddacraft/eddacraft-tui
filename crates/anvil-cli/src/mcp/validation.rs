@@ -319,15 +319,19 @@ impl DaemonValidationClient for WindowsPipeDaemonValidationClient {
         // 500 ms `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT` budget so a
         // wedged daemon cannot stretch `validate_write` to the 2 s
         // default carried by the parameterless `query_daemon_status_windows_at`.
-        let snapshot = crate::commands::intercept::query_daemon_status_windows_at_with_timeout(
-            &self.pipe_name,
-            MCP_PROTECTION_CLAIM_QUERY_TIMEOUT,
-        )
-        .map_err(|err| {
-            eprintln!("anvil-mcp: protection_claim query_status failed (omitting field): {err}");
-            err
-        })
-        .ok()?;
+        let snapshot =
+            crate::commands::intercept::query_daemon_status_windows_at_with_timeout_scoped(
+                &self.pipe_name,
+                MCP_PROTECTION_CLAIM_QUERY_TIMEOUT,
+                Some(workspace_root),
+            )
+            .map_err(|err| {
+                eprintln!(
+                    "anvil-mcp: protection_claim query_status failed (omitting field): {err}"
+                );
+                err
+            })
+            .ok()?;
         Some(build_protection_claim_from_wire(&snapshot, workspace_root))
     }
 }
@@ -357,9 +361,10 @@ impl DaemonValidationClient for SocketDaemonValidationClient {
         // 500 ms `MCP_PROTECTION_CLAIM_QUERY_TIMEOUT` budget so a
         // wedged daemon cannot stretch `validate_write` to the 2 s
         // default carried by the parameterless `query_daemon_status_at`.
-        let snapshot = crate::commands::intercept::query_daemon_status_at_with_timeout(
+        let snapshot = crate::commands::intercept::query_daemon_status_at_with_timeout_scoped(
             &self.socket_path,
             MCP_PROTECTION_CLAIM_QUERY_TIMEOUT,
+            Some(workspace_root),
         )
         .map_err(|err| {
             eprintln!("anvil-mcp: protection_claim query_status failed (omitting field): {err}");

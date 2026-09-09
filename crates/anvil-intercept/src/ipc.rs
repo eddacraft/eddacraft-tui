@@ -3832,6 +3832,25 @@ pub const LEGACY_QUERY_STATUS_METHOD: &str = "query_status";
 /// re-export so the rename does not break external consumers.
 pub const QUERY_STATUS_METHOD: &str = LEGACY_QUERY_STATUS_METHOD;
 
+/// JREL-013: `query_status` still takes no params for a full snapshot.
+/// An object with only `worktree` (string) scopes the snapshot; any other
+/// params stay invalid so INTD-011 unexpected-field rejection holds.
+fn parse_query_status_params(params: &Value) -> Result<Option<std::path::PathBuf>, &'static str> {
+    match params {
+        Value::Null => Ok(None),
+        Value::Object(map) if map.is_empty() => Ok(None),
+        Value::Object(map) => {
+            if map.len() == 1
+                && let Some(Value::String(worktree)) = map.get("worktree")
+            {
+                return Ok(Some(std::path::PathBuf::from(worktree)));
+            }
+            Err("query_status does not accept params")
+        }
+        _ => Err("query_status does not accept params"),
+    }
+}
+
 /// `query_status` builds its snapshot (including driver-map probes) off the
 /// single-threaded runtime worker: a spawn or stop that briefly holds the
 /// driver map lock must not stall save-time validation or new connections.
@@ -3842,16 +3861,19 @@ async fn handle_query_status_jsonrpc(
     is_notification: bool,
     status_provider: &Arc<dyn StatusProvider>,
 ) -> Option<Value> {
-    if !matches!(params, Value::Null) {
-        return jsonrpc_request_error(
-            response_id,
-            traceparent,
-            is_notification,
-            -32602,
-            "Invalid params",
-            json!({"reason": "query_status does not accept params"}),
-        );
-    }
+    let scoped_worktree = match parse_query_status_params(params) {
+        Ok(worktree) => worktree,
+        Err(reason) => {
+            return jsonrpc_request_error(
+                response_id,
+                traceparent,
+                is_notification,
+                -32602,
+                "Invalid params",
+                json!({ "reason": reason }),
+            );
+        }
+    };
     if is_notification {
         // INTD-011 status is a request-shaped query — treating a
         // notification as a no-op matches the JSON-RPC contract for
@@ -3860,7 +3882,12 @@ async fn handle_query_status_jsonrpc(
         return None;
     }
     let provider = Arc::clone(status_provider);
-    let snapshot = match tokio::task::spawn_blocking(move || provider.query_status()).await {
+    let snapshot = match tokio::task::spawn_blocking(move || match scoped_worktree {
+        Some(worktree) => provider.query_status_for_worktree(&worktree),
+        None => provider.query_status(),
+    })
+    .await
+    {
         Ok(snapshot) => snapshot,
         Err(err) => {
             return jsonrpc_request_error(
