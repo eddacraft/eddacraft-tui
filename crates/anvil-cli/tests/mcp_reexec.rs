@@ -691,6 +691,7 @@ fn drain_lines(rx: &Receiver<std::io::Result<String>>) -> String {
     out
 }
 
+#[cfg(unix)]
 fn recv_lines_until(
     child: &mut Child,
     rx: &Receiver<std::io::Result<String>>,
