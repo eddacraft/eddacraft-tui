@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 6/13 |
+| JREL | Josh | high | In Progress | 7/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -243,7 +243,15 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-007: Correct project and cancellation through guided setup
 
-- **Status:** Ready
+- **Status:** Merged — PR #4527 (claim #4521) at `e0565cfde`. Guided setup
+  resolves one canonical selected repository before checking configuration or
+  running config, scan, preview/apply, tutorial and first-run marker work.
+  Back returns to onboarding, Quit exits, write failures stop the success path,
+  and project-write policy gates precede selected-directory creation. Public
+  PTY coverage includes A-to-B selection, preconfigured roots, nested and
+  linked-worktree roots, cancellation at every stage, gated state and config
+  write failure. Independent verification and Council passed; required hosted
+  checks and review-thread clearance were green before protected rebase-merge.
 - **Priority:** P1
 - **Intent:** All guided setup operations honour the selected repository and actual outcome.
 - **Expected Outcome:** Choosing B while launched from A makes config, scan, preview/apply, tutorial and markers consistently target B; A remains unchanged. Back returns to the prior step, Quit exits, and a write failure cannot be interpreted as Configured or continue silently into the success route. Existing preview/containment safeguards remain intact.
