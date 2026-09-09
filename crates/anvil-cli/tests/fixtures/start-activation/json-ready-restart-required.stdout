@@ -72,5 +72,32 @@
   "last_error": null,
   "all_languages_unsupported": false,
   "repo_languages": [],
-  "unclassified_files_seen": 4
+  "unclassified_files_seen": 4,
+  "readiness": {
+    "state": "starting",
+    "selected_coverage_ready": false,
+    "components": {
+      "config": {
+        "state": "ready",
+        "detail": "valid"
+      },
+      "daemon": {
+        "state": "disabled",
+        "detail": "not a registerable worktree"
+      },
+      "worktree": {
+        "state": "disabled",
+        "detail": "save-time coverage not selected"
+      },
+      "save_time": {
+        "state": "disabled",
+        "detail": "save-time coverage disabled"
+      },
+      "mcp": {
+        "state": "starting",
+        "detail": "configured MCP inventory: claude-code=restart_handshake_verified, cursor=restart_handshake_verified, codex=restart_handshake_verified, opencode=restart_handshake_verified, gemini-cli=restart_handshake_verified, antigravity=restart_handshake_verified, openclaw=restart_handshake_verified, vscode=restart_handshake_verified, copilot-cli=restart_handshake_verified, grok=restart_handshake_verified, warp=restart_handshake_verified, zed=restart_handshake_verified"
+      }
+    }
+  },
+  "next": "run `anvil start` to finish MCP readiness"
 }

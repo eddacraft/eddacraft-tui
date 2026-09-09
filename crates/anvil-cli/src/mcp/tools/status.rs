@@ -64,84 +64,55 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT,
     )
     .ok();
-    let daemon_status = if daemon_snapshot.is_some() {
-        DaemonStatus::Available
-    } else {
-        DaemonStatus::Unavailable
-    };
-    let driver = daemon_snapshot.as_ref().and_then(|snapshot| {
-        snapshot
-            .worktrees
-            .iter()
-            .find(|entry| entry.worktree == workspace_path)
-    });
+    let readiness = status_command::measured_readiness(
+        &activation,
+        daemon_snapshot.as_ref(),
+        Some(&workspace_path),
+        status_command::ReadinessSelection::from_environment(),
+    );
     let graph_assurance = watch_save_time::query_workspace_status(&workspace_path);
     let graph = status_mcp::graph_from_assurance(graph_assurance.as_ref());
-    let highest_mcp = activation.highest_mcp_tier();
-    let mcp_capability = highest_mcp.map_or("not-detected", |tier| tier.label());
-    let mcp_disabled = std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty());
-    let mcp_attachment = if mcp_disabled {
-        "disabled"
-    } else if activation.mcp_pre_write_live() {
-        "ready"
-    } else if highest_mcp
-        .is_some_and(|tier| tier >= crate::activation::diagnostic::McpTier::RestartRequired)
-    {
-        "starting"
-    } else {
-        "degraded"
-    };
     let graph_value = graph.map_or_else(
         || json!({"state": "unavailable", "reason": "daemon assurance unavailable"}),
         |projection| serde_json::to_value(projection).expect("graph readiness serialises"),
     );
-    let driver_disabled =
-        std::env::var_os("ANVIL_NO_SAVE_TIME_DRIVER").is_some_and(|value| !value.is_empty());
-    let watcher_state = driver.map_or_else(
-        || {
-            if driver_disabled {
-                "disabled"
-            } else {
-                "degraded"
-            }
-        },
-        status_command::save_time_driver_readiness,
-    );
-    let watcher_evidence = driver
-        .and_then(|entry| entry.save_time_driver_evidence)
-        .map(status_command::save_time_driver_evidence_str);
-    let mcp_policy = if mcp_disabled { "disabled" } else { "selected" };
-    let configuration_readiness = if config.get("error").is_some() {
-        "failed"
-    } else if config["loaded"] == true {
-        "ready"
-    } else {
-        "disabled"
-    };
-
-    Ok(json!({
+    let requesting_session = daemon_snapshot.as_ref().and_then(|snapshot| {
+        snapshot.sessions.iter().find(|session| {
+            session.worktree == workspace_path
+                && session.pid == Some(std::process::id())
+                && session
+                    .agent_tag
+                    .as_ref()
+                    .is_some_and(|tag| tag.driver_id == crate::registration::MCP_SESSION_DRIVER_ID)
+        })
+    });
+    let last_validation_observed = readiness
+        .components
+        .mcp
+        .live_sessions
+        .iter()
+        .any(|session| session.state == crate::commands::ensure::EnsureReadinessState::Ready);
+    let next = status_command::status_readiness_action(&readiness);
+    let mut payload = json!({
         "status": "ok",
         "workspaceRoot": redacted_workspace_root,
         "availableChecks": available_checks,
         "config": config,
         "hasBaseline": has_baseline,
         "version": env!("CARGO_PKG_VERSION"),
-        "backend": if daemon_snapshot.is_some() { "daemon" } else { "local" },
-        "daemonStatus": daemon_status.as_str(),
+        "backend": "local",
+        "daemonStatus": DaemonStatus::NotWired.as_str(),
         "readiness": {
-            "configuration": configuration_readiness,
-            "daemon": if daemon_snapshot.is_some() { "ready" } else { "degraded" },
-            "mcpPolicy": mcp_policy,
-            "mcpCapability": mcp_capability,
-            "attachment": mcp_attachment,
-            "lastValidation": if activation.mcp_pre_write_live() { "observed" } else { "not-observed" },
+            "aggregate": readiness,
+            "requestingSession": requesting_session.map(|session| session.id.as_str()),
+            "lastValidation": if last_validation_observed { "observed" } else { "not-observed" },
             "graph": graph_value,
-            "watcher": {
-                "state": watcher_state,
-                "evidence": watcher_evidence
-            }
         }
-    }))
+    });
+    if let (Some(next), Some(object)) = (next, payload.as_object_mut()) {
+        object.insert("next".to_owned(), Value::String(next));
+    }
+    Ok(payload)
 }
 
 fn load_config_info(workspace_root: &Path) -> Value {
@@ -441,16 +412,10 @@ mod tests {
             .expect("payload is JSON");
         assert_eq!(payload["status"], "ok");
         assert_eq!(payload["config"]["loaded"], false);
-        assert!(matches!(
-            payload["backend"].as_str(),
-            Some("local" | "daemon")
-        ));
-        assert!(matches!(
-            payload["daemonStatus"].as_str(),
-            Some("available" | "unavailable")
-        ));
+        assert_eq!(payload["backend"], "local");
+        assert_eq!(payload["daemonStatus"], "not-wired");
         assert!(payload["readiness"].is_object());
-        assert_ne!(payload["daemonStatus"], "not-wired");
+        assert!(payload["readiness"]["aggregate"].is_object());
     }
 
     #[test]
@@ -471,7 +436,10 @@ mod tests {
         assert_eq!(payload["config"]["loaded"], true);
         assert_eq!(payload["config"]["source"], ".anvil.yaml");
         assert_eq!(payload["config"]["checks"], json!(["secret-detection"]));
-        assert_eq!(payload["readiness"]["configuration"], "ready");
+        assert_eq!(
+            payload["readiness"]["aggregate"]["components"]["config"]["state"],
+            "ready"
+        );
     }
 
     #[test]
@@ -488,7 +456,10 @@ mod tests {
             .expect("payload is JSON");
         assert_eq!(payload["config"]["loaded"], false);
         assert!(payload["config"]["error"].is_string());
-        assert_eq!(payload["readiness"]["configuration"], "failed");
+        assert_eq!(
+            payload["readiness"]["aggregate"]["components"]["config"]["state"],
+            "failed"
+        );
     }
 
     #[test]

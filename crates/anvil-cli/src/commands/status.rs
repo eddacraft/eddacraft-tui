@@ -1,6 +1,6 @@
 use std::io::IsTerminal;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anvil_intercept_proto::protocol::{AssuranceState, WorkspaceAssurance};
 use anvil_intercept_proto::status::{
@@ -18,7 +18,8 @@ use crate::GlobalArgs;
 use crate::activation;
 use crate::activation::diagnostic::{ConfigStatus, McpTier};
 use crate::commands::ensure::{
-    EnsureComponentReadiness, EnsureReadiness, EnsureReadinessComponents, EnsureReadinessState,
+    EnsureComponentReadiness, EnsureLiveSessionReadiness, EnsureReadiness,
+    EnsureReadinessComponents, EnsureReadinessState,
 };
 use crate::commands::hooks::{
     HookInterpreterStatus, config_hooks_enabled, hook_interpreter_status, is_config_mode_hook_path,
@@ -67,10 +68,11 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             None
         }
     };
-    let readiness = status_readiness(
+    let readiness = measured_readiness(
         &activation,
         daemon_snapshot.as_ref(),
         registerable_worktree.as_deref(),
+        ReadinessSelection::from_environment(),
     );
     let readiness_failed = readiness.failed();
     // DSV-007 / UJ-005: best-effort save-time posture. A live daemon renders
@@ -154,8 +156,13 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             save_time.assurance(),
             mcp,
         )?;
-    } else if status_prefers_tui(global) && !readiness_failed {
-        let state = StatusState::new(data);
+    } else if status_prefers_tui(global) {
+        let state = StatusState::new(data).with_readiness(
+            readiness.state.label(),
+            readiness.component_summary(),
+            readiness.mcp_session_summary(),
+            status_readiness_action(&readiness),
+        );
         crate::tui::run_surface(state)?;
     } else {
         warn_if_status_tui_unavailable(global);
@@ -190,10 +197,11 @@ fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let activation = activation::verify(Path::new("."));
     let registerable_worktree = crate::registration::registerable_worktree(Path::new(".")).ok();
     let daemon_snapshot = crate::commands::intercept::query_daemon_status().ok();
-    let readiness = status_readiness(
+    let readiness = measured_readiness(
         &activation,
         daemon_snapshot.as_ref(),
         registerable_worktree.as_deref(),
+        ReadinessSelection::from_environment(),
     );
     let readiness_failed = readiness.failed();
     let cli_version = env!("CARGO_PKG_VERSION");
@@ -262,18 +270,41 @@ fn env_opt_out(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|value| !value.is_empty())
 }
 
-fn status_readiness(
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ReadinessSelection {
+    pub(crate) save_time_disabled: bool,
+    pub(crate) mcp_disabled: bool,
+}
+
+impl ReadinessSelection {
+    pub(crate) fn from_environment() -> Self {
+        Self {
+            save_time_disabled: env_opt_out("ANVIL_NO_DAEMON")
+                || env_opt_out("ANVIL_NO_SAVE_TIME_DRIVER"),
+            mcp_disabled: env_opt_out("ANVIL_NO_MCP"),
+        }
+    }
+}
+
+pub(crate) fn measured_readiness(
     activation: &activation::ActivationDiagnostic,
     daemon_snapshot: Option<&DaemonStatusV1>,
     worktree: Option<&Path>,
+    selection: ReadinessSelection,
 ) -> EnsureReadiness {
     let config_state = match activation.config {
         ConfigStatus::Valid => EnsureReadinessState::Ready,
         ConfigStatus::Absent => EnsureReadinessState::Disabled,
         ConfigStatus::Invalid => EnsureReadinessState::Failed,
     };
-    let save_time = status_save_time_readiness(daemon_snapshot, worktree);
-    let mcp = status_mcp_readiness(activation);
+    let save_time =
+        status_save_time_readiness(daemon_snapshot, worktree, selection.save_time_disabled);
+    let mcp = status_mcp_readiness(
+        activation,
+        daemon_snapshot,
+        worktree,
+        selection.mcp_disabled,
+    );
 
     EnsureReadiness::from_components(EnsureReadinessComponents {
         config: EnsureComponentReadiness::new(config_state, activation.config.label()),
@@ -293,14 +324,14 @@ struct StatusSaveTimeReadiness {
 fn status_save_time_readiness(
     daemon_snapshot: Option<&DaemonStatusV1>,
     worktree: Option<&Path>,
+    disabled: bool,
 ) -> StatusSaveTimeReadiness {
-    let daemon_opted_out = env_opt_out("ANVIL_NO_DAEMON");
-    let driver_opted_out = env_opt_out("ANVIL_NO_SAVE_TIME_DRIVER");
-    let selected = worktree.is_some() && !daemon_opted_out && !driver_opted_out;
+    let selected = worktree.is_some() && !disabled;
     let daemon_state = if selected {
         match daemon_snapshot.map(|snapshot| snapshot.health.ipc_state) {
             Some(IpcStateV1::Serving) => EnsureReadinessState::Ready,
-            Some(IpcStateV1::Draining) | None => EnsureReadinessState::Failed,
+            Some(IpcStateV1::Draining) => EnsureReadinessState::Starting,
+            None => EnsureReadinessState::Failed,
         }
     } else {
         EnsureReadinessState::Disabled
@@ -314,14 +345,15 @@ fn status_save_time_readiness(
                 .any(|registered| registered == worktree)
         })
     });
-    let worktree_state =
-        if selected && daemon_state == EnsureReadinessState::Ready && durable_member {
-            EnsureReadinessState::Ready
-        } else if selected {
-            EnsureReadinessState::Failed
-        } else {
-            EnsureReadinessState::Disabled
-        };
+    let worktree_state = if !selected {
+        EnsureReadinessState::Disabled
+    } else if durable_member {
+        EnsureReadinessState::Ready
+    } else if daemon_state == EnsureReadinessState::Starting {
+        EnsureReadinessState::Starting
+    } else {
+        EnsureReadinessState::Failed
+    };
     let driver = worktree.and_then(|worktree| {
         daemon_snapshot.and_then(|snapshot| {
             snapshot
@@ -330,10 +362,13 @@ fn status_save_time_readiness(
                 .find(|entry| entry.worktree == worktree)
         })
     });
-    let driver_state = if selected
-        && (daemon_state != EnsureReadinessState::Ready
-            || worktree_state != EnsureReadinessState::Ready
-            || driver.is_none())
+    let driver_state = if !selected {
+        EnsureReadinessState::Disabled
+    } else if daemon_state == EnsureReadinessState::Starting {
+        EnsureReadinessState::Starting
+    } else if daemon_state != EnsureReadinessState::Ready
+        || worktree_state != EnsureReadinessState::Ready
+        || driver.is_none()
     {
         EnsureReadinessState::Failed
     } else if let Some(entry) = driver {
@@ -355,10 +390,8 @@ fn status_save_time_readiness(
         EnsureReadinessState::Disabled
     };
 
-    let daemon_detail = if daemon_opted_out {
-        "disabled by ANVIL_NO_DAEMON".to_owned()
-    } else if driver_opted_out {
-        "not selected because save-time driver is disabled".to_owned()
+    let daemon_detail = if disabled {
+        "save-time coverage deliberately disabled".to_owned()
     } else if worktree.is_none() {
         "not a registerable worktree".to_owned()
     } else {
@@ -400,7 +433,28 @@ fn status_driver_detail(driver: Option<&WorktreeStatusV1>, selected: bool) -> St
     )
 }
 
-fn status_mcp_readiness(activation: &activation::ActivationDiagnostic) -> EnsureComponentReadiness {
+fn status_mcp_readiness(
+    activation: &activation::ActivationDiagnostic,
+    daemon_snapshot: Option<&DaemonStatusV1>,
+    worktree: Option<&Path>,
+    disabled: bool,
+) -> EnsureComponentReadiness {
+    status_mcp_readiness_at(
+        activation,
+        daemon_snapshot,
+        worktree,
+        disabled,
+        SystemTime::now(),
+    )
+}
+
+fn status_mcp_readiness_at(
+    activation: &activation::ActivationDiagnostic,
+    daemon_snapshot: Option<&DaemonStatusV1>,
+    worktree: Option<&Path>,
+    disabled: bool,
+    now: SystemTime,
+) -> EnsureComponentReadiness {
     let unresolvable_command = activation
         .mcp
         .values()
@@ -410,25 +464,77 @@ fn status_mcp_readiness(activation: &activation::ActivationDiagnostic) -> Ensure
             .last_error
             .as_deref()
             .is_some_and(|error| error.to_ascii_lowercase().contains("mcp"));
-    let state = if env_opt_out("ANVIL_NO_MCP") {
+    let live_sessions = if disabled {
+        Vec::new()
+    } else {
+        daemon_snapshot
+            .into_iter()
+            .flat_map(|snapshot| {
+                snapshot
+                    .sessions
+                    .iter()
+                    .map(move |session| (snapshot, session))
+            })
+            .filter(|(_, session)| worktree.is_some_and(|worktree| session.worktree == worktree))
+            .filter_map(|(snapshot, session)| {
+                let tag = session.agent_tag.as_ref()?;
+                (tag.driver_id == crate::registration::MCP_SESSION_DRIVER_ID).then(|| {
+                    let degradation =
+                        crate::activation::daemon_evidence::live_session_degradation_reason(
+                            snapshot, session, now,
+                        );
+                    let state = degradation.map_or(EnsureReadinessState::Ready, |_| {
+                        EnsureReadinessState::Degraded
+                    });
+                    EnsureLiveSessionReadiness {
+                        session: session.id.as_str().to_owned(),
+                        client: tag.claimed_agent_id.clone(),
+                        state,
+                        detail: degradation.map_or_else(
+                            || "live session is fresh and participating".to_owned(),
+                            str::to_owned,
+                        ),
+                    }
+                })
+            })
+            .collect::<Vec<_>>()
+    };
+    let state = if disabled {
         EnsureReadinessState::Disabled
     } else if failed {
         EnsureReadinessState::Failed
+    } else if !live_sessions.is_empty() {
+        if live_sessions
+            .iter()
+            .all(|session| session.state == EnsureReadinessState::Ready)
+        {
+            EnsureReadinessState::Ready
+        } else {
+            EnsureReadinessState::Degraded
+        }
     } else {
-        match activation.highest_mcp_tier() {
-            Some(McpTier::LiveValidation) => EnsureReadinessState::Ready,
-            Some(McpTier::RestartRequired | McpTier::RestartHandshakeVerified) => {
-                EnsureReadinessState::Starting
-            }
-            Some(McpTier::ConfigPresent | McpTier::ServerStartable) => {
-                EnsureReadinessState::Degraded
-            }
-            Some(McpTier::NotDetected | McpTier::ConfigAbsent) | None => {
-                EnsureReadinessState::Disabled
-            }
+        let tiers = activation.mcp.values().map(|probe| probe.tier);
+        if tiers.clone().any(|tier| {
+            matches!(
+                tier,
+                McpTier::RestartRequired | McpTier::RestartHandshakeVerified
+            )
+        }) {
+            EnsureReadinessState::Starting
+        } else if tiers.clone().any(|tier| {
+            matches!(
+                tier,
+                McpTier::ConfigPresent | McpTier::ServerStartable | McpTier::LiveValidation
+            )
+        }) {
+            // A LiveValidation tier without a matching current live-session
+            // record is historical/incomplete evidence, never current coverage.
+            EnsureReadinessState::Degraded
+        } else {
+            EnsureReadinessState::Disabled
         }
     };
-    let detail = if env_opt_out("ANVIL_NO_MCP") {
+    let detail = if disabled {
         "disabled by ANVIL_NO_MCP".to_owned()
     } else if let Some(command) = unresolvable_command {
         format!("configured MCP command `{command}` is not resolvable on PATH")
@@ -438,15 +544,26 @@ fn status_mcp_readiness(activation: &activation::ActivationDiagnostic) -> Ensure
             .clone()
             .unwrap_or_else(|| "MCP readiness failed".to_owned())
     } else {
-        activation.highest_mcp_tier().map_or_else(
-            || "no MCP client detected".to_owned(),
-            |tier| tier.label().to_owned(),
-        )
+        let inventory = configured_mcp_inventory(activation);
+        if inventory.is_empty() {
+            "no MCP client detected".to_owned()
+        } else {
+            format!("configured MCP inventory: {}", inventory.join(", "))
+        }
     };
-    EnsureComponentReadiness::new(state, detail)
+    EnsureComponentReadiness::new(state, detail).with_live_sessions(live_sessions)
 }
 
-fn status_readiness_action(readiness: &EnsureReadiness) -> Option<String> {
+fn configured_mcp_inventory(activation: &activation::ActivationDiagnostic) -> Vec<String> {
+    activation
+        .mcp
+        .iter()
+        .filter(|(_, probe)| !matches!(probe.tier, McpTier::NotDetected | McpTier::ConfigAbsent))
+        .map(|(client, probe)| format!("{}={}", client.label(), probe.tier.label()))
+        .collect()
+}
+
+pub(crate) fn status_readiness_action(readiness: &EnsureReadiness) -> Option<String> {
     readiness.failure_action().or_else(|| {
         let components = &readiness.components;
         if matches!(
@@ -471,6 +588,9 @@ fn render_status_readiness(readiness: &EnsureReadiness, include_action: bool) ->
     let mut out = String::new();
     let _ = writeln!(out, "Readiness: {}", readiness.state.label());
     let _ = writeln!(out, "Components: {}", readiness.component_summary());
+    if let Some(sessions) = readiness.mcp_session_summary() {
+        let _ = writeln!(out, "MCP sessions: {sessions}");
+    }
     if include_action && let Some(next) = status_readiness_action(readiness) {
         let _ = writeln!(out, "Next: {next}");
     }
@@ -939,7 +1059,7 @@ fn driver_segment(snapshot: &DaemonStatusV1, worktree: &Path) -> String {
     driver_segment_with_opt_out(
         snapshot,
         worktree,
-        std::env::var_os("ANVIL_NO_SAVE_TIME_DRIVER").is_some_and(|value| !value.is_empty()),
+        env_opt_out("ANVIL_NO_DAEMON") || env_opt_out("ANVIL_NO_SAVE_TIME_DRIVER"),
     )
 }
 
@@ -948,12 +1068,15 @@ fn driver_segment_with_opt_out(
     worktree: &Path,
     driver_disabled: bool,
 ) -> String {
+    if driver_disabled {
+        return " driver: disabled".to_owned();
+    }
     let overlay = snapshot
         .worktrees
         .iter()
         .find(|entry| entry.worktree == worktree);
     overlay.map_or_else(
-        || " driver: degraded (no evidence)".to_owned(),
+        || " driver: failed (no evidence)".to_owned(),
         |entry| {
             let evidence = entry
                 .save_time_driver_evidence
@@ -968,21 +1091,15 @@ fn driver_segment_with_opt_out(
                 "failed" => " driver: failed".to_owned(),
                 _ => match entry.save_time_driver {
                     SaveTimeDriverStatusV1::Unknown => " driver: degraded (unknown)".to_owned(),
-                    SaveTimeDriverStatusV1::Absent => " driver: degraded (absent)".to_owned(),
+                    SaveTimeDriverStatusV1::Absent | SaveTimeDriverStatusV1::Failed => {
+                        " driver: failed".to_owned()
+                    }
                     SaveTimeDriverStatusV1::Attached => {
                         " driver: degraded (attached without readiness evidence)".to_owned()
                     }
-                    SaveTimeDriverStatusV1::Failed => " driver: failed".to_owned(),
                 },
             }
         },
-    )
-}
-
-pub(crate) fn save_time_driver_readiness(entry: &WorktreeStatusV1) -> &'static str {
-    save_time_driver_readiness_with_opt_out(
-        entry,
-        std::env::var_os("ANVIL_NO_SAVE_TIME_DRIVER").is_some_and(|value| !value.is_empty()),
     )
 }
 
@@ -990,10 +1107,12 @@ fn save_time_driver_readiness_with_opt_out(
     entry: &WorktreeStatusV1,
     driver_disabled: bool,
 ) -> &'static str {
+    if driver_disabled {
+        return "disabled";
+    }
     match entry.save_time_driver {
-        SaveTimeDriverStatusV1::Failed => "failed",
-        SaveTimeDriverStatusV1::Absent if driver_disabled => "disabled",
-        SaveTimeDriverStatusV1::Absent | SaveTimeDriverStatusV1::Unknown => "degraded",
+        SaveTimeDriverStatusV1::Failed | SaveTimeDriverStatusV1::Absent => "failed",
+        SaveTimeDriverStatusV1::Unknown => "degraded",
         SaveTimeDriverStatusV1::Attached => match entry.save_time_driver_evidence {
             Some(
                 SaveTimeDriverEvidenceV1::WatchesInstalled
@@ -2109,6 +2228,7 @@ fn print_json(
             .find(|entry| entry.worktree == worktree)
     });
     let next = status_readiness_action(&readiness);
+    let driver_readiness = driver.map(|_| readiness.components.save_time.state.label());
     let output = StatusOutput {
         schema_version: STATUS_SCHEMA_VERSION,
         activation: activation::render_json(activation_diag),
@@ -2156,7 +2276,7 @@ fn print_json(
         // `claim` / `save_time` fields. `None` (omitted) when no daemon
         // answered or the worktree is not registered — no over-claim.
         save_time_driver: driver.map(|entry| save_time_driver_str(entry.save_time_driver)),
-        save_time_driver_readiness: driver.map(save_time_driver_readiness),
+        save_time_driver_readiness: driver_readiness,
         save_time_driver_evidence: driver
             .and_then(|entry| entry.save_time_driver_evidence)
             .map(save_time_driver_evidence_str),
@@ -3991,8 +4111,8 @@ mod tests {
             "{out}"
         );
         assert!(
-            out.contains("anvil-status-drv-absent [registered] driver: degraded (absent)"),
-            "absent driver must remain explicit degraded evidence: {out}"
+            out.contains("anvil-status-drv-absent [registered] driver: failed"),
+            "an absent selected driver must remain an explicit failure: {out}"
         );
     }
 
@@ -4026,7 +4146,10 @@ mod tests {
         let wt = Path::new("/tmp/anvil-status-drv-unknown");
         let mut snapshot = snapshot_with_session_at(wt, false, false);
         snapshot.worktrees[0].save_time_driver = SaveTimeDriverStatusV1::Unknown;
-        assert_eq!(driver_segment(&snapshot, wt), " driver: degraded (unknown)");
+        assert_eq!(
+            driver_segment_with_opt_out(&snapshot, wt, false),
+            " driver: degraded (unknown)"
+        );
     }
 
     #[test]
@@ -4047,6 +4170,170 @@ mod tests {
         assert_eq!(
             save_time_driver_readiness_with_opt_out(entry, true),
             "disabled"
+        );
+    }
+
+    #[test]
+    fn selected_save_time_opt_out_stays_disabled_with_ready_existing_driver() {
+        let wt = Path::new("/tmp/anvil-status-opted-out-ready-driver");
+        let mut snapshot = snapshot_with_session_at(wt, false, false);
+        snapshot.worktrees[0].save_time_driver = SaveTimeDriverStatusV1::Attached;
+        snapshot.worktrees[0].save_time_driver_evidence =
+            Some(SaveTimeDriverEvidenceV1::WatchesInstalled);
+
+        let readiness = status_save_time_readiness(Some(&snapshot), Some(wt), true);
+        assert_eq!(readiness.daemon.state, EnsureReadinessState::Disabled);
+        assert_eq!(readiness.worktree.state, EnsureReadinessState::Disabled);
+        assert_eq!(readiness.driver.state, EnsureReadinessState::Disabled);
+        assert_eq!(
+            save_time_driver_readiness_with_opt_out(&snapshot.worktrees[0], true),
+            "disabled"
+        );
+    }
+
+    #[test]
+    fn draining_daemon_is_starting_not_failed() {
+        let wt = Path::new("/tmp/anvil-status-draining");
+        let snapshot = snapshot_with_session_at(wt, false, true);
+        let readiness = status_save_time_readiness(Some(&snapshot), Some(wt), false);
+        assert_eq!(readiness.daemon.state, EnsureReadinessState::Starting);
+        assert_eq!(readiness.worktree.state, EnsureReadinessState::Starting);
+        assert_eq!(readiness.driver.state, EnsureReadinessState::Starting);
+    }
+
+    #[test]
+    fn degraded_live_mcp_session_constrains_a_ready_sibling() {
+        use activation::diagnostic::McpClientId;
+        use activation::mcp_client::McpProbeResult;
+        use anvil_intercept_proto::session::AgentTag;
+
+        let wt = Path::new("/tmp/anvil-status-mcp-sessions");
+        let now = std::time::UNIX_EPOCH + Duration::from_secs(1_716_336_061);
+        let fresh = 1_716_336_050;
+        let stale = 1_716_300_000;
+        let mut diagnostic = test_activation_diagnostic();
+        diagnostic.mcp.insert(
+            McpClientId::ClaudeCode,
+            McpProbeResult::stdio(McpTier::LiveValidation),
+        );
+        diagnostic.mcp.insert(
+            McpClientId::Cursor,
+            McpProbeResult::stdio(McpTier::RestartHandshakeVerified),
+        );
+        let mut snapshot = snapshot_with_session_at(wt, false, false);
+        snapshot.sessions = vec![
+            SessionRecord {
+                id: SessionId::new("sess-claude"),
+                worktree: wt.to_path_buf(),
+                pid: Some(1),
+                pgid: None,
+                started_at_unix: 1,
+                last_heartbeat_unix: fresh,
+                status: SessionStatus::Active,
+                agent_tag: Some(AgentTag::new("anvil-mcp", "claude-code", 1)),
+                daemon_issued_tag: None,
+            },
+            SessionRecord {
+                id: SessionId::new("sess-cursor"),
+                worktree: wt.to_path_buf(),
+                pid: Some(2),
+                pgid: None,
+                started_at_unix: 1,
+                last_heartbeat_unix: stale,
+                status: SessionStatus::Active,
+                agent_tag: Some(AgentTag::new("anvil-mcp", "cursor", 1)),
+                daemon_issued_tag: None,
+            },
+        ];
+        snapshot.generated_at_unix = fresh;
+        snapshot.worktrees[0].session_id = SessionId::new("sess-claude");
+        snapshot.worktrees.push(WorktreeStatusV1 {
+            worktree: wt.to_path_buf(),
+            session_id: SessionId::new("sess-cursor"),
+            fenced: false,
+            cascaded: false,
+            cascade_since: None,
+            save_time_driver: SaveTimeDriverStatusV1::Absent,
+            save_time_driver_evidence: None,
+        });
+
+        let readiness = status_mcp_readiness_at(&diagnostic, Some(&snapshot), Some(wt), false, now);
+        assert_eq!(readiness.state, EnsureReadinessState::Degraded);
+        assert_eq!(readiness.live_sessions.len(), 2);
+        assert_eq!(
+            readiness.live_sessions[0].state,
+            EnsureReadinessState::Ready
+        );
+        assert_eq!(
+            readiness.live_sessions[1].state,
+            EnsureReadinessState::Degraded
+        );
+        assert_eq!(
+            readiness.live_sessions[1].detail,
+            "session heartbeat is stale"
+        );
+    }
+
+    #[test]
+    fn stale_session_cannot_borrow_a_same_client_siblings_readiness() {
+        use activation::diagnostic::McpClientId;
+        use activation::mcp_client::McpProbeResult;
+        use anvil_intercept_proto::session::AgentTag;
+
+        let wt = Path::new("/tmp/anvil-status-mcp-same-client-sessions");
+        let now = std::time::UNIX_EPOCH + Duration::from_secs(1_716_336_061);
+        let fresh = 1_716_336_050;
+        let mut diagnostic = test_activation_diagnostic();
+        diagnostic.mcp.insert(
+            McpClientId::ClaudeCode,
+            McpProbeResult::stdio(McpTier::LiveValidation),
+        );
+        let mut snapshot = snapshot_with_session_at(wt, false, false);
+        snapshot.sessions = vec![
+            SessionRecord {
+                id: SessionId::new("sess-claude-fresh"),
+                worktree: wt.to_path_buf(),
+                pid: Some(1),
+                pgid: None,
+                started_at_unix: 1,
+                last_heartbeat_unix: fresh,
+                status: SessionStatus::Active,
+                agent_tag: Some(AgentTag::new("anvil-mcp", "claude-code", 1)),
+                daemon_issued_tag: None,
+            },
+            SessionRecord {
+                id: SessionId::new("sess-claude-stale"),
+                worktree: wt.to_path_buf(),
+                pid: Some(2),
+                pgid: None,
+                started_at_unix: 1,
+                last_heartbeat_unix: 1_716_300_000,
+                status: SessionStatus::Active,
+                agent_tag: Some(AgentTag::new("anvil-mcp", "claude-code", 2)),
+                daemon_issued_tag: None,
+            },
+        ];
+        snapshot.generated_at_unix = fresh;
+        snapshot.worktrees[0].session_id = SessionId::new("sess-claude-fresh");
+        snapshot.worktrees.push(WorktreeStatusV1 {
+            worktree: wt.to_path_buf(),
+            session_id: SessionId::new("sess-claude-stale"),
+            fenced: false,
+            cascaded: false,
+            cascade_since: None,
+            save_time_driver: SaveTimeDriverStatusV1::Absent,
+            save_time_driver_evidence: None,
+        });
+
+        let readiness = status_mcp_readiness_at(&diagnostic, Some(&snapshot), Some(wt), false, now);
+        assert_eq!(readiness.state, EnsureReadinessState::Degraded);
+        assert_eq!(
+            readiness.live_sessions[0].state,
+            EnsureReadinessState::Ready
+        );
+        assert_eq!(
+            readiness.live_sessions[1].state,
+            EnsureReadinessState::Degraded
         );
     }
 

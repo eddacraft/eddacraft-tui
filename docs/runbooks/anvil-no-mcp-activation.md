@@ -35,10 +35,12 @@ The component projection reports MCP as `disabled`, not failed. Overall
 `readiness: ready` requires the selected save-time driver to have
 `watches-installed` or `fresh-activity` evidence. `spawned` remains `starting`;
 a refused registration or failed driver returns a non-zero exit with one
-`anvil start` recovery action. `anvil status` and `anvil status --verify`
-project the same aggregate readiness and exit non-zero when selected coverage
-has failed; `ANVIL_NO_DAEMON`, `ANVIL_NO_SAVE_TIME_DRIVER`, and `ANVIL_NO_MCP`
-remain deliberate `disabled` states rather than failures.
+`anvil start` recovery action. `anvil start`, its read-only `--verify` /
+`--json` modes, `anvil status`, and `anvil status --verify` project the same
+aggregate readiness and exit non-zero when selected coverage has failed. Their
+interactive views render that projection rather than recomputing legacy state.
+`ANVIL_NO_DAEMON`, `ANVIL_NO_SAVE_TIME_DRIVER`, and `ANVIL_NO_MCP` remain
+deliberate `disabled` states rather than failures.
 
 ## Procedure
 

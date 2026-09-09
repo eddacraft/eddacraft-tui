@@ -503,6 +503,17 @@ fn schema_documents_aggregate_readiness_contract() {
             .collect::<Vec<_>>(),
         ["config", "daemon", "worktree", "save_time", "mcp"]
     );
+    let live_session_fields = schema
+        .pointer("/$defs/readinessComponent/properties/live_sessions/items/required")
+        .and_then(serde_json::Value::as_array)
+        .expect("schema must document per-session MCP readiness");
+    assert_eq!(
+        live_session_fields
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect::<Vec<_>>(),
+        ["session", "client", "state", "detail"]
+    );
 }
 
 /// Pin the schema file itself — typo in `$id`, the `const` lock, or

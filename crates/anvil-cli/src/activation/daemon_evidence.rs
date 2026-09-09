@@ -712,6 +712,42 @@ fn session_is_durable_membership(session: &anvil_intercept_proto::SessionRecord)
         .is_some_and(anvil_intercept_proto::session::AgentTag::is_durable_membership)
 }
 
+/// Return why a daemon-reported live lease cannot currently attest protection.
+///
+/// JREL-005 projects readiness per live MCP session rather than borrowing a
+/// client-wide tier. Keep that projection on the same freshness window as the
+/// activation promotion path so `start`, `status`, and MCP cannot disagree
+/// about whether an individual lease is still current.
+pub(crate) fn live_session_degradation_reason(
+    snapshot: &DaemonStatusV1,
+    session: &anvil_intercept_proto::SessionRecord,
+    now: SystemTime,
+) -> Option<&'static str> {
+    if snapshot.health.ipc_state == anvil_intercept_proto::status::IpcStateV1::Draining {
+        return Some("daemon is draining");
+    }
+    if snapshot.generated_at_unix != 0 && !within_window(snapshot.generated_at_unix, now) {
+        return Some("daemon snapshot is stale");
+    }
+    if session.status != anvil_intercept_proto::SessionStatus::Active {
+        return Some("session has ended");
+    }
+    if !within_window(session.last_heartbeat_unix, now) {
+        return Some("session heartbeat is stale");
+    }
+    let Some(surface) = snapshot
+        .worktrees
+        .iter()
+        .find(|surface| surface.session_id == session.id && surface.worktree == session.worktree)
+    else {
+        return Some("session has no participating worktree surface");
+    };
+    if surface.fenced {
+        return Some("session is quarantined");
+    }
+    None
+}
+
 fn within_window(unix_seconds: u64, now: SystemTime) -> bool {
     let now_unix = match now.duration_since(SystemTime::UNIX_EPOCH) {
         Ok(d) => d.as_secs(),

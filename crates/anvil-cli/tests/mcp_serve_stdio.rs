@@ -1070,10 +1070,21 @@ fn mcp_serve_stdio_tools_call_status_returns_workspace_health_summary() {
         json!(["secret-detection", "policy"])
     );
     assert_eq!(payload["backend"], "local");
-    assert_eq!(payload["daemonStatus"], "unavailable");
-    assert_eq!(payload["readiness"]["configuration"], "ready");
-    assert_eq!(payload["readiness"]["daemon"], "degraded");
-    assert_eq!(payload["readiness"]["watcher"]["state"], "degraded");
+    assert_eq!(payload["daemonStatus"], "not-wired");
+    assert_eq!(
+        payload["readiness"]["aggregate"]["components"]["config"]["state"],
+        "ready"
+    );
+    assert_eq!(
+        payload["readiness"]["aggregate"]["components"]["daemon"]["state"],
+        "failed"
+    );
+    assert_eq!(
+        payload["readiness"]["aggregate"]["components"]["save_time"]["state"],
+        "failed"
+    );
+    assert_eq!(payload["readiness"]["aggregate"]["state"], "failed");
+    assert!(payload["next"].is_string());
     assert!(
         payload["availableChecks"]
             .as_array()

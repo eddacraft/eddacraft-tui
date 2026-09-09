@@ -55,6 +55,17 @@ pub struct StatusData {
     pub whats_new_hint: Option<String>,
 }
 
+/// JREL-005: the CLI's measured readiness projection rendered above the
+/// existing dashboard panels. Strings are supplied by the command layer so the
+/// TUI never grows a second classifier.
+#[derive(Debug, Clone)]
+pub struct StatusReadiness {
+    pub state: String,
+    pub components: String,
+    pub mcp_sessions: Option<String>,
+    pub next: Option<String>,
+}
+
 /// Which panel is focused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatusPanel {
@@ -86,6 +97,7 @@ impl StatusPanel {
 /// State for the status dashboard surface.
 pub struct StatusState {
     pub data: StatusData,
+    pub readiness: Option<StatusReadiness>,
     pub focused_panel: StatusPanel,
     pub selected_item: usize,
     /// When `true`, only the focused panel renders, taking the full
@@ -108,12 +120,30 @@ impl StatusState {
     pub fn new(data: StatusData) -> Self {
         Self {
             data,
+            readiness: None,
             focused_panel: StatusPanel::Hooks,
             selected_item: 0,
             zoomed: false,
             should_quit: false,
             wants_back: false,
         }
+    }
+
+    #[must_use]
+    pub fn with_readiness(
+        mut self,
+        state: impl Into<String>,
+        components: impl Into<String>,
+        mcp_sessions: Option<String>,
+        next: Option<String>,
+    ) -> Self {
+        self.readiness = Some(StatusReadiness {
+            state: state.into(),
+            components: components.into(),
+            mcp_sessions,
+            next,
+        });
+        self
     }
 
     fn max_items_in_panel(&self) -> usize {

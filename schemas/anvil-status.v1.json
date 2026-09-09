@@ -189,7 +189,7 @@
       "enum": ["attached", "absent", "failed", "unknown"]
     },
     "save_time_driver_readiness": {
-      "description": "JREL-005: readiness derived from the daemon-reported driver state and evidence. `starting` means the child exists but has not proved watches are installed; `ready` requires watches-installed or fresh-activity evidence; `disabled` is an explicit operator opt-out; `degraded` is absent or unrecognised evidence; `failed` is a bounded driver failure. Additive and omitted when no registered-worktree driver projection is available.",
+      "description": "JREL-005: readiness derived from the daemon-reported driver state and evidence. `starting` means the child exists but has not proved watches are installed; `ready` requires watches-installed or fresh-activity evidence; `disabled` is an explicit operator opt-out; `degraded` is unrecognised or incomplete attached evidence; `failed` means a selected driver is absent or has a bounded failure. Additive and omitted when no registered-worktree driver projection is available.",
       "type": "string",
       "enum": ["starting", "ready", "disabled", "degraded", "failed"]
     },
@@ -270,7 +270,25 @@
           "type": "string",
           "enum": ["starting", "ready", "disabled", "degraded", "failed"]
         },
-        "detail": { "type": "string" }
+        "detail": { "type": "string" },
+        "live_sessions": {
+          "description": "JREL-005: current MCP sessions evaluated individually. Present only on the MCP component when the daemon reports live attributed sessions; every selected session constrains the aggregate.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["session", "client", "state", "detail"],
+            "additionalProperties": false,
+            "properties": {
+              "session": { "type": "string" },
+              "client": { "type": "string" },
+              "state": {
+                "type": "string",
+                "enum": ["starting", "ready", "disabled", "degraded", "failed"]
+              },
+              "detail": { "type": "string" }
+            }
+          }
+        }
       }
     }
   }

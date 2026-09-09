@@ -56,16 +56,19 @@ anvil status --json
 ```
 
 The daily bare command, `anvil start`, and `anvil status` now print an overall
-`readiness` plus component states. Their JSON surfaces expose the same typed
-projection. A selected but unavailable daemon, failed worktree registration, or
+`readiness` plus component states. Their JSON and interactive surfaces expose
+the same typed projection. The read-only `anvil start --verify` and
+`anvil start --json` modes measure current daemon/worktree state without
+spawning or writing and still return a failing exit when selected coverage is
+unavailable. A selected but unavailable daemon, failed worktree registration, or
 absent/failed save-time driver returns a non-zero exit and one
 component-specific `next:` action. Explicit opt-outs remain `disabled` and do
 not create a failure. Use `anvil intercept status` for the full daemon
 inventory. Its registered-worktree lines and `anvil status --json` distinguish
 `starting`, `ready`, `disabled`, `degraded`, and `failed`; attachment without
 readiness evidence is not `ready`. For a scripted mutating ensure receipt, use
-bare `anvil --json`; the existing `anvil start --json` contract remains a
-read-only activation probe.
+bare `anvil --json`; `anvil start --json` remains a read-only activation probe
+and includes the same additive readiness object.
 
 ## Logs And Artefacts
 

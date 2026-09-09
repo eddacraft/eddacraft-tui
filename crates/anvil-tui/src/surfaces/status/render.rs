@@ -20,6 +20,21 @@ pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCr
             (area, None)
         };
 
+    let body_area = if let Some(readiness) = &state.readiness {
+        let line_count = 2
+            + usize::from(readiness.mcp_sessions.is_some())
+            + usize::from(readiness.next.is_some());
+        let sections = Layout::vertical([
+            Constraint::Length(u16::try_from(line_count).unwrap_or(u16::MAX)),
+            Constraint::Min(0),
+        ])
+        .split(body_area);
+        render_readiness(frame, sections[0], readiness, theme);
+        sections[1]
+    } else {
+        body_area
+    };
+
     // Zoom mode: only the focused panel renders, taking the full area.
     // Press `z` to toggle, `esc` exits zoom before navigating back.
     if state.zoomed {
@@ -62,6 +77,48 @@ pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCr
         )));
         frame.render_widget(para, strip);
     }
+}
+
+fn render_readiness(
+    frame: &mut Frame,
+    area: Rect,
+    readiness: &super::StatusReadiness,
+    theme: &EddaCraftTheme,
+) {
+    let state_colour = match readiness.state.as_str() {
+        "ready" => theme.success(),
+        "failed" => theme.error(),
+        "starting" | "degraded" => theme.warning(),
+        _ => theme.muted(),
+    };
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled("Readiness: ", Style::default().fg(theme.muted())),
+            Span::styled(
+                readiness.state.as_str(),
+                Style::default()
+                    .fg(state_colour)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Line::from(Span::styled(
+            format!("Components: {}", readiness.components),
+            Style::default().fg(theme.fg()),
+        )),
+    ];
+    if let Some(sessions) = &readiness.mcp_sessions {
+        lines.push(Line::from(Span::styled(
+            format!("MCP sessions: {sessions}"),
+            Style::default().fg(theme.fg()),
+        )));
+    }
+    if let Some(next) = &readiness.next {
+        lines.push(Line::from(Span::styled(
+            format!("Next: {next}"),
+            Style::default().fg(theme.accent()),
+        )));
+    }
+    frame.render_widget(Paragraph::new(Text::from(lines)), area);
 }
 
 fn panel_block<'a>(title: &'a str, focused: bool, theme: &EddaCraftTheme) -> Block<'a> {
@@ -301,6 +358,32 @@ mod tests {
         terminal
             .draw(|frame| render(frame, frame.area(), &state, &theme))
             .unwrap();
+    }
+
+    #[test]
+    fn readiness_banner_renders_every_typed_state_and_single_action() {
+        for state_label in ["starting", "ready", "disabled", "degraded", "failed"] {
+            let backend = TestBackend::new(120, 28);
+            let mut terminal = Terminal::new(backend).unwrap();
+            let state = sample_state().with_readiness(
+                state_label,
+                "config=ready daemon=ready worktree=ready save_time=ready mcp=degraded",
+                Some("claude-code (sess-1)=ready, cursor (sess-2)=degraded".to_owned()),
+                Some("run `anvil start` to finish MCP readiness".to_owned()),
+            );
+            let theme = EddaCraftTheme;
+
+            terminal
+                .draw(|frame| render(frame, frame.area(), &state, &theme))
+                .unwrap();
+            let rendered = buffer_contents(terminal.backend().buffer());
+            assert!(
+                rendered.contains(&format!("Readiness: {state_label}")),
+                "typed state must render: {rendered}"
+            );
+            assert!(rendered.contains("MCP sessions:"), "{rendered}");
+            assert_eq!(rendered.matches("Next:").count(), 1, "{rendered}");
+        }
     }
 
     #[test]

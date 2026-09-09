@@ -60,6 +60,7 @@ fn start_command_env(workdir: &std::path::Path, home: &std::path::Path) -> Comma
         // covered by child-process tests below.
         .env_remove("ANVIL_NO_DAEMON")
         .env_remove("ANVIL_NO_MCP")
+        .env_remove("ANVIL_NO_SAVE_TIME_DRIVER")
         // DLIFE-003: pin the daemon socket/PID resolution to the per-test
         // tempdir so the daemon-ensure probe is deterministically isolated
         // from any real daemon on a developer box. The captured (non-TTY)
@@ -925,11 +926,7 @@ fn start_verify_on_fresh_repo_reports_needs_action() {
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
-    assert!(
-        out.status.success(),
-        "anvil start --verify failed: stderr={}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert!(out.status.success());
 
     // --verify is read-only: no project config must be written, and
     // neither HOME's `.cursor/mcp.json` nor `.claude.json`.
@@ -963,6 +960,7 @@ fn start_verify_on_fresh_repo_reports_needs_action() {
         stdout.contains("config: absent"),
         "config status should be reported as absent, got:\n{stdout}"
     );
+    assert!(stdout.contains("readiness: disabled"), "{stdout}");
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -978,11 +976,7 @@ fn start_verify_matches_ready_restart_required_fixture() {
     );
 
     let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
-    assert!(
-        out.status.success(),
-        "anvil start --verify failed: stderr={}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("state: ready_restart_required"));
     assert_start_activation_fixture(
@@ -1006,15 +1000,12 @@ fn start_json_matches_ready_restart_required_fixture() {
     );
 
     let out = run_start_with_home(dir.path(), home.path(), &["--json"]);
-    assert!(
-        out.status.success(),
-        "anvil start --json failed: stderr={}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     let json: serde_json::Value =
         serde_json::from_str(&stdout).expect("--json output must be valid JSON");
     assert_eq!(json["state"].as_str(), Some("ready_restart_required"));
+    assert_eq!(json["readiness"]["state"], "starting");
     assert!(
         String::from_utf8_lossy(&out.stderr).trim().is_empty(),
         "--json must not emit a human stderr block"
@@ -1203,6 +1194,35 @@ fn start_json_emits_state_literal_in_status_verify_shape() {
     );
     assert!(json["headline"].is_string(), "headline must be a string");
     assert!(json["config"].is_string(), "config must be a string");
+    assert_eq!(json["readiness"]["state"], "disabled");
+}
+
+#[test]
+fn start_json_fails_when_selected_save_time_coverage_is_unavailable() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let git = Command::new("git")
+        .arg("init")
+        .arg("--quiet")
+        .current_dir(dir.path())
+        .output()
+        .expect("git init runs");
+    assert!(git.status.success());
+    fs::write(dir.path().join(".anvil.yaml"), "checks: [secret]\n").unwrap();
+
+    let out = run_start_with_home(dir.path(), home.path(), &["--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let json: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("--json output is one document");
+    assert_eq!(json["readiness"]["state"], "failed");
+    assert_eq!(json["readiness"]["failing_component"], "daemon");
+    assert_eq!(json["readiness"]["components"]["daemon"]["state"], "failed");
+    assert!(
+        json["next"]
+            .as_str()
+            .is_some_and(|next| { next.contains("daemon") && next.contains("anvil start") })
+    );
+    assert!(String::from_utf8_lossy(&out.stderr).trim().is_empty());
 }
 
 #[test]
@@ -1257,9 +1277,10 @@ fn start_help_documents_daemon_lifecycle() {
 }
 
 #[test]
-fn start_on_invalid_config_emits_error_state_not_panic() {
-    // Adversarial guardrail: a malformed config must not panic the
-    // start orchestrator. The diagnostic surfaces it as `state: error`.
+fn start_on_invalid_config_emits_typed_failure_not_panic() {
+    // Adversarial guardrail: a malformed config must not panic the start
+    // orchestrator. The diagnostic surfaces it and the readiness contract
+    // fails closed.
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     fs::write(
@@ -1269,15 +1290,20 @@ fn start_on_invalid_config_emits_error_state_not_panic() {
     .unwrap();
 
     let out = run_start_with_home(dir.path(), home.path(), &[]);
-    assert!(
-        out.status.success(),
-        "anvil start on invalid config failed (should report error state, not exit non-zero): stderr={}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert_eq!(out.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
         stdout.contains("state: error"),
         "expected `state: error` on malformed config, got:\n{stdout}"
+    );
+    assert!(stdout.contains("readiness: failed"), "{stdout}");
+    assert_eq!(
+        stdout
+            .lines()
+            .filter(|line| line.trim_start().to_ascii_lowercase().starts_with("next:"))
+            .count(),
+        1,
+        "failed output must contain one recovery action: {stdout}"
     );
 }
 

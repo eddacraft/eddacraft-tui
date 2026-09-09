@@ -36,7 +36,6 @@ ACTIVATION
     Zed: restart_handshake_verified (pending restart)
   watch: not_requested
   baseline: absent
-  next: no intercept daemon is answering for this worktree, so another editor restart will not help; run `anvil start` in a real terminal, or bare `anvil` headlessly, then re-run `anvil start --verify`.
   install:
     Claude Code: installed at <HOME>/.claude.json (fresh)
     Cursor: installed at <HOME>/.cursor/mcp.json (fresh)
@@ -64,6 +63,9 @@ verify:
     2. expect: `anvil check .anvil-smoke-test.ts` reports a secret-detection finding
     3. rm .anvil-smoke-test.ts when done
   AI tools detected: claude-code, cursor, codex
+  readiness: starting
+  components: config=ready daemon=disabled worktree=disabled save_time=disabled mcp=starting
+  next: run `anvil start` to finish MCP readiness
 
   Anonymous usage telemetry
   anvil sends at most one anonymous beacon per day so active installs

@@ -58,9 +58,19 @@ impl EnsureReadinessState {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub(crate) struct EnsureLiveSessionReadiness {
+    pub(crate) session: String,
+    pub(crate) client: String,
+    pub(crate) state: EnsureReadinessState,
+    pub(crate) detail: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct EnsureComponentReadiness {
     pub(crate) state: EnsureReadinessState,
     pub(crate) detail: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) live_sessions: Vec<EnsureLiveSessionReadiness>,
 }
 
 impl EnsureComponentReadiness {
@@ -68,7 +78,16 @@ impl EnsureComponentReadiness {
         Self {
             state,
             detail: detail.into(),
+            live_sessions: Vec::new(),
         }
+    }
+
+    pub(crate) fn with_live_sessions(
+        mut self,
+        live_sessions: Vec<EnsureLiveSessionReadiness>,
+    ) -> Self {
+        self.live_sessions = live_sessions;
+        self
     }
 }
 
@@ -154,6 +173,25 @@ impl EnsureReadiness {
             self.components.save_time.state.label(),
             self.components.mcp.state.label(),
         )
+    }
+
+    pub(crate) fn mcp_session_summary(&self) -> Option<String> {
+        (!self.components.mcp.live_sessions.is_empty()).then(|| {
+            self.components
+                .mcp
+                .live_sessions
+                .iter()
+                .map(|session| {
+                    format!(
+                        "{} ({})={}",
+                        session.client,
+                        session.session,
+                        session.state.label(),
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
     }
 
     pub(crate) fn failure_action(&self) -> Option<String> {
@@ -468,7 +506,14 @@ pub(crate) fn classify_readiness(
     } else {
         match &daemon.ensure {
             EnsureOutcome::Reused | EnsureOutcome::Started => EnsureReadinessState::Ready,
-            EnsureOutcome::NoStart { .. } => EnsureReadinessState::Disabled,
+            EnsureOutcome::NoStart {
+                reason: anvil_intercept::ensure::NoStartReason::OptOut,
+            } => EnsureReadinessState::Disabled,
+            EnsureOutcome::NoStart {
+                reason:
+                    anvil_intercept::ensure::NoStartReason::NonInteractive
+                    | anvil_intercept::ensure::NoStartReason::PlatformUnsupported,
+            } => EnsureReadinessState::Failed,
             EnsureOutcome::Failed { .. } => unreachable!("handled by failed()"),
         }
     };
@@ -571,6 +616,19 @@ fn format_daemon_outcome(
 /// membership succeeded but the daemon reported the save-time driver failed,
 /// the line says so rather than letting a refreshed membership pass as
 /// coverage.
+pub(crate) fn failed_worktree_registration_detail(
+    report: &registration::WorktreeRegistrationReport,
+) -> Option<String> {
+    matches!(
+        report.registration,
+        WorktreeRegistration::DaemonUnavailable
+            | WorktreeRegistration::Fenced(_)
+            | WorktreeRegistration::CapExceeded(_)
+            | WorktreeRegistration::Rejected(_)
+    )
+    .then(|| format_worktree_registration(report))
+}
+
 fn format_worktree_registration(report: &registration::WorktreeRegistrationReport) -> String {
     let driver_failed = report.driver_failed();
     let line = format_worktree_membership(&report.registration);
@@ -845,19 +903,24 @@ mod tests {
 
     #[test]
     fn registration_refusal_is_a_typed_worktree_failure() {
+        let report = WorktreeRegistrationReport {
+            registration: WorktreeRegistration::CapExceeded("cap reached".to_owned()),
+            driver: None,
+        };
         let readiness = classify_readiness(
             ConfigStatus::Valid,
             &daemon(EnsureOutcome::Reused),
-            &WorktreeRegistrationReport {
-                registration: WorktreeRegistration::CapExceeded("cap reached".to_owned()),
-                driver: None,
-            },
+            &report,
             false,
             EnsureReadinessState::Disabled,
             "MCP deliberately omitted",
         );
         assert_eq!(readiness.state, EnsureReadinessState::Failed);
         assert_eq!(readiness.failing_component, Some("worktree"));
+        assert_eq!(
+            failed_worktree_registration_detail(&report).as_deref(),
+            Some("worktree: registration cap exceeded — cap reached")
+        );
     }
 
     #[test]

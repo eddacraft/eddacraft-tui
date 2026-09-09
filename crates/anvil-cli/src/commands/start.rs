@@ -12,8 +12,9 @@ use crate::activation::detect_agents::RealDetectionEnv;
 use crate::activation::orchestrator::{
     ActivationStep, ActivationStepEvent, ActivationStepLifecycle, InstallOutcome, StartRenderMode,
 };
-use crate::commands::ensure::{EnsureReadiness, EnsureReadinessState};
+use crate::commands::ensure::EnsureReadiness;
 use crate::commands::mcp_installer;
+use crate::commands::status::ReadinessSelection;
 use crate::commands::watch as watch_cmd;
 use crate::config_summary::render_rule_mode_summary;
 use crate::warmup_cache::write_watch_warmup_cache;
@@ -397,25 +398,29 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
     }
 
-    let readiness = daemon_outcome
+    let readiness_selection = ReadinessSelection {
+        save_time_disabled: start_daemon_opt_out(args)
+            || crate::commands::ensure::save_time_driver_opt_out(),
+        mcp_disabled: start_mcp_opt_out(args),
+    };
+    let readiness_worktree = crate::registration::registerable_worktree(root).ok();
+    let readiness_snapshot = crate::commands::intercept::query_daemon_status_with_timeout(
+        crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT,
+    )
+    .ok();
+    let mut readiness = crate::commands::status::measured_readiness(
+        &diagnostic,
+        readiness_snapshot.as_ref(),
+        readiness_worktree.as_deref(),
+        readiness_selection,
+    );
+    if let Some(detail) = registration_report
         .as_ref()
-        .zip(registration_report.as_ref())
-        .map(|(daemon, registration)| {
-            let (mcp_state, mcp_detail) =
-                start_mcp_readiness(&diagnostic, &install_report, start_mcp_opt_out(args));
-            crate::commands::ensure::classify_readiness(
-                diagnostic.config,
-                daemon,
-                registration,
-                crate::commands::ensure::save_time_driver_opt_out(),
-                mcp_state,
-                &mcp_detail,
-            )
-        });
-    if let Some(readiness) = &readiness
-        && readiness.failed()
-        && diagnostic.last_error.is_none()
+        .and_then(crate::commands::ensure::failed_worktree_registration_detail)
     {
+        readiness.components.worktree.detail = detail;
+    }
+    if readiness.failed() && diagnostic.last_error.is_none() {
         diagnostic.last_error = Some(format!(
             "{} readiness failed",
             readiness.failing_component.unwrap_or("activation")
@@ -476,8 +481,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     if global.json {
         let mut document = activation::render_json(&diagnostic);
-        if let (serde_json::Value::Object(object), Some(readiness)) = (&mut document, &readiness) {
-            object.insert("readiness".to_owned(), serde_json::to_value(readiness)?);
+        if let serde_json::Value::Object(object) = &mut document {
+            object.insert("readiness".to_owned(), serde_json::to_value(&readiness)?);
+            if let Some(next) = crate::commands::status::status_readiness_action(&readiness) {
+                object.insert("next".to_owned(), serde_json::Value::String(next));
+            }
         }
         let json = serde_json::to_string_pretty(&document)?;
         println!("{json}");
@@ -515,9 +523,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 offer_tutorial,
             )
         };
-        if let Some(readiness) = &readiness {
-            insert_readiness_before_next(&mut human_output, readiness);
-        }
+        insert_readiness_before_next(&mut human_output, &readiness);
         if matches!(render_mode, StartRenderMode::Tui) {
             let consent_plan = activation::orchestrator::build_tui_consent_plan(
                 root,
@@ -547,11 +553,14 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             ) {
                 prepare_consent_progress_steps(&mut progress_steps);
             }
-            let verdict_model = activation_verdict_model(
-                &diagnostic,
-                &install_report,
-                consent_plan.settled_mcp(),
-                None,
+            let verdict_model = activation_verdict_model_with_readiness(
+                activation_verdict_model(
+                    &diagnostic,
+                    &install_report,
+                    consent_plan.settled_mcp(),
+                    None,
+                ),
+                &readiness,
             );
             let tier_evidence = activation_tier_evidence(
                 &diagnostic,
@@ -627,7 +636,24 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 if let Some(error) = install_report.aggregated_failure() {
                     diagnostic.last_error = Some(format!("MCP install failed: {error}"));
                 }
-                let post_consent_output = render_start_human_output(
+                let post_readiness_snapshot =
+                    crate::commands::intercept::query_daemon_status_with_timeout(
+                        crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT,
+                    )
+                    .ok();
+                let mut post_readiness = crate::commands::status::measured_readiness(
+                    &diagnostic,
+                    post_readiness_snapshot.as_ref(),
+                    readiness_worktree.as_deref(),
+                    readiness_selection,
+                );
+                if let Some(detail) = registration_report
+                    .as_ref()
+                    .and_then(crate::commands::ensure::failed_worktree_registration_detail)
+                {
+                    post_readiness.components.worktree.detail = detail;
+                }
+                let mut post_consent_output = render_start_human_output(
                     root,
                     read_only,
                     &diagnostic,
@@ -638,6 +664,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     agents_cached,
                     offer_tutorial,
                 );
+                insert_readiness_before_next(&mut post_consent_output, &post_readiness);
                 let mut verdict = activation_post_consent_surface(
                     post_consent_output,
                     &diagnostic,
@@ -649,8 +676,10 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                     false,
                     root,
                     consent_plan.settled_mcp(),
+                    Some(&post_readiness),
                 );
                 let _ = tui_session.run_surface(&mut verdict)?;
+                readiness = post_readiness;
             }
             tui_session.leave()?;
         } else {
@@ -673,10 +702,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // install report already carry the human/JSON detail; this just
     // wires the exit-code contract to match.
     //
-    // Skip in --verify (read-only, install never ran) and --json
-    // (programmatic consumers should parse `state` and `last_error`
-    // from the JSON document; the `last_error` field carries every
-    // failure, aggregated).
+    // Install failures exist only on the mutating path. Read-only modes still
+    // apply the measured readiness exit below; they simply have no install
+    // outcome to inspect here.
     if !read_only
         && let Some(err) = install_report.per_client.values().find_map(|o| match o {
             InstallOutcome::Failed { error } => Some(error.as_str()),
@@ -686,7 +714,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         bail!("MCP install failed: {err}");
     }
 
-    if !read_only && readiness.as_ref().is_some_and(EnsureReadiness::failed) {
+    if readiness.failed() {
         return Err(crate::output::AlreadyReported.into());
     }
 
@@ -900,6 +928,7 @@ fn activation_post_consent_surface(
     daemon_spinner: bool,
     root: &Path,
     settled_mcp: &[String],
+    readiness: Option<&EnsureReadiness>,
 ) -> anvil_tui::surfaces::activation::ActivationSurface {
     use anvil_tui::surfaces::activation::{ActivationPhase, ActivationSurface};
 
@@ -907,10 +936,17 @@ fn activation_post_consent_surface(
     let first_success = baseline_written_this_run(applied);
 
     // Verdict phase: drop Working progress rows (ACTTUI-014 hand-off).
+    let verdict_model =
+        activation_verdict_model(diagnostic, install_report, settled_mcp, Some(applied))
+            .with_first_success(first_success);
+    let verdict_model = if let Some(readiness) = readiness {
+        activation_verdict_model_with_readiness(verdict_model, readiness)
+    } else {
+        verdict_model
+    };
     ActivationSurface::from_typed_with_progress(
         human_output,
-        activation_verdict_model(diagnostic, install_report, settled_mcp, Some(applied))
-            .with_first_success(first_success),
+        verdict_model,
         activation_post_consent_evidence(diagnostic, install_report, run, applied),
         project_writes_gated,
         log_lines,
@@ -1330,6 +1366,25 @@ fn activation_verdict_model(
             VerdictSection::new("config", "Config", config_rows),
         ],
     )
+}
+
+fn activation_verdict_model_with_readiness(
+    mut model: anvil_tui::surfaces::activation::VerdictModel,
+    readiness: &EnsureReadiness,
+) -> anvil_tui::surfaces::activation::VerdictModel {
+    use anvil_tui::surfaces::activation::VerdictSection;
+
+    let mut rows = vec![format!("components: {}", readiness.component_summary())];
+    if let Some(sessions) = readiness.mcp_session_summary() {
+        rows.push(format!("MCP sessions: {sessions}"));
+    }
+    model
+        .sections
+        .insert(0, VerdictSection::new("readiness", "Readiness", rows));
+    readiness.state.label().clone_into(&mut model.state_label);
+    model.headline = format!("Readiness: {}", readiness.state.label());
+    model.next_guidance = crate::commands::status::status_readiness_action(readiness);
+    model
 }
 
 fn activation_tier_evidence(
@@ -2376,59 +2431,30 @@ fn start_mcp_opt_out(args: &StartArgs) -> bool {
     args.no_mcp || std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty())
 }
 
-fn start_mcp_readiness(
-    diagnostic: &activation::diagnostic::ActivationDiagnostic,
-    install_report: &activation::orchestrator::InstallReport,
-    disabled: bool,
-) -> (EnsureReadinessState, String) {
-    if disabled {
-        return (
-            EnsureReadinessState::Disabled,
-            "MCP deliberately omitted".to_owned(),
-        );
-    }
-    if let Some(error) = install_report.aggregated_failure() {
-        return (
-            EnsureReadinessState::Failed,
-            format!("MCP repair failed: {error}"),
-        );
-    }
-    match diagnostic.highest_mcp_tier() {
-        Some(activation::diagnostic::McpTier::LiveValidation) => (
-            EnsureReadinessState::Ready,
-            "live validation observed from an attached client".to_owned(),
-        ),
-        Some(
-            tier @ (activation::diagnostic::McpTier::RestartRequired
-            | activation::diagnostic::McpTier::RestartHandshakeVerified),
-        ) => (
-            EnsureReadinessState::Starting,
-            format!("{}; client attachment is pending", tier.label()),
-        ),
-        Some(
-            tier @ (activation::diagnostic::McpTier::ConfigPresent
-            | activation::diagnostic::McpTier::ServerStartable),
-        ) => (
-            EnsureReadinessState::Degraded,
-            format!("{}; no live client validation", tier.label()),
-        ),
-        Some(
-            activation::diagnostic::McpTier::NotDetected
-            | activation::diagnostic::McpTier::ConfigAbsent,
-        )
-        | None => (
-            EnsureReadinessState::Disabled,
-            "no managed MCP client is configured".to_owned(),
-        ),
-    }
-}
-
 fn insert_readiness_before_next(output: &mut String, readiness: &EnsureReadiness) {
-    let block = format!(
+    use std::fmt::Write as _;
+
+    let mut block = format!(
         "  readiness: {}\n  components: {}\n",
         readiness.state.label(),
         readiness.component_summary(),
     );
+    if let Some(sessions) = readiness.mcp_session_summary() {
+        let _ = writeln!(block, "  MCP sessions: {sessions}");
+    }
+    if let Some(next) = crate::commands::status::status_readiness_action(readiness) {
+        *output = output
+            .lines()
+            .filter(|line| !line.trim_start().to_ascii_lowercase().starts_with("next:"))
+            .fold(String::new(), |mut rendered, line| {
+                rendered.push_str(line);
+                rendered.push('\n');
+                rendered
+            });
+        let _ = writeln!(block, "  next: {next}");
+        output.push_str(&block);
+        return;
+    }
     let insertion = output.rfind("  next:").or_else(|| output.rfind("  Next:"));
     if let Some(index) = insertion {
         output.insert_str(index, &block);
@@ -3502,6 +3528,7 @@ mod tests {
             false,
             Path::new("."),
             &[],
+            None,
         );
 
         assert_eq!(surface.phase(), ActivationPhase::Verdict);
@@ -3859,6 +3886,48 @@ mod tests {
                             .iter()
                             .any(|row| row == "daemon: attesting worktree")
                 })
+        );
+    }
+
+    #[test]
+    fn typed_tui_verdict_uses_shared_readiness_and_one_action() {
+        use crate::commands::ensure::{
+            EnsureComponentReadiness, EnsureReadinessComponents, EnsureReadinessState,
+        };
+
+        let diagnostic = daemon_attested_diagnostic();
+        let report = activation::orchestrator::InstallReport::default();
+        let base = activation_verdict_model(&diagnostic, &report, &[], None);
+        let readiness = EnsureReadiness::from_components(EnsureReadinessComponents {
+            config: EnsureComponentReadiness::new(EnsureReadinessState::Ready, "valid"),
+            daemon: EnsureComponentReadiness::new(
+                EnsureReadinessState::Failed,
+                "daemon unavailable",
+            ),
+            worktree: EnsureComponentReadiness::new(
+                EnsureReadinessState::Failed,
+                "not durably registered",
+            ),
+            save_time: EnsureComponentReadiness::new(EnsureReadinessState::Failed, "driver absent"),
+            mcp: EnsureComponentReadiness::new(EnsureReadinessState::Disabled, "not selected"),
+        });
+        let model = activation_verdict_model_with_readiness(base, &readiness);
+
+        assert_eq!(model.state_label, "failed");
+        assert_eq!(model.headline, "Readiness: failed");
+        assert_eq!(
+            model.next_guidance.as_deref(),
+            Some("run `anvil start` to restore the save-time daemon")
+        );
+        assert_eq!(
+            model
+                .sections
+                .iter()
+                .flat_map(|section| section.rows.iter())
+                .filter(|row| row.trim_start().to_ascii_lowercase().starts_with("next:"))
+                .count(),
+            0,
+            "the dedicated guidance band must be the only action"
         );
     }
 
