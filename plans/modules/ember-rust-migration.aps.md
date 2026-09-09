@@ -83,7 +83,18 @@ hosted/multi-tenant memory; Windows signing; unrelated TS API/docs retirement.
 
 ### EMBERRS-001: Retire JS execution and default-disable Ember
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-05 via PR #4399
+- **Closeout evidence (2026-09-09):**
+  [#4399](https://github.com/eddacraft/anvil-001/pull/4399) merged to `main` at
+  `90ca2116` on 2026-09-05 (89 files, +1325/-12756), closing claim #4398 via
+  `Fixes #4398`. JavaScript Ember plus the runtime watch and concurrency
+  implementations and their package exports are deleted; the live cache and
+  feature-flag surfaces are preserved. `ember.enabled` is canonical and
+  default-off, `anvil ember` is hidden and refuses before database access, only
+  explicit `ANVIL_EMBER=1` reaches the Rust historical reader, and existing
+  databases are untouched. Three retirement regressions passed having failed
+  first; the remaining Edda-stack suite ran 733 tests across 27 files. Required
+  two-reviewer mini Council completed with no blocking findings.
 - **Priority:** P1
 - **Intent:** Remove obsolete JS execution surfaces and make Ember explicitly
   inactive.

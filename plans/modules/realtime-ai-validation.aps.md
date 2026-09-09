@@ -521,9 +521,16 @@ convention" section). Concretely:
   because this Linux host lacks the MSVC native toolchain; Windows GNU target
   check and clippy were verified. Final Council and CI remain merge gates.
 - **Confidence:** medium
-- **Status:** In Progress — production diagnostics are under review in PR
-  #3360; completion requires green cross-platform CI, Council and fresh
-  diagnostics-path latency evidence
+- **Status:** Merged 2026-07-21 via PR #3360
+- **Closeout evidence (2026-09-09):**
+  [#3360](https://github.com/eddacraft/anvil-001/pull/3360) merged to `main` at
+  `6e768673` on 2026-07-21, so the three outstanding gates are settled: hosted
+  cross-platform CI passed on the merged head, Council session
+  `council-593e0760` converged with general, adversarial and security approval
+  and no open critical or major findings, and the warm 500-sample benchmark
+  recorded a near-cap 1 MiB round-trip p95 of 39.040 ms against ADR-031's 80 ms
+  budget (dirty diagnostic p95 4.465 ms). Graph-backed navigation stayed out of
+  scope and moved to LSPNAV per ADR-109.
 
 ---
 

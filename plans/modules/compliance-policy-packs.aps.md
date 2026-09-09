@@ -280,9 +280,12 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-009: Eval-wrapper coverage cannot silently regress
 
-- **Status:** In Progress 2026-08-26 — all three gaps closed, awaiting merge.
-  Filed 2026-08-24 from the CPACKS-006 planning council (session
-  `council-9021df43`), raised independently by two reviewers.
+- **Status:** Merged 2026-08-26 via PR #4146
+- **Closeout evidence (2026-09-09):**
+  [#4146](https://github.com/eddacraft/anvil-001/pull/4146) merged to `main` at
+  `c54fd23a` on 2026-08-26, closing all three gaps. Filed 2026-08-24 from the
+  CPACKS-006 planning council (session `council-9021df43`), raised
+  independently by two reviewers.
 - **Result, mutation-verified in both directions:** deleting **any** of the ten
   `sensitive-paths` matchers now fails — 10/10 caught in the shipped pack (was
   4/10) and 10/10 caught in the eval wrapper via the lockstep guard, so drift on
@@ -328,7 +331,10 @@ small, deterministic pack before Anvil makes broader compliance claims.
 
 ### CPACKS-010: Re-run the falsification against the landed suites
 
-- **Status:** In Progress 2026-08-25 — implemented, awaiting merge. Two tests
+- **Status:** Merged 2026-08-25 via PR #4142
+- **Closeout evidence (2026-09-09):**
+  [#4142](https://github.com/eddacraft/anvil-001/pull/4142) merged to `main` at
+  `1f373c8b` on 2026-08-25. Two tests
   land in `eval_regression.rs`, both driven off `ci/eval/suites.json` so they
   cover the **landed** suites rather than hand-copied fixtures:
   `every_landed_eval_suite_is_falsifiable` (every suite's real policy against
