@@ -7,8 +7,10 @@
 | ------- | ----- | -------- | ------ |
 | ARCHCFG | —     | high     | In Progress |
 
-**Last reviewed:** 2026-07-06 (ARCHCFG-006 design gate resolved via ADR-102:
-build `init` + `visualise` (ARCHCFG-007/010 Ready), redirect `check`/`watch`/
+**Last reviewed:** 2026-09-09 (ADR-143 superseded ARCHCFG-007's separate
+architecture-init surface in favour of PSCAF-005; ADR-102's other verdicts
+remain. ARCHCFG-006 originally resolved via ADR-102: build `init` + `visualise`,
+redirect `check`/`watch`/
 baseline flags to existing gate/watch/baseline machinery (ARCHCFG-008 Ready as
 guide reconciliation), reject `list` as a `show` synonym, defer
 `impact`/`export`/`debug` behind the ARCHCFG-015 usage gate. Same-day ADR-102
@@ -213,10 +215,17 @@ undefined layers, and incomplete definitions before analysis runs.
 - **Dependencies:** ARCHCFG-006
 - **Validation:** `cargo test -p eddacraft-anvil -- architecture_init`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Superseded 2026-09-09 by PSCAF-005 / ADR-143
 - **Gate verdict (ADR-102):** Build. Non-interactive scaffold; optional
   `--template <layered|hexagonal>`, default `layered`; output must pass
   `anvil architecture validate` unmodified.
+- **Supersession:** The operator-approved project-scaffold contract found that
+  a separate architecture init would preserve the bootstrap drift it was meant
+  to fix. [ADR-143](../decisions/143-project-scaffold-reconciliation.md)
+  supersedes only this ADR-102 verdict. PSCAF-005 owns bounded detection,
+  interactive skip, low-confidence `needs_input`, and tracked
+  `anvil/architecture.yaml` delegated from the main config. Do not implement
+  this legacy command or its ignored `.anvil/architecture.yaml` output.
 
 ### ARCHCFG-008: Guide reconciliation — redirect `check`, `watch`, `list`
 
@@ -373,14 +382,15 @@ undefined layers, and incomplete definitions before analysis runs.
   resolving ownership against the existing top-level `anvil export` (extend
   it, namespace-local, or `visualise --format markdown`); `debug` as
   `show --layer <name> --files` rather than a subcommand
-- **Trigger (usage gate, not time-based):** Open only when ARCHCFG-007
-  (`init`) and ARCHCFG-010 (`visualise`) have shipped in a release **and** at
+- **Trigger (usage gate, not time-based):** Open only when PSCAF-005
+  (architecture scaffold, superseding ARCHCFG-007) and ARCHCFG-010
+  (`visualise`) have shipped in a release **and** at
   least one concrete usage signal names a deferred capability; until then this
   item stays Draft by design
 - **Scope:** Decision-making only — ADR-102 amendment plus this module's item
   statuses
 - **Non-scope:** Implementation of any candidate command
-- **Dependencies:** ARCHCFG-007, ARCHCFG-010
+- **Dependencies:** PSCAF-005, ARCHCFG-010
 - **Validation:** ADR-102 carries the dated amendment;
   `pnpm aps:active-lint` passes with ARCHCFG-012..014 statuses reflecting the
   new verdicts

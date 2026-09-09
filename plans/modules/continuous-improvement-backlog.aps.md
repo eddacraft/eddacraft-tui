@@ -7506,35 +7506,38 @@ scanned — with expansion deferred to `v0.9.4`.
 ### CIB-267: Pre-push silent pass leftovers — hook PATH and git argv (PUSH-1 rescoped)
 
 - **Status:** Ready — promoted 2026-09-07 by operator instruction to repair the
-  retained L4 advisory; scope remains the docs/argv leftovers below
-- **Priority:** P3 docs / hook argv — not an L4 ship gate
+  retained L4 advisory; scope is hook-time PATH guidance plus argv acceptance
+- **Priority:** P1 field-journey gate — PSCAF-008 depends on its PATH guidance
+  and argv acceptance before the beta-reported L4 path is considered repaired
 - **Intent:** After CIB-252 shipped, Dave pack-02 PUSH-1 (silent pre-push
   `exit 0`, silent `l4-validate`, audit-chain witnessed 0/10, partial
-  `init` + `start --no-mcp`) is **not an L4 regression**. It matches
+  `init` + `start --no-mcp`) did not demonstrate an L4 engine regression. It
+  matches
   designed no-op paths: no `anvil/policy.*` → `run_pre_push` /
   `l4-validate` admit with no stderr
   (`pre_push_no_policy_exits_zero_with_no_output`); empty witness chain
   is L3, not a pre-push miss. Workspace registration (CIB-252) is not
   consulted by `anvil hook pre-push`. Do **not** promote this item to
-  Ready as an L4 bug. Remaining work is only: (1) document that a silent
-  pre-push `exit 0` means no policy (or no project-id), a clean allowed
-  range, **or** the hook `command -v anvil` guard firing because Git's
-  hook PATH does not contain `anvil` (Windows Git vs interactive pwsh is
-  the likely Dave path); (2) accept git's pre-push positionals
+  Ready as an L4 bug. Remaining work is only: (1) document the hook
+  `command -v anvil` guard firing because Git's hook PATH does not contain
+  `anvil` (Windows Git vs interactive pwsh is the likely Dave path), with a
+  concrete inspection/remedy; (2) accept git's pre-push positionals
   (`remote`, `url`) on `anvil hook pre-push`. Current `shell_template`
   forwards `"$@"`; `PrePush(SilentArgs)` has no positionals, so a
   manual `anvil hook pre-push origin <url>` fails with a clap error.
   The older "shim strips argv" note is stale.
-- **Expected Outcome:** Help / hook docs state the silent-pass conditions;
-  `anvil hook pre-push` accepts git's remote/URL argv (stdin contract
-  unchanged). No change to Serena admit-on-internal-error or the no-policy
-  no-op.
-- **Non-scope:** Re-opening CIB-252; forcing L4 policy onto `anvil init`;
-  treating `witnessed 0/N` as a pre-push defect.
-- **Validation:** docs or process test that `hook pre-push origin url` plus
-  stdin is not a clap error; docs name the silent-pass conditions.
+- **Expected Outcome:** Hook docs explain the unavailable-binary guard and the
+  Windows Git versus PowerShell PATH split with a concrete inspection/remedy;
+  `anvil hook pre-push` accepts git's remote/URL argv (stdin contract unchanged).
+  PSCAF-008 owns integrated L4 guidance and all other silent-pass explanations.
+  No change to Serena admit-on-internal-error or the no-policy no-op.
+- **Non-scope:** Re-opening CIB-252; owning scaffold/policy installation or L4
+  status/doctor truth (PSCAF); treating `witnessed 0/N` as a pre-push defect.
+- **Validation:** process test that `hook pre-push origin url` plus stdin is not
+  a clap error; hook docs reproduce and remediate the hook-time PATH miss.
 - **Identified From:** Dave pack-02 PUSH-1.
-- **Coordinates with:** CIB-216 pre-push runtime, CIB-252 (closed as a
+- **Coordinates with:** PSCAF-008 (depends on and links to this PATH guidance), CIB-216
+  pre-push runtime, CIB-252 (closed as a
   dependency — shipped, not an L4 unlock), ADR-038 noise / Serena rules
 - **Confidence:** high on the explanation; remaining work is the PATH docs
   and argv acceptance, not reproduction of a missing block.
@@ -13812,8 +13815,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-415: L4 activation must install acceptance policy or report the layer inactive
 
-- **Status:** Ready — promoted 2026-09-07 by operator instruction after a beta
-  tester reported that L4 never fires
+- **Status:** Superseded 2026-09-09 by PSCAF-001/-006/-008 and ADR-143 after
+  operator approval of the integrated project-scaffold contract
 - **Priority:** P1 honesty — the default activation path can report L4 `On`
   while both L4 entry points are guaranteed silent no-ops
 - **Intent:** `anvil start` installs a pre-push hook and the status layer grid
@@ -13824,18 +13827,15 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   confusion is intentional: normal `require: l4_or_l3` rules trust a valid L3
   witness and therefore do not invoke the L4 engine for commits made through
   anvil-managed hooks.
-- **Expected Outcome:** a fresh `anvil init` writes a minimal
-  `anvil/policy.yml` matching ADR-037's default branch posture without
-  overwriting any existing policy variant; `anvil status` reports L4 `On`
-  only when an active pre-push hook and a discoverable, parseable acceptance
-  policy are both present, and otherwise reports an actionable non-On state.
-  Public beta/policy guidance gives one deterministic L4 exercise using
-  `require: l4_only`, explains the `l4_or_l3` witness short-circuit, and
-  uses the command's accepted hex-SHA range rather than `HEAD~1..HEAD`.
-- **Non-scope / do not:** do not change `l4_or_l3` decision semantics, the
-  Serena admit-on-internal-error rule, default `on_warn: allow`, or existing
-  repositories merely because `anvil start` is run. Do not overwrite,
-  merge, or normalise an existing `anvil/policy.{yaml,yml,json,toml}`.
+- **Expected Outcome:** Superseded by the broader approved contract: the shared
+  init/start reconciler owns acceptance-policy configuration; start resolves
+  scaffold prerequisites before activation; status/doctor share parse truth;
+  and public guidance demonstrates `l4_only` while explaining `l4_or_l3`.
+- **Non-scope / do not:** unchanged for evaluation semantics, Serena,
+  `on_warn`, and existing policy content. The old prohibition on reconciling
+  missing scaffold components during `start` is withdrawn: ADR-143 explicitly
+  makes start consume the shared additive reconciler, with consent and
+  operator-owned existing values preserved.
 - **Files:** `crates/anvil-cli/src/commands/init.rs`,
   `crates/anvil-cli/src/commands/status.rs`, shared L4 policy discovery or
   writer helper as needed, init/status tests, `docs/public/anvil/` policy or
@@ -13850,9 +13850,14 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `pnpm docs:check`, and `pnpm format:check`.
 - **Identified From:** CI-log entry `Investigate whether L4 actually fires`
   (2026-08-29) plus beta-tester report on 2026-09-06.
-- **Coordinates with:** CIB-267 (silent-pass docs and Git hook argv), CIB-251
+- **Coordinates with:** CIB-267 (hook-time PATH docs and Git hook argv), CIB-251
   (hook-presence honesty), CIB-346 (default witness hooks), ADR-037 D-5,
   ADR-038 noise discipline, POLFIT / ADR-129 (acceptance-policy surface)
 - **Confidence:** high — both entry points' no-policy return and status's
   hook-only derivation are direct source paths; engine/warn-only focused tests
   pass on 2026-09-06.
+- **Supersession:** Do not implement this item as an independent writer. The
+  claim/report remains provenance; PSCAF-001 owns the race-safe policy component,
+  PSCAF-006 owns start dependency integration, and PSCAF-008 owns status,
+  doctor, guidance, and the integrated L4 journey. CIB-267 independently owns
+  Git's pre-push argv acceptance and hook-time PATH troubleshooting.

@@ -4,6 +4,12 @@
 
 Proposed
 
+**Partially superseded 2026-09-09:** ADR-143 supersedes only this ADR's
+`anvil architecture init` verdict. Architecture scaffolding is now the detected,
+selectable component of the shared `anvil init`/`anvil start` project-scaffold
+reconciler and writes tracked `anvil/architecture.yaml` through
+`architecture.source`. Every other command verdict below remains unchanged.
+
 ## Date
 
 2026-07-06
@@ -49,7 +55,7 @@ Per-command verdicts:
 
 | Command | Verdict | Shape / target |
 | --- | --- | --- |
-| `init` | **Build** (ARCHCFG-007 → Ready) | Non-interactive scaffold that writes a `.anvil/architecture.yaml` passing `anvil architecture validate` unmodified; optional `--template <layered\|hexagonal>`, default `layered`. The guide's "interactive wizard" framing is dropped. |
+| `init` | **Superseded 2026-09-09** (ARCHCFG-007 → PSCAF-005 / ADR-143) | The historical verdict was a non-interactive `.anvil/architecture.yaml` scaffold. ADR-143 replaces it with the detected architecture component of the shared project-scaffold reconciler, writing tracked `anvil/architecture.yaml` through `architecture.source`. |
 | `check` | **Redirect** (ARCHCFG-008 → Ready, rescoped to guide reconciliation) | The guide points at `anvil gate --only-checks architecture`. No wrapper command: a second entry point would need its own baseline, exit-code, and output semantics kept in sync with gate — drift by construction. |
 | `check --fix` / `--baseline-all` | **Redirect** | Baseline acceptance belongs to the existing baseline machinery (`anvil baseline`, ADR-039), never an architecture-local baseline writer. |
 | `watch` | **Redirect** (ARCHCFG-009 → Draft, guide fix folds into ARCHCFG-008) | `anvil watch --action none` already is the architecture/dependency-only watch; `--action gate` includes import-boundaries. No second file-watching loop. |

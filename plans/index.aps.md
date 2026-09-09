@@ -36,6 +36,7 @@
 - [Language & Coverage](#language--coverage)
 - [Rust MCP Launch Path](#rust-mcp-launch-path)
 - [Graph Trust Surfaces](#graph-trust-surfaces)
+- [Project Scaffolding](#project-scaffolding)
 - [Settings Truth Surface](#settings-truth-surface)
 - [Future](#future)
 - [Dormant: Not Yet Scheduled](#dormant-not-yet-scheduled)
@@ -501,7 +502,7 @@ planning-council decision. Each module now carries a Posture block saying so.
 | [compliance-reporting](./modules/compliance-reporting.aps.md)                     | COMPLY  | Draft    | **Dormant — two independent gates, evidence-semantics design AND ORGHIER/POLLC (POLFIT-009, 2026-08-23); nothing scheduled.** ORGHIER, POLLC, `anvil policy eval --json` v1, EXCEPT store (ADR-100), EVALCI reports, GITGOV capsules; TS-era task paths rewritten to Rust crates 2026-07-11 — remaining gate is the evidence-semantics design                                        |
 | [policy-federation](./modules/policy-federation.aps.md)                           | POLFED  | Draft    | **Dormant — blocked behind POLLC + ORGHIER (POLFIT-009, 2026-08-23); nothing scheduled. The stored `0/8` is capacity, not progress.** Re-based 2026-07-11: POLVAL pack primitives (shipped, `anvil-policy-engine/src/pack/`) + POLLC lifecycle + ORGHIER; ADR-100 for publish approval; boundary ADR re-titled POLVAL/POLFED — the old "OPAE bundle primitives" prerequisite was void (PR-C deleted bundle.rs; post-reset OPAE excludes bundles)                                                                |
 | [policy-pack-validation](./archive/modules/policy-pack-validation.aps.md)                 | POLVAL  | Complete | POLENG/regorus, `crates/anvil-policy-engine` (pack admission home per ADR-098 retarget); POLVAL-001..005 Done — gate-preflight criterion resolved 2026-07-11 (install-time admission via OPAE-004 + gate compile fail-fast via ADR-098 PR-B; Released/Shipped via v0.9.0-beta (2026-07-12); archived 2026-07-13.) |
-| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | In Progress | `crates/anvil-architecture`, `crates/anvil-kernel`, `crates/anvil-cli`; ARCHCFG-006 design gate resolved 2026-07-06 via ADR-102 (build `init`/`visualise`, redirect `check`/`watch`/baseline flags, reject `list`, defer `impact`/`export`/`debug` behind the ARCHCFG-015 usage gate); policy gate preflight composes with POLENG but does not own policy runtime |
+| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | In Progress | `crates/anvil-architecture`, `crates/anvil-kernel`, `crates/anvil-cli`; ADR-143/PSCAF-005 supersedes only ADR-102's separate `architecture init` verdict. `visualise` remains a build; `check`/`watch`/baseline flags redirect; `list` is rejected; `impact`/`export`/`debug` stay behind ARCHCFG-015. Policy gate preflight composes with POLENG but does not own policy runtime |
 | [ai-guardrail-profile](./archive/modules/ai-guardrail-profile.aps.md)                     | AIGUARD | Complete | crates/anvil-cli, crates/anvil-kernel-types, crates/anvil-kernel, crates/anvil-architecture, crates/anvil-checks, crates/anvil-policy; diagnostic envelope shared with RTAI/INTD/DRVR/RMCP |
 | [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md)               | OPAG    | Proposed | OPAE Rust/regorus product contracts (001..008 Done), POLENG output/input contracts, EXCEPT (Merged); re-scoped 2026-07-11 as deltas over shipped surfaces — sole live gates: agent-surface re-approval + ADR-098 AD-4 interception ADR (the Rust MCP surface itself is live)                                                |
 | [eval-harness-integration](./archive/modules/eval-harness-integration.aps.md)             | EVAL    | Complete     | EVAL-001..005 Merged 2026-06-30 via PR #3013; Released/Shipped via v0.9.0-beta (2026-07-12); archived 2026-07-13. |
@@ -815,6 +816,24 @@ promote later work items only in their owning modules.
 Sibling (not in the five-track shortlist; remains demand-pulled after CGBDG):
 [clawpatch-techniques-adoption](./modules/clawpatch-techniques-adoption.aps.md)
 (CPTA) under Dormant.
+
+### Project Scaffolding
+
+Operator-approved 2026-09-09 after a beta report exposed that L4 could be
+reported `On` while its missing acceptance policy guaranteed a silent no-op.
+[`project-scaffolding`](./modules/project-scaffolding.aps.md) (PSCAF) makes
+`anvil init` the additive, idempotent base-scaffold reconciler and makes
+`anvil start` consume the same engine before its opinionated activation overlay.
+
+| Module | Scope | Status | Progress | Programme next |
+| --- | --- | --- | --- | --- |
+| [project-scaffolding](./modules/project-scaffolding.aps.md) | PSCAF | Ready | 0/8 | PSCAF-001 catalogue and reconciliation kernel; ADR-143 Accepted |
+
+Contract:
+[`2026-09-09-project-scaffold-reconciliation.md`](./specs/2026-09-09-project-scaffold-reconciliation.md).
+Decision: [ADR-143](./decisions/143-project-scaffold-reconciliation.md).
+PSCAF supersedes ARCHCFG-007 and CIB-415 as implementation authority; CIB-267
+remains the prerequisite Git argv and hook-time PATH closeout.
 
 ### Settings Truth Surface
 
