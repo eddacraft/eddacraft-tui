@@ -113,8 +113,9 @@ is the same selected-component projection used by CLI status. It lists current
 attributed MCP sessions individually, and every live session constrains the
 aggregate so one ready editor cannot mask a degraded sibling.
 `requestingSession` identifies the calling MCP process when its daemon lease is
-available; last-validation and graph evidence remain separate from attachment
-readiness.
+available. A live lease is not completed-scan evidence, so `lastValidation`
+remains `not-observed` until session-correlated scan evidence is available;
+graph evidence likewise remains separate from attachment readiness.
 
 | Tool                   | Class                                                            | Authority                              | Required behaviour                                                                                                                                                           |
 | ---------------------- | ---------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

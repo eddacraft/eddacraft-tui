@@ -164,6 +164,38 @@ impl EnsureReadiness {
         self.state == EnsureReadinessState::Failed
     }
 
+    /// Merge this-run registration truth into a snapshot-derived projection.
+    /// A durable record may survive a refused refresh, so the later snapshot
+    /// cannot be allowed to overwrite the typed failure that just occurred.
+    pub(crate) fn with_worktree_registration_report(
+        mut self,
+        report: Option<&registration::WorktreeRegistrationReport>,
+    ) -> Self {
+        let Some(report) = report else {
+            return self;
+        };
+        let daemon_disabled = self.components.daemon.state == EnsureReadinessState::Disabled;
+        if !(daemon_disabled
+            && matches!(report.registration, WorktreeRegistration::DaemonUnavailable))
+            && let Some(detail) = failed_worktree_registration_detail(report)
+        {
+            self.components.worktree =
+                EnsureComponentReadiness::new(EnsureReadinessState::Failed, detail);
+        }
+        let driver_disabled = self.components.save_time.state == EnsureReadinessState::Disabled;
+        let driver_state = classify_save_time_readiness(
+            self.components.daemon.state,
+            self.components.worktree.state,
+            report.driver.as_ref(),
+            driver_disabled,
+        );
+        self.components.save_time = EnsureComponentReadiness::new(
+            driver_state,
+            format_save_time_registration_detail(report),
+        );
+        Self::from_components(self.components)
+    }
+
     pub(crate) fn component_summary(&self) -> String {
         format!(
             "config={} daemon={} worktree={} save_time={} mcp={}",
@@ -538,16 +570,7 @@ pub(crate) fn classify_readiness(
         driver_disabled,
     );
 
-    let save_time_detail = match &registration.driver {
-        Some(SaveTimeDriverReadiness::Attached { evidence }) => evidence.map_or_else(
-            || "attached without readiness evidence".to_owned(),
-            |evidence| save_time_evidence_label(evidence).to_owned(),
-        ),
-        Some(SaveTimeDriverReadiness::Failed) => "driver failed".to_owned(),
-        Some(SaveTimeDriverReadiness::Absent) => "driver absent".to_owned(),
-        Some(SaveTimeDriverReadiness::Unknown(error)) => error.clone(),
-        None => "no driver evidence".to_owned(),
-    };
+    let save_time_detail = format_save_time_registration_detail(registration);
     EnsureReadiness::from_components(EnsureReadinessComponents {
         config: component(config_state, config.label()),
         daemon: component(daemon_state, format_daemon_outcome(daemon)),
@@ -627,6 +650,19 @@ pub(crate) fn failed_worktree_registration_detail(
             | WorktreeRegistration::Rejected(_)
     )
     .then(|| format_worktree_registration(report))
+}
+
+fn format_save_time_registration_detail(report: &WorktreeRegistrationReport) -> String {
+    match &report.driver {
+        Some(SaveTimeDriverReadiness::Attached { evidence }) => evidence.map_or_else(
+            || "attached without readiness evidence".to_owned(),
+            |evidence| save_time_evidence_label(evidence).to_owned(),
+        ),
+        Some(SaveTimeDriverReadiness::Failed) => "driver failed".to_owned(),
+        Some(SaveTimeDriverReadiness::Absent) => "driver absent".to_owned(),
+        Some(SaveTimeDriverReadiness::Unknown(error)) => error.clone(),
+        None => "no driver evidence".to_owned(),
+    }
 }
 
 fn format_worktree_registration(report: &registration::WorktreeRegistrationReport) -> String {
@@ -921,6 +957,55 @@ mod tests {
             failed_worktree_registration_detail(&report).as_deref(),
             Some("worktree: registration cap exceeded — cap reached")
         );
+    }
+
+    #[test]
+    fn refused_refresh_overrides_ready_snapshot_projection() {
+        let measured = EnsureReadiness::from_components(EnsureReadinessComponents {
+            config: component(EnsureReadinessState::Ready, "valid"),
+            daemon: component(EnsureReadinessState::Ready, "daemon serving"),
+            worktree: component(EnsureReadinessState::Ready, "durably registered"),
+            save_time: component(EnsureReadinessState::Ready, "watches-installed"),
+            mcp: component(EnsureReadinessState::Disabled, "not selected"),
+        });
+        let report = WorktreeRegistrationReport {
+            registration: WorktreeRegistration::Rejected("refresh denied".to_owned()),
+            driver: None,
+        };
+
+        let readiness = measured.with_worktree_registration_report(Some(&report));
+
+        assert_eq!(readiness.state, EnsureReadinessState::Failed);
+        assert_eq!(readiness.failing_component, Some("worktree"));
+        assert_eq!(
+            readiness.components.worktree.detail,
+            "worktree: registration rejected — refresh denied"
+        );
+        assert_eq!(
+            readiness.failure_action().as_deref(),
+            Some("run `anvil start` to retry failed worktree registration")
+        );
+    }
+
+    #[test]
+    fn current_driver_failure_overrides_ready_snapshot_projection() {
+        let measured = EnsureReadiness::from_components(EnsureReadinessComponents {
+            config: component(EnsureReadinessState::Ready, "valid"),
+            daemon: component(EnsureReadinessState::Ready, "daemon serving"),
+            worktree: component(EnsureReadinessState::Ready, "durably registered"),
+            save_time: component(EnsureReadinessState::Ready, "watches-installed"),
+            mcp: component(EnsureReadinessState::Disabled, "not selected"),
+        });
+        let report = WorktreeRegistrationReport {
+            registration: WorktreeRegistration::Refreshed,
+            driver: Some(SaveTimeDriverReadiness::Failed),
+        };
+
+        let readiness = measured.with_worktree_registration_report(Some(&report));
+
+        assert_eq!(readiness.state, EnsureReadinessState::Failed);
+        assert_eq!(readiness.failing_component, Some("save_time"));
+        assert_eq!(readiness.components.save_time.detail, "driver failed");
     }
 
     #[test]

@@ -413,13 +413,8 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         readiness_snapshot.as_ref(),
         readiness_worktree.as_deref(),
         readiness_selection,
-    );
-    if let Some(detail) = registration_report
-        .as_ref()
-        .and_then(crate::commands::ensure::failed_worktree_registration_detail)
-    {
-        readiness.components.worktree.detail = detail;
-    }
+    )
+    .with_worktree_registration_report(registration_report.as_ref());
     if readiness.failed() && diagnostic.last_error.is_none() {
         diagnostic.last_error = Some(format!(
             "{} readiness failed",
@@ -641,18 +636,13 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                         crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT,
                     )
                     .ok();
-                let mut post_readiness = crate::commands::status::measured_readiness(
+                let post_readiness = crate::commands::status::measured_readiness(
                     &diagnostic,
                     post_readiness_snapshot.as_ref(),
                     readiness_worktree.as_deref(),
                     readiness_selection,
-                );
-                if let Some(detail) = registration_report
-                    .as_ref()
-                    .and_then(crate::commands::ensure::failed_worktree_registration_detail)
-                {
-                    post_readiness.components.worktree.detail = detail;
-                }
+                )
+                .with_worktree_registration_report(registration_report.as_ref());
                 let mut post_consent_output = render_start_human_output(
                     root,
                     read_only,

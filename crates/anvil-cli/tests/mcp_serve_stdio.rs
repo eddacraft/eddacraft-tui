@@ -1084,6 +1084,7 @@ fn mcp_serve_stdio_tools_call_status_returns_workspace_health_summary() {
         "failed"
     );
     assert_eq!(payload["readiness"]["aggregate"]["state"], "failed");
+    assert_eq!(payload["readiness"]["lastValidation"], "not-observed");
     assert!(payload["next"].is_string());
     assert!(
         payload["availableChecks"]

@@ -86,12 +86,6 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
                     .is_some_and(|tag| tag.driver_id == crate::registration::MCP_SESSION_DRIVER_ID)
         })
     });
-    let last_validation_observed = readiness
-        .components
-        .mcp
-        .live_sessions
-        .iter()
-        .any(|session| session.state == crate::commands::ensure::EnsureReadinessState::Ready);
     let next = status_command::status_readiness_action(&readiness);
     let mut payload = json!({
         "status": "ok",
@@ -105,7 +99,10 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
         "readiness": {
             "aggregate": readiness,
             "requestingSession": requesting_session.map(|session| session.id.as_str()),
-            "lastValidation": if last_validation_observed { "observed" } else { "not-observed" },
+            // A live participating lease proves attachment, not a completed
+            // validation. Remain fail-closed until the daemon exposes scan
+            // evidence correlated to this session and worktree.
+            "lastValidation": "not-observed",
             "graph": graph_value,
         }
     });
