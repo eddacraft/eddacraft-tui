@@ -1,13 +1,177 @@
 {
   "run": {
     "id": "cctx-004-2026-09-08-v1-score",
-    "at": "2026-09-09T06:25:57Z",
+    "at": "2026-09-09T06:59:54Z",
     "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
     "kind": "live-v1-session-score",
     "scorer": "score_v1.py"
   },
-  "n_records": 5,
+  "n_records": 10,
   "tasks": [
+    {
+      "task": "T11",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T11.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "125-mcp-admits-linked-worktrees.md",
+          "workspaceRoot",
+          "nested"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 230,
+      "first_useful_action": {
+        "at_s": 35,
+        "path": "plans/decisions/125-mcp-admits-linked-worktrees.md",
+        "note": "Found CIB-398 amendment: graph-context tools refuse nested workspaceRoot."
+      }
+    },
+    {
+      "task": "T12",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T12.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "identity-only",
+          "CE-1",
+          "graph-context-delivery-spec.md"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 250,
+      "first_useful_action": {
+        "at_s": 40,
+        "path": "docs/architecture/graph-context-delivery-spec.md",
+        "note": "Located Default posture: identity-only (CE-1) and snippet opt-in rules."
+      }
+    },
+    {
+      "task": "T13",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T13.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "anvil_validate_write",
+          "Graph context is not launch validation",
+          "never allow"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": true,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 200,
+      "first_useful_action": {
+        "at_s": 25,
+        "path": "docs/guides/ai-context-delivery.md",
+        "note": "Opened Graph context is not launch validation; confirmed anvil_validate_write remains the enforcement gate."
+      }
+    },
+    {
+      "task": "T14",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T14.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "eval-regression-ci-gate.aps.md",
+          "EVALCI"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": false,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 210,
+      "first_useful_action": {
+        "at_s": 30,
+        "path": "plans/modules/eval-regression-ci-gate.aps.md",
+        "note": "Confirmed EVALCI owns anvil policy eval-regression CI gate, not CCTX."
+      }
+    },
+    {
+      "task": "T15",
+      "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T15.json",
+      "score": {
+        "gold_recall": "mentioned",
+        "gold_mentioned": [
+          "operations/security.md",
+          "Uncertainty",
+          "\u00a715.7"
+        ],
+        "gold_not_mentioned": [],
+        "gold_contradicted": [],
+        "task_success": true,
+        "leakage_failed": false,
+        "leakage_note": "",
+        "honest_outcome": {
+          "applicable": true,
+          "passed": true,
+          "notes": []
+        },
+        "protocol_violations": []
+      },
+      "billed_tokens": {
+        "input": "unmeasured",
+        "output": "unmeasured"
+      },
+      "wall_time_s": 210,
+      "first_useful_action": {
+        "at_s": 35,
+        "path": "docs/public/anvil/operations/security.md",
+        "note": "Confirmed local-first boundary and identity-only GCTX default; synthesis off-box still open."
+      }
+    },
     {
       "task": "T16",
       "path": "plans/evals/context-compiler/2026-09-08/runs/v1/T16.json",

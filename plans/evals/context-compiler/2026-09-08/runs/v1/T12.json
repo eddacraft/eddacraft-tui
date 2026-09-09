@@ -1,0 +1,75 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/cctx-v1-corpus-batch-C",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path."
+  },
+  "task": "T12",
+  "session_id": "cctx-v1-batch-C-T12-2026-09-09",
+  "started_at": "2026-09-09T06:28:30Z",
+  "ended_at": "2026-09-09T06:32:40Z",
+  "wall_time_s": 250,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 3
+    },
+    {
+      "name": "read",
+      "count": 3
+    }
+  ],
+  "search_queries": [
+    "identity-only|CE-1|snippets|consent in graph-context-delivery-spec",
+    "gctx egress enable default in docs/guides/ai-context-delivery.md",
+    "CE-1 opt-in in crates/anvil-gctx-types"
+  ],
+  "files_read": [
+    "docs/architecture/graph-context-delivery-spec.md",
+    "docs/guides/ai-context-delivery.md",
+    "docs/public/anvil/operations/security.md"
+  ],
+  "first_useful_action": {
+    "at_s": 40,
+    "path": "docs/architecture/graph-context-delivery-spec.md",
+    "note": "Located Default posture: identity-only (CE-1) and snippet opt-in rules."
+  },
+  "answer": "Flipping GCTX's identity-only default to snippets-on would invert CE-1: today every GCTX tool and graph:// resource defaults to identity-only (docs/architecture/graph-context-delivery-spec.md \u2014 Default posture: identity-only (CE-1)). Source-text egress requires (a) the named opt-in flag gctx.egress defaultVariant disabled (CE-9) and (b) a per-request client capability; with the opt-in unset the fallback is identity-only, not text (CE-12: no auto-enable on first use). Consent (CE-12) is an explicit operator action with a consequence statement that secret-scanned, path-filtered source text will be sent to the connected assistant/LLM provider \u2014 anvil gctx egress enable records that consent; disable reverts. Snippet path then runs CE-3 sensitive-path + gitignore filters and CE-2 deny-by-default secret scan fail-closed. Security.md repeats identity-only default and that once a snippet reaches a client, Anvil's local-first boundary does not extend into that provider. Making snippets the default would breach CE-1 Ready-gate posture and silent-default house rules; it would need an explicit product/privacy decision, not a quiet flip. Spec \u00a711 trust boundary still keeps enforcement independent of any advisory synthesis.",
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "identity-only",
+      "CE-1",
+      "graph-context-delivery-spec.md"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

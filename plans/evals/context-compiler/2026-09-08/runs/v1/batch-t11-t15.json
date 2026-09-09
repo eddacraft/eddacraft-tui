@@ -1,0 +1,124 @@
+{
+  "run": {
+    "id": "cctx-v1-batch-C-t11-t15-2026-09-09",
+    "at": "2026-09-09T06:29:18Z",
+    "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+    "variant": "V1",
+    "kind": "live-v1-batch-rollup",
+    "branch": "eval/cctx-v1-batch-C",
+    "relates_to": "#4466"
+  },
+  "tasks": [
+    {
+      "task": "T11",
+      "session_id": "cctx-v1-batch-C-T11-2026-09-09",
+      "wall_time_s": 230,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 35,
+        "path": "plans/decisions/125-mcp-admits-linked-worktrees.md",
+        "note": "Found CIB-398 amendment: graph-context tools refuse nested workspaceRoot."
+      },
+      "notes": null
+    },
+    {
+      "task": "T12",
+      "session_id": "cctx-v1-batch-C-T12-2026-09-09",
+      "wall_time_s": 250,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 40,
+        "path": "docs/architecture/graph-context-delivery-spec.md",
+        "note": "Located Default posture: identity-only (CE-1) and snippet opt-in rules."
+      },
+      "notes": null
+    },
+    {
+      "task": "T13",
+      "session_id": "cctx-v1-batch-C-T13-2026-09-09",
+      "wall_time_s": 200,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": true,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 25,
+        "path": "docs/guides/ai-context-delivery.md",
+        "note": "Opened Graph context is not launch validation; confirmed anvil_validate_write remains the enforcement gate."
+      },
+      "notes": "Keep anvil_validate_write; brief never allow/warn/block; leakage_failed=false"
+    },
+    {
+      "task": "T14",
+      "session_id": "cctx-v1-batch-C-T14-2026-09-09",
+      "wall_time_s": 210,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": false,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 30,
+        "path": "plans/modules/eval-regression-ci-gate.aps.md",
+        "note": "Confirmed EVALCI owns anvil policy eval-regression CI gate, not CCTX."
+      },
+      "notes": null
+    },
+    {
+      "task": "T15",
+      "session_id": "cctx-v1-batch-C-T15-2026-09-09",
+      "wall_time_s": 210,
+      "gold_recall": "mentioned",
+      "task_success": true,
+      "leakage_failed": false,
+      "honest_outcome": {
+        "applicable": true,
+        "passed": true,
+        "notes": []
+      },
+      "first_useful_action": {
+        "at_s": 35,
+        "path": "docs/public/anvil/operations/security.md",
+        "note": "Confirmed local-first boundary and identity-only GCTX default; synthesis off-box still open."
+      },
+      "notes": "Honest Uncertainty; parked \u00a715.7; do not invent an ADR"
+    }
+  ],
+  "summary": {
+    "n": 5,
+    "all_task_success": true,
+    "t13_leakage_failed": false,
+    "honest_specials": {
+      "T13": "keep anvil_validate_write; never allow/warn/block",
+      "T15": "Uncertainty \u2014 parked \u00a715.7; do not invent an ADR"
+    },
+    "non_scope": [
+      "No APS N/M bump",
+      "Spec \u00a715 remains parked",
+      "No GCTX / Decision Brief input",
+      "No product compiler",
+      "Did not touch T06\u2013T10 or T16\u2013T20 claims"
+    ]
+  }
+}

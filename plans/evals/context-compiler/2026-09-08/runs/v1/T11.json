@@ -1,0 +1,76 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/cctx-v1-corpus-batch-C",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path."
+  },
+  "task": "T11",
+  "session_id": "cctx-v1-batch-C-T11-2026-09-09",
+  "started_at": "2026-09-09T06:24:30Z",
+  "ended_at": "2026-09-09T06:28:20Z",
+  "wall_time_s": 230,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 3
+    },
+    {
+      "name": "read",
+      "count": 4
+    }
+  ],
+  "search_queries": [
+    "workspaceRoot|linked worktree|graph-root in plans/decisions docs",
+    "nested workspaceRoot refusal in docs/guides/ai-context-delivery.md",
+    "ADR-125 mcp admits linked worktrees"
+  ],
+  "files_read": [
+    "plans/decisions/125-mcp-admits-linked-worktrees.md",
+    "docs/guides/ai-context-delivery.md",
+    "docs/public/anvil/integrations/mcp.md",
+    "docs/architecture/dev-acceleration-benchmark-spec.md"
+  ],
+  "first_useful_action": {
+    "at_s": 35,
+    "path": "plans/decisions/125-mcp-admits-linked-worktrees.md",
+    "note": "Found CIB-398 amendment: graph-context tools refuse nested workspaceRoot."
+  },
+  "answer": "No for a nested directory as workspaceRoot on the six GCTX tools. plans/decisions/125-mcp-admits-linked-worktrees.md (ADR-125) was amended 2026-09-03 (CIB-398): daemon-keyed graph-context tools require workspaceRoot to be exactly the server cwd or a registered linked Git worktree root \u2014 not a directory inside either. docs/guides/ai-context-delivery.md states the same graph-root rule: a subdirectory is refused because the daemon keys its graph on that root and reports workspace-relative paths, so a nested root would rebase a sensitive path such as secrets/token.ts to token.ts past the CE-3 sensitive-path filter (identity/privacy invariant). Ordinary check/gate/write tools still admit containment under cwd or registered worktrees; the nested refusal is specific to GCTX. Blast radius for changing this: MCP GCTX tool admission (validate_gctx_workspace_root), the guide, public MCP docs, and ADR-125. Keep anvil_validate_write on any edit; this V1 session used search/read only.",
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "125-mcp-admits-linked-worktrees.md",
+      "workspaceRoot",
+      "nested"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

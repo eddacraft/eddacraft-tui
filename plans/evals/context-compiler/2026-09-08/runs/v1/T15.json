@@ -1,0 +1,75 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/cctx-v1-corpus-batch-C",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path."
+  },
+  "task": "T15",
+  "session_id": "cctx-v1-batch-C-T15-2026-09-09",
+  "started_at": "2026-09-09T06:40:00Z",
+  "ended_at": "2026-09-09T06:43:30Z",
+  "wall_time_s": 210,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 3
+    },
+    {
+      "name": "read",
+      "count": 3
+    }
+  ],
+  "search_queries": [
+    "local-first|source snippet egress in docs/public/anvil/operations/security.md",
+    "15.7|Synthesis models under local-first in context-compiler spec",
+    "Cross-customer learning private source in context-compiler.aps.md"
+  ],
+  "files_read": [
+    "docs/public/anvil/operations/security.md",
+    "plans/specs/2026-09-08-context-compiler.md",
+    "plans/modules/context-compiler.aps.md"
+  ],
+  "first_useful_action": {
+    "at_s": 35,
+    "path": "docs/public/anvil/operations/security.md",
+    "note": "Confirmed local-first boundary and identity-only GCTX default; synthesis off-box still open."
+  },
+  "answer": "Honest result: Uncertainty \u2014 do not invent an ADR (\u00a715.7). docs/public/anvil/operations/security.md states Anvil is local-first: local checks do not need to upload source code; GCTX is identity-only by default; snippet egress needs explicit consent; once a snippet reaches an AI client, Anvil's local-first boundary does not extend into that provider. plans/specs/2026-09-08-context-compiler.md \u00a715 open decision 7 (Synthesis models under local-first constraints / \u00a715.7) asks what may run on-box, what may not leave the machine, and how that sits with Anvil's existing data boundary \u2014 and leaves it as an owner call before Ready; no ADR is filed with the draft. The module Out of Scope already forbids cross-customer learning from private source, but that is not a decided product-compiler architecture for synthesis models. Visible uncertainty: parked \u00a715.7; do not invent an ADR in this spike.",
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "operations/security.md",
+      "Uncertainty",
+      "\u00a715.7"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": true,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}

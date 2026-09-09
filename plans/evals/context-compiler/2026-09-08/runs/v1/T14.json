@@ -1,0 +1,74 @@
+{
+  "variant": "V1",
+  "corpus_revision": "23457dc6d2bf379791d587cf2dfdb5046ce51fc0",
+  "corpus_worktree": "/tmp/cctx-v1-corpus-batch-C",
+  "harness": "ssh-aneki@deus / manual corpus explore (cursor-executor)",
+  "model": "cursor-grok-executor",
+  "gctx_tools_available": false,
+  "gctx_egress_consent": false,
+  "billed_tokens": {
+    "input": "unmeasured",
+    "output": "unmeasured"
+  },
+  "synthesis_cost": 0,
+  "authority_leakage": {
+    "cited_as_gate": false,
+    "notes": "No Decision Brief or GCTX answer treated as allow/warn/block."
+  },
+  "protocol_violations": [],
+  "recovery": {
+    "occurred": false,
+    "tokens": "unmeasured",
+    "time_s": 0,
+    "notes": "No wrong path."
+  },
+  "task": "T14",
+  "session_id": "cctx-v1-batch-C-T14-2026-09-09",
+  "started_at": "2026-09-09T06:36:20Z",
+  "ended_at": "2026-09-09T06:39:50Z",
+  "wall_time_s": 210,
+  "tool_calls": [
+    {
+      "name": "rg",
+      "count": 3
+    },
+    {
+      "name": "read",
+      "count": 3
+    }
+  ],
+  "search_queries": [
+    "EVALCI|eval-regression in plans/modules",
+    "Adjacent work EVALCI in plans/specs/2026-09-08-context-compiler.md",
+    "Policy eval-regression CI gate vs CCTX"
+  ],
+  "files_read": [
+    "plans/modules/eval-regression-ci-gate.aps.md",
+    "plans/modules/context-compiler.aps.md",
+    "plans/specs/2026-09-08-context-compiler.md"
+  ],
+  "first_useful_action": {
+    "at_s": 30,
+    "path": "plans/modules/eval-regression-ci-gate.aps.md",
+    "note": "Confirmed EVALCI owns anvil policy eval-regression CI gate, not CCTX."
+  },
+  "answer": "No \u2014 the CCTX spike is not the same eval as anvil policy eval-regression in CI. plans/modules/eval-regression-ci-gate.aps.md (EVALCI) wires anvil policy eval-regression as a trust-regression CI gate against committed policy baselines (report-only today; blocking promotion still gated). plans/specs/2026-09-08-context-compiler.md adjacent-work table says EVALCI is a different eval: CCTX's first spike is an internal task-brief comparison, not a policy-baseline CI gate. plans/modules/context-compiler.aps.md Related-not-this-module table lists Policy eval-regression CI gate under EVALCI and notes no EVALCI / policy-regression work belongs to CCTX. Different owners, different artefacts, different success criteria.",
+  "score": {
+    "gold_recall": "mentioned",
+    "gold_mentioned": [
+      "eval-regression-ci-gate.aps.md",
+      "EVALCI"
+    ],
+    "gold_not_mentioned": [],
+    "gold_contradicted": [],
+    "task_success": true,
+    "leakage_failed": false,
+    "leakage_note": "",
+    "honest_outcome": {
+      "applicable": false,
+      "passed": true,
+      "notes": []
+    },
+    "protocol_violations": []
+  }
+}
