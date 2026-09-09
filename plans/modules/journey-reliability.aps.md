@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 4/13 |
+| JREL | Josh | high | In Progress | 5/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -195,13 +195,30 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-005: Typed readiness, failures and recovery outcomes
 
-- **Status:** Ready
+- **Status:** Merged — PR #4509 (claim #4502) at `0c86cb164`. Closeout: bare
+  `anvil`, `anvil start`, `anvil status`, status TUI and MCP `anvil_status` now
+  consume one measured readiness model with explicit save-time/MCP selection,
+  the five specified states, per-session live MCP aggregation and one
+  component-specific recovery action. Configured-but-closed MCP clients remain
+  inventory; current MCP sessions and runtime calls still select their daemon
+  and worktree dependencies. `ANVIL_NO_DAEMON` suppresses spawning without
+  hiding a reusable live daemon, while `ANVIL_NO_SAVE_TIME_DRIVER` remains the
+  driver opt-out. Existing `backend: local` / `daemonStatus: not-wired` MCP
+  compatibility fields are preserved. Absolute local paths are suppressed
+  recursively at the final MCP payload boundary, including malformed-config
+  and top-level error strings. The hosted Copilot path-leak finding was fixed,
+  replied to and resolved. Exact-head verification passed the focused readiness
+  suites, 3,835 CLI unit tests plus every integration target (with the two
+  recorded host-socket-sensitive exclusions), strict Clippy, Cargo and
+  repository formatting, all 15 documentation surfaces and the diff-scoped
+  diagram-impact gate. Independent verification and Council both returned
+  PASS; all required hosted checks were green before protected rebase merge.
 - **Priority:** P1
 - **Intent:** Successful daily activation means the user's selected coverage is ready.
 - **Expected Outcome:** Registration refusal/cap, failed selected MCP repair, dead watcher and unresponsive daemon remain typed failures through human/JSON output and exit status. Deliberately omitted MCP is not failure when selected save-time coverage works. Starting, ready, disabled, degraded and failed evidence is distinguishable; one next action names the actual failing component and the public recovery command (bare `anvil` or `anvil start`), not `anvil intercept start --foreground`. Do not introduce public `intercept ensure` / `restart` or wire `doctor --fix` as a daemon supervisor; those are JSIMP-001 / JSIMP-004. Preserve current output compatibility or document an explicit versioned migration.
 - **Dependencies:** JREL-002, JREL-003, JREL-004
 - **Coordinates with:** ACTMO activation diagnostic, ONSW ensure, MCPLH-005 split inventory; JSIMP-002 owns later presentation/action contract migration. JSIMP-001 owns any public ensure/restart verbs; JSIMP-004 owns doctor escalation after that contract.
-- **Files:** `crates/anvil-cli/src/commands/ensure.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/status.rs`, `crates/anvil-cli/src/activation/`
+- **Files:** `crates/anvil-cli/src/commands/ensure.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/status.rs`, `crates/anvil-cli/src/mcp/tools/status.rs`, `crates/anvil-cli/src/activation/`, `crates/anvil-tui/src/surfaces/status/`, `schemas/anvil-status.v1.json`, readiness runbooks and architecture freshness records
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; assert typed JSON, human next action and exit behaviour for every required/optional component combination, including warming and no-MCP.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
 
