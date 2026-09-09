@@ -87,6 +87,11 @@ async function runMcpLaunchShim(
         FORCE_COLOR: '0',
         NO_COLOR: '1',
         NO_TUI: '1',
+        // Same hermetic bypass as activation/save-time e2e: CI has no
+        // licence credentials, so validate_write would otherwise return
+        // gateUnavailable and skip the real MCP tool path.
+        ANVIL_DEV: '1',
+        ANVIL_SKIP_WELCOME: '1',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
