@@ -218,6 +218,40 @@ fn repo_b_learning_path_shows_repo_a_completion() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn backing_out_of_learning_path_keeps_first_run_deferred() {
+    let home = tempfile::tempdir().expect("isolated user home");
+    let workspace = tempfile::tempdir().expect("new repository");
+    std::fs::create_dir(workspace.path().join(".git")).expect("repository git marker");
+
+    let progress_path = home.path().join(".anvil/tutorial-progress.json");
+    std::fs::create_dir_all(progress_path.parent().expect("progress parent"))
+        .expect("create progress parent");
+    std::fs::write(&progress_path, br#"{"completed_paths":["Architecture"]}"#)
+        .expect("seed completed learning path");
+
+    let result = run_welcome_script(
+        workspace.path(),
+        home.path(),
+        &[
+            (b"esc/q quit", b"\x1b[B\r"),
+            (b"(redo)", b"\x1b"),
+            (b"Review gate decision", b"q"),
+        ],
+    );
+
+    assert!(
+        result.status.success(),
+        "welcome back flow failed:\n{}",
+        result.transcript
+    );
+    assert!(
+        !workspace.path().join(".anvil/first-run").exists(),
+        "backing out of a follow-on surface must leave first-run setup deferred"
+    );
+}
+
 #[test]
 fn plain_and_json_welcome_preserve_user_global_learning() {
     for args in [&["--no-tui", "welcome"][..], &["--json", "welcome"][..]] {
