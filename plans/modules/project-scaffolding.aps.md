@@ -92,6 +92,10 @@ rewriting operator-owned files or claiming inactive protections are on.
 ### PSCAF-001: Catalogue and additive reconciliation kernel
 
 - **Status:** In Progress
+- **Implementation PR:** [#4583](https://github.com/eddacraft/anvil-001/pull/4583)
+  is a draft against `main`. Independent verification remains repair-required;
+  the four blocking findings are recorded in the PR and must be cleared before
+  review-ready or completion claims.
 - **Intent:** Establish one internal source of component truth and a race-safe,
   additive engine usable by both public commands.
 - **Expected Outcome:** A typed catalogue defines foundation,
