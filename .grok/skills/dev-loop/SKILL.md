@@ -100,6 +100,7 @@ every crossing item runs the full canonical lifecycle.
 3. **Guard.** Check intent against `aps-safety-rails` before any destructive,
    irreversible, or authority-changing action.
 4. **Run.** Execute the selected item through `agentic-loop`.
+   Child completion is not a drain stop; continuation follows `agentic-loop`.
 5. **Land.** Cross the merge boundary through `aps-landing`.
 6. **Park.** Send blockers and checkpoint questions to `aps-escalation-queue` as
    closed questions with defaults, for the human to clear in one sitting.

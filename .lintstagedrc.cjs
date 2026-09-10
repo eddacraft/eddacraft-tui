@@ -53,9 +53,8 @@ const isAuditJson = (file) => {
   );
 };
 
-// Agent-config class dirs (.claude/, .codex/, .opencode/) are excluded from
-// oxfmt via .prettierignore to avoid mangling embedded ```markdown fences in
-// skill files. Filter their JSON files (*.meta.json, skill.meta.json) so
+// Agent-config class dirs are excluded from oxfmt via .prettierignore to avoid
+// mangling embedded ```markdown fences in skill files. Filter them so
 // lint-staged doesn't pass them to oxfmt and trigger "no target files" errors.
 const isAgentConfig = (file) => {
   const normalised = normalisePath(file);
@@ -65,7 +64,11 @@ const isAgentConfig = (file) => {
     normalised.includes('/.codex/') ||
     normalised.startsWith('.codex/') ||
     normalised.includes('/.opencode/') ||
-    normalised.startsWith('.opencode/')
+    normalised.startsWith('.opencode/') ||
+    normalised.includes('/.agents/') ||
+    normalised.startsWith('.agents/') ||
+    normalised.includes('/.grok/') ||
+    normalised.startsWith('.grok/')
   );
 };
 

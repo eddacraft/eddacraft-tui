@@ -14,6 +14,7 @@ Load `agentic-loop`. Keep the active Grok session as lead and implementation own
 - Every writing worker owns a separate worktree/write surface.
 - The verifier is a fresh read-only context against the governing contract and immutable candidate, blind to implementation reasoning.
 - Prefer native interactive/workflow/session capability. Use supervised headless `grok -p` only as a policy-approved fallback where native supervision cannot satisfy a required boundary.
+- After a child or bounded worker returns, continue the invocation target in this session. If the session cannot continue, write the run checkpoint and emit an explicit resume handle; never end the turn empty.
 - The lead alone owns APS transitions, repair routing, PR lifecycle, and merge authority.
 
 For differential work, claim provider/model separation only when the active environment can prove it.

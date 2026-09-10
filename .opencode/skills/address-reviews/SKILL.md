@@ -34,6 +34,9 @@ Make an open PR mergeable: green CI, threads handled, base in sync.
 7. Never say "tracked as follow-up" without actually tracking it.
 8. Never force-push a rebased repair unless repository policy and explicit user
    authority allow it; otherwise merge the base into the head branch.
+9. The parent run's repair budget and progress fingerprint bind this skill. If
+   the fingerprint repeats or the budget is exhausted, stop and return to the
+   loop; do not start another review round.
 
 ## Steps
 

@@ -13,6 +13,7 @@ Load `agentic-loop`. Keep the primary OpenCode agent as lead and implementation 
 - Use native provider-aware routing when provider identity and permissions are observable; record the effective provider/model.
 - Fresh verification must start in a separate context and receive only the governing contract, immutable candidate, acceptance criteria, and required gates.
 - Prefer native tasks/sessions. Use supervised headless `opencode run` only as a policy-approved fallback when native supervision cannot satisfy a required boundary.
+- After a child or bounded worker returns, continue the invocation target in this session. If the session cannot continue, write the run checkpoint and emit an explicit resume handle; never end the turn empty.
 - Primary lead alone owns APS transitions, repair routing, PR lifecycle, and merge authority.
 
 Different agent names on the same provider do not satisfy cross-provider independence.

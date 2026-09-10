@@ -15,6 +15,7 @@ Load `agentic-loop`. Keep the root Codex agent as lead and implementation owner 
 - The verifier must be a fresh context, read-only with respect to implementation, and blind to executor/lead reasoning.
 - Prefer native Codex agent/session mechanisms. Use supervised headless `codex exec` only when a required boundary cannot be met natively and policy permits that transport.
 - Treat worker completion as a proposal; reconcile against Git and fresh command evidence.
+- After a child or bounded worker returns, continue the invocation target in this session. If the session cannot continue, write the run checkpoint and emit an explicit resume handle; never end the turn empty.
 - Root lead alone owns APS transitions, repair routing, PR lifecycle, and merge authority.
 
 For differential work, resolve external advisors/verifiers only through capabilities actually available to the active Codex environment; never assume reciprocal Claude/Grok bridges.

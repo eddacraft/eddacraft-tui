@@ -14,6 +14,7 @@ Load `agentic-loop`. Keep the main Claude session as lead and implementation own
 - The verifier receives the governing contract and immutable candidate, not the implementation transcript, and must be read-only with respect to implementation.
 - Require finite supervision/cancellation capability for mandatory verification. Prefer native subagent/task controls; supervised headless `claude -p` is a fallback, not the canonical default.
 - Advisor features that inherit the full conversation are implementation/design assistance, not blind verification.
+- After a child or bounded worker returns, continue the invocation target in this session. If the session cannot continue, write the run checkpoint and emit an explicit resume handle; never end the turn empty.
 - Lead alone owns APS transitions, repair routing, PR lifecycle, and merge authority.
 
 For differential work, external Claude-hosted bridges may be used only when they prove the required read/write boundary and provider identity. Transcript transfer never counts as independent verification.

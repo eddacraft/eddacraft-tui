@@ -30,6 +30,10 @@ item and next `isolate-workspace` (or back to `dev-loop`).
    dev-loop policy already granted authority for this target.
 5. In APS projects, load and truth-check via `aps-planning`; do not invent
    parallel plan stores.
+6. When the caller is a module-complete run, that invocation is the
+   Ready grant for unblocked children. Ready them mechanically in the plan files.
+   Do not open a Ready PR and do not stop for a second sitting.
+   Drain mode still must not promote items to Ready.
 
 ## Steps
 
@@ -80,7 +84,7 @@ Ready only when:
 - [ ] Validation commands are exact and runnable
 - [ ] Dependencies closed or explicitly documented
 - [ ] Design approved if the design gate fired
-- [ ] User (or policy) authorises Ready
+- [ ] User (or policy, or a module-complete grant) authorises Ready
 
 Propose APS status `Ready` only after the above; never silent auto-promote
 without authority.

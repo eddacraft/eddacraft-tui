@@ -221,7 +221,24 @@ second checkpoint location. The concrete schema and default path live with
 
 Module, drain, and autonomous runs require a finite aggregate deadline and a
 shared repair budget. Stop when a progress fingerprint repeats: a loop that is
-not moving must escalate, not spend.
+not moving must escalate, not spend. Failed evidence, CI, and review repairs share that budget.
+A repeated fingerprint is a stop, including a test-fail or review-repair cycle that
+reproduces the same state. Do not start another review round from a first-push-only bot.
+
+## Continuation
+
+Terminal outcomes apply to the invocation target (one item, one module, or a
+drain run), never to an inner child. Child completion is a phase transition.
+
+For module, drain, and autonomous runs, do not end the turn because a child finished.
+The only legal stops before the target is done are `blocked`,
+`needs-plan-update`, `claim-conflict`, `repair-budget-exhausted`, the aggregate
+deadline, user interrupt, and `awaiting-merge-authority` when the target itself
+is waiting on merge.
+
+The last act of a non-terminal turn is the next unblocked child, or a parked
+checkpoint plus an explicit resume handle (`resume <TARGET>`).
+An empty stop after implementation is a crash, not an outcome.
 
 ## Council policy
 

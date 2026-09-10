@@ -57,6 +57,14 @@ configured verification sampling policy.
 
 ## Execution
 
+Saying `complete <MODULE>` is the Ready grant for that module. Children are
+`plan-ready`'d as they become unblocked. Child Ready is a mechanical plan-file
+update, not a publication event and not a second human sitting. Do not open a Ready PR.
+`drain` still must not promote items to Ready.
+
+After each child, continue immediately to the next unblocked child in the same
+run. Child completion is not a terminal outcome. Continuation follows `agentic-loop`.
+
 Serial execution is the safe default, not an invariant. Bounded parallel waves
 are allowed only when dependencies and write ownership prove independence.
 
