@@ -681,11 +681,11 @@ repository. **When to use:** First-time setup, adding MCP after a prior decline,
 or repairing activation after a config change. Direct `anvil start` does not
 require `anvil welcome` or the tutorial. Writes `.anvil.yaml` (or the `--format`
 choice) if no project config exists and can install MCP / workflow consent
-items. `--verify` and `--json` are read-only. `--no-tui` on a real
-terminal is plain interactive consent, not unattended auto-install.
-Piped, CI, and `ANVIL_NO_PROMPT` sessions do not newly install MCP unless
-`--mcp-client` or `--all-mcp-clients` is set. For a quiet daily on-switch
-without reinstall, use bare `anvil` instead.
+items. `--verify` and `--json` are read-only. `--no-tui` on a real terminal is
+plain interactive consent, not unattended auto-install. Piped, CI, and
+`ANVIL_NO_PROMPT` sessions do not newly install MCP unless `--mcp-client` or
+`--all-mcp-clients` is set. For a quiet daily on-switch without reinstall, use
+bare `anvil` instead.
 
 **Synopsis:**
 `anvil start [--verify] [--watch] [--format <fmt>] [--new-identity] [--why]`
@@ -744,9 +744,9 @@ $ anvil tutorial
 
 ## anvil welcome
 
-**Class:** Setup **Purpose:** Optional unsigned discovery and learning (ADR-080
-/ ADR-145). **When to use:** First look at a repo without signing in, or to
-reopen the welcome hub. Not a prerequisite for `anvil start`.
+**Class:** Setup **Purpose:** Optional unsigned discovery and learning. **When
+to use:** First look at a repo without signing in, or to reopen the welcome hub.
+Not a prerequisite for `anvil start`.
 
 Guided setup keeps the project directory selected in the wizard as one canonical
 scope for configuration, discovery, preview/apply, tutorial work and the project
