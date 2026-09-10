@@ -200,10 +200,7 @@ fn normalise_warning_id(warning_id: &str) -> String {
     }
     // parse_suppression matches uppercase hyphenated ids only.
     // Canonicalise so MCP callers can pass lowercase finding ids.
-    warning_id
-        .trim()
-        .to_ascii_uppercase()
-        .replace(' ', "-")
+    warning_id.trim().to_ascii_uppercase().replace(' ', "-")
 }
 
 fn is_secret_warning_id(warning_id: &str) -> bool {
@@ -705,10 +702,7 @@ mod tests {
             normalise_warning_id("secret-high-entropy-string"),
             "SECRET-HIGH-ENTROPY-STRING"
         );
-        assert_eq!(
-            normalise_warning_id("secret-detection"),
-            "SECRET-DETECTION"
-        );
+        assert_eq!(normalise_warning_id("secret-detection"), "SECRET-DETECTION");
     }
 
     #[test]
