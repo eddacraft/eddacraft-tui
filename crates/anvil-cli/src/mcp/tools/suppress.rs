@@ -196,10 +196,14 @@ fn normalise_warning_id(warning_id: &str) -> String {
     if warning_id.eq_ignore_ascii_case(anvil_checks::secret::CHECK_RULE_ID)
         || warning_id.eq_ignore_ascii_case("secret")
     {
-        "SECRET-DETECTION".to_string()
-    } else {
-        warning_id.to_string()
+        return "SECRET-DETECTION".to_string();
     }
+    // parse_suppression matches uppercase hyphenated ids only.
+    // Canonicalise so MCP callers can pass lowercase finding ids.
+    warning_id
+        .trim()
+        .to_ascii_uppercase()
+        .replace(' ', "-")
 }
 
 fn is_secret_warning_id(warning_id: &str) -> bool {
@@ -693,6 +697,18 @@ mod tests {
             std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
         assert!(on_disk.contains("@anvil-ignore-until"));
         assert!(on_disk.contains("SECRET-DETECTION: fixture token"));
+    }
+
+    #[test]
+    fn normalise_warning_id_uppercases_hyphenated_ids() {
+        assert_eq!(
+            normalise_warning_id("secret-high-entropy-string"),
+            "SECRET-HIGH-ENTROPY-STRING"
+        );
+        assert_eq!(
+            normalise_warning_id("secret-detection"),
+            "SECRET-DETECTION"
+        );
     }
 
     #[test]
