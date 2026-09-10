@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------- | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-09-10 for JREL-008 welcome terminal restoration on success, cancellation, ordinary errors, partial setup and panic. Prior review 2026-09-09 for JREL-007 guided-setup project routing, cancellation and write-failure outcomes. Prior review 2026-09-08 for CIB-415 (`anvil init` seeds `anvil/policy.yml`, `anvil status` L4 honesty, `l4-validate` hex-SHA range) and CIB-267 (`anvil hook pre-push` silent-pass help and Git remote/URL argv). Prior review 2026-08-31 for CIB-382's physical-identity Unix rendezvous repair, complete canonical-refusal JSON, and trusted writable-PID recovery. Also reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-09-10 for ADR-145 continuous-command journey: intercept has no public `ensure`/`restart`; daily ensure remains bare `anvil`; recycle remains `anvil mcp refresh --daemon restart`. Prior review 2026-09-10 for JREL-008 welcome terminal restoration on success, cancellation, ordinary errors, partial setup and panic. Prior review 2026-09-09 for JREL-007 guided-setup project routing, cancellation and write-failure outcomes. Prior review 2026-09-08 for CIB-415 (`anvil init` seeds `anvil/policy.yml`, `anvil status` L4 honesty, `l4-validate` hex-SHA range) and CIB-267 (`anvil hook pre-push` silent-pass help and Git remote/URL argv). Prior review 2026-08-31 for CIB-382's physical-identity Unix rendezvous repair, complete canonical-refusal JSON, and trusted writable-PID recovery. Also reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -645,7 +645,13 @@ workflows, or hooks — use `anvil start` for that.
 
 **Synopsis:** `anvil` · `anvil --json`
 
-**Behaviour (ADR-114):**
+**Behaviour (ADR-114, ADR-145):**
+
+Agreed journey (not all rows have shipped — see
+[transition matrix](../../plans/specs/2026-09-10-continuous-command-journey.md)):
+bare `anvil` is the daily on-switch; never-activated unsigned entry should point
+at `anvil welcome` / `anvil start` **before** the licence wall (JSIMP-003).
+There is no public `anvil intercept ensure`.
 
 | Situation                          | Result                                                                            |
 | ---------------------------------- | --------------------------------------------------------------------------------- |
@@ -672,10 +678,11 @@ $ anvil --help
 
 **Class:** Setup **Purpose:** Activate or **reconfigure** Anvil in this
 repository. **When to use:** First-time setup, adding MCP after a prior decline,
-or repairing activation after a config change. Writes `.anvil.yaml` (or the
+or repairing activation after a config change. Direct `anvil start` does not
+require `anvil welcome` or the tutorial (ADR-145). Writes `.anvil.yaml` (or the
 `--format` choice) if no project config exists and can install MCP / workflow
-consent items. For a quiet daily on-switch without reinstall, use bare `anvil`
-instead.
+consent items. `--verify` and `--json` are read-only. For a quiet daily
+on-switch without reinstall, use bare `anvil` instead.
 
 **Synopsis:**
 `anvil start [--verify] [--watch] [--format <fmt>] [--new-identity] [--why]`
@@ -734,8 +741,9 @@ $ anvil tutorial
 
 ## anvil welcome
 
-**Class:** Setup **Purpose:** Show the welcome screen with quick-start options.
-**When to use:** To access the Anvil main menu and onboarding options.
+**Class:** Setup **Purpose:** Optional unsigned discovery and learning (ADR-080
+/ ADR-145). **When to use:** First look at a repo without signing in, or to
+reopen the welcome hub. Not a prerequisite for `anvil start`.
 
 Guided setup keeps the project directory selected in the wizard as one canonical
 scope for configuration, discovery, preview/apply, tutorial work and the project
@@ -981,9 +989,12 @@ $ anvil migrate architecture --apply
 
 ## anvil intercept
 
-**Class:** Background (start/ensure) / Admin (stop/status) **Purpose:** Manage
-the Anvil intercept daemon. **When to use:** To start, stop, inspect, or unblock
-the local intercept daemon that enables pre-write MCP validation.
+**Class:** Background (start) / Admin (stop/status) **Purpose:** Manage the
+Anvil intercept daemon. **When to use:** To start, stop, inspect, or unblock the
+local intercept daemon that enables pre-write MCP validation. This is an
+operator/implementation surface (ADR-082 / ADR-145). Daily ensure is bare
+`anvil`. Daemon recycle is `anvil mcp refresh --daemon restart`. There is **no**
+public `anvil intercept ensure` or `anvil intercept restart`.
 
 **Synopsis:** `anvil intercept <start|status|unblock|stop>`
 

@@ -7,6 +7,11 @@
 TTY-default flip is authorised and tracked by
 [`ACTTUI-013`](../archive/modules/activation-tui.aps.md); its named gates
 (ACTTUI-008/-009/-010/-012) are all Merged.
+**Amended by [ADR-145](145-continuous-command-journey.md)** (2026-09-10):
+JSIMP-002 will make `--no-tui` on a real TTY (stdin and stderr TTY) interactive
+plain consent rather than the current auto-install branch. Piped/CI/`ANVIL_NO_PROMPT`
+stay on the ADR-044 table until that tested migration. `--json` / `--verify`
+remain non-mutating.
 
 ## Date
 

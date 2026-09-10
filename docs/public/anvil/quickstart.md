@@ -94,6 +94,9 @@ anvil welcome
 Discovery scans a sample of the tree and explains what it found. A clean result
 still counts — it means the sample did not match an enabled rule.
 
+`anvil welcome` is **optional learning**. You can skip it and run `anvil start`
+once you have beta access. It is not a tutorial gate.
+
 Success: the command finishes with either findings or an explicit clean result.
 
 ## 4. Sign in
@@ -118,6 +121,8 @@ bypass the invite. `whoami` confirms identity without printing secrets.
 ```text
 anvil start
 ```
+
+You do not need to have run `anvil welcome` first.
 
 In a real terminal this opens interactive activation. It may write project
 config, record a baseline, and offer MCP install for every supported AI client
@@ -154,7 +159,7 @@ anvil
 That turns on the local daemon and **already configured** MCP entries. It does
 not open a setup picker and does not reinstall clients you skipped. If this
 project was never activated, the command tells you to run `anvil start` or
-`anvil welcome`.
+`anvil welcome`. There is no separate `anvil intercept ensure` command.
 
 Machine-readable:
 

@@ -7,6 +7,9 @@ command split: bare `anvil` is the daily on-switch (daemon ensure + existing
 MCP ensure); `anvil start` remains activate / reconfigure / reinstall.
 Implementation: [ONSW](../archive/modules/bare-ensure.aps.md). Conductor acceptance:
 [JOURNEY-011](../modules/release-user-journeys.aps.md).
+**Amended by [ADR-145](145-continuous-command-journey.md)** (2026-09-10): §2.3
+first-use unsigned never-activated routing may run before the licence wall;
+daily ensure stays entitled; no public `anvil intercept ensure` / `restart`.
 
 ### Open questions resolved (accept)
 
