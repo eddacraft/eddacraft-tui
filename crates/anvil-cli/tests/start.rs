@@ -232,12 +232,11 @@ fn assert_screen_transitions(result: &PtyRun, expected: usize) {
 }
 
 #[cfg(unix)]
-fn run_start_in_pty(
+fn spawn_start_in_pty(
     workdir: &Path,
     home: &Path,
     extra_args: &[&str],
-    interaction: PtyInteraction,
-) -> PtyRun {
+) -> (std::process::Child, std::fs::File, std::fs::File, nix::sys::termios::Termios) {
     let size = nix::pty::Winsize {
         ws_row: 30,
         ws_col: 120,
@@ -245,7 +244,7 @@ fn run_start_in_pty(
         ws_ypixel: 0,
     };
     let pty = nix::pty::openpty(Some(&size), None).expect("open PTY");
-    let mut master = std::fs::File::from(pty.master);
+    let master = std::fs::File::from(pty.master);
     let slave = std::fs::File::from(pty.slave);
     let slave_monitor = slave.try_clone().unwrap();
     let terminal_mode_before = terminal_mode(&slave_monitor);
@@ -264,25 +263,34 @@ fn run_start_in_pty(
     ] {
         command.env_remove(variable);
     }
-    // CIB-224: `start_command_env` forces ANVIL_ALL_MCP_CLIENTS for hermetic
-    // install coverage. That collides with `--no-mcp` (and ANVIL_NO_MCP). Drop
+    // CIB-224: start_command_env forces ANVIL_ALL_MCP_CLIENTS for hermetic
+    // install coverage. That collides with --no-mcp (and ANVIL_NO_MCP). Drop
     // the all-clients opt-in when the test is intentionally skipping MCP.
     if extra_args.contains(&"--no-mcp") {
         command.env_remove("ANVIL_ALL_MCP_CLIENTS");
         command.env_remove("ANVIL_NO_MCP"); // flag alone owns opt-out
     }
-    // ACTTUI-013: no `--tui` and no `ANVIL_ACTIVATION_TUI` — a real terminal
-    // enters the activation TUI on the bare `anvil start` default path.
+    // ACTTUI-013: no --tui and no ANVIL_ACTIVATION_TUI — a real terminal
+    // enters the activation TUI on the bare anvil start default path.
     command
         .arg("start")
         .args(extra_args)
         .stdin(std::process::Stdio::from(stdin))
         .stdout(std::process::Stdio::from(stdout))
         .stderr(std::process::Stdio::from(slave.try_clone().unwrap()));
-    let mut child = command.spawn().expect("spawn anvil in PTY");
+    let child = command.spawn().expect("spawn anvil in PTY");
     drop(slave);
+    (child, master, slave_monitor, terminal_mode_before)
+}
+
+#[cfg(unix)]
+fn drive_start_pty_interaction(
+    master: &mut std::fs::File,
+    child: &mut std::process::Child,
+    interaction: PtyInteraction,
+) -> (std::process::ExitStatus, Vec<u8>) {
     nix::fcntl::fcntl(
-        &master,
+        master,
         nix::fcntl::FcntlArg::F_SETFL(nix::fcntl::OFlag::O_NONBLOCK),
     )
     .expect("set PTY master non-blocking");
@@ -342,7 +350,7 @@ fn run_start_in_pty(
             child.kill().expect("kill hung PTY child");
             child.wait().expect("reap hung PTY child");
             let transcript = String::from_utf8_lossy(&bytes);
-            panic!("`anvil start` did not complete PTY interaction:\n{transcript}");
+            panic!(" did not complete PTY interaction:\n{transcript}");
         }
         std::thread::sleep(std::time::Duration::from_millis(20));
     };
@@ -352,6 +360,19 @@ fn run_start_in_pty(
         }
         bytes.extend_from_slice(&buffer[..read]);
     }
+    (status, bytes)
+}
+
+#[cfg(unix)]
+fn run_start_in_pty(
+    workdir: &Path,
+    home: &Path,
+    extra_args: &[&str],
+    interaction: PtyInteraction,
+) -> PtyRun {
+    let (mut child, mut master, slave_monitor, terminal_mode_before) =
+        spawn_start_in_pty(workdir, home, extra_args);
+    let (status, bytes) = drive_start_pty_interaction(&mut master, &mut child, interaction);
     PtyRun {
         status,
         transcript: String::from_utf8_lossy(&bytes).into_owned(),
