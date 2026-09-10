@@ -1262,7 +1262,7 @@ fn start_json_fails_when_selected_save_time_coverage_is_unavailable() {
     assert!(
         json["next"]
             .as_str()
-            .is_some_and(|next| { next.contains("daemon") && next.contains("anvil start") })
+            .is_some_and(|next| next.contains("daemon") && next.contains("bare `anvil`"))
     );
     assert!(String::from_utf8_lossy(&out.stderr).trim().is_empty());
 }

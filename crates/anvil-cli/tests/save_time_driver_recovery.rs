@@ -247,7 +247,7 @@ fn status_fails_when_selected_save_time_driver_is_absent() {
     );
     assert_eq!(
         doc["next"],
-        "run `anvil start` to restore the failed save-time driver"
+        "run bare `anvil` to restore the failed save-time driver"
     );
 
     let human = harness.anvil(&worktree, &["--no-tui", "status"]);
@@ -256,7 +256,7 @@ fn status_fails_when_selected_save_time_driver_is_absent() {
     assert!(stdout.contains("Readiness: failed"), "{stdout}");
     assert!(stdout.contains("save_time=failed"), "{stdout}");
     assert_eq!(stdout.matches("Next:").count(), 1, "{stdout}");
-    assert!(stdout.contains("anvil start"), "{stdout}");
+    assert!(stdout.contains("bare `anvil`"), "{stdout}");
     assert!(
         !stdout.contains("anvil intercept start --foreground"),
         "{stdout}"
@@ -290,7 +290,7 @@ fn bare_anvil_fails_when_daemon_rejects_worktree_registration() {
     assert!(stdout.contains("readiness: failed"), "{stdout}");
     assert!(stdout.contains("worktree=failed"), "{stdout}");
     assert_eq!(stdout.matches("next:").count(), 1, "{stdout}");
-    assert!(stdout.contains("anvil start"), "{stdout}");
+    assert!(stdout.contains("anvil doctor"), "{stdout}");
     assert!(
         !stdout.contains("anvil intercept start --foreground"),
         "{stdout}"
@@ -312,7 +312,7 @@ fn bare_anvil_fails_when_daemon_rejects_worktree_registration() {
     );
     assert_eq!(
         value["next"],
-        "run `anvil start` to retry failed worktree registration"
+        "run `anvil doctor` to diagnose the unresolved worktree fault"
     );
 
     let start = harness.anvil(&worktree, &["start", "--no-tui"]);

@@ -102,7 +102,7 @@ fn status_reports_unavailable_selected_daemon_and_exits_nonzero() {
     assert_eq!(doc["readiness"]["components"]["daemon"]["state"], "failed");
     assert_eq!(
         doc["next"],
-        "run `anvil start` to restore the save-time daemon"
+        "run bare `anvil` to restore the save-time daemon"
     );
 
     let human = run_status_with_required_daemon(workspace.path(), home.path(), false);
@@ -111,7 +111,7 @@ fn status_reports_unavailable_selected_daemon_and_exits_nonzero() {
     assert!(stdout.contains("Readiness: failed"), "{stdout}");
     assert!(stdout.contains("daemon=failed"), "{stdout}");
     assert_eq!(stdout.matches("Next:").count(), 1, "{stdout}");
-    assert!(stdout.contains("anvil start"), "{stdout}");
+    assert!(stdout.contains("bare `anvil`"), "{stdout}");
     assert!(
         !stdout.contains("anvil intercept start --foreground"),
         "{stdout}"

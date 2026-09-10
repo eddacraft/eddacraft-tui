@@ -3972,7 +3972,7 @@ mod tests {
         assert_eq!(model.headline, "Readiness: failed");
         assert_eq!(
             model.next_guidance.as_deref(),
-            Some("run `anvil start` to restore the save-time daemon")
+            Some("run bare `anvil` to restore the save-time daemon")
         );
         assert_eq!(
             model

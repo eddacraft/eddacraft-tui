@@ -21,6 +21,7 @@ pub(crate) mod daemon_evidence;
 pub mod detect_agents;
 pub mod diagnostic;
 pub mod identity;
+pub(crate) mod intent;
 pub mod language_profile;
 pub mod mcp_client;
 pub mod orchestrator;

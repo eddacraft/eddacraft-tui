@@ -66,7 +66,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-004: Remember integration intent and keep daily recovery quiet
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** Daily use respects selected coverage while reconfiguration remains deliberate.
 - **Expected Outcome:** Client, scope, executable and optional protection choices have one durable owner. Healthy bare ensure restores chosen coverage without pickers or needless rewrites; intentional omission/disablement stays distinct from failed installation. Start can deliberately reconsider choices. Ordinary recovery uses shared reliability operations and escalates to doctor only for unresolved faults. If JSIMP-001 accepts operator ensure/restart verbs, `doctor --fix` may invoke those shared operations for unresolved daemon-down faults; it is not the daily on-switch.

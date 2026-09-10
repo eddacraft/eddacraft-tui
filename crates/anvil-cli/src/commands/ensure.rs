@@ -257,16 +257,23 @@ impl EnsureReadiness {
     pub(crate) fn failure_action(&self) -> Option<String> {
         match self.failing_component {
             Some("config") => Some("run `anvil start` to repair project configuration".to_owned()),
-            Some("daemon") => Some("run `anvil start` to restore the save-time daemon".to_owned()),
+            Some("daemon") => Some("run bare `anvil` to restore the save-time daemon".to_owned()),
             Some("worktree") => {
-                Some("run `anvil start` to retry failed worktree registration".to_owned())
+                Some("run bare `anvil` to retry failed worktree registration".to_owned())
             }
             Some("save_time") => {
-                Some("run `anvil start` to restore the failed save-time driver".to_owned())
+                Some("run bare `anvil` to restore the failed save-time driver".to_owned())
             }
-            Some("mcp") => Some("run `anvil start` to retry the failed MCP repair".to_owned()),
+            Some("mcp") => Some("run bare `anvil` to retry the failed MCP repair".to_owned()),
             _ => None,
         }
+    }
+
+    /// After bare ensure already attempted ordinary recovery, escalate.
+    pub(crate) fn unresolved_failure_action(&self) -> Option<String> {
+        self.failing_component.map(|component| {
+            format!("run `anvil doctor` to diagnose the unresolved {component} fault")
+        })
     }
 }
 
@@ -333,6 +340,12 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
         let fresh = AnvilEntry::preferred_stdio();
         let home = util::user_home_dir();
         let summary = ensure_existing_mcp_entries(root, home.as_deref(), &fresh);
+        let intent = crate::activation::intent::IntegrationIntent::infer(root, home.as_deref());
+        let absent_for_recovery = if intent.has_selected_mcp() || !intent.mcp_omitted() {
+            0
+        } else {
+            summary.absent_for_recovery
+        };
         let rewritten = summary
             .report
             .per_client
@@ -351,7 +364,7 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
         let line = format_mcp_line_with_poke(
             &summary.report,
             summary.managed,
-            summary.absent_for_recovery,
+            absent_for_recovery,
             poke.ok().as_ref(),
         );
         let failure = summary.report.aggregated_failure();
@@ -378,8 +391,12 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     )
     .with_worktree_registration_report(Some(&registration_report))
     .with_mcp_failure(mcp_failure.as_deref());
-    let next = crate::commands::status::status_readiness_action(&readiness)
-        .or_else(|| next_action_line(protection, &mcp_line));
+    let next = if readiness.failed() {
+        readiness.unresolved_failure_action()
+    } else {
+        crate::commands::status::status_readiness_action(&readiness)
+            .or_else(|| next_action_line(protection, &mcp_line))
+    };
     emit_ensure_report(
         global,
         &diagnostic,
@@ -1032,7 +1049,11 @@ mod tests {
         assert_eq!(readiness.failing_component, Some("save_time"));
         assert_eq!(
             readiness.failure_action().as_deref(),
-            Some("run `anvil start` to restore the failed save-time driver")
+            Some("run bare `anvil` to restore the failed save-time driver")
+        );
+        assert_eq!(
+            readiness.unresolved_failure_action().as_deref(),
+            Some("run `anvil doctor` to diagnose the unresolved save_time fault")
         );
     }
 
@@ -1112,7 +1133,11 @@ mod tests {
         );
         assert_eq!(
             readiness.failure_action().as_deref(),
-            Some("run `anvil start` to retry failed worktree registration")
+            Some("run bare `anvil` to retry failed worktree registration")
+        );
+        assert_eq!(
+            readiness.unresolved_failure_action().as_deref(),
+            Some("run `anvil doctor` to diagnose the unresolved worktree fault")
         );
     }
 

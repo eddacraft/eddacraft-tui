@@ -1942,8 +1942,8 @@ fn check_witness_append_route_at(daemon_reachable: bool) -> DiagnosticCheck {
         details: None,
         auto_fixable: false,
         remediation: Remediation {
-            summary: "Start the save-time daemon so hook witness appends use the shared writer. Commits are still witnessed by the embedded writer until then.".to_string(),
-            command: Some("anvil start".to_string()),
+            summary: "Run bare `anvil` to restore the save-time daemon. `anvil doctor --fix` is only for unresolved daemon faults, not the daily on-switch.".to_string(),
+            command: Some("anvil".to_string()),
             doc_url: None,
         },
     }
@@ -2688,6 +2688,20 @@ fn stop_sibling_intercept_sockets(
     Some(guards)
 }
 
+/// ADR-145 / JSIMP-004: `doctor --fix` may invoke shared daemon ensure
+/// for unresolved faults, but must not become an unsigned on-switch.
+fn doctor_fix_may_start_daemon() -> bool {
+    match crate::feature_flags::local_auth_precheck(
+        &crate::feature_flags::resolve_cli_licence_gate(),
+    ) {
+        crate::feature_flags::LocalAuthPrecheck::Skip(_) => true,
+        crate::feature_flags::LocalAuthPrecheck::Enforce => crate::auth::credentials::load()
+            .ok()
+            .flatten()
+            .is_some_and(|creds| !crate::auth::credentials::is_expired(&creds)),
+    }
+}
+
 #[cfg(unix)]
 fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: bool) {
     let candidates = match anvil_intercept::ipc::resolve_socket_connect_candidates() {
@@ -2710,7 +2724,17 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
         // The repair lock held above is the rendezvous coordinator ensure
         // takes before its start lock; launching through it here would wait
         // on this process's own lock.
-        launch: crate::commands::intercept::launch_save_time_daemon_under_rendezvous_lock,
+        launch: |capability| {
+            if doctor_fix_may_start_daemon() {
+                crate::commands::intercept::launch_save_time_daemon_under_rendezvous_lock(
+                    capability,
+                )
+            } else {
+                anvil_intercept::ensure::EnsureOutcome::NoStart {
+                    reason: anvil_intercept::ensure::NoStartReason::OptOut,
+                }
+            }
+        },
     };
     apply_intercept_socket_rendezvous_fix_with(check, speak, &candidates, operations);
 }
@@ -5520,7 +5544,12 @@ mod tests {
             !check.remediation.summary.is_empty(),
             "warn branch must carry remediation"
         );
-        assert_eq!(check.remediation.command.as_deref(), Some("anvil start"));
+        assert_eq!(check.remediation.command.as_deref(), Some("anvil"));
+        assert!(
+            check.remediation.summary.contains("bare `anvil`"),
+            "ordinary daemon-down recovery must name bare anvil: {}",
+            check.remediation.summary
+        );
 
         let pass = check_witness_append_route_at(true);
         assert_eq!(pass.status, CheckStatus::Pass);
@@ -5530,6 +5559,41 @@ mod tests {
             pass.message
         );
         assert!(!pass.message.contains("embedded writer"));
+    }
+
+    #[test]
+    fn unsigned_doctor_fix_must_not_start_the_daemon() {
+        let home = tempfile::tempdir().expect("home");
+        let anvil_home = home.path().join("anvil-home");
+        std::fs::create_dir_all(&anvil_home).unwrap();
+        let home_str = home.path().to_string_lossy().into_owned();
+        let anvil_home_str = anvil_home.to_string_lossy().into_owned();
+        temp_env::with_vars(
+            [
+                ("HOME", Some(home_str.as_str())),
+                ("USERPROFILE", Some(home_str.as_str())),
+                ("XDG_CONFIG_HOME", Some(home_str.as_str())),
+                ("ANVIL_HOME", Some(anvil_home_str.as_str())),
+                ("ANVIL_DEV", None),
+                ("ANVIL_LICENSE", None),
+            ],
+            || {
+                assert!(
+                    !doctor_fix_may_start_daemon(),
+                    "unsigned doctor --fix must not start the daemon as an on-switch"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn entitled_dev_bypass_allows_doctor_fix_daemon_repair() {
+        temp_env::with_vars([("ANVIL_DEV", Some("1"))], || {
+            assert!(
+                doctor_fix_may_start_daemon(),
+                "ANVIL_DEV may use shared daemon ensure for unresolved faults"
+            );
+        });
     }
 
     #[test]

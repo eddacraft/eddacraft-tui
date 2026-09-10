@@ -1020,13 +1020,13 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
 fn repair_hint_for_error(d: &ActivationDiagnostic) -> &'static str {
     match d.last_error.as_deref() {
         Some(error) if error.contains("save-time driver") => {
-            "run `anvil start` to restore the failed save-time driver."
+            "run bare `anvil` to restore the failed save-time driver."
         }
         Some(error) if error.contains("worktree registration") => {
-            "run `anvil start` to retry the failed worktree registration."
+            "run bare `anvil` to retry the failed worktree registration."
         }
         Some(error) if error.contains("MCP install failed") => {
-            "run `anvil start` to retry the failed MCP repair."
+            "run bare `anvil` to retry the failed MCP repair."
         }
         Some(error) if error.contains("daemon readiness") => {
             "run bare `anvil` to restore the save-time daemon."
