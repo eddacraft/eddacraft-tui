@@ -20,8 +20,8 @@ boundary/architecture-validate surface) via #2732; **PYLAN-003/-004/-007**
 default-on) via #2734; **PYLAN-009** (T3 dogfood + FP bar — 0.0% < N=1% on
 httpx + rich) via #2740. **All nine items Merged** — Python is at T3 (parsed,
 symbol graph, entry points, boundary enforcement, anti-pattern catalogue,
-drift). The module stays In Progress until a release tag ships these items
-(Released/Shipped → **Complete**), per the APS lifecycle.)
+drift). v0.9.0-beta (`6b0ed1d1`, 2026-07-12) shipped these items, so the module is
+**Done**, per the APS lifecycle.)
 
 ## Purpose
 
@@ -115,8 +115,8 @@ Change status to **Ready** when:
 
 ## Work Items
 
-PYLAN-001..009 are all Merged (see each item below). The module stays In
-Progress until a release tag ships them (Released/Shipped → Complete).
+PYLAN-001..009 are all Released/Shipped via v0.9.0-beta (`6b0ed1d1`, 2026-07-12) (see each
+item below), so the module is Done.
 
 #### PYLAN-001: Tree-sitter-python grammar wired through the extractor trait
 
@@ -293,7 +293,7 @@ Progress until a release tag ships them (Released/Shipped → Complete).
 
 ---
 
-### Acceptance (all nine items Merged; module → Complete on a release tag)
+### Acceptance (all nine items Released/Shipped via v0.9.0-beta; module Done)
 
 #### PYLAN-009: Dogfood T3 acceptance + FP bar (§16.5 #9)
 
@@ -322,9 +322,9 @@ Progress until a release tag ships them (Released/Shipped → Complete).
   `crates/anvil-checks/src/antipattern/scanner.rs`,
   `crates/anvil-checks/tests/python_antipatterns.rs`,
   `plans/reviews/2026-06-18-pylan-009-external-validation.md`
-- **Remaining for module → Complete (not for this item):** all nine work items
-  are Merged, but the module stays In Progress until a release tag ships them
-  (Released/Shipped → Complete), per the APS lifecycle. Still-open governance
+- **Module closeout (not for this item):** all nine work items are
+  Released/Shipped via v0.9.0-beta (`6b0ed1d1`, 2026-07-12), so the module is Done,
+  per the APS lifecycle. Still-open governance
   housekeeping, none blocking the shipped behaviour: name the anchor owner; run
   the §16.5 #8 re-scoring gate; (optional) re-run against the specific
   User B / User C codebases when available.

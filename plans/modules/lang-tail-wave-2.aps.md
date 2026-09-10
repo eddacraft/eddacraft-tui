@@ -24,8 +24,8 @@
 > — both T1-parsed and graph-included on `main`. WAT's grammar FFI is isolated in
 > the new `anvil-grammar-wat` crate so the kernel keeps `forbid(unsafe_code)`.
 > **All work items merged** (LTW2-001..005); the external-corpus smoke
-> (LTW2-004, #3014) ran ~2,527 real OSS files with **0 panics**. Module stays
-> In Progress only pending a release tag → Complete. See the audit table below
+> (LTW2-004, #3014) ran ~2,527 real OSS files with **0 panics**. Shipped via
+> v0.9.0-beta (`6b0ed1d1`, 2026-07-12), so the module is **Done**. See the audit table below
 > for evidence.
 
 ## Grammar Maturity Audit (LTW2-001) — COMPLETE 2026-06-29
@@ -122,8 +122,8 @@ across both languages instead of paying it twice.
 
 ## Ready Checklist
 
-Module **In Progress** — **all work items (LTW2-001..005) have merged**; the
-only remaining step is a release tag before Complete:
+Module **Done** — **all work items (LTW2-001..005) have merged** and
+shipped via v0.9.0-beta (`6b0ed1d1`, 2026-07-12):
 
 - [x] ADR-093 Accepted by owner (2026-06-29).
 - [x] Owner named.
