@@ -623,9 +623,7 @@ pub(crate) fn reconcile_foundation(root: &std::path::Path) -> anyhow::Result<Com
 
     // Existing-file augmentation is automatic only when every linked
     // worktree can coordinate through the Git-common-dir lock.
-    let _lock = if existing_updates.is_empty() {
-        None
-    } else {
+    let _lock = if !existing_updates.is_empty() {
         match crate::util::ConfigMutationLock::try_acquire(root) {
             Ok(lock) => Some(lock),
             Err(error) => {
@@ -641,7 +639,41 @@ pub(crate) fn reconcile_foundation(root: &std::path::Path) -> anyhow::Result<Com
                 ));
             }
         }
+    } else if config_create.is_some() {
+        match crate::util::lock_project_config_create(root) {
+            Ok(lock) => lock,
+            Err(error) => {
+                return Ok(foundation_needs_input(
+                    ComponentHealth::Invalid,
+                    error.to_string(),
+                    FOUNDATION_CONFIG_YAML,
+                ));
+            }
+        }
+    } else {
+        None
     };
+
+    // The initial variant scan is read-only. Repeat it while holding the Git
+    // common-dir lock before creating the canonical config so a cooperating
+    // format-specific writer cannot commit a second variant in the gap.
+    if config_create.is_some() {
+        let variants = existing_main_configs(root)?;
+        if !variants.is_empty() {
+            return Ok(foundation_needs_input(
+                ComponentHealth::Conflict,
+                format!(
+                    "main config appeared while foundation was being planned: {}",
+                    variants
+                        .iter()
+                        .map(|path| path.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                FOUNDATION_CONFIG_YAML,
+            ));
+        }
+    }
 
     let mut journal = Vec::new();
     let apply_result = (|| -> anyhow::Result<()> {
@@ -1250,6 +1282,27 @@ mod tests {
         );
         assert!(!root.path().join(".anvil").exists());
         assert!(!root.path().join("plans").exists());
+    }
+
+    #[test]
+    fn fresh_git_foundation_refuses_while_shared_config_lock_is_held() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        let _held = crate::util::ConfigMutationLock::try_acquire(root.path()).unwrap();
+
+        let result = reconcile_foundation(root.path()).unwrap();
+
+        assert_eq!(result.outcome, MutationOutcome::NeedsInput);
+        assert_eq!(result.health, ComponentHealth::Invalid);
+        assert!(
+            result
+                .diagnostic
+                .as_deref()
+                .is_some_and(|value| value.contains("already modifying project configuration"))
+        );
+        assert!(!root.path().join(".anvil.yaml").exists());
+        assert!(!root.path().join("anvil/project-id").exists());
+        assert!(!root.path().join(".gitignore").exists());
     }
 
     #[test]
