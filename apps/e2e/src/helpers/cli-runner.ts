@@ -120,6 +120,12 @@ export function runCli(args: string[], options: CliRunOptions = {}): Promise<Cli
   })) {
     if (value !== undefined) childEnv[key] = value;
   }
+  // Hermetic default: a host-exported ANVIL_NO_SAVE_TIME_DRIVER must not disable
+  // drivers for ordinary e2e legs. Callers that opt out pass a non-empty value
+  // via options.env (empty string also clears inheritance).
+  if (!Object.prototype.hasOwnProperty.call(env, 'ANVIL_NO_SAVE_TIME_DRIVER')) {
+    delete childEnv.ANVIL_NO_SAVE_TIME_DRIVER;
+  }
   // MCP activation probes resolve the bare `anvil` command on PATH. Keep the
   // spawned binary's directory first so ANVIL_BIN / target/debug runs still
   // satisfy those probes under journey:verify.

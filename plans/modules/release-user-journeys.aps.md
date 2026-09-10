@@ -2,9 +2,9 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 10/16 |
+| JOURNEY | Conductor | Josh | high | In Progress | 11/16 |
 
-**Last reviewed:** 2026-09-05 — reliability-first programme authorised; JREL and
+**Last reviewed:** 2026-09-10 — JOURNEY-014 reliability closure evidence recorded; JREL Done 13/13. JOURNEY-015 unlocked; JSIMP still gated. Prior: reliability-first programme authorised; JREL and
 JSIMP intake added. JOURNEY-013 promoted to Ready for current-build observation.
 Historical delivery evidence remains unchanged.
 
@@ -434,13 +434,13 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 ### JOURNEY-014: Reliability closure and regression evidence gate
 
-- **Status:** Ready
+- **Status:** Merged — claim #4570. Evidence: [2026-09-10 reliability gate](../audits/2026-09-10-journey-014-reliability-gate.md) + [identity](../audits/2026-09-10-journey-014-identity.json) on pinned `9684aa560`. APS lint clean; journey verify pass (6/6 required; upgrade optional/not-supplied). E2E clears host ANVIL_NO_SAVE_TIME_DRIVER unless a test opts in.
 - **Intent:** Establish that the complete setup and daily-use spine works before changing the journey contract.
 - **Expected Outcome:** Every JREL item has a linked reproduction and passing regression on its merged implementation, or evidence that the suspected defect was already fixed. No unresolved P0/P1 failure in the required journeys is labelled complete. Existing-owner work from CIB-405 / issue #4231 is reconciled by its owners before JREL-011 closes. Evidence identifies source SHA, platform, command, actual executed scenarios and remaining limitations.
 - **Dependencies:** JREL-001, JREL-002, JREL-003, JREL-004, JREL-005, JREL-006, JREL-007, JREL-008, JREL-009, JREL-010, JREL-011, JREL-012
 - **Coordinates with:** JREL, MCPLH, ACTMO, CIB
 - **Validation:** `pnpm aps:active-lint`; execute the non-skipping command delivered by JREL-012 against the pinned build; check each linked regression result and ensure no missing/skipped required leg is reported as passed.
-- **Confidence:** medium — source review identifies the risks; execution evidence is required.
+- **Confidence:** high — Linux verify identity recorded; cross-platform and upgrade legs remain JOURNEY-015.
 
 ### JOURNEY-015: Pinned-main journey rehearsal and existing release handoff
 

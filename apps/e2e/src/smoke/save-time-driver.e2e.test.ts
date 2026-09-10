@@ -46,6 +46,9 @@ function isolatedEnv(): IsolatedEnv {
     ANVIL_DEV: '1',
     ANVIL_SKIP_WELCOME: '1',
     ANVIL_NO_PROMPT: '1',
+    // Empty string clears a host-exported opt-out (non-empty disables drivers).
+    // The dedicated opt-out test sets '1' explicitly after spreading this env.
+    ANVIL_NO_SAVE_TIME_DRIVER: '',
   };
   const home = { root, runtime, env };
   homes.push(home);
