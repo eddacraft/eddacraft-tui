@@ -930,7 +930,6 @@ function renderChecks(definitions, initDefaultChecks, planlessChecks, surfaceFla
   );
 }
 
-
 function secretDetectionNotes(canonicalName) {
   if (canonicalName !== 'secret-detection') return '';
   return (
