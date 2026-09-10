@@ -1263,6 +1263,11 @@ pub(crate) fn run_with_mcp_policy_and_mode(
 ) -> anyhow::Result<ActivationOutcome> {
     let home = crate::util::user_home_dir();
     let mut enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
+    if !explicit_clients.is_empty() && !force_all_mcp_clients {
+        // ADR-145 / JSIMP-002: `--mcp-client` is exclusive for NotPresent.
+        // Owned SafeDrift remains offerable via `candidate_offerable`.
+        enabled.clear();
+    }
     extend_enabled_with_explicit_clients(&mut enabled, explicit_clients);
     run_with_home_and_policy(
         root,
@@ -1290,6 +1295,11 @@ pub(crate) fn run_with_mcp_policy_and_mode_observing<'a>(
 ) -> anyhow::Result<ActivationOutcome> {
     let home = crate::util::user_home_dir();
     let mut enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
+    if !explicit_clients.is_empty() && !force_all_mcp_clients {
+        // ADR-145 / JSIMP-002: `--mcp-client` is exclusive for NotPresent.
+        // Owned SafeDrift remains offerable via `candidate_offerable`.
+        enabled.clear();
+    }
     extend_enabled_with_explicit_clients(&mut enabled, explicit_clients);
     run_with_home_and_policy(
         root,
@@ -3777,6 +3787,46 @@ verdict: completed"
             "Claude Code must not auto-install without --mcp-client / --all-mcp-clients"
         );
         assert!(!home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn orchestrator_explicit_mcp_client_does_not_install_other_not_present() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+        let enabled = BTreeSet::from([McpClientId::Cursor]);
+
+        let (_diag, report) = run_with_home_and_registration_outcome(
+            dir.path(),
+            Some(home.path()),
+            &global,
+            |_| WorktreeRegistration::DaemonUnavailable,
+            McpInstallPolicy::Install,
+            &enabled,
+            true,
+            StartRenderMode::Plain,
+            false,
+            None,
+        )
+        .map(ActivationOutcome::into_legacy_parts)
+        .expect("named-client install should succeed");
+
+        assert!(
+            matches!(
+                report.per_client.get(&McpClientId::Cursor),
+                Some(InstallOutcome::Installed { .. })
+            ),
+            "named Cursor must install"
+        );
+        assert!(
+            !matches!(
+                report.per_client.get(&McpClientId::ClaudeCode),
+                Some(InstallOutcome::Installed { .. })
+            ),
+            "unnamed Claude Code must not install"
+        );
+        assert!(home.path().join(".cursor/mcp.json").exists());
         assert!(!home.path().join(".claude.json").exists());
     }
 

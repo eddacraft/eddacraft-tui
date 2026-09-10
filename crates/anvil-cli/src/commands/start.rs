@@ -2589,9 +2589,10 @@ fn install_first_wave_mcp_clients_at(
     }
     let explicit = !args.mcp_client.is_empty();
     let force_all = force_all_mcp_clients(args);
-    // ADR-145 / JSIMP-002: unattended first-wave must not newly install
-    // detected clients unless the invocation named them.
-    if !explicit && !force_all && unattended_activation_session() {
+    // ADR-145 / JSIMP-002: first-wave auto-install is unattended-only and
+    // still requires named MCP intent. Interactive `--no-tui` uses demand
+    // pickers; TUI uses ticked consent. `--all-mcp-clients` is headless.
+    if !unattended_activation_session() || (!explicit && !force_all) {
         return Ok(Vec::new());
     }
     let env = RealDetectionEnv;
