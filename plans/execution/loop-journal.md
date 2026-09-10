@@ -1110,3 +1110,12 @@ never with feature work.
 - Next: exclusive APS reconcile of JSIMP-001 → Merged (this branch), then
   JSIMP-002.
 
+## Cycle — 2026-09-10 (JSIMP-002 integrated)
+
+- Target: JSIMP-002. Harness: Grok Bot executor (plain SSH; brew tmux `gb-anvil` only if needed). Mode: fix CI flake then rebase-merge on green (no admin merge).
+- Feature PR #4585 (`feat/jsimp-002-action-output`) rebase-merged; tip on `origin/main` includes `2028ddf72` (nextest retry for contended disjoint-runtime concurrent ensure).
+- Claim #4581 closed by #4585. ADR-145 action-versus-output on main (Module 2/6 after this reconcile).
+- CI root cause: `daemon_identity::concurrent_ensures_from_disjoint_runtime_dirs_start_exactly_one_daemon` timed out after 2000ms on the rendezvous/start lock under full nextest contention (product code unchanged; flake absorbed via `.config/nextest.toml` retries).
+- Avoided: splash/always-on/dashboard; JOURNEY-016 (deps incomplete).
+- Next: exclusive APS reconcile of JSIMP-002 → Merged (this branch), then `/dev-loop complete` JSIMP-003…006 in order.
+

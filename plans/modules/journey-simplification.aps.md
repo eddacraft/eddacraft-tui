@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JSIMP | Josh | high | Ready | 1/6 |
+| JSIMP | Josh | high | Ready | 2/6 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -42,7 +42,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-002: Separate actions and consent from output mode
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-10 via PR #4585
 - **Priority:** P1
 - **Intent:** Changing presentation cannot silently change intended activation operations.
 - **Expected Outcome:** The accepted JSIMP-001 contract governs TUI/plain/JSON consistently. Verification is explicit and non-mutating; unattended installs require explicit accepted intent; piping does not unexpectedly select new integration choices. Existing start --json semantics migrate explicitly with tested compatibility rather than changing silently.
