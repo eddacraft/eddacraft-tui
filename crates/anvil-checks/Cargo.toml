@@ -13,6 +13,7 @@ name = "anvil_checks"
 anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
 anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+chrono = { workspace = true }
 miette = { workspace = true }
 rayon = { workspace = true }
 regex = "1"

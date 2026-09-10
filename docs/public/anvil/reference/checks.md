@@ -55,6 +55,14 @@ Detect leaked secrets and credentials.
 
 Follows the engine severity and gate thresholds.
 
+False positives on low-confidence matches (high-entropy strings, generic
+`password`/`secret` assignments, keyword API keys, credit-card-shaped digits)
+can be marked with a previous-line `@anvil-ignore SECRET-DETECTION -- <reason>`
+or MCP `anvil_suppress`. The match is withheld but still listed, so it can be
+tightened later. High-confidence credential shapes (AWS keys, GitHub tokens,
+Stripe live keys, private keys) cannot be ignored inline — remove them or use a
+placeholder.
+
 ### Configure
 
 Select with top-level `checks:`, `--only-checks`, or `--skip-checks`.

@@ -1,5 +1,6 @@
 use anvil_checks::secret::{
-    ScanStats, SecretCheckConfig, SecretFinding, scan_content_with_limit_and_stats,
+    AllowlistProvenance, ScanStats, SecretCheckConfig, SecretFinding, Suppression, finding_id,
+    scan_content_with_limit_and_stats,
 };
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 
@@ -43,6 +44,14 @@ impl SecretDetectionRule {
             .into_iter()
             .map(|finding| finding_to_diagnostic(&finding, mode.clone()))
             .collect();
+        for suppression in &stats.suppressions {
+            if diagnostics.len() >= limit {
+                break;
+            }
+            if let Some(diagnostic) = inline_ignore_diagnostic(suppression, mode.clone()) {
+                diagnostics.push(diagnostic);
+            }
+        }
         // SDT-001: a line the SCAN-002 guard refused to walk was checked by
         // neither the pattern pass nor the entropy pass, so silence here
         // would claim a coverage this rule never had. Reported after the
@@ -147,6 +156,46 @@ impl InterceptRule for SecretDetectionRule {
     ) -> Vec<Diagnostic> {
         SecretDetectionRule::diagnostics_with_limit(self, input, mode, limit)
     }
+}
+
+fn inline_ignore_diagnostic(suppression: &Suppression, mode: Mode) -> Option<Diagnostic> {
+    let AllowlistProvenance::InlineIgnore { rule_id, reason } = &suppression.provenance else {
+        return None;
+    };
+    let line = u32::try_from(suppression.line)
+        .ok()
+        .filter(|line| *line > 0);
+    Some(
+        Diagnostic::new(
+            format!(
+                "diag_secret_{}_{}_{}_fp",
+                mode_id_part(&mode),
+                sanitise_id_part(&suppression.file),
+                suppression.line,
+            ),
+            Severity::Info,
+            format!(
+                "False positive withheld ({}); recorded so secret-detection can be tightened",
+                suppression.rule_name
+            ),
+            Location {
+                file: suppression.file.clone(),
+                line,
+                column: None,
+                end_line: None,
+                end_column: None,
+            },
+            Category::Secret,
+            DiagnosticSource {
+                rule_id: finding_id(&suppression.rule_name),
+                source_module: "anvil-checks::secret".to_string(),
+            },
+            mode,
+        )
+        .with_remediation_hint(format!(
+            "No action required. Ignored via {rule_id} ({reason}). This match stays visible on purpose."
+        )),
+    )
 }
 
 fn finding_to_diagnostic(finding: &SecretFinding, mode: Mode) -> Diagnostic {
@@ -258,6 +307,49 @@ mod tests {
         let decision = SecretDetectionRule::default().evaluate(&input(path, Some(body)));
 
         assert_eq!(decision, RuleDecision::Allow);
+    }
+
+    #[test]
+    fn secret_rule_allows_ignored_entropy_and_emits_visible_fp() {
+        let path = Path::new("src/auth/client.ts");
+        let body = b"// @anvil-ignore SECRET-HIGH-ENTROPY-STRING -- fixture token\nconst token = '9xY7qW2vK8mN4pR6sT1uV3wX';\n";
+        let rule = SecretDetectionRule::new(SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        });
+
+        assert_eq!(
+            rule.evaluate(&input(path, Some(body))),
+            RuleDecision::Allow,
+            "ignorable entropy with an inline ignore must not interrupt"
+        );
+
+        let diagnostics =
+            rule.diagnostics(&input(path, Some(body)), &Mode::Unknown("pre-write".into()));
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.severity == Severity::Info
+                    && d.summary.contains("False positive withheld")),
+            "withheld FP must stay visible: {diagnostics:?}"
+        );
+        assert!(
+            diagnostics.iter().all(|d| d.severity != Severity::Error),
+            "ignored entropy must not remain an error: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn secret_rule_still_interrupts_ignored_github_token() {
+        let path = Path::new("src/auth/client.ts");
+        let body = b"// @anvil-ignore SECRET-DETECTION -- not a real key\nconst token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n";
+
+        match SecretDetectionRule::default().evaluate(&input(path, Some(body))) {
+            RuleDecision::Interrupt(reason) => {
+                assert_eq!(reason.rule_id, SECRET_RULE_ID);
+            }
+            RuleDecision::Allow => panic!("high-confidence GitHub tokens must still interrupt"),
+        }
     }
 
     #[test]

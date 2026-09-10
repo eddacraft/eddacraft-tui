@@ -23,8 +23,9 @@ pub use scanner::{
     scan_content_with_stats, scan_file_with_compiled_patterns, scan_lockfile_url_credentials,
 };
 pub use types::{
-    AllowlistProvenance, EntropyFinding, FindingType, SecretCheckConfig, SecretCheckResult,
-    SecretFinding, SecretPatternDef, Suppression, TokenShape,
+    AllowlistProvenance, CHECK_RULE_ID, EntropyFinding, FindingType, SecretCheckConfig,
+    SecretCheckResult, SecretFinding, SecretPatternDef, Suppression, TokenShape, finding_id,
+    inline_ignore_matches, is_high_confidence_finding_id,
 };
 pub use vendored::{
     VENDORED_COMPILED_PATTERNS, VENDORED_RULESET, VENDORED_RULESET_VERSION, VendoredRule,

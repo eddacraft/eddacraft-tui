@@ -11,6 +11,17 @@ engineering maintenance are recorded in the
 > **Draft.** Customer-facing changes on `main` since the last tagged release.
 > Version and date land at the next cut.
 
+### Fixed
+
+- **False-positive secrets can be marked without silencing real keys.** Codex's
+  `anvil_suppress` comments (`@anvil-ignore-until DATE ID: reason`) are now
+  parsed. Entropy, generic-secret, API-key, and credit-card matches honour
+  `@anvil-ignore` / `SECRET-DETECTION` on the previous line. High-confidence
+  shapes (AWS keys, GitHub PATs, Stripe live keys, private keys, vendored
+  provider rules) still cannot be ignored inline. A withheld false positive
+  stays visible as an info diagnostic and a local `report-fp` record so the
+  scanner can be tightened.
+
 ### Changed
 
 - **`anvil status` reports L4 `on` only when a pre-push hook and a parseable

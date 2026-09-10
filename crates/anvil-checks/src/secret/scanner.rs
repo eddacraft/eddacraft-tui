@@ -277,6 +277,14 @@ fn pattern_skip_reason(
     let matched_value = &line[match_start..match_end];
     let context = window.context();
 
+    if !pattern.high_confidence
+        && let Some(previous) = window.previous_line()
+        && let Some(provenance) =
+            crate::secret::types::inline_ignore_from_previous_line(previous, &pattern.name)
+    {
+        return Some(SkipReason::Allowlisted(provenance));
+    }
+
     if pattern.name == "Database URL"
         && is_placeholder_database_url_fixture(file_path, &context, line, matched_value)
     {
@@ -1025,6 +1033,79 @@ mod tests {
                 .iter()
                 .all(|s| !s.redacted_match.contains("9xY7qW2vK8mN4pR6sT1uV3wX")),
             "raw value must not leak into the suppression record"
+        );
+    }
+
+    #[test]
+    fn inline_ignore_withholds_entropy_false_positive_and_records_it() {
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        };
+        let content = "// @anvil-ignore SECRET-HIGH-ENTROPY-STRING -- fixture token\n\
+             const token = '9xY7qW2vK8mN4pR6sT1uV3wX';\n";
+        let (findings, stats) = scan_content_with_stats(content, "src/auth.ts", &config);
+        assert!(
+            findings.is_empty(),
+            "ignored entropy match must not be a finding: {findings:?}"
+        );
+        assert!(
+            stats.suppressions.iter().any(|s| matches!(
+                &s.provenance,
+                AllowlistProvenance::InlineIgnore { rule_id, reason }
+                    if rule_id == "SECRET-HIGH-ENTROPY-STRING" && reason == "fixture token"
+            )),
+            "inline ignore must be an observable suppression: {:?}",
+            stats.suppressions
+        );
+    }
+
+    #[test]
+    fn secret_detection_wildcard_ignore_withholds_generic_secret() {
+        let content = "// @anvil-ignore-until 2099-01-01 SECRET-DETECTION: test double\n\
+             const password = 'hunter2xx';\n";
+        let (findings, stats) =
+            scan_content_with_stats(content, "src/auth.ts", &SecretCheckConfig::default());
+        assert!(
+            !findings.iter().any(|f| f.pattern_name == "Generic Secret"),
+            "SECRET-DETECTION must suppress ignorable generic secrets: {findings:?}"
+        );
+        assert!(
+            stats
+                .suppressions
+                .iter()
+                .any(|s| s.rule_name == "Generic Secret"
+                    && matches!(s.provenance, AllowlistProvenance::InlineIgnore { .. })),
+            "generic-secret ignore must be recorded: {:?}",
+            stats.suppressions
+        );
+    }
+
+    #[test]
+    fn inline_ignore_does_not_waive_high_confidence_github_token() {
+        let content = "// @anvil-ignore SECRET-DETECTION -- not a real key\n\
+             const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n";
+        let findings = scan_content(content, "src/auth.ts", &SecretCheckConfig::default());
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "GitHub Token"),
+            "high-confidence GitHub tokens must stay findings: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn expired_inline_ignore_does_not_withhold_entropy() {
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        };
+        let content = "// @anvil-ignore-until 1999-01-01 SECRET-HIGH-ENTROPY-STRING: stale\n\
+             const token = '9xY7qW2vK8mN4pR6sT1uV3wX';\n";
+        let (findings, _stats) = scan_content_with_stats(content, "src/auth.ts", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.pattern_name == "High Entropy String"),
+            "expired ignore must not withhold: {findings:?}"
         );
     }
 

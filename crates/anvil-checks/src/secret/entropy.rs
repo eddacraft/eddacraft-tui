@@ -156,6 +156,22 @@ pub(crate) fn detect_high_entropy_strings_over_source(
                 continue;
             }
 
+            if let Some(previous) = window.previous_line()
+                && let Some(provenance) = crate::secret::types::inline_ignore_from_previous_line(
+                    previous,
+                    "High Entropy String",
+                )
+            {
+                suppressions.push(Suppression {
+                    file: file.to_string(),
+                    line: line_number,
+                    rule_name: "High Entropy String".to_string(),
+                    redacted_match: matcher.redact_secret(candidate),
+                    provenance,
+                });
+                continue;
+            }
+
             // The candidate is high-entropy enough to flag. If an allowlist
             // entry covers it, withhold it but record the suppression with
             // provenance rather than dropping it silently — the allowlist

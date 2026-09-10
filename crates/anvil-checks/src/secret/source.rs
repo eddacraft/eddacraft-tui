@@ -123,6 +123,13 @@ impl<'a> LineWindow<'a> {
     pub(crate) fn context(&self) -> String {
         context_window(self.lines, self.index, CONTEXT_RADIUS)
     }
+
+    /// Line immediately above this one, when the window still holds it.
+    pub(crate) fn previous_line(&self) -> Option<&'a str> {
+        self.index
+            .checked_sub(1)
+            .and_then(|index| self.lines.get(index).copied())
+    }
 }
 
 /// Walk `source` one line at a time, handing `visit` a radius-2 window.

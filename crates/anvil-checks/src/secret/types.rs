@@ -203,6 +203,12 @@ pub enum AllowlistProvenance {
     /// regex so the operator can trace the suppression back to the exact
     /// opt-out they configured.
     Custom { pattern: String },
+    /// An in-source `@anvil-ignore` (or `-until`) directive on the line
+    /// above an *ignorable* (non-high-confidence) match. High-confidence
+    /// shapes never take this arm — they stay findings. `rule_id` is the
+    /// directive id (`SECRET-HIGH-ENTROPY-STRING`, `SECRET-DETECTION`, …)
+    /// so a withheld FP stays visible for scanner tightening.
+    InlineIgnore { rule_id: String, reason: String },
 }
 
 impl AllowlistProvenance {
@@ -210,8 +216,63 @@ impl AllowlistProvenance {
     /// in detail, because it can mask a genuine credential.
     #[must_use]
     pub fn is_operator_configured(&self) -> bool {
-        matches!(self, AllowlistProvenance::Custom { .. })
+        matches!(
+            self,
+            AllowlistProvenance::Custom { .. } | AllowlistProvenance::InlineIgnore { .. }
+        )
     }
+}
+
+/// Canonical printed finding id for a secret pattern name.
+///
+/// `"High Entropy String"` → `SECRET-HIGH-ENTROPY-STRING`. Shared by
+/// `anvil check`, SARIF, and the inline-ignore matcher so a suppression
+/// written for the id `check` prints actually matches.
+#[must_use]
+pub fn finding_id(pattern_name: &str) -> String {
+    format!(
+        "SECRET-{}",
+        pattern_name.to_ascii_uppercase().replace(' ', "-")
+    )
+}
+
+/// Check-level ids Codex copies from MCP `rule_id` after secret redaction.
+pub const CHECK_RULE_ID: &str = "secret-detection";
+const CHECK_RULE_ID_UPPER: &str = "SECRET-DETECTION";
+
+/// `true` when an `@anvil-ignore` id should withhold this non-high-confidence
+/// match. High-confidence callers must not use this — they stay findings.
+#[must_use]
+pub fn inline_ignore_matches(parsed_id: &str, pattern_name: &str) -> bool {
+    let canonical = finding_id(pattern_name);
+    parsed_id == canonical
+        || parsed_id.eq_ignore_ascii_case(CHECK_RULE_ID)
+        || parsed_id == CHECK_RULE_ID_UPPER
+        || parsed_id == "ANV-CORE-001"
+}
+
+/// Honour a previous-line `@anvil-ignore` for an ignorable secret match.
+#[must_use]
+pub fn inline_ignore_from_previous_line(
+    previous: &str,
+    pattern_name: &str,
+) -> Option<AllowlistProvenance> {
+    let (id, reason) = crate::antipattern::parse_suppression(previous)?;
+    inline_ignore_matches(&id, pattern_name).then_some(AllowlistProvenance::InlineIgnore {
+        rule_id: id,
+        reason,
+    })
+}
+
+/// `true` when `id` is the printed finding id of a high-confidence built-in
+/// pattern (`SECRET-AWS-KEY`, `SECRET-GITHUB-TOKEN`, …). Used by
+/// `anvil_suppress` to refuse inline ignore of real credential shapes.
+#[must_use]
+pub fn is_high_confidence_finding_id(id: &str) -> bool {
+    let upper = id.to_ascii_uppercase();
+    crate::secret::patterns::SECRET_PATTERNS
+        .iter()
+        .any(|pattern| pattern.high_confidence && finding_id(pattern.name) == upper)
 }
 
 /// A secret candidate that matched a pattern/entropy rule but was withheld

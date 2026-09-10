@@ -77,13 +77,33 @@ pub(crate) fn secret_suppression_note(
     }
     let operator = suppressions
         .iter()
-        .filter(|s| s.provenance.is_operator_configured())
+        .filter(|s| {
+            matches!(
+                s.provenance,
+                anvil_checks::secret::AllowlistProvenance::Custom { .. }
+            )
+        })
         .count();
-    let detail = if operator > 0 {
+    let inline = suppressions
+        .iter()
+        .filter(|s| {
+            matches!(
+                s.provenance,
+                anvil_checks::secret::AllowlistProvenance::InlineIgnore { .. }
+            )
+        })
+        .count();
+    let allowlist_detail = if operator > 0 {
         format!(" ({operator} via project allowlist)")
     } else {
         String::new()
     };
+    let inline_detail = if inline > 0 {
+        format!(" ({inline} via @anvil-ignore, still listed)")
+    } else {
+        String::new()
+    };
+    let detail = format!("{allowlist_detail}{inline_detail}");
     Some(format!(
         "ℹ {} match(es) withheld by allowlist (not flagged){detail}",
         suppressions.len()
@@ -1685,6 +1705,20 @@ mod tests {
         assert!(
             note.contains("1 via project allowlist"),
             "operator-configured suppressions must be called out: {note}"
+        );
+    }
+
+    #[test]
+    fn suppression_note_breaks_out_inline_ignore_count() {
+        let note = secret_suppression_note(&[suppression(AllowlistProvenance::InlineIgnore {
+            rule_id: "SECRET-HIGH-ENTROPY-STRING".to_string(),
+            reason: "fixture".to_string(),
+        })])
+        .expect("note");
+        assert!(note.contains("1 match(es)"), "got: {note}");
+        assert!(
+            note.contains("1 via @anvil-ignore, still listed"),
+            "inline ignores must stay visible: {note}"
         );
     }
 
