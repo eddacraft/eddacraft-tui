@@ -2,10 +2,9 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 13/16 |
+| JOURNEY | Conductor | Josh | high | In Progress | 14/16 |
 
-**Last reviewed:** 2026-09-10 — JOURNEY-016 acceptance passed (claim #4613) on pinned `5489c6112`. JSIMP-001..006 Merged; JOURNEY-013 closed as fixed (no splash); JOURNEY-015 rehearsal Merged. No publication.
-Stored Progress stays **13/16** until an exclusive ADR-053 APS reconcile bumps N/M (acceptance closeout does not invent the counter).
+**Last reviewed:** 2026-09-10 — JOURNEY-016 Merged via PR #4614 (claim #4613) on `a28033a5c`. Stored N/M 14/16 (ADR-053). JOURNEY-009/-010 retain hold/block. No publication.
 Historical delivery evidence remains unchanged.
 
 ## Purpose
@@ -454,7 +453,7 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 ### JOURNEY-016: Simplified journey acceptance and documentation closeout
 
-- **Status:** Merged — claim #4613. Evidence: [2026-09-10 simplified journey acceptance](../audits/2026-09-10-journey-016-simplified-acceptance.md) + [identity](../audits/2026-09-10-journey-016-identity.json) on pinned `5489c6112`. Decision: **pass**. No splash; no publication.
+- **Status:** Merged 2026-09-10 via PR #4614 (claim #4613; merge `a28033a5c`). Evidence: [2026-09-10 simplified journey acceptance](../audits/2026-09-10-journey-016-simplified-acceptance.md) + [identity](../audits/2026-09-10-journey-016-identity.json) on pinned `5489c6112`. Decision: **pass**. No splash; no publication.
 - **Intent:** Prove first-time and returning users experience one understandable journey after the reliability repairs.
 - **Expected Outcome:** JSIMP's agreed command/state contract is implemented, documented and verified. Observe a first-time user from installation through first useful proof and a returning user on a later session and second repository. Both can identify current coverage and their next action without undocumented repair steps. Setup resumes, declined integrations stay declined, healthy daily invocation remains quiet, and changed machine contracts have explicit compatibility treatment. Record residual usability issues and resolve blocking ones before making a simplification release claim.
 - **Dependencies:** JOURNEY-015, JSIMP-001, JSIMP-002, JSIMP-003, JSIMP-004, JSIMP-005, JSIMP-006

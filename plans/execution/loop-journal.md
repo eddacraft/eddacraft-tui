@@ -1202,3 +1202,16 @@ never with feature work.
 - Avoided: splash/always-on/dashboard; JSIMP redo; GATT/JREL/CCTX/RTAI/PSCAF.
 - Next: land this PR; exclusive APS N/M reconcile after merge if required.
 
+## Cycle — 2026-09-10 (JOURNEY-016 APS reconcile)
+
+- Target: JOURNEY-016 exclusive APS reconcile. Harness: Grok (`GROK_AGENT=1`).
+- Feature PR #4614 rebase-merged; `LANDING(b19f1c7d3)` then
+  `MERGED(code a28033a5c / tip a28033a5cccdeabbb0f5ad22c1ea5398081d3b3c, 2026-09-10T13:18:06Z)`.
+  Merge commit is an ancestor of `origin/main`. Verify-loop pass on
+  `c8f5c2b83`; Copilot nits on NBI label and ADR-053 note landed before
+  protected rebase-merge.
+- Claim #4613 closed by #4614. Stored JOURNEY N/M 14/16. Module stays
+  In Progress (JOURNEY-009/-010 hold/block). No splash; no publication.
+- Avoided: splash/always-on/dashboard; GATT/JREL/CCTX/RTAI/PSCAF.
+- Next: none in this lane. Claim freeze remains operator-owned.
+
