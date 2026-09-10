@@ -18,6 +18,7 @@ pub(crate) struct FileStamp {
     digest: [u8; 32],
 }
 
+#[cfg(unix)]
 impl FileStamp {
     /// Identity that survives rename (ctime changes on rename).
     fn same_inode_and_digest(&self, other: &Self) -> bool {
