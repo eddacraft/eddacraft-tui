@@ -2686,6 +2686,7 @@ fn force_all_mcp_clients(args: &StartArgs) -> bool {
 /// Interactive when stdin and stderr are TTYs and the env is not marked
 /// non-interactive. Stdout redirect alone is presentation (ADR-145).
 fn start_is_interactive() -> bool {
+    use std::io::IsTerminal as _;
     !crate::is_non_interactive_env()
         && std::io::stdin().is_terminal()
         && std::io::stderr().is_terminal()
