@@ -1919,7 +1919,7 @@ fn open_docs_message() -> String {
 /// exactly where welcome hands off — has no driver attached. Save-time is
 /// therefore named only next to `--watch`, the flag that actually asks for
 /// the save-time fallback.
-const WELCOME_NEXT_STEP_ACTIVATE: &str = "  Next: run `anvil start` to activate this repo and see what protection is live; add `--watch` for the save-time fallback.";
+const WELCOME_NEXT_STEP_ACTIVATE: &str = "  Next: run `anvil start` to activate this repo and print a closing receipt; daily use after that is bare `anvil`. Add `--watch` for the save-time fallback.";
 
 /// The next-step line for a signed-out reader. `anvil welcome` is the ungated
 /// demo surface (ADR-080), but `anvil start` is licence-gated — so pointing an
@@ -1932,7 +1932,7 @@ const WELCOME_NEXT_STEP_ACTIVATE: &str = "  Next: run `anvil start` to activate 
 /// CIB-260: as with [`WELCOME_NEXT_STEP_ACTIVATE`], `anvil start` is
 /// described by the activation it performs rather than by save-time coverage
 /// it does not attach on its own; save-time is named only next to `--watch`.
-const WELCOME_NEXT_STEP_SIGN_IN: &str = "  Next: sign in with `anvil auth login` (early access: https://eddacraft.ai), then run `anvil start` to activate this repo; add `--watch` for the save-time fallback.\n  No sign-in yet? `anvil start --verify` shows your current protection state for free.";
+const WELCOME_NEXT_STEP_SIGN_IN: &str = "  Next: sign in with `anvil auth login` (early access: https://eddacraft.ai), then run `anvil start` to activate this repo and print a closing receipt; daily use after that is bare `anvil`. Add `--watch` for the save-time fallback.\n  No sign-in yet? `anvil start --verify` shows your current protection state for free.";
 
 /// Pick the honest next-step copy. `prompts_sign_in` is `true` when a plain
 /// `anvil start` would stop at the auth wall for this reader right now (see

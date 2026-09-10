@@ -23,7 +23,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCr
     let body_area = if let Some(readiness) = &state.readiness {
         let line_count = 2
             + usize::from(readiness.mcp_sessions.is_some())
-            + usize::from(readiness.next.is_some());
+            + usize::from(readiness.next.is_some())
+            + readiness.receipt_lines.len();
         let sections = Layout::vertical([
             Constraint::Length(u16::try_from(line_count).unwrap_or(u16::MAX)),
             Constraint::Min(0),
@@ -116,6 +117,12 @@ fn render_readiness(
         lines.push(Line::from(Span::styled(
             format!("Next: {next}"),
             Style::default().fg(theme.accent()),
+        )));
+    }
+    for row in &readiness.receipt_lines {
+        lines.push(Line::from(Span::styled(
+            row.clone(),
+            Style::default().fg(theme.muted()),
         )));
     }
     frame.render_widget(Paragraph::new(Text::from(lines)), area);

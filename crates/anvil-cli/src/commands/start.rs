@@ -483,6 +483,20 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             daemon_outcome.as_ref().map(|outcome| &outcome.ensure),
         );
 
+    // JSIMP-005: persist and print the closing receipt on the mutating
+    // human/TUI path. `--verify` / `--json` stay on their byte-stable
+    // contracts; status and doctor consume the same receipt facts.
+    let receipt = if read_only || global.json {
+        None
+    } else {
+        Some(activation::ClosingReceipt::capture(
+            root,
+            &diagnostic,
+            activation::CaptureOptions::mutating(),
+            crate::commands::status::status_readiness_action(&readiness),
+        ))
+    };
+
     if global.json {
         let mut document = activation::render_json(&diagnostic);
         if let serde_json::Value::Object(object) = &mut document {
@@ -528,6 +542,10 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             )
         };
         insert_readiness_before_next(&mut human_output, &readiness);
+        if let Some(receipt) = &receipt {
+            human_output = strip_next_step_lines(&human_output);
+            human_output.push_str(&receipt.render_human());
+        }
         if matches!(render_mode, StartRenderMode::Tui) {
             let consent_plan = activation::orchestrator::build_tui_consent_plan(
                 root,
@@ -557,7 +575,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             ) {
                 prepare_consent_progress_steps(&mut progress_steps);
             }
-            let verdict_model = activation_verdict_model_with_readiness(
+            let mut verdict_model = activation_verdict_model_with_readiness(
                 activation_verdict_model(
                     &diagnostic,
                     &install_report,
@@ -566,6 +584,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 ),
                 &readiness,
             );
+            if let Some(receipt) = &receipt {
+                verdict_model = activation_verdict_model_with_receipt(verdict_model, receipt);
+            }
             let tier_evidence = activation_tier_evidence(
                 &diagnostic,
                 &install_report,
@@ -742,19 +763,9 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // a generic "watch declined" line.
     match watch_decision {
         WatchDecision::NotRequested => {
-            // UJ-001: plain endings name the single next step; JSON and
-            // read-only (--verify) surfaces stay byte-identical. CIB-166:
-            // when the diagnostic block printed a `next:` repair hint, that
-            // hint owns the ending and no closing line prints. CIB-183: the
-            // collapsed repeat-success body already carries its single
-            // arbitrated next step, so it owns the ending outright.
-            if !global.json
-                && !read_only
-                && !repeat_collapsed
-                && let Some(line) = ending_next_step_line(&diagnostic)
-            {
-                println!("{line}");
-            }
+            // JSIMP-005: the closing receipt owns the named next step.
+            // The diagnostic repair hint still feeds receipt.next via
+            // CIB-166; do not print a second Next: line.
             Ok(())
         }
         WatchDecision::Spawn => {
@@ -942,11 +953,18 @@ fn activation_post_consent_surface(
     let verdict_model =
         activation_verdict_model(diagnostic, install_report, settled_mcp, Some(applied))
             .with_first_success(first_success);
-    let verdict_model = if let Some(readiness) = readiness {
+    let mut verdict_model = if let Some(readiness) = readiness {
         activation_verdict_model_with_readiness(verdict_model, readiness)
     } else {
         verdict_model
     };
+    let receipt = activation::ClosingReceipt::capture(
+        root,
+        diagnostic,
+        activation::CaptureOptions::inspect(),
+        readiness.and_then(crate::commands::status::status_readiness_action),
+    );
+    verdict_model = activation_verdict_model_with_receipt(verdict_model, &receipt);
     ActivationSurface::from_typed_with_progress(
         human_output,
         verdict_model,
@@ -1387,6 +1405,22 @@ fn activation_verdict_model_with_readiness(
     readiness.state.label().clone_into(&mut model.state_label);
     model.headline = format!("Readiness: {}", readiness.state.label());
     model.next_guidance = crate::commands::status::status_readiness_action(readiness);
+    model
+}
+
+fn activation_verdict_model_with_receipt(
+    mut model: anvil_tui::surfaces::activation::VerdictModel,
+    receipt: &activation::ClosingReceipt,
+) -> anvil_tui::surfaces::activation::VerdictModel {
+    use anvil_tui::surfaces::activation::VerdictSection;
+
+    model.sections.insert(
+        0,
+        VerdictSection::new("receipt", "Receipt", receipt.verdict_rows()),
+    );
+    if model.next_guidance.is_none() {
+        model.next_guidance = Some(format!("next: {}", receipt.next));
+    }
     model
 }
 
@@ -2466,6 +2500,17 @@ fn start_mcp_opt_out(args: &StartArgs) -> bool {
     args.no_mcp || std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty())
 }
 
+fn strip_next_step_lines(output: &str) -> String {
+    output
+        .lines()
+        .filter(|line| !line.trim_start().to_ascii_lowercase().starts_with("next:"))
+        .fold(String::new(), |mut rendered, line| {
+            rendered.push_str(line);
+            rendered.push('\n');
+            rendered
+        })
+}
+
 fn insert_readiness_before_next(output: &mut String, readiness: &EnsureReadiness) {
     use std::fmt::Write as _;
 
@@ -2827,6 +2872,7 @@ fn recipe_lines() -> [&'static str; 3] {
 /// then close with "run `anvil watch`". When the diagnostic printed a repair
 /// hint, that hint owns the ending; the closing line prints only when there
 /// is nothing to repair.
+#[cfg_attr(not(test), allow(dead_code))]
 fn ending_next_step_line(diag: &activation::ActivationDiagnostic) -> Option<&'static str> {
     if activation::has_repair_hint(diag) {
         None
@@ -3136,7 +3182,7 @@ fn start_next_step_line(diag: &activation::ActivationDiagnostic) -> &'static str
     // MCP / daemon claims (an attested worktree is honestly protected regardless
     // of the smoke-test language coverage).
     if diag.mcp_pre_write_live() {
-        "  Next: MCP pre-write protection is live; run `anvil status` to see posture any time."
+        "  Next: run `anvil` for daily ensure"
     } else if diag.daemon_attestation.attests_worktree() && diag.save_time_driver_attached {
         "  Next: daemon-backed save-time validation is armed; run `anvil intercept status` to inspect the daemon."
     } else if diag.daemon_attestation.attests_worktree() {
@@ -4201,8 +4247,8 @@ mod tests {
         let line = ending_next_step_line(&diag)
             .expect("with nothing to repair the closing line owns the ending");
         assert!(
-            line.contains("anvil status"),
-            "protecting ending points at the status surface, got: {line}",
+            line.contains("`anvil`"),
+            "protecting ending teaches bare anvil, got: {line}",
         );
     }
 
@@ -4767,7 +4813,7 @@ mod tests {
              \x20 Protecting — pre-write validation is live in this repo.\n\
              \x20 daemon: reusing the per-user save-time daemon already running.\n\
              \x20 save-time driver: not attached\n\
-             \x20 Next: MCP pre-write protection is live; run `anvil status` to see posture any time.\n",
+             \x20 Next: run `anvil` for daily ensure\n",
         );
         // The first-run blocks must be gone.
         for banned in ["verify:", "active layers", "recipe", "install:", "mcp:"] {
@@ -5307,8 +5353,8 @@ mod tests {
             "with live MCP pre-write, watch is redundant (NoOpRedundant axis), got: {line}",
         );
         assert!(
-            line.contains("anvil status"),
-            "with live MCP the next step is checking posture via `anvil status`, got: {line}",
+            line.contains("`anvil`"),
+            "with live MCP the next step is daily bare `anvil`, got: {line}",
         );
     }
 

@@ -78,13 +78,13 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-005: Prove first value and provide a truthful closing receipt
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** The user finishes setup knowing what works and what to do tomorrow.
 - **Expected Outcome:** Selected MCP coverage is demonstrated through an actual supported client validation action; save-time coverage through a real saved fixture. Clean/no-supported-language outcomes stay honest and demos stay isolated. A persistent closing receipt names project, selected coverage, connected/pending client, policy mode, last proof and bare anvil for next use; incomplete setup names one actionable owner. Status and doctor consume the same facts.
 - **Dependencies:** JSIMP-003, JSIMP-004
 - **Coordinates with:** JREL-002/-003/-005 own evidence; reuse first-win/tutorial/value surfaces. CIB-353 depth cannot substitute for a real proof.
-- **Files:** `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/welcome.rs`, `crates/anvil-cli/src/activation/render.rs`, `crates/anvil-cli/src/commands/status.rs`, `crates/anvil-tui/src/surfaces/activation/`
+- **Files:** `crates/anvil-cli/src/activation/receipt.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/welcome.rs`, `crates/anvil-cli/src/commands/status.rs`, `crates/anvil-cli/src/commands/doctor.rs`, `crates/anvil-tui/src/surfaces/activation/`, `crates/anvil-tui/src/surfaces/status/`, `schemas/anvil-status.v1.json`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; `cargo test -p eddacraft-anvil-tui --no-fail-fast`; real-client/save-time rehearsal confirms receipt claims and next-session instruction in scrollback.
 - **Confidence:** medium — contract details are gated by JSIMP-001 and user observation.
 

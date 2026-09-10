@@ -87,6 +87,27 @@
       "description": "JREL-005: one component-specific recovery action when readiness is failed, starting, or degraded.",
       "type": "string"
     },
+    "receipt": {
+      "description": "JSIMP-005: persistent closing receipt shared with `anvil start` and `anvil doctor`. Additive; existing fields stay.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": { "type": "string", "const": "anvil.closing-receipt.v1" },
+        "project": { "type": "string" },
+        "selected_coverage": { "type": "string" },
+        "client": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "status": { "type": "string", "enum": ["connected", "pending", "omitted"] },
+            "names": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "policy_mode": { "type": "string" },
+        "last_proof": { "type": "object", "additionalProperties": true },
+        "next": { "type": "string" }
+      }
+    },
     "hooks": {
       "description": "Discovered hook surfaces. Each entry names a file-mode or config-mode hook plus its active/inactive state.",
       "type": "array",

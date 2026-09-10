@@ -157,13 +157,7 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             mcp,
         )?;
     } else if status_prefers_tui(global) {
-        let state = StatusState::new(data).with_readiness(
-            readiness.state.label(),
-            readiness.component_summary(),
-            readiness.mcp_session_summary(),
-            status_readiness_action(&readiness),
-        );
-        crate::tui::run_surface(state)?;
+        run_status_tui(data, &activation, &readiness)?;
     } else {
         warn_if_status_tui_unavailable(global);
         print_plain(
@@ -223,10 +217,26 @@ fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             merge_status_mcp_json(&mut value, &mcp);
         }
         merge_status_readiness_json(&mut value, &readiness);
+        if let serde_json::Value::Object(object) = &mut value {
+            let receipt = activation::ClosingReceipt::capture(
+                Path::new("."),
+                &activation,
+                activation::CaptureOptions::verify(),
+                crate::commands::status::status_readiness_action(&readiness),
+            );
+            object.insert("receipt".to_owned(), receipt.to_json());
+        }
         let json = serde_json::to_string_pretty(&value)?;
         println!("{json}");
     } else {
         print!("{}", render_verify_activation(&activation, &readiness));
+        let receipt = activation::ClosingReceipt::capture(
+            Path::new("."),
+            &activation,
+            activation::CaptureOptions::verify(),
+            crate::commands::status::status_readiness_action(&readiness),
+        );
+        print!("{}", receipt.render_human());
         print!("{}", render_rule_mode_summary(Path::new(".")));
         print!(
             "{}",
@@ -1063,6 +1073,29 @@ struct PlainStatusContext<'a> {
     readiness: &'a EnsureReadiness,
 }
 
+fn run_status_tui(
+    data: StatusData,
+    activation: &activation::ActivationDiagnostic,
+    readiness: &EnsureReadiness,
+) -> anyhow::Result<()> {
+    let receipt = activation::ClosingReceipt::capture(
+        Path::new("."),
+        activation,
+        activation::CaptureOptions::inspect(),
+        status_readiness_action(readiness),
+    );
+    let state = StatusState::new(data)
+        .with_readiness(
+            readiness.state.label(),
+            readiness.component_summary(),
+            readiness.mcp_session_summary(),
+            status_readiness_action(readiness),
+        )
+        .with_receipt_lines(receipt.verdict_rows());
+    crate::tui::run_surface(state)?;
+    Ok(())
+}
+
 fn print_plain(
     data: &StatusData,
     activation_diag: &activation::ActivationDiagnostic,
@@ -1082,6 +1115,13 @@ fn print_plain(
         snapshot.next_action = next;
     }
     print!("{}", render_plain_legible(&snapshot));
+    let receipt = activation::ClosingReceipt::capture(
+        &root,
+        activation_diag,
+        activation::CaptureOptions::inspect(),
+        Some(snapshot.next_action.clone()),
+    );
+    print!("{}", receipt.render_human());
     // Rule-mode summary line is appended as advisory context. The
     // 24-row budget is for the FULL `anvil status` plain output, so
     // the legible block reserves up to two extra lines for the rule-
@@ -2275,6 +2315,9 @@ struct StatusOutput {
     /// `save_time`).
     #[serde(flatten)]
     mcp: status_mcp::StatusMcpJson,
+
+    /// JSIMP-005: persistent closing receipt. Additive (`additionalProperties`).
+    receipt: serde_json::Value,
 }
 
 #[derive(Serialize)]
@@ -2338,6 +2381,12 @@ fn print_json(
             .find(|entry| entry.worktree == worktree)
     });
     let next = status_readiness_action(&readiness);
+    let receipt = activation::ClosingReceipt::capture(
+        worktree,
+        activation_diag,
+        activation::CaptureOptions::inspect(),
+        next.clone(),
+    );
     let driver_readiness = driver.map(|_| readiness.components.save_time.state.label());
     let output = StatusOutput {
         schema_version: STATUS_SCHEMA_VERSION,
@@ -2391,6 +2440,7 @@ fn print_json(
             .and_then(|entry| entry.save_time_driver_evidence)
             .map(save_time_driver_evidence_str),
         mcp: mcp.unwrap_or_default(),
+        receipt: receipt.to_json(),
     };
 
     let json = serde_json::to_string_pretty(&output)?;
@@ -4779,6 +4829,7 @@ mod tests {
             save_time_driver_readiness: None,
             save_time_driver_evidence: None,
             mcp,
+            receipt: serde_json::json!({}),
         }
     }
 

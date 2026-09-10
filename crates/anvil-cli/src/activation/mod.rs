@@ -26,10 +26,12 @@ pub mod language_profile;
 pub mod mcp_client;
 pub mod orchestrator;
 pub mod posture;
+pub(crate) mod receipt;
 pub mod render;
 pub mod state;
 
 pub use posture::SharedPostureFacts;
+pub(crate) use receipt::{CaptureOptions, ClosingReceipt};
 
 // Re-exports kept narrow to the surface the binary currently consumes
 // (status.rs). Each downstream PR (LAUNCH-006/-009/-010/-011) is

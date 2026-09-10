@@ -64,6 +64,8 @@ pub struct StatusReadiness {
     pub components: String,
     pub mcp_sessions: Option<String>,
     pub next: Option<String>,
+    /// JSIMP-005 closing receipt rows (project, coverage, client, policy, last proof, next).
+    pub receipt_lines: Vec<String>,
 }
 
 /// Which panel is focused.
@@ -142,7 +144,16 @@ impl StatusState {
             components: components.into(),
             mcp_sessions,
             next,
+            receipt_lines: Vec::new(),
         });
+        self
+    }
+
+    #[must_use]
+    pub fn with_receipt_lines(mut self, lines: Vec<String>) -> Self {
+        if let Some(readiness) = &mut self.readiness {
+            readiness.receipt_lines = lines;
+        }
         self
     }
 

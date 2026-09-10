@@ -3034,6 +3034,7 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
 
 fn print_plain(checks: &[DiagnosticCheck], protection_claim: &ProtectionClaim) {
     print!("{}", format_plain(checks, protection_claim));
+    print!("{}", indent_block(&closing_receipt_human(), "  "));
 }
 
 /// Render the full `anvil doctor` plain-text surface to a string.
@@ -3183,6 +3184,8 @@ struct DoctorOutput {
     /// `anvil doctor --json` without a second round-trip to
     /// `anvil status --json`.
     protection_claim: ProtectionClaim,
+    /// JSIMP-005: same closing receipt facts as start/status. Additive.
+    receipt: serde_json::Value,
 }
 
 fn status_str(status: CheckStatus) -> &'static str {
@@ -3283,6 +3286,7 @@ fn build_doctor_output(
     checks: &[DiagnosticCheck],
     protection_claim: &ProtectionClaim,
 ) -> DoctorOutput {
+    let receipt = closing_receipt_json();
     let json_checks: Vec<JsonCheck> = checks
         .iter()
         .map(|c| JsonCheck {
@@ -3301,7 +3305,32 @@ fn build_doctor_output(
         checks: json_checks,
         notifications: notifications_for_doctor(checks),
         protection_claim: protection_claim.clone(),
+        receipt,
     }
+}
+
+fn closing_receipt_json() -> serde_json::Value {
+    let root = std::path::Path::new(".");
+    let diag = crate::activation::verify(root);
+    crate::activation::ClosingReceipt::capture(
+        root,
+        &diag,
+        crate::activation::CaptureOptions::inspect(),
+        None,
+    )
+    .to_json()
+}
+
+fn closing_receipt_human() -> String {
+    let root = std::path::Path::new(".");
+    let diag = crate::activation::verify(root);
+    crate::activation::ClosingReceipt::capture(
+        root,
+        &diag,
+        crate::activation::CaptureOptions::inspect(),
+        None,
+    )
+    .render_human()
 }
 
 fn print_json(

@@ -65,6 +65,12 @@ verify:
   AI tools detected: claude-code, cursor, codex
   readiness: starting
   components: config=ready daemon=disabled worktree=disabled save_time=disabled mcp=starting
+RECEIPT
+  project: this project
+  coverage: mcp: wired (restart pending); daemon: not attesting; save-time: not attached
+  client: Claude Code, Cursor, Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, GitHub Copilot CLI, Grok Build, Warp, Zed (pending)
+  policy: defaults
+  last proof: initialize handshake verified for Claude Code, Cursor, Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, GitHub Copilot CLI, Grok Build, Warp, Zed (restart still required); isolated fixture: secret-detection caught 1 finding(s)
   next: run `anvil start` to finish MCP readiness
 
   Anonymous usage telemetry
