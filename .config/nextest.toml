@@ -41,3 +41,13 @@ retries = { backoff = "fixed", count = 2, delay = "500ms" }
 [[profile.default.overrides]]
 filter = 'package(eddacraft-anvil) & test(changing_a_document_cancels_the_active_daemon_exchange)'
 retries = { backoff = "fixed", count = 2, delay = "500ms" }
+
+# 2026-09-10 PR #4585: under full nextest contention, four concurrent ensures
+# across disjoint XDG_RUNTIME_DIR values can spend the entire 2s
+# LOCK_ACQUIRE_TIMEOUT waiting on the state-home rendezvous while the winner
+# is still spawning. Locally the suite is stable (~1.3s); CI observed
+# `timed out after 2000ms waiting for the daemon-start lock` once on this
+# branch after earlier greens. Two retries match the GH #3182 / LSP pattern.
+[[profile.default.overrides]]
+filter = 'package(eddacraft-anvil) & test(concurrent_ensures_from_disjoint_runtime_dirs_start_exactly_one_daemon)'
+retries = { backoff = "fixed", count = 2, delay = "1s" }
