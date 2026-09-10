@@ -319,7 +319,7 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Task:** Continue DOCGOV-009 Task 2 high-authority guide metadata backfill.
 - **Outcome:** Backfilled five additional guide metadata blocks, refreshed
   indexes, and passed the docs validation gate.
-- **Worked:** Deferring `docs/guides/eddacraft-autonomy-constitution.md` to Task
+- **Worked:** Deferring `docs/archive/guides/eddacraft-autonomy-constitution.md` to Task
   4 avoided guessing on draft-operational authority.
 - **Failed:** Nothing substantive.
 - **Friction:** Formatter wrapping is required after hand-authored metadata tables
@@ -879,7 +879,7 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 - **Task:** Promote CIB-025 (generate index rows) toward Ready via a planning
   council, citing the prior session's 4 serialised rebases as evidence.
 - **Outcome:** Council was unanimous **AMEND**, not proceed — CIB-025 → Proposed
-  (not Ready). Record at `plans/brainstorms/2026-05-27-cib-025-planning-council.md`;
+  (not Ready). Record at `plans/archive/brainstorms/2026-05-27-cib-025-planning-council.md`;
   item rewritten with corrected (same-module) framing, 4 design gates, and a
   waved-migration constraint. No count change (Draft→Proposed).
 - **Worked:** Pre-seeding the adversarial lens with the same-module-vs-cross-

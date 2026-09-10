@@ -445,29 +445,33 @@
       "Guide document must cite at least one source path"
     ],
     "docs/architecture/system-spec.md": ["Spec document must cite at least one source path"],
-    "docs/guides/eddacraft-autonomy-constitution.md": [
+    "docs/archive/guides/eddacraft-autonomy-constitution.md": [
       "Guide document must cite at least one source path"
     ],
-    "docs/internal/realtime-feed-contract.md": ["Spec document must cite at least one source path"],
-    "docs/internal/weave-feature-brief.md": ["Spec document must cite at least one source path"],
-    "docs/reviews/kindling-performance-and-integration-assessment.md": [
+    "docs/archive/internal/realtime-feed-contract.md": [
+      "Spec document must cite at least one source path"
+    ],
+    "docs/archive/internal/weave-feature-brief.md": [
+      "Spec document must cite at least one source path"
+    ],
+    "docs/archive/reviews/kindling-performance-and-integration-assessment.md": [
       "Guide document must cite at least one source path"
     ],
     "docs/strategy/borrow-adopt-candidates.md": [
       "Guide document must cite at least one source path"
     ],
-    "docs/strategy/competitor-tier2-tracking.md": [
+    "docs/archive/strategy/competitor-tier2-tracking.md": [
       "Guide document must cite at least one source path"
     ],
     "docs/testing/beta-user-test-scenarios.md": [
       "Guide document must cite at least one source path"
     ],
-    "docs/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md": [
+    "docs/archive/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md": [
       "Guide document must cite at least one source path"
     ],
     "docs/vision/anvil-scope-guard.md": ["Guide document must cite at least one source path"],
     "docs/vision/anvil-vision.md": ["Guide document must cite at least one source path"],
-    "docs/vision/aspirational-ultimate-feature.md": [
+    "docs/archive/vision/aspirational-ultimate-feature.md": [
       "Guide document must cite at least one source path"
     ],
     "docs/vision/constitutional-engineering.md": [
@@ -593,7 +597,7 @@
     "docs/guides/custom-architecture-policies.md": [
       "upstream moved since review: docs/runbooks/cli-surface.md"
     ],
-    "docs/reviews/cli-command-benchmark-tool-investigation.md": [
+    "docs/archive/reviews/cli-command-benchmark-tool-investigation.md": [
       "upstream moved since review: crates/anvil-cli/src/main.rs"
     ],
     "docs/policies/release-cadence.md": ["upstream moved since review: plans/aps-rules.md"],

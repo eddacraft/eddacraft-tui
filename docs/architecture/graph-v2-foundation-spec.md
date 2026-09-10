@@ -405,7 +405,7 @@ any other graph:
   (`packages/edda-stack/src/contracts/provenance.ts`: `ProvenanceChain`,
   `KindlingRef`, `EmberRef`, `Attribution`; memories in `edda-memory.ts`), and
   the **proposed** EDDA-SEAL module
-  ([roadmap](../../plans/brainstorms/git-native-governance/roadmap.md),
+  ([roadmap](../../plans/archive/brainstorms/git-native-governance/roadmap.md),
   EDDA-SEAL-002/003) would seal that same chain into a git-committed
   `anvil.edda-provenance.v1` bundle at promotion time. GV2-014 **reuses that
   contract by reference**; it does not define a graph-layer provenance type.

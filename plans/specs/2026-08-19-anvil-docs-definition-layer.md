@@ -76,10 +76,10 @@ These files live under `docs/public/anvil/` and are **not** listed in `apps/anvi
 | `docs/public/anvil/guides/save-time-validation.md` | | How-to, not on live nav. |
 | `docs/public/anvil/guides/dashboard.md` | | Flag-gated CLI surface. DASH / DASHCORE are **merged modules** pending release evidence; the CLI still defaults off (`web_dashboard_access_allowed()`). Keep **off live nav**. |
 | `docs/public/anvil/guides/insights.md` | | How-to, not on live nav. Local-only wording required. |
-| `docs/public/anvil/guides/ai-guardrail-demo.md` | | Demo, stay off-nav. |
-| `docs/public/anvil/guides/ai-guardrail-profile.md` | | Demo, stay off-nav. |
+| `docs/archive/public/anvil/guides/ai-guardrail-demo.md` | | Demo, stay off-nav. |
+| `docs/archive/public/anvil/guides/ai-guardrail-profile.md` | | Demo, stay off-nav. |
 | `docs/public/anvil/guides/start-output-contracts.md` | | Contract page, P2 / off-nav for now. |
-| `docs/public/anvil/guides/wow-start-demo.md` | | Demo, stay off-nav. |
+| `docs/archive/public/anvil/guides/wow-start-demo.md` | | Demo, stay off-nav. |
 | `docs/public/anvil/integrations/skills.md` | `agent-skills` | Integration, not on live nav. |
 | `docs/public/anvil/integrations/watch-output.md` | | Integration, not on live nav. |
 | `docs/public/anvil/operations/git-hooks.md` | | Operations, not on live nav. |
@@ -87,7 +87,7 @@ These files live under `docs/public/anvil/` and are **not** listed in `apps/anvi
 | `docs/public/anvil/operations/uninstall.md` | | Operations, not on live nav. |
 | `docs/public/anvil/releases/rust-rewrite.md` | | Historical release note, not on live nav. |
 | `docs/public/anvil/beta-testing-guide.md` | | Beta operator page, not on live nav. |
-| `docs/public/anvil/tutorials/developer-acceleration.md` | | Intentional `public_unlisted: true` stub. **Out of scope** for this programme. |
+| `docs/archive/public/anvil/tutorials/developer-acceleration.md` | | Intentional `public_unlisted: true` stub. **Out of scope** for this programme. |
 
 ### Current page character (too high-level)
 

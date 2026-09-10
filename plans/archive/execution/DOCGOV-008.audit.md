@@ -128,8 +128,8 @@ Alternative: move them to a `docs/runbooks/releases/` subfolder for clarity. Sam
 
 | Path | Active refs | Note |
 | --- | --- | --- |
-| `docs/internal/weave-feature-brief.md` | 3 | Referenced from active weave specs in `plans/specs/`. Weave is current work per the architecture README. **Recommend keep live**, backfill in DOCGOV-009. |
-| `docs/internal/realtime-feed-contract.md` | 2 | Status: Draft. Referenced from `architecture/README.md` and `plans/modules/observability-foundation.aps.md`. **Recommend keep live**, backfill in DOCGOV-009 (it's a contract that observability dashboards consume). |
+| `docs/archive/internal/weave-feature-brief.md` | 3 | Referenced from active weave specs in `plans/specs/`. Weave is current work per the architecture README. **Recommend keep live**, backfill in DOCGOV-009. |
+| `docs/archive/internal/realtime-feed-contract.md` | 2 | Status: Draft. Referenced from `architecture/README.md` and `plans/modules/observability-foundation.aps.md`. **Recommend keep live**, backfill in DOCGOV-009 (it's a contract that observability dashboards consume). |
 
 ### E. Pitch deck content
 
@@ -153,7 +153,7 @@ These showed up in my candidate scan but on inspection are live or near-live. Ba
 - `docs/architecture/oss-surface.md` — describes the public eddacraft OSS posture. Still authoritative.
 - `docs/specs/watch-output-contract.md` — governed, active WOUT module owner; status was `Draft` during the DOCGOV-008 audit and is now `Live`.
 - `docs/observability/local-tracing.md`, `docs/observability/namespace-registry.md` — live observability surface.
-- `docs/strategy/borrow-adopt-candidates.md`, `docs/strategy/competitor-tier2-tracking.md` — live tracking docs with their own workflow.
+- `docs/strategy/borrow-adopt-candidates.md`, `docs/archive/strategy/competitor-tier2-tracking.md` — live tracking docs with their own workflow.
 - All `docs/policies/**` — release-cadence, resource-budget, editor-coexistence — current policy.
 - `docs/runbooks/release-runbook.md` (the active one at `docs/guides/release-runbook.md`) — handled by Task 2.
 - All other `docs/runbooks/**` not listed in section A.

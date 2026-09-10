@@ -98,5 +98,5 @@ individual item — only about the rollup, until the next reconcile.
 
 - Related ADRs: ADR-002 (warnings over blocks), ADR-042 (closeout-enforcement exit codes — scoped exception here)
 - APS modules: CIB-025 (advisory implementation + remaining gates), CIB-022 (count derivation this evolves), CIB-021 (`merge=union` sibling for the CI log)
-- Planning council: `plans/brainstorms/2026-05-27-cib-025-planning-council.md`
+- Planning council: `plans/archive/brainstorms/2026-05-27-cib-025-planning-council.md`
 - Code: `scripts/aps/index-counts.mjs`, `.github/workflows/ci.yml` (Docs Lint `aps:index:check`)

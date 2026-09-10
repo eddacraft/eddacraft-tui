@@ -334,7 +334,7 @@ audit binding. Detailed design lives in
 ## Provenance
 
 - **Spec:** `plans/specs/2026-05-24-policy-capability-discovery.md`
-- **Brainstorm:** `plans/brainstorms/agent-security-package.md`
+- **Brainstorm:** `plans/archive/brainstorms/agent-security-package.md`
 - **External analysis:** `stephnangue/warden` repository (MPL-2.0); no
   Warden source vendored, patterns reused under clean-room
   reimplementation. The Warden gateway architecture (seal/unseal,

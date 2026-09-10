@@ -215,5 +215,5 @@ implementation surface is thin.
 - Supersedes for bare invocation only: CIB-177 exit-2-always contract (pointer
   intent retained in help)
 - Historical brainstorm: bare as wow-start was floated in
-  `plans/brainstorms/2026-05-02-wow-start-claude.md` and not adopted; this ADR
+  `plans/archive/brainstorms/2026-05-02-wow-start-claude.md` and not adopted; this ADR
   chooses ensure, not wow-start, for bare

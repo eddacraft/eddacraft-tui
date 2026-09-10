@@ -119,6 +119,6 @@ domain semantics that must not enter a generic library.
 - APS modules: TUIDASH (`tui-dashboard-render`), DASHAI (`dashboard-ai-builder`,
   web json-render), TDASH (`native-tui-dashboards`, shipped `anvil dashboard`)
 - Related: ADR-026 (TS scanner retirement), the json-render brainstorm
-  (`plans/brainstorms/json-render-dashboard.md`)
+  (`plans/archive/brainstorms/json-render-dashboard.md`)
 - External: [vercel-labs/json-render](https://github.com/vercel-labs/json-render),
   `@json-render/core` v0.19; web-side `@eddacraft/render` (`packages/libs/render/`)

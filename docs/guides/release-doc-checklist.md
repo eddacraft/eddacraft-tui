@@ -146,7 +146,8 @@ Only update packages that changed in this release.
 - [ ] `docs/guides/anvil-rule-authoring.md` — rule-format and authoring changes
 - [ ] `docs/public/anvil/integrations/vscode.md` — editor integration changes
 - [ ] `docs/public/anvil/integrations/mcp.md` — MCP integration changes
-- [ ] `docs/guides/eddacraft-autonomy-constitution.md` — autonomy model changes
+- [ ] `docs/archive/guides/eddacraft-autonomy-constitution.md` — autonomy model
+      changes
 - [ ] `docs/architecture/kernel-benchmarking-spec.md` — benchmark methodology
       changes
 

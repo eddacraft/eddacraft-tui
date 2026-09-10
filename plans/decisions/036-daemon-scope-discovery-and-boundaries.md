@@ -21,7 +21,7 @@ default.
 
 This ADR began as the "per-user singleton" decision. During subsequent
 planning (round-2 brainstorm,
-`plans/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md`),
+`plans/archive/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md`),
 ground truth from real multi-machine / multi-agent workflows surfaced
 several deeper concerns that reshape the decision:
 

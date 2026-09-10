@@ -5,7 +5,7 @@
 Proposed
 
 Emerged from the DocGraph borrow assessment
-([`plans/brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../brainstorms/2026-05-31-docgraph-borrow-assessment.md)).
+([`plans/archive/brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../brainstorms/2026-05-31-docgraph-borrow-assessment.md)).
 Ready for council/PR review; not yet operator-ratified.
 
 ## Date

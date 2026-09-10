@@ -21,7 +21,7 @@ The rearchitecture is mostly *acknowledging substrate that already exists* in th
 - **ADR-033** archived the in-process VS Code extension and TS scanner, leaving `archive/anvil-vscode-extension/` and the TS antipattern scanner pending re-introduction via the daemon-driver path (`DRVR-003/-004`).
 - **D-003** (kindling repo, `2026-04-15-rust-port-design.md`) already locks in dual-maintain Rust + TS with **Rust as the source of truth via ts-rs** — the 9-crate workspace (`kindling-types`, `-store`, `-provider`, `-service`, `-filter`, `-hook`, `-server`, `-cli`, umbrella) is *Ready* but not yet executed.
 - **`anvil-kernel-types`** is already a zero-dep root crate suitable for ts-rs derivation.
-- **`docs/vision/aspirational-ultimate-feature.md`** already names the four end-user capabilities — invariant streaming, structural drift modelling, plan-aware watching, behavioural diff — that this rearchitecture unlocks.
+- **`docs/archive/vision/aspirational-ultimate-feature.md`** already names the four end-user capabilities — invariant streaming, structural drift modelling, plan-aware watching, behavioural diff — that this rearchitecture unlocks.
 
 **Reading:** Hearth is a **rename + scope-expansion of `anvil-intercept`** plus an **import of the planned Kindling Rust crates** plus a **new `forge-retrieval` substrate crate** wrapping witchcraft. The novel work is (a) the retrieval crate, (b) Ember/Edda Rust modules, (c) symbol-embedding in the kernel, and (d) cleanup of the TS projection layer. The IPC, daemon lifecycle, session registry, surface-driver protocol, and Rust ports are already designed or in flight.
 
@@ -516,11 +516,11 @@ For context, the current `crates/` directory in `eddacraft/anvil-001` holds: `an
 ## Appendix B — Source citations driving this plan
 
 - **`docs/vision/anvil-vision.md`** — invariants, "constitutional engineering" thesis.
-- **`docs/vision/aspirational-ultimate-feature.md`** — PAW, BDR, ADP, drift modelling.
+- **`docs/archive/vision/aspirational-ultimate-feature.md`** — PAW, BDR, ADP, drift modelling.
 - **`docs/architecture/rust-kernel-spec.md`** — kernel modules, performance targets, no-AI-in-enforcement.
 - **`docs/architecture/overview.md`** — Edda Stack three-layer model, governing rules, truth flow.
 - **`plans/decisions/`** — ADR-011a (Rust core), ADR-014 (language allocation), ADR-015 (intercept daemon), ADR-018 (product/IP), ADR-026/029 (scanner/suppression authority), ADR-030/033 (surface drivers, archive).
-- **`plans/brainstorms/missing-features-analysis.md`** — auto-fix, MCP, web dashboard gaps.
+- **`plans/archive/brainstorms/missing-features-analysis.md`** — auto-fix, MCP, web dashboard gaps.
 - **`eddacraft/kindling` `plans/specs/2026-04-15-rust-port-design.md`** — D-003 dual-maintain Rust + TS.
 - **`eddacraft/kindling` `docs/architecture.md`, `docs/data-model.md`, `docs/retrieval-contract.md`** — write-emit contract, FTS-only retrieval.
 - **<https://github.com/dropbox/witchcraft>** (read 2026-05-01) — library API, schema, embedder options, perf claims, license.

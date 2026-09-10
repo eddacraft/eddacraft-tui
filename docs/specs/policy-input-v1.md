@@ -2,13 +2,13 @@
 
 | Type | Authority     | Owner                                                                                                     | Status | Freshness                                                                    |
 | ---- | ------------- | --------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
-| Spec | Authoritative | POLENG ([`plans/archive/modules/policy-engine.aps.md`](../../plans/archive/modules/policy-engine.aps.md)) | Draft  | Last reviewed 2026-05-25 against `main`; implementation landed by POLENG-002 |
+| Spec | Authoritative | POLENG ([`plans/archive/modules/policy-engine.aps.md`](../../plans/archive/modules/policy-engine.aps.md)) | Live   | Last reviewed 2026-05-25 against `main`; implementation landed by POLENG-002 |
 
 | Upstream                                                                                              | Downstream                                                                                                               |
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `crates/anvil-policy-engine/src/input.rs` (`PolicyInput` and member types — the authoritative source) | Rego policies (CPACKS packs, architecture boundary rules), `anvil policy eval` (POLENG-007), POLENG-003 builtins surface |
 
-**Version:** 1.0.0 **Status:** Draft (POLENG-002) **Created:** 2026-05-25 **Last
+**Version:** 1.0.0 **Status:** Live (POLENG-002) **Created:** 2026-05-25 **Last
 Updated:** 2026-05-25
 
 ---

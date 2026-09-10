@@ -120,7 +120,7 @@ This gives teams using external AI tools a predictable safety harness.
 - **Scope:** `docs/public/anvil/guides/`
 - **Non-scope:** Marketing copy
 - **Files:**
-  - `docs/public/anvil/guides/ai-guardrail-profile.md`
+  - `docs/archive/public/anvil/guides/ai-guardrail-profile.md`
 - **Dependencies:** AIGUARD-003
 - **Validation:** Manual doc review
 - **Confidence:** medium

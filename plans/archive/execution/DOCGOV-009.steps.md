@@ -76,7 +76,7 @@
   `docs/guides/git-hook-compatibility.md`, and
   `docs/guides/opa-policy-testing.md`. Generated indexes were refreshed.
   `pnpm docs:check && pnpm docs:index:check && pnpm format:check` passed after
-  applying `pnpm format`. `docs/guides/eddacraft-autonomy-constitution.md` was
+  applying `pnpm format`. `docs/archive/guides/eddacraft-autonomy-constitution.md` was
   left for Task 4 judgement because its draft-operational status needs owner and
   authority confirmation rather than a high-authority sweep guess. Baseline
   update intentionally deferred until Task 2 closeout.

@@ -211,6 +211,6 @@ never in `weave`.
 - External: [pi-mono](https://github.com/badlogic/pi-mono) (architecture
   reference), [pi_agent_rust](https://github.com/Dicklesworthstone/pi_agent_rust)
   (evaluated, rejected as dependency)
-- Vision: `docs/vision/aspirational-ultimate-feature.md` (behavioural diff,
+- Vision: `docs/archive/vision/aspirational-ultimate-feature.md` (behavioural diff,
   plan-aware watching, provenance narration)
 - Design spec: `plans/specs/2026-04-17-weave-rs-standalone-design.md`

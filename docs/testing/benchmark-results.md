@@ -205,7 +205,7 @@ not on the public kindling site. Machine-readable history:
 - Promote with `python3 scripts/bench/kindling-to-history.py` (see
   [`benchmarks/README.md`](../../benchmarks/README.md))
 - Narrative assessment:
-  [`docs/reviews/kindling-performance-and-integration-assessment.md`](../reviews/kindling-performance-and-integration-assessment.md)
+  [`docs/archive/reviews/kindling-performance-and-integration-assessment.md`](../reviews/kindling-performance-and-integration-assessment.md)
 
 Scratch Criterion HTML and full dumps stay under gitignored
 `benchmark-results/manual-*-kindling/`.

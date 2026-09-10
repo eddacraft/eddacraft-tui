@@ -3,7 +3,7 @@
 **Date:** 2026-06-08
 **Reviewer:** Architecture review (single reviewer, code-grounded).
 **Scope:** the Git-Native Governance brainstorm pack and its formalisation on
-`origin/main` — `plans/brainstorms/git-native-governance/`
+`origin/main` — `plans/archive/brainstorms/git-native-governance/`
 (README/context/solution/architecture/roadmap/agent-handoff), ADR-072 (Git
 substrate), ADR-073 (durable/local state boundary), ADR-074 (capsule v0 format),
 and modules GITGOV (`plans/archive/modules/git-native-governance.aps.md`) + EXCEPT
@@ -152,7 +152,7 @@ Checked specifically, since GV2 is the adjacent active stream:
   companions were authored in a dedicated worktree (`docs/gitgov-review`) off
   `origin/main`.
 - **Two copies of the pack exist.** The git-managed pack is
-  `plans/brainstorms/git-native-governance/`; an **untracked**
+  `plans/archive/brainstorms/git-native-governance/`; an **untracked**
   `docs/strategy/git-native-governance-pack/` also sits in the shared checkout (a
   parallel copy). Two-sources-of-truth risk — the untracked copy should be
   reconciled against, or removed in favour of, the committed pack.

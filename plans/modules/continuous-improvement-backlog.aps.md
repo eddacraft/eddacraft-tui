@@ -3569,7 +3569,7 @@ archive.
   `docs/public/anvil/integrations/mcp.md`,
   `docs/public/anvil/quickstart.md`,
   `docs/public/anvil/beta-testing-guide.md`,
-  `docs/public/anvil/guides/wow-start-demo.md`,
+  `docs/archive/public/anvil/guides/wow-start-demo.md`,
   `docs/public/anvil/tutorials/rust-project.md`,
   `docs/public/anvil/overview.md`,
   `docs/public/anvil/operations/config.md`,

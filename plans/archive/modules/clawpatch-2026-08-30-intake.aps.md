@@ -22,7 +22,7 @@ to the shared CIB module.
 
 ## Source truth
 
-- [Intake triage evidence](../../../docs/reviews/2026-08-30-clawpatch-latest-run.md)
+- [Intake triage evidence](../../../docs/archive/reviews/2026-08-30-clawpatch-latest-run.md)
 - Clawpatch persisted finding, run, and report stores
 - Current source and tests at `80a2da1106a4b8813c1c9c36d433f43ea1f7d844`
 - [Issue triage and APS authority](../../specs/2026-05-28-issue-triage-and-aps-authority.md)
@@ -57,7 +57,7 @@ to the shared CIB module.
   deduplicated and calibrated; fixed or accepted-boundary work is closed;
   actionable records point to issues with explicit readiness and APS boundaries;
   the review is published without claiming implementation.
-- **Files:** `docs/reviews/2026-08-30-clawpatch-latest-run.md`, this module,
+- **Files:** `docs/archive/reviews/2026-08-30-clawpatch-latest-run.md`, this module,
   `plans/index.aps.md`
 - **Validation:** `clawpatch status --json`; read back the thirteen finding
   receipts; `gh issue view 4230`; `gh issue view 4231`; `gh issue view 4232`;

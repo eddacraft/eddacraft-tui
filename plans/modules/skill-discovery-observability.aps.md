@@ -284,7 +284,7 @@ This module draws from:
 
 - **AGOV-007** (capability declaration model) — schema alignment for skill
   manifests
-- **agent-security-package brainstorm** (`plans/brainstorms/agent-security-package.md`)
+- **agent-security-package brainstorm** (`plans/archive/brainstorms/agent-security-package.md`)
   — items 1 (Skill Transparency Scanner), 13 (Full Transparency Scanner),
   16 (Capability Declaration & Enforcement)
 - **ClawdHub supply chain attack case study** — the "Claude reads all, users

@@ -5,7 +5,7 @@
 **Owner:** TBD (proposed)
 **APS module:** [`policy-capability-discovery`](../modules/policy-capability-discovery.aps.md) (`POLCAP`)
 **ADR:** ADR-051 (to be drafted under POLCAP-001)
-**Brainstorm provenance:** `plans/brainstorms/agent-security-package.md`
+**Brainstorm provenance:** `plans/archive/brainstorms/agent-security-package.md`
   (`@eddacraft/anvil-warden` concept), Warden repository analysis (2026-05-24).
 
 ## 1. Context
@@ -315,7 +315,7 @@ as a normative list:
 - `plans/decisions/001-planless-first.md`, `002-warnings-over-blocks.md`,
   `037-witness-chain-and-l4-policy.md`, `040-rust-policy-engine-regorus.md`,
   `024-internal-agent-harness.md`, `045-update-signing-scheme.md`.
-- `plans/brainstorms/agent-security-package.md` (prior `anvil-warden`
+- `plans/archive/brainstorms/agent-security-package.md` (prior `anvil-warden`
   concept).
 - `plans/modules/agent-governance-patterns.aps.md` (AGOV-007 capability
   manifest — declared intent surface).

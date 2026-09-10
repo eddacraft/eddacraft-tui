@@ -49,7 +49,7 @@ so the `status` below reflects the borrow, not the upstream project.
   - **expected impact:** Low
   - **status:** rejected
   - **deep-dive:**
-    [`plans/brainstorms/2026-05-22-proxilion-pic-borrow-assessment.md`](../../plans/brainstorms/2026-05-22-proxilion-pic-borrow-assessment.md)
+    [`plans/archive/brainstorms/2026-05-22-proxilion-pic-borrow-assessment.md`](../../plans/archive/brainstorms/2026-05-22-proxilion-pic-borrow-assessment.md)
   - **assessment:** Decline adopt for both — wrong layer (runtime SaaS mediation
     vs creation-time policy enforcement). Note PIC invariants in the MLP2-071
     cross-session attribution spec. No APS module filed.
@@ -63,7 +63,7 @@ so the `status` below reflects the borrow, not the upstream project.
   - **expected impact:** Med
   - **status:** validating
   - **deep-dive:**
-    [`plans/brainstorms/2026-05-24-drako-borrow-assessment.md`](../../plans/brainstorms/2026-05-24-drako-borrow-assessment.md)
+    [`plans/archive/brainstorms/2026-05-24-drako-borrow-assessment.md`](../../plans/archive/brainstorms/2026-05-24-drako-borrow-assessment.md)
   - **assessment:** Decline the codebase (rung 6 fails the decision framework;
     runtime enforcement stays out for the Proxilion reasons). Take SARIF as a
     concrete deliverable, `anvil bom` and the regression framing as borrows.
@@ -78,7 +78,7 @@ so the `status` below reflects the borrow, not the upstream project.
   - **expected impact:** Med
   - **status:** validating
   - **deep-dive:**
-    [`plans/brainstorms/2026-05-30-agent-governance-vocabulary-eval.md`](../../plans/brainstorms/2026-05-30-agent-governance-vocabulary-eval.md)
+    [`plans/archive/brainstorms/2026-05-30-agent-governance-vocabulary-eval.md`](../../plans/archive/brainstorms/2026-05-30-agent-governance-vocabulary-eval.md)
   - **assessment:** Reframe as importer, not publisher. Proposed next steps:
     confirm provenance → ADR ("External evidence import & admissibility") → APS
     import-adapter work item → pilot one round-trip. Do not depend on the repo;
@@ -95,7 +95,7 @@ so the `status` below reflects the borrow, not the upstream project.
   - **status:** validating
   - **aps link (optional):** MDGOV M2 · CEWS · LAC · ADR-062
   - **deep-dive:**
-    [`plans/brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../../plans/brainstorms/2026-05-31-docgraph-borrow-assessment.md)
+    [`plans/archive/brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../../plans/archive/brainstorms/2026-05-31-docgraph-borrow-assessment.md)
   - **assessment:** Decline the codebase and doc-search lane (scope guard: Out).
     Drift computed in MDGOV M2, recorded on the CEWS `EvidenceRecord`, with
     authored-wins provenance in LAC. No dependency; clean-room; boundaries in

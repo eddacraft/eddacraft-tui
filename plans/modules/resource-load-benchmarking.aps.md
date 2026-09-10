@@ -18,7 +18,7 @@ changed file (measured 1 agent 6.55 → 0.08 cores). The remaining items stay
 RLB-006 remains Proposed.
 
 2026-07-07: RLB-009 added from the CLI command benchmark tool investigation
-(`docs/reviews/cli-command-benchmark-tool-investigation.md`) to cover
+(`docs/archive/reviews/cli-command-benchmark-tool-investigation.md`) to cover
 finite-command process-level benchmarking inside `anvil-bench`; RLB-009 is
 Ready and coordinates with TCOV-026 for routine benchmark/history-schema
 alignment.
@@ -183,7 +183,7 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
   `crates/anvil-bench/README.md`, optional `scripts/bench/run.sh`,
   optional `scripts/bench/to-history.py`, optional `benchmarks/README.md`.
 - **Dependencies:** RLB-002 process-tree sampling and spawn helpers;
-  investigation note `docs/reviews/cli-command-benchmark-tool-investigation.md`;
+  investigation note `docs/archive/reviews/cli-command-benchmark-tool-investigation.md`;
   coordinates with TCOV-026 when routine-suite/history surfaces are changed.
 - **Validation:** `cargo test -p anvil-bench cli_command`;
   `cargo clippy -p anvil-bench --all-targets -- -D warnings`;

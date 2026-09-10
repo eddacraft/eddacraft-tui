@@ -293,7 +293,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - **Expected Outcome:** Runbook for `--no-mcp`; public guide states spine vs MCP
   layers; wow-start-demo lists hooks + daemon, not MCP-only loop.
 - **Validation:** `pnpm run docs:check`; `pnpm run lint:md`
-- **Files:** `docs/public/anvil/guides/wow-start-demo.md`,
+- **Files:** `docs/archive/public/anvil/guides/wow-start-demo.md`,
   `docs/runbooks/**`, activation as-built cross-links
 - **Dependencies:** ACTMO-003, ACTMO-004
 - **Confidence:** high

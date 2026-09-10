@@ -272,7 +272,7 @@ These are not commitments — just a record that the door is open.
   - <https://github.com/eddacraft/anvil-plan-spec>
   - <https://github.com/eddacraft/kindling>
 - Brainstorm (superseded by this ADR):
-  `plans/brainstorms/2026-04-07-anvil-licensing-decision.md`
+  `plans/archive/brainstorms/2026-04-07-anvil-licensing-decision.md`
 - External references:
   - Postman / Cursor / Linear / Raycast / Warp / Arc — closed-source
     binary distribution patterns
