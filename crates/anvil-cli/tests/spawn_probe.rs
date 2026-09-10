@@ -518,5 +518,12 @@ fn path_127_unresolvable_anvil_cannot_claim_live_protection() {
     );
     assert!(human_stdout.contains("Readiness: failed"), "{human_stdout}");
     assert!(human_stdout.contains("mcp=failed"), "{human_stdout}");
-    assert_eq!(human_stdout.matches("Next:").count(), 1, "{human_stdout}");
+    assert_eq!(
+        human_stdout
+            .lines()
+            .filter(|line| line.trim_start().to_ascii_lowercase().starts_with("next:"))
+            .count(),
+        1,
+        "{human_stdout}"
+    );
 }
