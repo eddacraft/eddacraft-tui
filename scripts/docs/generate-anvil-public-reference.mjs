@@ -930,6 +930,19 @@ function renderChecks(definitions, initDefaultChecks, planlessChecks, surfaceFla
   );
 }
 
+function secretDetectionNotes(canonicalName) {
+  if (canonicalName !== 'secret-detection') return '';
+  return (
+    'False positives on low-confidence matches (high-entropy strings, generic ' +
+    '`password`/`secret` assignments, keyword API keys, credit-card-shaped digits) ' +
+    'can be marked with a previous-line `@anvil-ignore SECRET-DETECTION -- <reason>` ' +
+    'or MCP `anvil_suppress`. The match is withheld but still listed, so it can be ' +
+    'tightened later. High-confidence credential shapes (AWS keys, GitHub tokens, ' +
+    'Stripe live keys, private keys) cannot be ignored inline — remove them or use a ' +
+    'placeholder.\n\n'
+  );
+}
+
 function renderCheckSection(definition, planlessSet, surfaceFlags) {
   const surface = surfaceFlags.get(definition.canonical_name);
   const aliases =
@@ -971,6 +984,7 @@ function renderCheckSection(definition, planlessSet, surfaceFlags) {
     `| Selection | ${selection} |\n` +
     `| \`anvil check\` | ${checkCommand} |\n\n` +
     `### What it evaluates\n\n${escapeCell(definition.description)}.\n\n` +
+    secretDetectionNotes(definition.canonical_name) +
     `### Findings / warn-only\n\n${warnOnly}\n` +
     `### Configure\n\n${configure}\n` +
     `### Related\n\n${related.join('\n')}\n`

@@ -615,10 +615,7 @@ fn antipattern_warning_to_json(w: &Warning, workspace_root: Option<&str>) -> Jso
 /// Stable rule id for a secret-scanner finding, shared by the JSON projection
 /// and the SARIF adapter so the same finding carries the same `ruleId`.
 fn secret_rule_id(pattern_name: &str) -> String {
-    format!(
-        "SECRET-{}",
-        pattern_name.to_ascii_uppercase().replace(' ', "-")
-    )
+    anvil_checks::secret::finding_id(pattern_name)
 }
 
 fn secret_finding_to_json(

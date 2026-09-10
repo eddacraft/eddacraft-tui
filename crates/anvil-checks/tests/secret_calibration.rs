@@ -264,6 +264,9 @@ fn provenance_label(provenance: &AllowlistProvenance) -> String {
         AllowlistProvenance::BuiltinKeyword => "BuiltinKeyword".to_string(),
         AllowlistProvenance::BuiltinBenignFixture => "BuiltinBenignFixture".to_string(),
         AllowlistProvenance::Custom { pattern } => format!("Custom({pattern})"),
+        AllowlistProvenance::InlineIgnore { rule_id, .. } => {
+            format!("InlineIgnore({rule_id})")
+        }
     }
 }
 

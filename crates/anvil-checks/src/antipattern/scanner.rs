@@ -281,30 +281,74 @@ static SUPPRESSION_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     // for all new surfaces (SURFENV, SURFSQL, SURFCI, …). The ID capture is
     // therefore broad enough to admit any `<PREFIX>-<TAIL>` shape — `AP-003`,
     // `SURFENV-001`, `SURFSQL-002` — rather than the legacy `AP-\d{3}` form.
+    // One or more hyphenated tails also admits `SECRET-HIGH-ENTROPY-STRING`.
     // Downstream callers compare the captured ID to the rule they're
     // checking, so widening here cannot suppress an unrelated rule.
+    //
+    // ADR-004's time-boxed form (`@anvil-ignore-until YYYY-MM-DD ID: reason`)
+    // and the MCP `anvil_suppress` comment it emits are accepted here; an
+    // expired `-until` date is not an active suppression (fail closed).
     Regex::new(
-        r"(?://|/\*|#|<!--|--)\s*@anvil-ignore\s+([A-Z][A-Z0-9]*-[A-Z0-9]+)(?:\s*--\s*(.+))?",
+        r"(?://|/\*|#|<!--|--)\s*@anvil-ignore(?:-until\s+(\d{4}-\d{2}-\d{2}))?\s+([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)(?:\s*(?:--|:)\s*(.+))?",
     )
     .expect("static suppression regex must compile")
 });
 
-/// Parse an `@anvil-ignore <ID> -- <reason>` directive from a line.
+/// Parse an `@anvil-ignore <ID> -- <reason>` (or ADR-004 `-until` / colon)
+/// directive from a line.
 ///
 /// Authoritative entry point per
 /// [ADR-029](../../../plans/decisions/029-suppression-parser-authority.md):
 /// every new Track 3 surface module reuses this parser rather than rolling
 /// its own. Callers are expected to gate the result on `id == pattern_id`
-/// — this function only extracts the directive.
+/// — this function only extracts the directive. Expired `-until` dates
+/// return `None` so the finding resurfaces.
 #[must_use]
 pub fn parse_suppression(line: &str) -> Option<(String, String)> {
+    let parsed = parse_suppression_directive(line)?;
+    Some((parsed.id, parsed.reason))
+}
+
+/// Parsed `@anvil-ignore` directive. `until` is present for the ADR-004
+/// time-boxed form and has already been checked as still active.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedSuppression {
+    pub id: String,
+    pub reason: String,
+    pub until: Option<String>,
+}
+
+/// Extract a still-active suppression directive from `line`.
+#[must_use]
+pub fn parse_suppression_directive(line: &str) -> Option<ParsedSuppression> {
     let captures = SUPPRESSION_REGEX.captures(line)?;
-    let id = captures.get(1).map_or("", |capture| capture.as_str());
+    let until = captures.get(1).map(|capture| capture.as_str().to_string());
+    if let Some(until) = until.as_deref()
+        && !until_date_is_active(until)
+    {
+        return None;
+    }
+    let id = captures.get(2).map_or("", |capture| capture.as_str());
+    if id.is_empty() {
+        return None;
+    }
     let reason = captures
-        .get(2)
+        .get(3)
         .map_or("No reason provided", |capture| capture.as_str())
         .trim();
-    Some((id.to_string(), reason.to_string()))
+    Some(ParsedSuppression {
+        id: id.to_string(),
+        reason: reason.to_string(),
+        until,
+    })
+}
+
+fn until_date_is_active(until: &str) -> bool {
+    let Ok(until_date) = chrono::NaiveDate::parse_from_str(until, "%Y-%m-%d") else {
+        return false;
+    };
+    let today = chrono::Utc::now().date_naive();
+    until_date >= today
 }
 
 /// Map an `ESLint` rule name (or `None` for a bare `eslint-disable-next-line`)
@@ -1461,6 +1505,35 @@ mod tests {
 
         assert_eq!(result.warnings.len(), 1);
         assert!(result.warnings[0].suppressed.is_some());
+    }
+
+    #[test]
+    fn parse_suppression_accepts_adr004_until_form_and_colon_reason() {
+        let parsed = super::parse_suppression(
+            "    // @anvil-ignore-until 2099-01-01 AP-003: legacy contract — TICKET-123",
+        )
+        .expect("until form must parse");
+        assert_eq!(parsed.0, "AP-003");
+        assert_eq!(parsed.1, "legacy contract — TICKET-123");
+    }
+
+    #[test]
+    fn parse_suppression_accepts_multi_hyphen_secret_ids() {
+        let parsed = super::parse_suppression(
+            "// @anvil-ignore SECRET-HIGH-ENTROPY-STRING -- fixture token",
+        )
+        .expect("multi-hyphen SECRET id must parse");
+        assert_eq!(parsed.0, "SECRET-HIGH-ENTROPY-STRING");
+        assert_eq!(parsed.1, "fixture token");
+    }
+
+    #[test]
+    fn parse_suppression_expired_until_is_inactive() {
+        assert_eq!(
+            super::parse_suppression("// @anvil-ignore-until 1999-01-01 AP-003: stale"),
+            None,
+            "expired -until must not suppress"
+        );
     }
 
     // GH #1914: code-construct rules (AP-003, GS-001) must not fire on

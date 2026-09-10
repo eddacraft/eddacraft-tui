@@ -736,16 +736,23 @@ pub(crate) fn normalise_response_diagnostics(
         .map(|mut diagnostic| {
             if diagnostic.category == Category::Secret {
                 diagnostic.id = redact_secret_id(&diagnostic.id, false);
-                diagnostic.summary =
-                    "Potential secret detected; remove it from the proposed write.".to_string();
                 diagnostic.location.file = redact_secret_values(&diagnostic.location.file);
                 diagnostic.source.rule_id = redact_secret_values(&diagnostic.source.rule_id);
                 diagnostic.source.source_module =
                     redact_secret_values(&diagnostic.source.source_module);
-                diagnostic.remediation_hint = Some(
-                    "Remove the secret from the proposed write; use a placeholder or environment variable instead."
-                        .to_string(),
-                );
+                if diagnostic.severity == Severity::Error {
+                    diagnostic.summary =
+                        "Potential secret detected; remove it from the proposed write.".to_string();
+                    diagnostic.remediation_hint = Some(
+                        "Remove the secret from the proposed write; use a placeholder or environment variable instead."
+                            .to_string(),
+                    );
+                } else {
+                    diagnostic.summary = redact_secret_values(&diagnostic.summary);
+                    if let Some(hint) = diagnostic.remediation_hint.as_mut() {
+                        *hint = redact_secret_values(hint);
+                    }
+                }
                 if let Mode::Unknown(value) = &mut diagnostic.mode {
                     *value = redact_secret_values(value);
                 }
@@ -2165,6 +2172,66 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn ignored_entropy_false_positive_does_not_veto_and_stays_visible() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "detail": "full",
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "// @anvil-ignore SECRET-DETECTION -- fixture token\nconst config = { api_key: 'abcdEFGH1234567890' };\n"
+            }),
+        );
+
+        assert_ne!(
+            payload["decision"], "interrupt",
+            "ignorable entropy with an inline ignore must not veto: {payload}"
+        );
+        assert_ne!(payload["decision"], "block");
+        assert_ne!(payload["decision"], "fence");
+        let diagnostics = payload["diagnostics"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            diagnostics.iter().any(|d| d["severity"] == "info"
+                && d["summary"]
+                    .as_str()
+                    .is_some_and(|s| s.contains("False positive withheld"))),
+            "withheld FP must stay visible: {payload}"
+        );
+        assert!(
+            diagnostics.iter().all(|d| d["severity"] != "error"),
+            "ignored entropy must not remain an error: {payload}"
+        );
+        assert!(
+            !serde_json::to_string(&payload)
+                .expect("payload serialises")
+                .contains("abcdEFGH1234567890"),
+            "raw FP token must not leak: {payload}"
+        );
+    }
+
+    #[test]
+    fn ignored_github_token_still_blocks_write() {
+        let workspace = tempdir().expect("workspace exists");
+        let payload = call_payload(
+            workspace.path(),
+            &json!({
+                "detail": "full",
+                "path": "src/secret.ts",
+                "operation": "create",
+                "proposedContent": "// @anvil-ignore SECRET-DETECTION -- not a real key\nconst token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n"
+            }),
+        );
+
+        assert_eq!(payload["decision"], "interrupt");
+        assert_eq!(payload["diagnostics"][0]["category"], "secret");
+        assert_eq!(payload["diagnostics"][0]["severity"], "error");
     }
 
     #[test]

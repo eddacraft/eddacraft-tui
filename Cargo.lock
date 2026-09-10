@@ -1392,6 +1392,7 @@ dependencies = [
 name = "eddacraft-anvil-checks"
 version = "0.9.7-beta"
 dependencies = [
+ "chrono",
  "criterion",
  "eddacraft-anvil-config",
  "eddacraft-anvil-graph-cache",

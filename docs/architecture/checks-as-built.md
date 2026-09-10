@@ -528,7 +528,19 @@ rolling its own. The directive shape is:
 /* @anvil-ignore <RULE-ID> -- <reason> */
 <!-- @anvil-ignore <RULE-ID> -- <reason> -->
 -- @anvil-ignore <RULE-ID> -- <reason>
+// @anvil-ignore-until YYYY-MM-DD <RULE-ID>: <reason>
 ```
+
+IDs may have more than one hyphen (`SECRET-HIGH-ENTROPY-STRING`). The `-until`
+form (ADR-004, also what MCP `anvil_suppress` writes) is inactive once the date
+has passed. Colon or `--` may introduce the reason.
+
+`secret-detection` honours a previous-line ignore only for
+**non-high-confidence** matches (entropy, generic secret, API key, credit card).
+High-confidence shapes (AWS keys, GitHub PATs, private keys, vendored provider
+rules) stay findings. Honoured false positives are recorded as
+`AllowlistProvenance::InlineIgnore` and surfaced as info diagnostics so they are
+not silent.
 
 The directive must appear on the line immediately above the offending finding; a
 different rule id does not suppress

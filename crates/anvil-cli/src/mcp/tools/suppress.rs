@@ -105,6 +105,13 @@ fn suppress_payload(arguments: &Value) -> Result<Value, String> {
     if warning_id.is_empty() {
         return Err("warningId must not be empty".to_string());
     }
+    let warning_id = normalise_warning_id(warning_id);
+    if anvil_checks::secret::is_high_confidence_finding_id(&warning_id) {
+        return Err(
+            "high-confidence secret findings cannot be ignored inline; remove the credential or use a placeholder"
+                .to_string(),
+        );
+    }
     // warningId is interpolated verbatim into a source-code comment. Any
     // newline or carriage return would let a caller inject a second
     // attacker-controlled line into the file, bypassing the `reason`
@@ -158,12 +165,20 @@ fn suppress_payload(arguments: &Value) -> Result<Value, String> {
         &absolute,
         &workspace_path,
         line,
-        warning_id,
+        &warning_id,
         &sanitised_reason,
         &expiry_str,
     )?;
 
     let comment = outcome.comment;
+    if is_secret_warning_id(&warning_id)
+        && let Ok(line) = u32::try_from(line)
+    {
+        // Local Kindling record only (ADR-089): hashed path, no snippet.
+        // The scan still surfaces the withheld FP so we can tighten the
+        // detector; this is the durable "someone marked this" signal.
+        let _ = crate::usage::record_false_positive("ANV-CORE-001", &file_path, line, None);
+    }
     Ok(json!({
         "suppressed": true,
         "filePath": file_path,
@@ -177,6 +192,22 @@ fn suppress_payload(arguments: &Value) -> Result<Value, String> {
     }))
 }
 
+fn normalise_warning_id(warning_id: &str) -> String {
+    if warning_id.eq_ignore_ascii_case(anvil_checks::secret::CHECK_RULE_ID)
+        || warning_id.eq_ignore_ascii_case("secret")
+    {
+        return "SECRET-DETECTION".to_string();
+    }
+    // parse_suppression matches uppercase hyphenated ids only.
+    // Canonicalise so MCP callers can pass lowercase finding ids.
+    warning_id.trim().to_ascii_uppercase().replace(' ', "-")
+}
+
+fn is_secret_warning_id(warning_id: &str) -> bool {
+    let upper = warning_id.to_ascii_uppercase();
+    upper.starts_with("SECRET-") || upper == "ANV-CORE-001"
+}
+
 /// Compute the `YYYY-MM-DD` expiry date `expiry_days` from now, failing
 /// closed on arithmetic overflow rather than silently wrapping.
 fn expiry_date(expiry_days: i64) -> Result<String, String> {
@@ -184,6 +215,27 @@ fn expiry_date(expiry_days: i64) -> Result<String, String> {
         .checked_add_signed(Duration::days(expiry_days))
         .ok_or_else(|| "expiry date overflow".to_string())?;
     Ok(expiry.format("%Y-%m-%d").to_string())
+}
+
+fn comment_prefix_for_path(path: &Path) -> &'static str {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
+    if name.starts_with(".env") || name.eq_ignore_ascii_case("Dockerfile") {
+        return "#";
+    }
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "py" | "sh" | "bash" | "yml" | "yaml" | "toml" | "env" => "#",
+        "sql" => "--",
+        _ => "//",
+    }
 }
 
 fn sanitise_reason(reason: &str) -> String {
@@ -260,7 +312,9 @@ fn insert_suppression_comment(
         .chars()
         .take_while(|c| c.is_whitespace() && *c != '\n')
         .collect();
-    let comment = format!("{indent}// @anvil-ignore-until {expiry_str} {warning_id}: {reason}");
+    let prefix = comment_prefix_for_path(path);
+    let comment =
+        format!("{indent}{prefix} @anvil-ignore-until {expiry_str} {warning_id}: {reason}");
 
     lines.insert(line_idx, comment.clone());
 
@@ -614,6 +668,73 @@ mod tests {
         let lines: Vec<&str> = file_content.split('\n').collect();
         assert!(lines[1].contains("@anvil-ignore-until"));
         assert!(lines[2].contains("const x: any = 1;"));
+    }
+
+    #[test]
+    fn secret_detection_warning_id_is_normalised_and_inserted() {
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        write_fixture(
+            workspace.path(),
+            "src/a.ts",
+            "const token = '9xY7qW2vK8mN4pR6sT1uV3wX';\n",
+        );
+        let result = call(&json!({
+            "filePath": "src/a.ts",
+            "warningId": "secret-detection",
+            "line": 1,
+            "reason": "fixture token",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], false);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(payload["warningId"], "SECRET-DETECTION");
+        let on_disk =
+            std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
+        assert!(on_disk.contains("@anvil-ignore-until"));
+        assert!(on_disk.contains("SECRET-DETECTION: fixture token"));
+    }
+
+    #[test]
+    fn normalise_warning_id_uppercases_hyphenated_ids() {
+        assert_eq!(
+            normalise_warning_id("secret-high-entropy-string"),
+            "SECRET-HIGH-ENTROPY-STRING"
+        );
+        assert_eq!(normalise_warning_id("secret-detection"), "SECRET-DETECTION");
+    }
+
+    #[test]
+    fn high_confidence_secret_warning_id_is_refused() {
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        write_fixture(
+            workspace.path(),
+            "src/a.ts",
+            "const token = 'ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';\n",
+        );
+        let result = call(&json!({
+            "filePath": "src/a.ts",
+            "warningId": "SECRET-GITHUB-TOKEN",
+            "line": 1,
+            "reason": "not a real key",
+            "workspaceRoot": workspace.path()
+        }));
+        assert_eq!(result["isError"], true);
+        let payload: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        let error = payload["error"].as_str().unwrap();
+        assert!(
+            error.contains("high-confidence"),
+            "must refuse high-confidence secret ids: {error}"
+        );
+        let on_disk =
+            std::fs::read_to_string(workspace.path().join("src/a.ts")).expect("file readable");
+        assert!(
+            !on_disk.contains("@anvil-ignore"),
+            "refused suppress must not mutate the file"
+        );
     }
 
     #[test]
