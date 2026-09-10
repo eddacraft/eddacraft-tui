@@ -10,7 +10,7 @@
 > **T3 anchor**. Calibrated against the TypeScript implementation that
 > exists today plus the kernel-prereq gaps that close inside LANGTS;
 > referenced from [lang-rust](../archive/modules/lang-rust.aps.md) (RSTLAN),
-> [lang-python](../modules/lang-python.aps.md) (PYLAN), every Track 4
+> [lang-python](../archive/modules/lang-python.aps.md) (PYLAN), every Track 4
 > pack module, and the pack registry per
 > [ADR-027](../decisions/027-pack-architecture.md).
 >

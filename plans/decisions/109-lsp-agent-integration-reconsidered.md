@@ -178,7 +178,7 @@ separate step — see Consequences.
   carries a reciprocal amendment note pointing back here
 - [ADR-033](./033-park-ide-mcp-retire-ts-scanner.md) — parks RTAI-005 /
   DRVR-003
-- [`realtime-ai-validation.aps.md`](../modules/realtime-ai-validation.aps.md)
+- [`realtime-ai-validation.aps.md`](../archive/modules/realtime-ai-validation.aps.md)
   — RTAI-005 work item; carries a backlink to this ADR
 - [`2026-06-03-anvil-lsp-graph-backed-navigation.md`](../brainstorms/2026-06-03-anvil-lsp-graph-backed-navigation.md)
   — related future idea; explicitly out of scope for both this ADR and

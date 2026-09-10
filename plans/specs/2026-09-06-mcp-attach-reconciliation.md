@@ -6,12 +6,12 @@
 
 | Upstream | Downstream |
 | --- | --- |
-| Operator 2026-09-05 attach note, [JREL](../modules/journey-reliability.aps.md), [JOURNEY](../modules/release-user-journeys.aps.md), [ADR-036](../decisions/036-daemon-scope-discovery-and-boundaries.md), [ADR-094](../decisions/094-worktree-registration-ux.md), [ADR-140](../decisions/140-converged-command-event-contract.md), ADR-141 in PR #4416 | [JREL attach checkpoints](../execution/JREL-attach.actions.md), JREL-002, JREL-004, JREL-005, JREL-010, JREL-011, JREL-012, JOURNEY-014, JOURNEY-015 |
+| Operator 2026-09-05 attach note, [JREL](../archive/modules/journey-reliability.aps.md), [JOURNEY](../modules/release-user-journeys.aps.md), [ADR-036](../decisions/036-daemon-scope-discovery-and-boundaries.md), [ADR-094](../decisions/094-worktree-registration-ux.md), [ADR-140](../decisions/140-converged-command-event-contract.md), ADR-141 in PR #4416 | [JREL attach checkpoints](../execution/JREL-attach.actions.md), JREL-002, JREL-004, JREL-005, JREL-010, JREL-011, JREL-012, JOURNEY-014, JOURNEY-015 |
 
 ## Purpose and authority
 
 Review the operator-supplied 2026-09-05 attach failure note and make its
-remaining work executable through [JREL](../modules/journey-reliability.aps.md).
+remaining work executable through [JREL](../archive/modules/journey-reliability.aps.md).
 [JOURNEY](../modules/release-user-journeys.aps.md) remains the acceptance and
 release conductor. This document proposes evidence semantics; it is not an
 as-built claim or a second backlog. See the bounded

@@ -152,7 +152,7 @@ The alternative framings were considered and rejected:
   anti-pattern tier)
 - APS modules: `DNLAN` ([`lang-dotnet-anchor`](../modules/lang-dotnet-anchor.aps.md)),
   `LANGTAIL-006` ([`lang-tail-wave`](../modules/lang-tail-wave.aps.md)),
-  `PYLAN` ([`lang-python`](../modules/lang-python.aps.md)),
+  `PYLAN` ([`lang-python`](../archive/modules/lang-python.aps.md)),
   `RSTLAN` ([archived](../archive/modules/lang-rust.aps.md)),
   archived [`lang-dotnet`](../archive/modules/lang-dotnet.aps.md)
 - Spec: [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)

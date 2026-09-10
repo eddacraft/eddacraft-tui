@@ -23,7 +23,7 @@ published `tree-sitter-zig` 1.1.2 crate. **WAT has no published crate**, so the
 owner accepted **including it via a vendored grammar** (`wasm-lsp/tree-sitter-wasm`
 `wat/parser.c`, ABI 13, no external scanner; upstream dormant since 2022) —
 capability is clean, the cost is an in-tree maintenance liability. See the
-[LTW2 module](../modules/lang-tail-wave-2.aps.md) audit table for evidence.
+[LTW2 module](../archive/modules/lang-tail-wave-2.aps.md) audit table for evidence.
 
 ## Date
 

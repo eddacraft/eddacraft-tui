@@ -13,13 +13,13 @@ See: plans/aps-rules.md
 
 | ID   | Owner | Status      | Progress |
 | ---- | ----- | ----------- | -------- |
-| RTAI | —     | Done        | 9/9      |
+| RTAI | —     | Complete    | 9/9      |
 
 **Last reviewed:** 2026-09-09 — module **Done**: RTAI-005 merged 2026-07-21 via
 [#3360](https://github.com/eddacraft/anvil-001/pull/3360), the last open item,
 so all nine are terminal. It shipped production LSP diagnostics only, per
 ADR-109 and Planning Council `plan-33b005f5`; graph-backed editor navigation is
-owned by [LSPNAV](./lsp-graph-navigation.aps.md). Stored `N/M` is left to the
+owned by [LSPNAV](../../modules/lsp-graph-navigation.aps.md). Stored `N/M` is left to the
 `pnpm aps:index` reconcile (ADR-053).
 
 > **A1 launch slice:** RTAI-001 (Done), RTAI-002, RTAI-003, RTAI-006, RTAI-008.
@@ -106,7 +106,7 @@ shape of the problem:
 ## Cross-cutting convention
 
 This module follows the **cross-cutting module convention** trialled
-by [LAUNCH](../archive/modules/launch-flow-readiness.aps.md) (see its "Cross-cutting
+by [LAUNCH](launch-flow-readiness.aps.md) (see its "Cross-cutting
 convention" section). Concretely:
 
 1. **Owns its own work items.** Every `RTAI-NNN` task is owned and
@@ -210,28 +210,28 @@ convention" section). Concretely:
 
 ## Dependencies
 
-- **Blocks on:** [INTD-002](../archive/modules/intercept-daemon.aps.md) (IPC
-  listener), [INTD-003](../archive/modules/intercept-daemon.aps.md) (session
-  registry), [INTD-005](../archive/modules/intercept-daemon.aps.md) (enforcement
-  decision pipeline), [INTD-013](../archive/modules/intercept-daemon.aps.md)
-  (telemetry mirror), [INTD-014](../archive/modules/intercept-daemon.aps.md)
+- **Blocks on:** [INTD-002](intercept-daemon.aps.md) (IPC
+  listener), [INTD-003](intercept-daemon.aps.md) (session
+  registry), [INTD-005](intercept-daemon.aps.md) (enforcement
+  decision pipeline), [INTD-013](intercept-daemon.aps.md)
+  (telemetry mirror), [INTD-014](intercept-daemon.aps.md)
   (JSON-RPC conformance + latency benchmark — RTAI's mid-edit
   benchmark extends it).
-- **Blocks on for editor-driver tasks only:** [DRVR-001](../archive/modules/surface-drivers.aps.md)
-  (`DriverClient`) and [DRVR-002](../archive/modules/surface-drivers.aps.md)
+- **Blocks on for editor-driver tasks only:** [DRVR-001](surface-drivers.aps.md)
+  (`DriverClient`) and [DRVR-002](surface-drivers.aps.md)
   (editor-driver protocol — RTAI extends the method table with
   the mid-edit RPC). The A1 RMCP path does not block on these.
-- **Coordinates with:** [DRVR-003](../archive/modules/surface-drivers.aps.md) (VSCode
+- **Coordinates with:** [DRVR-003](surface-drivers.aps.md) (VSCode
   extension cutover) — the editor-driver mid-edit path is most
   cheaply built once DRVR-003 is in flight, but RTAI's spike
   (RTAI-001) does not need to wait for DRVR-003 to complete.
-- **Coordinates with:** [rust-mcp-launch-shim](../archive/modules/rust-mcp-launch-shim.aps.md)
+- **Coordinates with:** [rust-mcp-launch-shim](rust-mcp-launch-shim.aps.md)
   (RMCP) — current-release MCP path for pre-write validation in the
   single Rust binary.
-- **Coordinates with:** [rust-mcp-full-port](./rust-mcp-full-port.aps.md)
+- **Coordinates with:** [rust-mcp-full-port](../../modules/rust-mcp-full-port.aps.md)
   (RMCPF) and DRVR — next-release full MCP parity and driver-framework
   alignment.
-- **Coordinates with:** [LAUNCH](../archive/modules/launch-flow-readiness.aps.md)
+- **Coordinates with:** [LAUNCH](launch-flow-readiness.aps.md)
   (save-time watch flow) — RTAI is the in-flight sibling. The two
   must produce diagnostics that look the same on the wire so
   consumers don't branch.
@@ -240,9 +240,9 @@ convention" section). Concretely:
   Question 3) holds rule implementations the daemon evaluates. The
   reasoning-pattern catalogue from the archived RTVS module belongs
   there, not here.
-- **Coordinates with:** [INTR](../archive/modules/intercept-rules.aps.md) — rules
+- **Coordinates with:** [INTR](intercept-rules.aps.md) — rules
   registered in INTR are what the mid-edit pipeline evaluates.
-- **References:** [ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md)
+- **References:** [ADR-030](../../decisions/030-surface-drivers-supersede-napi-cutover.md)
   (drivers-on-daemon architecture authority).
 
 ## Work Items
@@ -282,7 +282,7 @@ convention" section). Concretely:
   Spike measured p95 1.4 ms round-trip on the in-process loop fixture
   (vs ADR-031 mid-edit p95 budget of 80 ms), with one diagnostic per
   round-trip on `secret-detection`. Decisions recorded in
-  [`plans/specs/2026-04-26-rtai-001-spike-report.md`](../specs/2026-04-26-rtai-001-spike-report.md):
+  [`plans/specs/2026-04-26-rtai-001-spike-report.md`](../../specs/2026-04-26-rtai-001-spike-report.md):
   (a) single `scan_buffer` RPC method discriminated by `Mode`, not
   per-mode methods; (b) `DriverClient` owns the debouncer, drivers
   parameterise the window. Spike binary: `crates/spike/src/rtai_mid_edit.rs`.
@@ -390,7 +390,7 @@ convention" section). Concretely:
 
 ### RTAI-005: Editor mid-edit path (LSP server surface)
 
-- **Execution plan:** [RTAI-005 production diagnostics](../execution/RTAI-005.actions.md)
+- **Execution plan:** [RTAI-005 production diagnostics](../../execution/RTAI-005.actions.md)
 
 - **Reframed 2026-06-02:** from "Editor-driver mid-edit path (VSCode +
   LSP shape)" to a **generic LSP server** surface. Rationale: an
@@ -429,8 +429,8 @@ convention" section). Concretely:
   evidence. It does **not** own symbol lookup, reference occurrences,
   `textDocument/references`, impact analysis, affected-test discovery, or their
   benchmarks. Those capabilities require the separate
-  [LSPNAV](./lsp-graph-navigation.aps.md) module and
-  [ADR-111](../decisions/111-graph-backed-lsp-references.md). PR #3360 must be
+  [LSPNAV](../../modules/lsp-graph-navigation.aps.md) module and
+  [ADR-111](../../decisions/111-graph-backed-lsp-references.md). PR #3360 must be
   reduced to this boundary before RTAI-005 can be completed; unmerged
   navigation wires have no compatibility promise.
 - **Blocks on:** RTAI-004 (mid-edit envelope + debouncer). The
@@ -467,7 +467,7 @@ convention" section). Concretely:
   connection-lifecycle question cheaply, *then* the full build. **Un-park
   trigger is a concrete demand signal** (an editor/user asking, or a demo) —
   not surface completeness.
-- **Un-parked in principle 2026-07-16 — see [ADR-109](../decisions/109-lsp-agent-integration-reconsidered.md)
+- **Un-parked in principle 2026-07-16 — see [ADR-109](../../decisions/109-lsp-agent-integration-reconsidered.md)
   (Accepted, operator):** a live prospect conversation was specifically
   about LSP integration, with the prospect independently drawing a
   ReSharper-capability comparison in the same conversation — satisfies the
@@ -484,7 +484,7 @@ convention" section). Concretely:
   (`plans/brainstorms/2026-06-03-anvil-lsp-graph-backed-navigation.md`),
   not to this item's diagnostics-only scope.
 - **Spike closed 2026-07-16 — see
-  [`2026-07-16-rtai-005-lsp-vs-mcp-spike-report.md`](../specs/2026-07-16-rtai-005-lsp-vs-mcp-spike-report.md)
+  [`2026-07-16-rtai-005-lsp-vs-mcp-spike-report.md`](../../specs/2026-07-16-rtai-005-lsp-vs-mcp-spike-report.md)
   (`crates/spike/src/rtai_005_lsp_vs_mcp.rs`, `spike-rtai-005-lsp-vs-mcp`;
   companion `anvil lsp --stdio` at `crates/anvil-cli/src/commands/lsp.rs`,
   branch `feat/rtai-005-lsp-spike`):** the connection-lifecycle question

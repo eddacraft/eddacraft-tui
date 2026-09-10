@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| Operator design (2026-08-30); [ADR-001](../decisions/001-planless-first.md); [ADR-002](../decisions/002-warnings-over-blocks.md); [ADR-076](../decisions/076-feature-catalogue-surface-registry.md) §5 `requires`; [ADR-127](../decisions/127-always-on-cheap-catalogue.md); FLAGCAT-012/013/014 Merged; [IMPV-002](../archive/modules/tui-impact-view.aps.md); [GTAO](../modules/gate-time-always-on.aps.md); `flags/surfaces.json`; `flags/manifest.json` | FLAGCAT-019 (listed field + listed-implies-on static check); next-free ADR; clap `hide` as first consumer; GTAO-004/006/007 stay GTAO-owned |
+| Operator design (2026-08-30); [ADR-001](../decisions/001-planless-first.md); [ADR-002](../decisions/002-warnings-over-blocks.md); [ADR-076](../decisions/076-feature-catalogue-surface-registry.md) §5 `requires`; [ADR-127](../decisions/127-always-on-cheap-catalogue.md); FLAGCAT-012/013/014 Merged; [IMPV-002](../archive/modules/tui-impact-view.aps.md); [GTAO](../archive/modules/gate-time-always-on.aps.md); `flags/surfaces.json`; `flags/manifest.json` | FLAGCAT-019 (listed field + listed-implies-on static check); next-free ADR; clap `hide` as first consumer; GTAO-004/006/007 stay GTAO-owned |
 
 **Design approved 2026-08-30.** This specification does not authorise product code on its own. Execution follows APS items filed from it. The durable product rule is an ADR in the same change as the catalogue field.
 

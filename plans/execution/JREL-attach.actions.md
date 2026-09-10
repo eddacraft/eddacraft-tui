@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | --- | --- |
-| [JREL](../modules/journey-reliability.aps.md), [attach evidence contract](../specs/2026-09-06-mcp-attach-reconciliation.md), [JOURNEY](../modules/release-user-journeys.aps.md) | JREL-002, JREL-003, JREL-004, JREL-005, JREL-010, JREL-011, JREL-012, JOURNEY-014, JOURNEY-015 |
+| [JREL](../archive/modules/journey-reliability.aps.md), [attach evidence contract](../specs/2026-09-06-mcp-attach-reconciliation.md), [JOURNEY](../modules/release-user-journeys.aps.md) | JREL-002, JREL-003, JREL-004, JREL-005, JREL-010, JREL-011, JREL-012, JOURNEY-014, JOURNEY-015 |
 
 These checkpoints do not create new work items or change existing claims.
 JREL-002 is already being implemented in PR #4416 / claim #4408.

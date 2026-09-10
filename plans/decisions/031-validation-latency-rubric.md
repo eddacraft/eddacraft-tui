@@ -253,7 +253,7 @@ not taste.
   - [surface-drivers](../archive/modules/surface-drivers.aps.md) — DRVR-002 owns the
     editor-driver protocol and should cite this ADR for save-time latency
     vocabulary.
-  - [realtime-ai-validation](../modules/realtime-ai-validation.aps.md) —
+  - [realtime-ai-validation](../archive/modules/realtime-ai-validation.aps.md) —
     RTAI-002 / RTAI-003 / RTAI-006 own mid-edit and pre-write implementation and
     benchmarking.
 - Design specs:

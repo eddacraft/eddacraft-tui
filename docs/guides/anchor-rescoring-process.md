@@ -156,5 +156,5 @@ These shortcuts defeat the gate:
 - APS modules:
   [lang-ts-audit](../../plans/archive/modules/lang-ts-audit.aps.md),
   [lang-rust](../../plans/archive/modules/lang-rust.aps.md),
-  [lang-python](../../plans/modules/lang-python.aps.md),
+  [lang-python](../../plans/archive/modules/lang-python.aps.md),
   [lang-tail-wave](../../plans/modules/lang-tail-wave.aps.md)

@@ -3905,7 +3905,7 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 
 - **Task:** Plan GTAO: always-on cheap catalogue, rare full gate
 - **Outcome:** Filed APS module gate-time-always-on (GTAO) with 7 items; index NBI + Intercept Loop row; GTAO-001/-002 Ready
-- **Worked:** Isolated docs/gtao-gate-time-always-on worktree; wrote plans/modules/gate-time-always-on.aps.md; indexed in plans/index.aps.md; pnpm aps:active-lint and aps:index:check green in worktree
+- **Worked:** Isolated docs/gtao-gate-time-always-on worktree; wrote ../archive/modules/gate-time-always-on.aps.md; indexed in plans/index.aps.md; pnpm aps:active-lint and aps:index:check green in worktree
 - **Failed:** none
 - **Friction:** oxfmt excludes plans/; markdownlint CLI ignored plans paths without extra args
 - **Improvement:** MCP anvil_check/planless anvil_gate skip AST despite ADR-071 §7 — GTAO-002 captures it

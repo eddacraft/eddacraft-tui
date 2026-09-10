@@ -124,7 +124,7 @@ This stacks cleanly and must not jump the queue:
 
 ## Pointers
 
-- [`realtime-ai-validation`](../modules/realtime-ai-validation.aps.md) —
+- [`realtime-ai-validation`](../archive/modules/realtime-ai-validation.aps.md) —
   RTAI-005 (LSP server surface) + its readiness note.
 - [ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md) —
   drivers-on-daemon architecture.

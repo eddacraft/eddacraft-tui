@@ -8,7 +8,7 @@
 
 ## Purpose
 
-Own experience simplification after the reliability gate in [JREL](./journey-reliability.aps.md) and the pinned-build rehearsal in [JOURNEY](./release-user-journeys.aps.md). The operator requested reliability then simplification on 2026-09-05. This module plans execution; no new command semantics or completed implementation are claimed by intake.
+Own experience simplification after the reliability gate in [JREL](../archive/modules/journey-reliability.aps.md) and the pinned-build rehearsal in [JOURNEY](./release-user-journeys.aps.md). The operator requested reliability then simplification on 2026-09-05. This module plans execution; no new command semantics or completed implementation are claimed by intake.
 
 ## Scope and Boundaries
 
@@ -24,7 +24,7 @@ Own experience simplification after the reliability gate in [JREL](./journey-rel
 
 Presentation consumes the same typed project/component result in TUI, plain and machine paths. Action and inspection semantics are explicit and compatibility-tested. The closing receipt teaches daily bare anvil; detailed diagnosis remains accessible without being the normal route to working protection.
 
-**Coordinates with:** [JOURNEY](./release-user-journeys.aps.md), [JREL](./journey-reliability.aps.md), [CIB](./continuous-improvement-backlog.aps.md), [ACTMO](./activation-mcp-optional.aps.md), [MCPLH](./mcp-live-heal.aps.md).
+**Coordinates with:** [JOURNEY](./release-user-journeys.aps.md), [JREL](../archive/modules/journey-reliability.aps.md), [CIB](./continuous-improvement-backlog.aps.md), [ACTMO](./activation-mcp-optional.aps.md), [MCPLH](./mcp-live-heal.aps.md).
 
 ## Work Items
 

@@ -5,7 +5,7 @@
 
 | ID    | Owner | Status      |
 | ----- | ----- | ----------- |
-| PYLAN | —     | Done        |
+| PYLAN | —     | Complete    |
 
 **Last reviewed:** 2026-06-18 (substrate + governance slice landed; PYLAN-009
 FP bar accepted at N=1%. Promoted
@@ -26,7 +26,7 @@ drift). v0.9.0-beta (`6b0ed1d1`, 2026-07-12) shipped these items, so the module 
 ## Purpose
 
 Bring Python to **T3 (Governed)** per
-[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+[2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 §5.1, §8.1. Python is the strongest **strategic** unlock on the anchor list —
 "Anvil governs AI/ML stacks" needs a Python anchor, and the Python-substrate
 LLM Provider extension (`pack-llm-provider` Phase 2) lands here. Two confirmed
@@ -84,8 +84,8 @@ implementation shape entirely.
 
 **Depends on:**
 
-- [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — T3 acceptance checklist.
-- [`lang-rust`](../archive/modules/lang-rust.aps.md) — sequenced after; reuses
+- [`lang-ts-audit`](lang-ts-audit.aps.md) — T3 acceptance checklist.
+- [`lang-rust`](lang-rust.aps.md) — sequenced after; reuses
   architecture-enforcement-location decision.
 - Existing kernel parser, architecture analysis, policy pipeline, drift
   baseline, suppression parser.
@@ -101,7 +101,7 @@ implementation shape entirely.
 - `lang-ts-audit` complete (T3 checklist exists).
 - `lang-rust` complete (validates the checklist and the anchor pattern).
 - Re-scoring gate run per
-  [docs/guides/anchor-rescoring-process.md](../../docs/guides/anchor-rescoring-process.md)
+  [docs/guides/anchor-rescoring-process.md](../../../docs/guides/anchor-rescoring-process.md)
   before this module starts.
 
 ## Ready Checklist
@@ -307,7 +307,7 @@ item below), so the module is Done.
   PY-005 allowlists `**/__init__.py` (re-export idiom), PY-007 uses a
   subscript-context `Any` match (no `from typing import Any` FP), and PY-004
   joins the comment/string-masked view (`rule_is_code_scoped`). Evidence:
-  [`plans/reviews/2026-06-18-pylan-009-external-validation.md`](../reviews/2026-06-18-pylan-009-external-validation.md).
+  [`plans/reviews/2026-06-18-pylan-009-external-validation.md`](../../reviews/2026-06-18-pylan-009-external-validation.md).
   **N = 1%** (accepted; observed 0.0%). NOTE: Anvil itself has ~no Python, so the
   "own repo" half of the bar is discharged via the public-OSS external run.
 - **Intent:** Demonstrate the full Python T3 stack on real-world code at an

@@ -6,7 +6,7 @@
 | ---- | ----- | ---------- |
 | RTVF | —     | Superseded |
 
-> **Superseded by:** [realtime-ai-validation (RTAI)](../../modules/realtime-ai-validation.aps.md)
+> **Superseded by:** [realtime-ai-validation (RTAI)](realtime-ai-validation.aps.md)
 > for the in-flight / mid-edit validation path against the
 > intercept daemon and surface drivers, and
 > [surface-drivers (DRVR)](../../modules/surface-drivers.aps.md) for

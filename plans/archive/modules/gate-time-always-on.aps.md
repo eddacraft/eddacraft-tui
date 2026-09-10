@@ -5,7 +5,7 @@
 
 | ID   | Owner  | Status   | Progress |
 | ---- | ------ | -------- | -------- |
-| GTAO | @aneki | Done     | 10/10     |
+| GTAO | @aneki | Complete | 10/10     |
 
 **Last reviewed:** 2026-08-22 — created from operator direction after the
 regex/AST and “when do gates fire” discussion. Agreed shape: do not auto-run
@@ -78,21 +78,21 @@ every save, and **without** defaulting `anvil watch --action gate`.
 
 **Depends on:**
 
-- [ADR-061](../decisions/061-save-time-daemon-delta-validation.md) — save-time
+- [ADR-061](../../decisions/061-save-time-daemon-delta-validation.md) — save-time
   is daemon-mediated delta validation; whole-repo child `anvil check` per save
   is the failure mode this module must not revive.
-- [ADR-064](../decisions/064-intercept-graph-cache-crate-boundary.md) — daemon
+- [ADR-064](../../decisions/064-intercept-graph-cache-crate-boundary.md) — daemon
   links no tree-sitter.
-- [ADR-067](../decisions/067-daemon-symbol-feed-parse-hook.md) — CLI subprocess
+- [ADR-067](../../decisions/067-daemon-symbol-feed-parse-hook.md) — CLI subprocess
   / parse-hook precedent for expensive work off the daemon crate.
-- [ADR-071](../decisions/071-ast-aware-antipattern-detection.md) — AST is a
+- [ADR-071](../../decisions/071-ast-aware-antipattern-detection.md) — AST is a
   gate-time tier; CLI check/gate already merge both scanners.
-- [ADR-031](../decisions/031-validation-latency-rubric.md) — interactive
+- [ADR-031](../../decisions/031-validation-latency-rubric.md) — interactive
   save/pre-write p95 budgets stay regex-only.
-- [ADR-038](../decisions/038-hook-surface-and-noise-discipline.md) — silent on
+- [ADR-038](../../decisions/038-hook-surface-and-noise-discipline.md) — silent on
   success; one line on warn.
-- [RLB](./resource-load-benchmarking.aps.md) — per-save CPU budgets.
-- [CIB-294](./continuous-improvement-backlog.aps.md) — adopter CI templates
+- [RLB](../../modules/resource-load-benchmarking.aps.md) — per-save CPU budgets.
+- [CIB-294](../../modules/continuous-improvement-backlog.aps.md) — adopter CI templates
   currently unexercised; GTAO-006 coordinates, does not steal.
 - [lang-python](./lang-python.aps.md) — T3 Python catalogue and grammar; GTAO
   does not reopen PYLAN items.

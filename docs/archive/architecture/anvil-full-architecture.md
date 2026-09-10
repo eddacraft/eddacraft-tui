@@ -351,7 +351,7 @@ Surface driver (MCP shim / editor)
 This supersedes the earlier `real-time-validation-full` "unified validation
 server" framing: there is **one** daemon and **one** rule registry, with two
 entry points (save-time and mid-edit). See
-[`realtime-ai-validation`](../../../plans/modules/realtime-ai-validation.aps.md)
+[`realtime-ai-validation`](../../../plans/archive/modules/realtime-ai-validation.aps.md)
 and
 [ADR-030](../../../plans/decisions/030-surface-drivers-supersede-napi-cutover.md).
 

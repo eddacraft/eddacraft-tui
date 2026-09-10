@@ -2,13 +2,13 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | Done | 13/13 |
+| JREL | Josh | high | Complete| 13/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
 ## Purpose
 
-Own the bounded reliability repair work identified by the 2026-09-05 new/returning-user source review. [JOURNEY](./release-user-journeys.aps.md) coordinates acceptance and release sequencing; [JSIMP](./journey-simplification.aps.md) owns subsequent experience simplification. Planning authorised by the operator on 2026-09-05; no implementation or release is claimed by this intake.
+Own the bounded reliability repair work identified by the 2026-09-05 new/returning-user source review. [JOURNEY](../../modules/release-user-journeys.aps.md) coordinates acceptance and release sequencing; [JSIMP](../../modules/journey-simplification.aps.md) owns subsequent experience simplification. Planning authorised by the operator on 2026-09-05; no implementation or release is claimed by this intake.
 
 ## Evidence and Scope
 
@@ -31,13 +31,13 @@ Work-item order maps to review findings F1, F2, F3, F4, F5, F7, F8, F9, F10, F12
 
 CLI surfaces consume typed component outcomes and one canonical project/worktree identity. Runtime claims carry observed evidence and freshness; config presence, live PID and a disposable MCP probe are insufficient substitutes. Public commands are the acceptance boundary, including cancellation, failed repair and an upgrade from the previous public build.
 
-**Coordinates with:** [MCPLH](./mcp-live-heal.aps.md), [ACTMO](./activation-mcp-optional.aps.md), [CIB](./continuous-improvement-backlog.aps.md), [JOURNEY](./release-user-journeys.aps.md).
+**Coordinates with:** [MCPLH](../../modules/mcp-live-heal.aps.md), [ACTMO](../../modules/activation-mcp-optional.aps.md), [CIB](../../modules/continuous-improvement-backlog.aps.md), [JOURNEY](../../modules/release-user-journeys.aps.md).
 
 ## Attach diagnosis reconciliation (2026-09-06)
 
-The [source review and proposed evidence contract](../specs/2026-09-06-mcp-attach-reconciliation.md)
+The [source review and proposed evidence contract](../../specs/2026-09-06-mcp-attach-reconciliation.md)
 reconciles the operator's 2026-09-05 MCP attach note against main and open
-PR #4416. [Execution checkpoints](../execution/JREL-attach.actions.md) sequence
+PR #4416. [Execution checkpoints](../../execution/JREL-attach.actions.md) sequence
 this slice within the existing JOURNEY gates. No additional module or claim
 issue is created; JREL-002 implementation remains owned by PR #4416 / #4408.
 Do not overwrite that branch's progress during planning reconciliation.

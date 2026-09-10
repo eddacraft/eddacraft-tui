@@ -125,7 +125,7 @@ shape; the archived file stays the historical record.
 - [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — the authoritative
   T3 acceptance checklist.
 - [`lang-rust`](../archive/modules/lang-rust.aps.md) /
-  [`lang-python`](./lang-python.aps.md) — the resolver, entry-point, catalogue,
+  [`lang-python`](../archive/modules/lang-python.aps.md) — the resolver, entry-point, catalogue,
   and FP-bar patterns to copy rather than reinvent.
 - Existing kernel parser, architecture analysis, policy pipeline, drift
   baseline, ADR-029 suppression parser.

@@ -9,7 +9,7 @@
 > confident-but-wrong rewrite, and Anvil refuses the write **before it hits
 > disk**. It owns the *user journey* — the integrated path that
 > [LAUNCH](../archive/modules/launch-flow-readiness.aps.md) (save-time polish),
-> [RTAI](../modules/realtime-ai-validation.aps.md) (mid-edit engine),
+> [RTAI](../archive/modules/realtime-ai-validation.aps.md) (mid-edit engine),
 > [INTD](../archive/modules/intercept-daemon.aps.md) (daemon),
 > [RMCP](../archive/modules/rust-mcp-launch-shim.aps.md) (Rust MCP stdio launch path),
 > and [DRVR](../archive/modules/surface-drivers.aps.md) (broader drivers) each cover
@@ -91,7 +91,7 @@ with `first-run` marker.
 
 Choose **one** path per demo run. Pick MCP for the headline demo (MCP
 pre-write **can refuse** the write; LSP `didChange` is advisory only — see
-[RTAI-006](../modules/realtime-ai-validation.aps.md) and Open Question 2 in
+[RTAI-006](../archive/modules/realtime-ai-validation.aps.md) and Open Question 2 in
 RTAI).
 
 **MCP path (Cursor or Claude Code) — RECOMMENDED for headline:**
@@ -652,7 +652,7 @@ blocker.
 
 - [LAUNCH module](../archive/modules/launch-flow-readiness.aps.md) — save-time
   watch flow; this runbook degrades into LAUNCH territory in §4.4
-- [RTAI module](../modules/realtime-ai-validation.aps.md) — mid-edit
+- [RTAI module](../archive/modules/realtime-ai-validation.aps.md) — mid-edit
   engine; RTAI-001 spike informs §1.5 latency expectations
 - [INTD module](../archive/modules/intercept-daemon.aps.md) — daemon authority;
   INTD-011 owns `anvil intercept status` shape

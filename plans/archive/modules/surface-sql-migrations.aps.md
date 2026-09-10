@@ -5,14 +5,14 @@
 
 | ID      | Owner      | Status      |
 | ------- | ---------- | ----------- |
-| SURFSQL | joshuaboys | Done        |
+| SURFSQL | joshuaboys | Complete    |
 
 **Last reviewed:** 2026-06-18
 
 ## Purpose
 
 Bring `.sql` migration files to **T2 (Policy)** per
-[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+[2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 §5.2, §8.3 — pattern catalogue + suppression syntax + policy hook + drift
 baseline. Ranked **#1** in Track 3 by demand × blast radius — User B Postgres
 + Anvil's own migrations, **critical** blast radius (schema/data destruction
@@ -41,7 +41,7 @@ the MVP cut.
   ADR-029 directive form; the reason clause is optional).
 - Policy hook integration with the existing OPA pipeline.
 - Drift baseline default-on for `.sql` files (per the schema-versioning
-  story owned by [OPSUP](../archive/modules/operational-supplement.aps.md), council §16.5 #7).
+  story owned by [OPSUP](operational-supplement.aps.md), council §16.5 #7).
 - Acceptance bar per council §16.5 #9: FP rate < N% on Anvil's own repo
   AND ≥ 1 external codebase validation run.
 
@@ -61,11 +61,11 @@ the MVP cut.
 **Depends on:**
 
 - Existing OPA pipeline.
-- [`operational-supplement`](../archive/modules/operational-supplement.aps.md) — check
+- [`operational-supplement`](operational-supplement.aps.md) — check
   registry IDs, drift schema versioning, per-track feature flag,
   file-presence guard, FP reporting channel.
 - Rust suppression parser per
-  [ADR-029](../decisions/029-suppression-parser-authority.md) — adds the
+  [ADR-029](../../decisions/029-suppression-parser-authority.md) — adds the
   `--` SQL comment style.
 
 **Exposes:**
@@ -76,11 +76,11 @@ the MVP cut.
 
 ## Prerequisites
 
-- [OPSUP](../archive/modules/operational-supplement.aps.md) check-registry slice + drift
+- [OPSUP](operational-supplement.aps.md) check-registry slice + drift
   schema-versioning slice + per-track feature-flag slice landed (full
   OPSUP delivery not required — surfaces can move to Ready against the
   slices they need; see OPSUP §Risks).
-- [ADR-029](../decisions/029-suppression-parser-authority.md) Accepted;
+- [ADR-029](../../decisions/029-suppression-parser-authority.md) Accepted;
   Rust suppression parser teaches the `--` style.
 
 ## Ready Checklist

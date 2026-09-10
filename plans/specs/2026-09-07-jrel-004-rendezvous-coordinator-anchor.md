@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [JREL-004](../modules/journey-reliability.aps.md), [#4432](https://github.com/eddacraft/anvil-001/issues/4432), [ADR-036](../decisions/036-daemon-scope-discovery-and-boundaries.md), [ADR-060](../decisions/060-anvil-home-install-root-override.md), CIB-382 (`acquire_daemon_rendezvous_repair_lock_for_socket_candidates`) | Implementation PR for #4432; `crates/anvil-intercept/ARCHITECTURE.md` once the code moves |
+| [JREL-004](../archive/modules/journey-reliability.aps.md), [#4432](https://github.com/eddacraft/anvil-001/issues/4432), [ADR-036](../decisions/036-daemon-scope-discovery-and-boundaries.md), [ADR-060](../decisions/060-anvil-home-install-root-override.md), CIB-382 (`acquire_daemon_rendezvous_repair_lock_for_socket_candidates`) | Implementation PR for #4432; `crates/anvil-intercept/ARCHITECTURE.md` once the code moves |
 
 Design-only. Do not treat this as as-built. Josh decides the spawn/discovery fork below before any coordinator implementation PR.
 

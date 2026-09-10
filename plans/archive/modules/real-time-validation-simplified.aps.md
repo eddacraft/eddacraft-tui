@@ -8,7 +8,7 @@
 
 > **Superseded by:** [launch-flow-readiness (LAUNCH)](../../modules/launch-flow-readiness.aps.md)
 > for the watch-mode and TUI dashboard work, and
-> [realtime-ai-validation (RTAI)](../../modules/realtime-ai-validation.aps.md)
+> [realtime-ai-validation (RTAI)](realtime-ai-validation.aps.md)
 > for the validation core engine and reasoning patterns.
 > *(Originally pointed at RTVF, which was itself superseded later
 > the same day — see [archived RTVF](./real-time-validation-full.aps.md).)*

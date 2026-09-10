@@ -190,7 +190,7 @@ here so RTAI-002+ start with the open list, not a re-derivation:
 
 ## Cross-references
 
-- Module: `plans/modules/realtime-ai-validation.aps.md` (RTAI-001 closes; -002
+- Module: `../archive/modules/realtime-ai-validation.aps.md` (RTAI-001 closes; -002
   and beyond gated on this report's review).
 - Latency rubric: `plans/decisions/031-validation-latency-rubric.md`.
 - Diagnostic shape: `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`.

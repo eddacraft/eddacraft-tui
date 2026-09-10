@@ -52,7 +52,7 @@ Phase 2 deliverable (spec §9 step 8).
   architecture; PACKPUL-001 lands the crate registry this pack registers
   against.
 - [ADR-027](../decisions/027-pack-architecture.md) — pack architecture.
-- [`surface-sql-migrations`](./surface-sql-migrations.aps.md) — coordinate
+- [`surface-sql-migrations`](../archive/modules/surface-sql-migrations.aps.md) — coordinate
   on raw-SQL rules; no duplication of destructive-pattern detection.
 
 **Exposes:**

@@ -234,6 +234,6 @@ cumulative work credits protect anvil's primary save-time control path.
 - [ADR-069](./069-graph-v2-persistence.md)
 - [ADR-084](./084-gctx-graph-handle-access.md)
 - [ADR-031](./031-validation-latency-rubric.md)
-- [RTAI](../modules/realtime-ai-validation.aps.md), RTAI-005
+- [RTAI](../archive/modules/realtime-ai-validation.aps.md), RTAI-005
 - [LSPNAV](../modules/lsp-graph-navigation.aps.md)
 - [Approved design](../specs/2026-07-20-lsp-graph-backed-references.md)

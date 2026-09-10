@@ -5,12 +5,12 @@
 
 | ID    | Owner      | Status      |
 | ----- | ---------- | ----------- |
-| LTW2  | joshuaboys | Done        |
+| LTW2  | joshuaboys | Complete    |
 
 **Last reviewed:** 2026-06-29
 
 > Re-entry / addition recorded in
-> [ADR-093](../decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md) (**Accepted**
+> [ADR-093](../../decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md) (**Accepted**
 > 2026-06-29) — an owner-directed addition of two languages to the Track 2 tail
 > at **T1 (Parsed)**. Zig **re-enters** from the design §13 cut list; WebAssembly
 > text was never previously a candidate.
@@ -60,7 +60,7 @@ tree).
 ## Purpose
 
 Bring two tail languages to **T1 (Parsed)** in a single batched wave, following
-[`lang-tail-wave`](./lang-tail-wave.aps.md) (LANGTAIL, PR #2757) exactly. T1
+[`lang-tail-wave`](../../modules/lang-tail-wave.aps.md) (LANGTAIL, PR #2757) exactly. T1
 means: tree-sitter grammar wired in `parser/languages.rs`, file detected via
 `Language::from_path`, basic symbol extraction (functions, types, imports), file
 appears in the symbol graph. **No** per-language anti-pattern catalogue,
@@ -104,7 +104,7 @@ across both languages instead of paying it twice.
 
 **Depends on:**
 
-- [`lang-tail-wave`](./lang-tail-wave.aps.md) (LANGTAIL) — the extractor
+- [`lang-tail-wave`](../../modules/lang-tail-wave.aps.md) (LANGTAIL) — the extractor
   abstraction, `tail_common.rs` helpers, grammar-versioned AST cache key, and
   fixture/acceptance harness this wave reuses.
 - Existing kernel parser and symbol graph.
@@ -117,7 +117,7 @@ across both languages instead of paying it twice.
 ## Prerequisites
 
 - LANGTAIL complete (the wave-1 harness and extractor abstraction exist) — met.
-- [ADR-093](../decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md) Accepted.
+- [ADR-093](../../decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md) Accepted.
 - Grammar maturity audit (LTW2-001) passed for each candidate before it ships.
 
 ## Ready Checklist

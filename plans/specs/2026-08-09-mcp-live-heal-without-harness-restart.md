@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| Field evidence (multi-session Grok/Claude/Codex MCP skew after brew upgrade), [CIB-242](../modules/continuous-improvement-backlog.aps.md) (status skew hint; no auto-kill), [MCPX](../archive/modules/mcp-client-expansion.aps.md), [MCP26](../modules/mcp-dual-era-support.aps.md), [ADR-083](../decisions/083-gctx-mcp-delivery-target.md), [bare ensure](./2026-08-01-bare-anvil-ensure.md) | [MCPLH](../modules/mcp-live-heal.aps.md), [ADR-144](../decisions/144-established-mcp-session-continuity.md), [JREL-001](../modules/journey-reliability.aps.md) |
+| Field evidence (multi-session Grok/Claude/Codex MCP skew after brew upgrade), [CIB-242](../modules/continuous-improvement-backlog.aps.md) (status skew hint; no auto-kill), [MCPX](../archive/modules/mcp-client-expansion.aps.md), [MCP26](../modules/mcp-dual-era-support.aps.md), [ADR-083](../decisions/083-gctx-mcp-delivery-target.md), [bare ensure](./2026-08-01-bare-anvil-ensure.md) | [MCPLH](../modules/mcp-live-heal.aps.md), [ADR-144](../decisions/144-established-mcp-session-continuity.md), [JREL-001](../archive/modules/journey-reliability.aps.md) |
 
 > **2026-09-07 amendment:** ADR-144 supersedes every post-read re-exec
 > requirement below. Re-exec remains allowed at startup before the first stdin

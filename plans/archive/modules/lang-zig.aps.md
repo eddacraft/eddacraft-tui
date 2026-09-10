@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 > **Re-entered 2026-06-29** — owner-directed addition at **T1 (Parsed)** via
 > [ADR-093](../../decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md). The T1
 > parse/extract/graph-inclusion slice is folded into
-> [`lang-tail-wave-2`](../../modules/lang-tail-wave-2.aps.md) (LTW2) — this
+> [`lang-tail-wave-2`](lang-tail-wave-2.aps.md) (LTW2) — this
 > module is **not** un-archived as a standalone active module (mirrors how the
 > wave-1 `lang-*` modules folded into LANGTAIL). The T2 anti-pattern catalogue
 > below does **NOT** re-enter; only the T1 slice does. This file stays archived

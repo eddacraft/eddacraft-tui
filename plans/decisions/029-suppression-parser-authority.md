@@ -136,9 +136,9 @@ prevents the migration window from drifting outward.
 - Spec: [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
   §16.5 minor finding, council finding C-025
 - APS modules: every Track 3 surface module
-  ([surface-sql-migrations](../modules/surface-sql-migrations.aps.md),
-  [surface-github-actions](../modules/surface-github-actions.aps.md),
-  [surface-dockerfile](../modules/surface-dockerfile.aps.md),
+  ([surface-sql-migrations](../archive/modules/surface-sql-migrations.aps.md),
+  [surface-github-actions](../archive/modules/surface-github-actions.aps.md),
+  [surface-dockerfile](../archive/modules/surface-dockerfile.aps.md),
   [surface-shell](../modules/surface-shell.aps.md),
   [surface-env-files](../modules/surface-env-files.aps.md)) and
   [markdown-governance](../modules/markdown-governance.aps.md) reference

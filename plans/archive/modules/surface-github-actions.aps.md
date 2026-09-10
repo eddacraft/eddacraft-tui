@@ -5,14 +5,14 @@
 
 | ID      | Owner      | Status      |
 | ------- | ---------- | ----------- |
-| SURFGHA | joshuaboys | Done        |
+| SURFGHA | joshuaboys | Complete    |
 
 **Last reviewed:** 2026-06-18
 
 ## Purpose
 
 Bring GitHub Actions workflow YAML to **T2 (Policy)** per
-[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+[2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 §5.2, §8.3 row 2 — pattern catalogue + suppression + policy hook + drift
 baseline. Demand: 2 confirmed (Anvil + User B), assumed universal across
 early access. Blast radius: **critical** — supply-chain compromise is the
@@ -49,11 +49,11 @@ Phase 2 deliverable (spec §9 step 7).
 **Depends on:**
 
 - Existing OPA pipeline.
-- [`operational-supplement`](../archive/modules/operational-supplement.aps.md) — check
+- [`operational-supplement`](operational-supplement.aps.md) — check
   registry, drift schema versioning, per-track feature flag, file-presence
   guard.
 - Rust suppression parser per
-  [ADR-029](../decisions/029-suppression-parser-authority.md) — `#`
+  [ADR-029](../../decisions/029-suppression-parser-authority.md) — `#`
   comment style is already supported.
 
 **Exposes:**
@@ -65,7 +65,7 @@ Phase 2 deliverable (spec §9 step 7).
 
 - OPSUP slices needed for surfaces landed (see SURFSQL prerequisites —
   same set).
-- [ADR-029](../decisions/029-suppression-parser-authority.md) Accepted.
+- [ADR-029](../../decisions/029-suppression-parser-authority.md) Accepted.
 
 ## Ready Checklist
 

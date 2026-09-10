@@ -46,7 +46,7 @@ hardens the shared scanner primitives before broader rollout.
 
 ### 6. Coordinate the first-run thread-pool env var with RTAI
 
-- **Purpose:** SCAN-003 introduces a first-run rayon-pool override; the canonical env var name and default must align with the daemon-side debounced scan surface in `plans/modules/realtime-ai-validation.aps.md`, otherwise users hit two competing knobs.
+- **Purpose:** SCAN-003 introduces a first-run rayon-pool override; the canonical env var name and default must align with the daemon-side debounced scan surface in `../modules/realtime-ai-validation.aps.md`, otherwise users hit two competing knobs.
 - **Produces:** Decision recorded inline against SCAN-003 (env var name, default value, scope) after a quick handshake with the RTAI owner.
 - **Checkpoint:** Env var name and default agreed and noted alongside SCAN-003.
 

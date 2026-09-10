@@ -5,14 +5,14 @@
 
 | ID       | Owner      | Status      |
 | -------- | ---------- | ----------- |
-| SURFDOCK | joshuaboys | Done        |
+| SURFDOCK | joshuaboys | Complete    |
 
 **Last reviewed:** 2026-06-18
 
 ## Purpose
 
 Bring `Dockerfile` to **T2 (Policy)** per
-[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+[2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 §5.2, §8.3 row 3. Demand: 3. Blast: high. Strategic: supports.
 
 Phase 3 deliverable — ranked #3 in Track 3, ships after Phase 1
@@ -44,11 +44,11 @@ Phase 3 deliverable — ranked #3 in Track 3, ships after Phase 1
 
 **Depends on:**
 
-- [`operational-supplement`](../archive/modules/operational-supplement.aps.md) — check
+- [`operational-supplement`](operational-supplement.aps.md) — check
   registry, drift schema versioning, per-track feature flag, file-presence
   guard.
 - Rust suppression parser per
-  [ADR-029](../decisions/029-suppression-parser-authority.md) — `#`
+  [ADR-029](../../decisions/029-suppression-parser-authority.md) — `#`
   comment style.
 
 **Exposes:**
@@ -58,7 +58,7 @@ Phase 3 deliverable — ranked #3 in Track 3, ships after Phase 1
 ## Prerequisites
 
 - OPSUP slices landed (see SURFSQL).
-- [ADR-029](../decisions/029-suppression-parser-authority.md) Accepted.
+- [ADR-029](../../decisions/029-suppression-parser-authority.md) Accepted.
 
 ## Ready Checklist
 

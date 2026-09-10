@@ -340,7 +340,7 @@ so subscribers split in-flight from save-time without parsing the rule id. The
 in-flight and save-time paths are two entry points on one daemon. The MCP
 pre-write surface (RTAI-006) is shipped; the editor-driver mid-edit surface
 (RTAI-005) is parked under ADR-033. See
-[realtime-ai-validation](../../../plans/modules/realtime-ai-validation.aps.md).
+[realtime-ai-validation](../../../plans/archive/modules/realtime-ai-validation.aps.md).
 
 ---
 

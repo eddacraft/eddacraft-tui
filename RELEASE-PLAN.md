@@ -63,8 +63,8 @@ work (Graph Trust Surfaces Wave 0, `/settings` SETCON+, live-heal soak) may run
 
 The operator-authorised
 [JOURNEY programme](./plans/modules/release-user-journeys.aps.md) repairs
-[JREL reliability](./plans/modules/journey-reliability.aps.md), verifies a
-pinned main build, then executes
+[JREL reliability](./plans/archive/modules/journey-reliability.aps.md), verifies
+a pinned main build, then executes
 [JSIMP simplification](./plans/modules/journey-simplification.aps.md). This is
 readiness work, not a frozen version claim. JOURNEY-014/-015 gate any
 reliable-journey claim; JOURNEY-016 additionally gates a simplification claim.

@@ -241,7 +241,7 @@ and are superseded — recorded here (not as ADRs) per RTAI-009:
   validation server" framing predates ADR-030.
 
 Both are superseded by **RTAI**
-([`realtime-ai-validation`](../modules/realtime-ai-validation.aps.md)), which is
+([`realtime-ai-validation`](../archive/modules/realtime-ai-validation.aps.md)), which is
 the realisation of the in-flight validation thesis on the drivers → daemon
 architecture (ADR-030): the intercept daemon's `scan_buffer` RPC (RTAI-002)
 validates an unsaved buffer against the same INTR rule registry as the

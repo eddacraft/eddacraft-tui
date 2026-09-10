@@ -63,7 +63,7 @@ the operator explicitly promotes them into the cut.
 
 ### Current Reliability and Simplification Programme
 
-[JREL](./journey-reliability.aps.md) owns twelve bounded reliability items.
+[JREL](../archive/modules/journey-reliability.aps.md) owns twelve bounded reliability items.
 [JSIMP](./journey-simplification.aps.md) owns six subsequent simplification items.
 JOURNEY-014..016 own acceptance and handoff, not duplicate implementation.
 JOURNEY-013 first-user navigation observation is closed as fixed; JSIMP-001 may consume the recorded residuals.
@@ -88,7 +88,7 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 | Module | Role | Release posture |
 | ------ | ---- | --------------- |
-| [journey-reliability](./journey-reliability.aps.md) | Daemon/MCP lifecycle, truthful readiness, setup recovery and executable regression coverage | Current reliability gate: JOURNEY-014 |
+| [journey-reliability](../archive/modules/journey-reliability.aps.md) | Daemon/MCP lifecycle, truthful readiness, setup recovery and executable regression coverage | Current reliability gate: JOURNEY-014 |
 | [journey-simplification](./journey-simplification.aps.md) | One command contract, resumable setup, quiet daily use and useful first proof | Starts after JOURNEY-015; acceptance at JOURNEY-016 |
 | [first-run-wow](../archive/modules/first-run-wow.aps.md) | Repository-specific first win and sandbox tutorial | WOW-005 required; WOW-006 expansion |
 | [activation-tui](../archive/modules/activation-tui.aps.md) | Interactive activation, consent, contracts, celebration and diagnostics | ACTTUI-009/-010/-012 required; -005/-006/-011 expansion where not already required by their owner |
