@@ -2,7 +2,7 @@
 
 | Type | Authority | Owner | Status | Freshness |
 | ---- | --------- | ----- | ------ | --------- |
-| Design | Authoritative | JOURNEY | Accepted | Approved by the operator 2026-09-01 after a grill-design session on a shadowed first-time install |
+| Design | Authoritative | JOURNEY | Accepted | Last reviewed 2026-09-10 — JOURNEY-013 re-test closed D1 as fixed ([observation](../audits/2026-09-10-journey-013-activation-navigation.md) on `62e1facd7`). Prior: approved by the operator 2026-09-01 after a grill-design session on a shadowed first-time install |
 
 | Upstream | Downstream |
 | -------- | ---------- |
@@ -71,7 +71,7 @@ has already shipped, and a first-run splash is expensive to walk back.
 
 | # | Decision | Rationale |
 | - | -------- | --------- |
-| D1 | **Park** the activation-splash / key-hint design pending a re-test against the fixed build | The observed session ran a build with no picker help at all; re-measure before designing |
+| D1 | **Close as fixed** — do not design an activation splash or key-hint overlay | JOURNEY-013 re-test on `62e1facd7` (carries `e586b6e53`) shows the contextual help bar on first paint and names the full key model. Residual is not enough to authorise a splash. Record: [`2026-09-10-journey-013-activation-navigation`](../audits/2026-09-10-journey-013-activation-navigation.md) |
 | D2 | Tutorial discovery is fixed at the **`anvil start` exit**, not by reordering the hub | The observed user never reached the hub |
 | D3 | The pointer is **self-extinguishing on tutorial completion**, not first-run-only and not manually dismissed | Survives being missed once, which is the actual failure mode; needs no new state or dismissal UI |
 | D4 | **No** "press N to dismiss" affordance | Retracted by the operator as too ambitious; it would require reading a keypress at the end of a command that currently just exits |
@@ -115,12 +115,12 @@ message.
   also stop after a small number of activations.
 - **Non-goal:** the installer banner, the onboarding menu, the hub ordering,
   any new configuration or persisted state, and the activation-splash question
-  (D1, parked).
+  (D1, closed as fixed by JOURNEY-013).
 - **Watch for:** scope creep from "a printed next step" into an interactive
   prompt. The boundary above is the guard.
 
 ## Open questions
 
-None blocking. The activation-navigation question is deliberately parked behind
-the re-test (D1) rather than left open — the re-test decides whether any
-further design is warranted.
+None blocking. JOURNEY-013 closed D1 as fixed. Recorded residuals (in-section
+↑/↓ wrap, `a` versus Enter, 80-column quit truncation) are optional JSIMP-001
+input and do not authorise a splash.

@@ -4,7 +4,7 @@
 | -- | ---- | ----- | -------- | ------ | -------- |
 | JOURNEY | Conductor | Josh | high | In Progress | 12/16 |
 
-**Last reviewed:** 2026-09-10 — JOURNEY-015 pinned-main rehearsal + release handoff Merged (claim #4572). Linux journey:verify 7/7 incl. upgrade; CI journey-verify green on `3f8890e15`. macOS/Windows same-pin legs waived by merge. JSIMP unlocked, not started. Prior: JOURNEY-014 reliability closure; JREL Done 13/13.
+**Last reviewed:** 2026-09-10 — JOURNEY-013 first-run navigation observation closed as fixed (claim #4577) on `62e1facd7` (carries `e586b6e53`). No splash. JSIMP-001 may consume recorded residuals; JSIMP not started in this item. Prior: JOURNEY-015 pinned-main rehearsal Merged (claim #4572).
 Historical delivery evidence remains unchanged.
 
 ## Purpose
@@ -66,7 +66,7 @@ the operator explicitly promotes them into the cut.
 [JREL](./journey-reliability.aps.md) owns twelve bounded reliability items.
 [JSIMP](./journey-simplification.aps.md) owns six subsequent simplification items.
 JOURNEY-014..016 own acceptance and handoff, not duplicate implementation.
-JOURNEY-013 owns the first-user navigation observation consumed by JSIMP-001.
+JOURNEY-013 first-user navigation observation is closed as fixed; JSIMP-001 may consume the recorded residuals.
 
 No next version or release claim is selected here. The active window remains
 provisional in [RELEASE-PLAN](../../RELEASE-PLAN.md). A reliable-journey claim
@@ -400,7 +400,7 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 ### JOURNEY-013: Re-test first-run activation navigation before designing a splash
 
-- **Status:** Ready
+- **Status:** Merged — claim #4577. Evidence: [2026-09-10 first-run activation navigation](../audits/2026-09-10-journey-013-activation-navigation.md) on `62e1facd70abd8de0311946e3fc6d4c401e9db7b` (carries `e586b6e53`). Decision: **close as fixed** — no splash; no stepping-affordance change in this item.
 - **Intent:** the operator observed a first-time user struggling to move between
   the `anvil start` consent screens and proposed a first-run splash teaching the
   key model. Investigation found the observed build cannot support that
@@ -467,7 +467,7 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 | ----- | ----------- | -------------- |
 | Reliability | Start JREL-001/-002 and JREL-012 harness; execute remaining JREL items according to their Dependencies | JOURNEY-014 evidence gate passes |
 | Rehearsal and release handoff | JOURNEY-015 on a pinned main build, using the existing public release process | Complete journey evidence and recorded release disposition; no internal channel needed |
-| Simplification decision | JOURNEY-013 observation, then JSIMP-001 contract/ADR decision | Agreed contract before downstream changes |
+| Simplification decision | JOURNEY-013 observation closed as fixed; JSIMP-001 contract/ADR decision | Agreed contract before downstream changes |
 | Simplification delivery | JSIMP-002..006 in dependency order | JOURNEY-016 acceptance passes |
 
 Dependencies on each item are authoritative. Historical JOURNEY-001..012
