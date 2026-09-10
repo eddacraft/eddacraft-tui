@@ -5,6 +5,7 @@
 | JOURNEY | Conductor | Josh | high | In Progress | 13/16 |
 
 **Last reviewed:** 2026-09-10 — JOURNEY-016 acceptance passed (claim #4613) on pinned `5489c6112`. JSIMP-001..006 Merged; JOURNEY-013 closed as fixed (no splash); JOURNEY-015 rehearsal Merged. No publication.
+Stored Progress stays **13/16** until an exclusive ADR-053 APS reconcile bumps N/M (acceptance closeout does not invent the counter).
 Historical delivery evidence remains unchanged.
 
 ## Purpose
