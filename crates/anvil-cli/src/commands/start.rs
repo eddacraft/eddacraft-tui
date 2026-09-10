@@ -2683,10 +2683,12 @@ fn force_all_mcp_clients(args: &StartArgs) -> bool {
 /// auto-starting the daemon. False in the contexts that must never grow
 /// a surprise background daemon: CI / commit hooks / explicit
 /// `ANVIL_NO_PROMPT` (via [`crate::is_non_interactive_env`]) or a
-/// non-terminal stdout (piped / captured / nohup).
+/// Interactive when stdin and stderr are TTYs and the env is not marked
+/// non-interactive. Stdout redirect alone is presentation (ADR-145).
 fn start_is_interactive() -> bool {
-    use std::io::IsTerminal as _;
-    !crate::is_non_interactive_env() && std::io::stdout().is_terminal()
+    !crate::is_non_interactive_env()
+        && std::io::stdin().is_terminal()
+        && std::io::stderr().is_terminal()
 }
 
 /// ADR-145 unattended predicate: stdin or stderr is not a TTY, or a
