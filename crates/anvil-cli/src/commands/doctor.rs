@@ -2690,6 +2690,7 @@ fn stop_sibling_intercept_sockets(
 
 /// ADR-145 / JSIMP-004: `doctor --fix` may invoke shared daemon ensure
 /// for unresolved faults, but must not become an unsigned on-switch.
+#[cfg(any(unix, test))]
 fn doctor_fix_may_start_daemon() -> bool {
     match crate::feature_flags::local_auth_precheck(
         &crate::feature_flags::resolve_cli_licence_gate(),
