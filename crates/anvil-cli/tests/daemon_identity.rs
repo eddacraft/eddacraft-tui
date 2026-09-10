@@ -182,9 +182,10 @@ fn spawn_daemon_bin(shell: &Shell, project: &Path, bin: &Path) -> DaemonChild {
 }
 
 /// Launch a previous-install daemon the way a short-lived CLI does: the
-/// helper exits so init reaps the process. Recycle waits on `/proc/<pid>`
-/// vanishing; a test-parented `--foreground` child becomes a zombie and
-/// fails that wait even after SIGTERM.
+/// helper exits so init reaps the process. Recycle uses
+/// `anvil_intercept::wait_for_pid_exit` → `process_exists` (Unix: `kill(0)`);
+/// a test-parented `--foreground` child becomes a zombie that still
+/// satisfies that liveness check and fails the wait even after SIGTERM.
 fn spawn_orphaned_daemon_bin(shell: &Shell, project: &Path, bin: &Path) {
     let status = shell
         .command_with_bin(Path::new("/bin/sh"))
@@ -842,12 +843,16 @@ fn concurrent_version_skew_ensures_do_not_signal_the_replacement() {
         anvil_intercept_pid_alive(replacement_pid),
         "replacement {replacement_pid} must be alive"
     );
-    // Give a late stop a chance to land; the replacement must survive it.
-    std::thread::sleep(Duration::from_millis(500));
-    assert!(
-        anvil_intercept_pid_alive(replacement_pid),
-        "a concurrent recycle must not signal the replacement pid {replacement_pid}"
-    );
+    // Poll a bounded window so a late stop has a chance to land; fail only
+    // if the replacement dies during that window (avoids fixed-sleep flake).
+    let survive_deadline = Instant::now() + Duration::from_millis(500);
+    while Instant::now() < survive_deadline {
+        assert!(
+            anvil_intercept_pid_alive(replacement_pid),
+            "a concurrent recycle must not signal the replacement pid {replacement_pid}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
     let still = wait_for_status(&xdg);
     assert_eq!(health_version(&still), current_version);
     assert_eq!(
