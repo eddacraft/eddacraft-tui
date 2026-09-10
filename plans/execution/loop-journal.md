@@ -1131,12 +1131,15 @@ never with feature work.
 
 ## Cycle — 2026-09-10 (JSIMP-003 integrated)
 
-- Target: JSIMP-003. Harness: Grok (`GROK_AGENT=1`) in brew tmux `gb-anvil:jsimp-drain`. Mode: autonomous
-  complete plus rebase-merge on green (no admin merge).
-- Feature PR #4599 (`feat/jsimp-003-shared-setup`) rebase-merged; tip on `origin/main`.
-  Claim #4598 closed by #4599. Bare never-activated path skips licence wall; welcome seeds
-  shared setup; envelope-swap/resume tests land.
+- Target: JSIMP-003. Harness: Grok (`GROK_AGENT=1`) in brew tmux
+  `gb-anvil:jsimp-drain`. Mode: autonomous complete plus rebase-merge
+  on green (no admin merge).
+- Feature PR #4599 (`feat/jsimp-003-shared-setup`) rebase-merged; tip
+  on `origin/main`.
+- Claim #4598 closed by #4599. Bare never-activated path skips the
+  licence wall; welcome seeds shared setup; envelope-swap/resume tests
+  land.
 - Avoided: splash/always-on/dashboard; JOURNEY-016 (deps incomplete).
-- Next: exclusive APS reconcile of JSIMP-003 → Merged (this branch), then `/dev-loop complete`
-  JSIMP-004…006 in order.
+- Next: exclusive APS reconcile of JSIMP-003 → Merged (this branch),
+  then `/dev-loop complete` JSIMP-004…006 in order.
 
