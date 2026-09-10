@@ -623,6 +623,10 @@ pub(crate) fn reconcile_foundation(root: &std::path::Path) -> anyhow::Result<Com
 
     // Existing-file augmentation is automatic only when every linked
     // worktree can coordinate through the Git-common-dir lock.
+    let has_mutation = !existing_updates.is_empty()
+        || config_create.is_some()
+        || identity_create.is_some()
+        || ignore_create.is_some();
     let _lock = if !existing_updates.is_empty() {
         match crate::util::ConfigMutationLock::try_acquire(root) {
             Ok(lock) => Some(lock),
@@ -639,7 +643,7 @@ pub(crate) fn reconcile_foundation(root: &std::path::Path) -> anyhow::Result<Com
                 ));
             }
         }
-    } else if config_create.is_some() {
+    } else if has_mutation {
         match crate::util::lock_project_config_create(root) {
             Ok(lock) => lock,
             Err(error) => {
@@ -1303,6 +1307,28 @@ mod tests {
         assert!(!root.path().join(".anvil.yaml").exists());
         assert!(!root.path().join("anvil/project-id").exists());
         assert!(!root.path().join(".gitignore").exists());
+    }
+
+    #[test]
+    fn resumed_git_foundation_refuses_while_shared_config_lock_is_held() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        std::fs::write(
+            root.path().join(".anvil.yaml"),
+            "schema_version: \"1.0.0\"\nformat: yaml\n",
+        )
+        .unwrap();
+        std::fs::write(
+            root.path().join(".gitignore"),
+            ".anvil/\nanvil/exceptions/.lock\nanvil/witness/.chain-initialised\n",
+        )
+        .unwrap();
+        let _held = crate::util::ConfigMutationLock::try_acquire(root.path()).unwrap();
+
+        let result = reconcile_foundation(root.path()).unwrap();
+
+        assert_eq!(result.outcome, MutationOutcome::NeedsInput);
+        assert!(!root.path().join("anvil/project-id").exists());
     }
 
     #[test]

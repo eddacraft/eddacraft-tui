@@ -366,7 +366,7 @@ pub(crate) fn generate_config(
 pub(crate) fn generate_config_with_force(
     config: &AnvilConfig,
     root: &Path,
-    force: bool,
+    _force: bool,
 ) -> anyhow::Result<GeneratedConfig> {
     let content = match config.format.as_str() {
         "toml" => toml_serialise(config),
@@ -393,7 +393,7 @@ pub(crate) fn generate_config_with_force(
     ]
     .into_iter()
     .find(|name| root.join(name).exists());
-    if force && let Some(existing) = existing_config {
+    if let Some(existing) = existing_config {
         anyhow::bail!(
             "refusing to replace operator-owned {existing}; use `anvil config set` or `anvil migrate format` for an explicit config mutation"
         );
@@ -1146,6 +1146,18 @@ planningDir: plans
             fs::read_to_string(dir.path().join(".anvilrc")).unwrap(),
             r#"{"old": true}"#
         );
+        assert!(!dir.path().join(".anvil.yaml").exists());
+    }
+
+    #[test]
+    fn zero_byte_legacy_config_still_blocks_canonical_creation() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join(".git")).unwrap();
+        fs::write(dir.path().join(".anvilrc"), b"").unwrap();
+
+        let error = generate_config(&AnvilConfig::default(), dir.path()).unwrap_err();
+
+        assert!(format!("{error:#}").contains("operator-owned .anvilrc"));
         assert!(!dir.path().join(".anvil.yaml").exists());
     }
 

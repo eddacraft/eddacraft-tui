@@ -42,7 +42,13 @@ pub fn mutation_lock_path(repo_root: &Path) -> Result<PathBuf, MutationLockError
     }
 
     let git_dir = if metadata.is_dir() {
-        canonicalise(&dot_git)?
+        let git_dir = canonicalise(&dot_git)?;
+        if std::fs::symlink_metadata(git_dir.join("commondir")).is_ok() {
+            return Err(MutationLockError::InvalidGitMetadata(
+                git_dir.join("commondir"),
+            ));
+        }
+        git_dir
     } else if metadata.is_file() {
         let raw =
             std::fs::read_to_string(&dot_git).map_err(|source| MutationLockError::Inspect {
@@ -55,11 +61,13 @@ pub fn mutation_lock_path(repo_root: &Path) -> Result<PathBuf, MutationLockError
             .filter(|path| !path.is_empty())
             .ok_or_else(|| MutationLockError::InvalidGitMetadata(dot_git.clone()))?;
         let path = Path::new(raw_path);
-        canonicalise(&if path.is_absolute() {
+        let git_dir = canonicalise(&if path.is_absolute() {
             path.to_path_buf()
         } else {
             repo_root.join(path)
-        })?
+        })?;
+        validate_worktree_backlink(&dot_git, &git_dir)?;
+        git_dir
     } else {
         return Err(MutationLockError::InvalidGitMetadata(dot_git));
     };
@@ -96,6 +104,24 @@ pub fn mutation_lock_path(repo_root: &Path) -> Result<PathBuf, MutationLockError
     };
 
     Ok(common_dir.join(LOCK_RELATIVE_PATH))
+}
+
+fn validate_worktree_backlink(dot_git: &Path, git_dir: &Path) -> Result<(), MutationLockError> {
+    let backlink = git_dir.join("gitdir");
+    let metadata = std::fs::symlink_metadata(&backlink)
+        .map_err(|_| MutationLockError::InvalidGitMetadata(backlink.clone()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(MutationLockError::InvalidGitMetadata(backlink));
+    }
+    let raw = std::fs::read_to_string(&backlink).map_err(|source| MutationLockError::Inspect {
+        path: backlink.clone(),
+        source,
+    })?;
+    let target = Path::new(raw.trim());
+    if target.as_os_str().is_empty() || canonicalise(target)? != canonicalise(dot_git)? {
+        return Err(MutationLockError::InvalidGitMetadata(backlink));
+    }
+    Ok(())
 }
 
 fn canonicalise(path: &Path) -> Result<PathBuf, MutationLockError> {

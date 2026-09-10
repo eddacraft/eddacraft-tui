@@ -119,7 +119,6 @@ pub(crate) fn compare_and_swap_nofollow(
 pub(crate) fn remove_if_unchanged(path: &Path, expected: &ObservedFile) -> Result<bool> {
     #[cfg(unix)]
     {
-        use nix::unistd::{UnlinkatFlags, unlinkat};
         use std::os::fd::AsFd;
 
         let parent = path
@@ -146,9 +145,7 @@ pub(crate) fn remove_if_unchanged(path: &Path, expected: &ObservedFile) -> Resul
         if current.stamp != expected.stamp {
             return Ok(false);
         }
-        unlinkat(parent_fd.as_fd(), leaf, UnlinkatFlags::NoRemoveDir)
-            .map_err(std::io::Error::from)?;
-        Ok(true)
+        quarantine_remove_at_unix(parent_fd.as_fd(), leaf, expected)
     }
     #[cfg(windows)]
     {
@@ -164,6 +161,81 @@ pub(crate) fn remove_if_unchanged(path: &Path, expected: &ObservedFile) -> Resul
         let _ = (path, expected);
         bail!("descriptor-bound guarded removal is unsupported on this platform")
     }
+}
+
+#[cfg(unix)]
+fn quarantine_remove_at_unix(
+    parent_fd: std::os::fd::BorrowedFd<'_>,
+    leaf: &std::ffi::OsStr,
+    expected: &ObservedFile,
+) -> Result<bool> {
+    use std::os::fd::AsFd;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use nix::fcntl::{OFlag, openat, renameat};
+    use nix::sys::stat::{Mode, mkdirat};
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+
+    static QUARANTINE_COUNTER: AtomicU64 = AtomicU64::new(0);
+    let quarantine = loop {
+        let candidate = format!(
+            ".anvil-remove-{}-{}",
+            std::process::id(),
+            QUARANTINE_COUNTER.fetch_add(1, Ordering::Relaxed)
+        );
+        match mkdirat(
+            parent_fd,
+            candidate.as_str(),
+            Mode::from_bits_truncate(0o700),
+        ) {
+            Ok(()) => break candidate,
+            Err(nix::errno::Errno::EEXIST) => {}
+            Err(error) => return Err(std::io::Error::from(error).into()),
+        }
+    };
+    let quarantine_fd = openat(
+        parent_fd,
+        quarantine.as_str(),
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(std::io::Error::from)?;
+    let candidate = std::ffi::OsStr::new("candidate");
+    if let Err(error) = renameat(parent_fd, leaf, quarantine_fd.as_fd(), candidate) {
+        let _ = unlinkat(parent_fd, quarantine.as_str(), UnlinkatFlags::RemoveDir);
+        if error == nix::errno::Errno::ENOENT {
+            return Ok(false);
+        }
+        return Err(std::io::Error::from(error).into());
+    }
+
+    let moved = observe_regular_at_unix(quarantine_fd.as_fd(), candidate)?;
+    if moved.stamp == expected.stamp {
+        unlinkat(quarantine_fd.as_fd(), candidate, UnlinkatFlags::NoRemoveDir)
+            .map_err(std::io::Error::from)?;
+        unlinkat(parent_fd, quarantine.as_str(), UnlinkatFlags::RemoveDir)
+            .map_err(std::io::Error::from)?;
+        return Ok(true);
+    }
+
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        use nix::fcntl::{RenameFlags, renameat2};
+        if renameat2(
+            quarantine_fd.as_fd(),
+            candidate,
+            parent_fd,
+            leaf,
+            RenameFlags::RENAME_NOREPLACE,
+        )
+        .is_ok()
+        {
+            let _ = unlinkat(parent_fd, quarantine.as_str(), UnlinkatFlags::RemoveDir);
+            return Ok(false);
+        }
+    }
+
+    bail!("file changed during guarded removal; bytes were preserved in {quarantine}/candidate")
 }
 
 fn sha256_bytes(bytes: &[u8]) -> [u8; 32] {
@@ -1396,7 +1468,7 @@ fn observe_regular_at_unix(
     leaf: &std::ffi::OsStr,
 ) -> Result<ObservedFile> {
     use nix::fcntl::{OFlag, openat};
-    use nix::sys::stat::{Mode, SFlag, fstat};
+    use nix::sys::stat::Mode;
 
     let fd = openat(
         parent,
@@ -1405,6 +1477,19 @@ fn observe_regular_at_unix(
         Mode::empty(),
     )
     .map_err(std::io::Error::from)?;
+    observe_regular_fd_unix(fd)
+}
+
+#[cfg(unix)]
+#[allow(
+    clippy::useless_conversion,
+    reason = "libc device and inode widths differ across supported Unix targets"
+)]
+fn observe_regular_fd_unix(fd: std::os::fd::OwnedFd) -> Result<ObservedFile> {
+    use std::io::{Seek, SeekFrom};
+
+    use nix::sys::stat::{SFlag, fstat};
+
     let stat = fstat(&fd).map_err(std::io::Error::from)?;
     if !SFlag::from_bits_truncate(stat.st_mode).contains(SFlag::S_IFREG) {
         bail!("observed path is not a regular file");
@@ -1416,7 +1501,8 @@ fn observe_regular_at_unix(
     let capacity =
         usize::try_from(size).map_err(|_| anyhow::anyhow!("file size does not fit usize"))?;
     let mut bytes = Vec::with_capacity(capacity);
-    let file = std::fs::File::from(fd);
+    let mut file = std::fs::File::from(fd);
+    file.seek(SeekFrom::Start(0))?;
     file.take(MAX_MUTATION_FILE_BYTES + 1)
         .read_to_end(&mut bytes)?;
     if bytes.len() as u64 > MAX_MUTATION_FILE_BYTES {
@@ -1603,34 +1689,87 @@ where
     F: FnOnce(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
 {
     use std::os::fd::AsFd;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     use nix::fcntl::{OFlag, openat};
     use nix::sys::stat::{Mode, fchmod};
-    use nix::unistd::{UnlinkatFlags, unlinkat};
+    use nix::unistd::{UnlinkatFlags, linkat, unlinkat};
 
+    static CREATE_COUNTER: AtomicU64 = AtomicU64::new(0);
     let parent_fd = open_dir_nofollow_unix(parent)?;
     let flags =
-        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
-    let fd = openat(
-        parent_fd.as_fd(),
-        leaf,
-        flags,
-        Mode::from_bits_truncate(0o600),
-    )
-    .map_err(std::io::Error::from)
-    .with_context(|| format!("creating {}", display_path.display()))?;
+        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_RDWR | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let (temp_name, fd) = loop {
+        let temp_name = format!(
+            ".anvil-new-{}-{}",
+            std::process::id(),
+            CREATE_COUNTER.fetch_add(1, Ordering::Relaxed)
+        );
+        match openat(
+            parent_fd.as_fd(),
+            temp_name.as_str(),
+            flags,
+            Mode::from_bits_truncate(0o600),
+        ) {
+            Ok(fd) => break (temp_name, fd),
+            Err(nix::errno::Errno::EEXIST) => {}
+            Err(error) => {
+                return Err(std::io::Error::from(error))
+                    .with_context(|| format!("staging {}", display_path.display()));
+            }
+        }
+    };
     if let Err(error) = fchmod(&fd, Mode::from_bits_truncate(0o600)) {
-        let _ = unlinkat(parent_fd.as_fd(), leaf, UnlinkatFlags::NoRemoveDir);
+        let file = std::fs::File::from(fd);
+        cleanup_failed_create_unix(parent_fd.as_fd(), std::ffi::OsStr::new(&temp_name), file)?;
         return Err(std::io::Error::from(error))
             .with_context(|| format!("securing {}", display_path.display()));
     }
     let mut file = std::fs::File::from(fd);
     if let Err(error) = writer(&mut file, data) {
-        drop(file);
-        let _ = unlinkat(parent_fd.as_fd(), leaf, UnlinkatFlags::NoRemoveDir);
+        cleanup_failed_create_unix(parent_fd.as_fd(), std::ffi::OsStr::new(&temp_name), file)?;
         return Err(error).with_context(|| format!("writing {}", display_path.display()));
     }
+    drop(file);
+    if let Err(error) = linkat(
+        parent_fd.as_fd(),
+        temp_name.as_str(),
+        parent_fd.as_fd(),
+        leaf,
+        nix::fcntl::AtFlags::empty(),
+    ) {
+        let staged = observe_regular_at_unix(parent_fd.as_fd(), std::ffi::OsStr::new(&temp_name))?;
+        let _ =
+            quarantine_remove_at_unix(parent_fd.as_fd(), std::ffi::OsStr::new(&temp_name), &staged);
+        return Err(std::io::Error::from(error))
+            .with_context(|| format!("publishing {} without replacement", display_path.display()));
+    }
+    unlinkat(
+        parent_fd.as_fd(),
+        temp_name.as_str(),
+        UnlinkatFlags::NoRemoveDir,
+    )
+    .map_err(std::io::Error::from)
+    .with_context(|| format!("removing staged hard link for {}", display_path.display()))?;
     Ok(())
+}
+
+#[cfg(unix)]
+fn cleanup_failed_create_unix(
+    parent_fd: std::os::fd::BorrowedFd<'_>,
+    leaf: &std::ffi::OsStr,
+    file: std::fs::File,
+) -> Result<()> {
+    use nix::unistd::dup;
+
+    let observed_fd = dup(&file).map_err(std::io::Error::from)?;
+    let observed = observe_regular_fd_unix(observed_fd)?;
+    drop(file);
+    if quarantine_remove_at_unix(parent_fd, leaf, &observed)? {
+        Ok(())
+    } else {
+        bail!("created file changed before failed-write cleanup")
+    }
 }
 
 #[cfg(windows)]
@@ -2490,6 +2629,20 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn exclusive_nofollow_create_publishes_complete_bytes_without_staging_debris() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("config");
+
+        write_new_nofollow(&path, b"complete").unwrap();
+        let error = write_new_nofollow(&path, b"replacement").unwrap_err();
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"complete");
+        assert!(format!("{error:#}").contains("without replacement"));
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn descriptor_bound_compare_and_swap_rejects_changed_bytes_and_identity() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("config");
@@ -2535,8 +2688,12 @@ mod tests {
         )
         .unwrap_err();
 
-        assert!(format!("{error:#}").contains("injected payload failure"));
+        assert!(
+            format!("{error:#}").contains("injected payload failure"),
+            "{error:#}"
+        );
         assert!(!path.exists());
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
     }
 
     #[test]

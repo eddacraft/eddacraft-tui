@@ -204,9 +204,11 @@ impl ProjectIdentity {
             let key = key.trim();
             let value = value.trim();
             match key {
-                "project_uuid" => project_uuid = Some(value.to_string()),
-                "created_at" => created_at = Some(value.to_string()),
-                "created_by_version" => created_by_version = Some(value.to_string()),
+                "project_uuid" => set_once(&mut project_uuid, value.to_string(), key, lineno)?,
+                "created_at" => set_once(&mut created_at, value.to_string(), key, lineno)?,
+                "created_by_version" => {
+                    set_once(&mut created_by_version, value.to_string(), key, lineno)?;
+                }
                 "scaffold_version" => {
                     if scaffold_version.is_some() {
                         return Err(IdentityError::Malformed(format!(
@@ -221,9 +223,11 @@ impl ProjectIdentity {
                         ))
                     })?);
                 }
-                "forked_from" => forked_from = Some(value.to_string()),
-                "first_commit" => first_commit = Some(value.to_string()),
-                "origin_canonical" => origin_canonical = Some(value.to_string()),
+                "forked_from" => set_once(&mut forked_from, value.to_string(), key, lineno)?,
+                "first_commit" => set_once(&mut first_commit, value.to_string(), key, lineno)?,
+                "origin_canonical" => {
+                    set_once(&mut origin_canonical, value.to_string(), key, lineno)?;
+                }
                 _ => {
                     // Unknown key — forward compatibility; ignore.
                     tracing::debug!(
@@ -378,6 +382,22 @@ impl ProjectIdentity {
 
         Ok(IdentityCheck::Mismatch { reasons })
     }
+}
+
+fn set_once<T>(
+    slot: &mut Option<T>,
+    value: T,
+    key: &str,
+    lineno: usize,
+) -> Result<(), IdentityError> {
+    if slot.is_some() {
+        return Err(IdentityError::Malformed(format!(
+            "line {}: duplicate {key}",
+            lineno + 1
+        )));
+    }
+    *slot = Some(value);
+    Ok(())
 }
 
 /// MLP2-003: canonicalise a `remote.origin.url` into a stable
@@ -1205,6 +1225,22 @@ created_at: 2026-05-07T12:34:56Z
             ))
             .is_err()
         );
+    }
+
+    #[test]
+    fn parse_rejects_every_duplicate_known_field() {
+        for (key, value) in [
+            ("project_uuid", "01997e4a-1b2c-7345-8901-abcdef123456"),
+            ("created_at", "2026-09-10T00:00:00Z"),
+            ("created_by_version", "0.9.7-beta"),
+            ("forked_from", "01997e4a-1b2c-7345-8901-abcdef123456"),
+            ("first_commit", "abc123"),
+            ("origin_canonical", "https://example.invalid/repo"),
+        ] {
+            let error = ProjectIdentity::parse(&format!("{key}: {value}\n{key}: {value}\n"))
+                .expect_err(key);
+            assert!(error.to_string().contains(&format!("duplicate {key}")));
+        }
     }
 
     #[test]

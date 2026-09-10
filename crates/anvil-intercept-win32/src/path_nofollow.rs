@@ -43,6 +43,7 @@ const OBJ_CASE_INSENSITIVE: u32 = 0x0000_0040;
 const OBJ_DONT_REPARSE: u32 = 0x0000_1000;
 const FILE_TRAVERSE: u32 = 0x0000_0020;
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+const MAX_OBSERVED_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 const STATUS_SUCCESS: i32 = 0;
 const STATUS_REPARSE_POINT_ENCOUNTERED: i32 = 0xC000_050B_u32 as i32;
@@ -400,7 +401,20 @@ fn observe_open_regular(handle: HANDLE) -> io::Result<ObservedRegularFile> {
     if ok == 0 {
         return Err(io::Error::last_os_error());
     }
+    let size = (u64::from(info.nFileSizeHigh) << 32) | u64::from(info.nFileSizeLow);
+    if size > MAX_OBSERVED_FILE_BYTES {
+        return Err(io::Error::new(
+            ErrorKind::InvalidData,
+            "file exceeds 8 MiB mutation limit",
+        ));
+    }
     let bytes = read_handle(handle)?;
+    if bytes.len() as u64 > MAX_OBSERVED_FILE_BYTES {
+        return Err(io::Error::new(
+            ErrorKind::InvalidData,
+            "file exceeds 8 MiB mutation limit",
+        ));
+    }
     Ok(ObservedRegularFile {
         bytes,
         volume_serial: u64::from(info.dwVolumeSerialNumber),

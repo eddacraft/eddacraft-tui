@@ -7,6 +7,11 @@ use serde_json::{Map, Value};
 
 use crate::GlobalArgs;
 
+#[cfg(test)]
+thread_local! {
+    static CONVERT_DESTINATION_RACE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 pub(crate) struct ProjectConfig {
     pub(crate) label: String,
     pub(crate) value: Value,
@@ -270,6 +275,12 @@ pub(crate) fn convert_and_write(
     align_format_metadata(&mut value, dest_format);
 
     let text = serialize_config(&value, dest_format)?;
+    #[cfg(test)]
+    CONVERT_DESTINATION_RACE.with(|enabled| {
+        if enabled.replace(false) {
+            std::fs::write(&dest, "operator destination appeared\n").unwrap();
+        }
+    });
     let destination_before = if same_path {
         Some(source_observed.clone())
     } else {
@@ -287,6 +298,12 @@ pub(crate) fn convert_and_write(
             Err(error) => return Err(error),
         }
     };
+    if destination_before.is_some() && !same_path && !force {
+        bail!(
+            "refusing to overwrite existing {}; pass --force",
+            dest.display()
+        );
+    }
     if let Some(before) = destination_before {
         crate::util::compare_and_swap_nofollow(&dest, &before, text.as_bytes())?;
     } else {
@@ -696,6 +713,22 @@ mod tests {
         let body = std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap();
         assert!(body.contains("schema_version"), "{body}");
         assert!(!body.contains("schemaVersion"), "{body}");
+    }
+
+    #[test]
+    fn convert_without_force_preserves_destination_that_appears_after_precheck() {
+        let tmp = temp_repo();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks: []\n").unwrap();
+        CONVERT_DESTINATION_RACE.with(|enabled| enabled.set(true));
+
+        let error =
+            convert_and_write(tmp.path(), "toml", false, false, "config convert").unwrap_err();
+
+        assert!(error.to_string().contains("pass --force"));
+        assert_eq!(
+            std::fs::read_to_string(tmp.path().join(".anvil.toml")).unwrap(),
+            "operator destination appeared\n"
+        );
     }
 
     #[test]
