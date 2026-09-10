@@ -341,12 +341,13 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
         let home = util::user_home_dir();
         let summary = ensure_existing_mcp_entries(root, home.as_deref(), &fresh);
         let intent = crate::activation::intent::IntegrationIntent::infer(root, home.as_deref());
-        // Omission/decline is not a repair failure — keep the recovery count
-        // suppressed so ensure does not nag `anvil start` for intentional absence.
+        // Omission/decline is not a failed install; recovery still names
+        // `anvil start` (reconsider). Selected or disabled coverage must not
+        // treat remaining NotPresent clients as "not installed".
         let absent_for_recovery = if intent.mcp_omitted() {
-            0
-        } else {
             summary.absent_for_recovery
+        } else {
+            0
         };
         let rewritten = summary
             .report
