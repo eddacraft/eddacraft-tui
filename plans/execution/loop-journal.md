@@ -1093,3 +1093,20 @@ never with feature work.
 - Avoided: JOURNEY-016, JSIMP, session `anvil` tmux.
 - Next: land this PR; do not start JSIMP in this lane.
 
+## Cycle — 2026-09-10 (JSIMP-001 integrated)
+
+- Target: JSIMP-001. Harness: Grok (`GROK_AGENT=1`). Mode: autonomous
+  complete plus rebase-merge on green (no admin merge).
+- Isolation: `/home/aneki/.grok/worktrees/src-anvil-001/jsimp-drain.feat-jsimp-001-continuous-journey`
+  on `feat/jsimp-001-continuous-journey`. Claim #4579 (closed by #4580).
+  Git-ref `refs/claims/JSIMP-001` released after land.
+- `LANDING(a948a23dcc94487ccbf7b70498587f1df04e75e5)` then
+  `MERGED(2be07a1990f07f075a1104be5910c660817c63d2, 2026-09-10T04:55:30Z)`
+  via PR #4580 (rebase-merge). Merge tip is `origin/main`. ADR-145 on main.
+- Design council: pragmatic-lead PASS; kernel-maintainer/adversarial REPLAN
+  on contract pins; repaired in the same PR. Verify-loop
+  pass-with-advisories. CI Docs corpus repaired by including
+  `docs-delivery.md`.
+- Next: exclusive APS reconcile of JSIMP-001 → Merged (this branch), then
+  JSIMP-002.
+

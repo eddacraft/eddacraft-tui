@@ -30,7 +30,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-001: Agree the continuous command journey and migration contract
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-10 via PR #4580
 - **Priority:** P1
 - **Intent:** The simplified journey has one accepted public contract grounded in the repaired product.
 - **Expected Outcome:** A decision record covers first-use bare routing before gated actions, optional welcome learning, shared setup via start, daily ensure, status/doctor roles and action-versus-output semantics. It accounts for ADR-044/080/082/092/103/114 and script compatibility, and records JOURNEY-013 first-user evidence before any additional splash/tutorial-depth choice. Current entitlement and consent policies are not silently overridden. The contract also records whether public `anvil intercept ensure` / `restart` exist as operator verbs, or whether bare `anvil` and `anvil mcp refresh --daemon restart` remain the only names.
