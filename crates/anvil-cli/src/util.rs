@@ -6,11 +6,25 @@ use anyhow::{Context, Result, bail};
 const MAX_MUTATION_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 /// Descriptor-bound identity and digest of a regular file.
+///
+/// `ctime_*` defends against inode-number reuse: a same-bytes unlink+create on
+/// busy tmpfs runners can recycle `(dev, ino)` while still minting a new ctime.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FileStamp {
     identity_a: u64,
     identity_b: u64,
+    ctime_secs: i64,
+    ctime_nsec: i64,
     digest: [u8; 32],
+}
+
+impl FileStamp {
+    /// Identity that survives rename (ctime changes on rename).
+    fn same_inode_and_digest(&self, other: &Self) -> bool {
+        self.identity_a == other.identity_a
+            && self.identity_b == other.identity_b
+            && self.digest == other.digest
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +61,9 @@ pub(crate) fn observe_regular_nofollow(path: &Path) -> Result<ObservedFile> {
             stamp: FileStamp {
                 identity_a: observed.volume_serial,
                 identity_b: observed.file_index,
+                // Win32 file_index is stable enough; ctime is Unix-oriented.
+                ctime_secs: 0,
+                ctime_nsec: 0,
                 digest,
             },
         })
@@ -105,6 +122,9 @@ pub(crate) fn compare_and_swap_nofollow(
             stamp: FileStamp {
                 identity_a: observed.volume_serial,
                 identity_b: observed.file_index,
+                // Win32 file_index is stable enough; ctime is Unix-oriented.
+                ctime_secs: 0,
+                ctime_nsec: 0,
                 digest,
             },
         })
@@ -210,7 +230,8 @@ fn quarantine_remove_at_unix(
     }
 
     let moved = observe_regular_at_unix(quarantine_fd.as_fd(), candidate)?;
-    if moved.stamp == expected.stamp {
+    // Rename updates ctime; compare inode+digest only.
+    if moved.stamp.same_inode_and_digest(&expected.stamp) {
         unlinkat(quarantine_fd.as_fd(), candidate, UnlinkatFlags::NoRemoveDir)
             .map_err(std::io::Error::from)?;
         unlinkat(parent_fd, quarantine.as_str(), UnlinkatFlags::RemoveDir)
@@ -1487,6 +1508,7 @@ fn observe_regular_at_unix(
 )]
 fn observe_regular_fd_unix(fd: std::os::fd::OwnedFd) -> Result<ObservedFile> {
     use std::io::{Seek, SeekFrom};
+    use std::os::fd::AsFd;
 
     use nix::sys::stat::{SFlag, fstat};
 
@@ -1503,10 +1525,22 @@ fn observe_regular_fd_unix(fd: std::os::fd::OwnedFd) -> Result<ObservedFile> {
     let mut bytes = Vec::with_capacity(capacity);
     let mut file = std::fs::File::from(fd);
     file.seek(SeekFrom::Start(0))?;
-    file.take(MAX_MUTATION_FILE_BYTES + 1)
+    (&mut file)
+        .take(MAX_MUTATION_FILE_BYTES + 1)
         .read_to_end(&mut bytes)?;
     if bytes.len() as u64 > MAX_MUTATION_FILE_BYTES {
         bail!("file exceeds {MAX_MUTATION_FILE_BYTES} byte mutation limit");
+    }
+    // Re-stat after the read so the stamp matches the bytes we actually hashed,
+    // and so a mid-read replacement cannot forge the planning identity.
+    let stat = fstat(file.as_fd()).map_err(std::io::Error::from)?;
+    if !SFlag::from_bits_truncate(stat.st_mode).contains(SFlag::S_IFREG) {
+        bail!("observed path is not a regular file");
+    }
+    let size_after =
+        u64::try_from(stat.st_size).map_err(|_| anyhow::anyhow!("negative file size"))?;
+    if size_after != bytes.len() as u64 {
+        bail!("file changed while observing");
     }
     let identity_a = stat
         .st_dev
@@ -1520,6 +1554,8 @@ fn observe_regular_fd_unix(fd: std::os::fd::OwnedFd) -> Result<ObservedFile> {
         stamp: FileStamp {
             identity_a,
             identity_b,
+            ctime_secs: stat.st_ctime,
+            ctime_nsec: i64::from(stat.st_ctime_nsec),
             digest: sha256_bytes(&bytes),
         },
         bytes,
