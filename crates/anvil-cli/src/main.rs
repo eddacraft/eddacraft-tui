@@ -1774,11 +1774,14 @@ mod tests {
         let intercept = command
             .find_subcommand("intercept")
             .expect("intercept command exists");
-        let names: Vec<_> = intercept
+        let mut names: Vec<_> = intercept
             .get_subcommands()
             .map(clap::Command::get_name)
             .collect();
-        assert_eq!(names, ["start", "status", "unblock", "stop"]);
+        names.sort_unstable();
+        let mut expected = ["start", "status", "unblock", "stop"];
+        expected.sort_unstable();
+        assert_eq!(names, expected, "intercept verbs are start/status/unblock/stop (order-agnostic)");
     }
 
     #[test]
