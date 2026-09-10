@@ -3,7 +3,7 @@
 //! Confirms that the read-only / activation-adjacent commands ship
 //! today survive being run with no network access. This is the v1
 //! scaffold for the release-gate guarantee that ADR-036 §D-3 calls
-//! out: `anvil start`, `anvil baseline`, `anvil intercept ensure`,
+//! out: `anvil start`, `anvil baseline`, bare `anvil`,
 //! all `anvil hook` subcommands, and `anvil audit` MUST make zero
 //! network calls in normal operation.
 //!

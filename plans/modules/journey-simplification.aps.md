@@ -90,7 +90,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-006: Align public guidance and verify the simplified journey
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** Installation help and everyday command guidance describe the same verified product behaviour.
 - **Expected Outcome:** Installer copy, root help, quickstart, activation-state reference and troubleshooting reflect the accepted contract and identify release availability accurately. Platform/client journeys and new-user observation show completion without hidden developer switches. Navigation/accessibility regressions, terminal restoration, output compatibility and reliability fault tests remain covered. Record residual editorial feedback under its existing owner.

@@ -12,9 +12,9 @@
 
 Anvil's core protection loop runs without internet access. Every command on the
 `v0.7.0-beta` slate that an operator might reach for — `anvil start`,
-`anvil baseline`, `anvil intercept ensure`, all `anvil hook` subcommands, and
-`anvil audit` — makes **zero network calls** in normal operation. Telemetry and
-update checks are opt-in and off by default.
+`anvil baseline`, bare `anvil`, all `anvil hook` subcommands, and `anvil audit`
+— makes **zero network calls** in normal operation. Telemetry and update checks
+are opt-in and off by default.
 
 This guarantee is part of the daemon-working release gate. See
 [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) Wave 1 (`MLP-017`) and the canonical

@@ -35,6 +35,15 @@ describeCli('CLI › --help', () => {
     // Should have some form of description about Anvil
     expect(result.output.toLowerCase()).toMatch(/anvil|automation|validation/);
   });
+
+  it('names the continuous journey and does not offer intercept ensure', async () => {
+    const result = await runCliExpectSuccess(['--help']);
+    expect(result.stdout).toContain('anvil welcome');
+    expect(result.stdout).toContain('anvil start');
+    expect(result.stdout).toMatch(/turn protection on|daily ensure/);
+    expect(result.stdout).not.toContain('anvil intercept ensure');
+    expect(result.stdout).not.toContain('anvil intercept restart');
+  });
 });
 
 describeCli('CLI › doctor', () => {

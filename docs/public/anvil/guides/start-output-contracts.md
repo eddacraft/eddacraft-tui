@@ -7,16 +7,20 @@ upstream:
   - crates/anvil-cli/src/activation/state.rs
   - crates/anvil-cli/src/activation/render.rs
   - crates/anvil-cli/src/commands/start.rs
-verified_against: 0.9.0-beta
+  - crates/anvil-cli/src/activation/receipt.rs
+verified_against: 0.9.7-beta
 public_unlisted: true
 ---
 
 # Activation states
 
 `anvil start`, `anvil start --verify`, and verified status output use the same
-final vocabulary. Bare `anvil` (daily ensure) reports a separate ensure surface
-for daemon, worktree, and MCP ensure outcomes; use `anvil --json` for automation
-and `anvil start --verify` when you need the activation-state vocabulary below.
+final vocabulary. After a mutating start, the closing receipt names project,
+selected coverage, client, policy, last proof and the next command;
+`anvil status` and `anvil doctor` consume those facts. Bare `anvil` (daily
+ensure) reports a separate ensure surface for daemon, worktree, and MCP ensure
+outcomes; use `anvil --json` for automation and `anvil start --verify` when you
+need the activation-state vocabulary below.
 
 | State                    | Assurance                                        | Next action                                         |
 | ------------------------ | ------------------------------------------------ | --------------------------------------------------- |
@@ -36,19 +40,18 @@ prose.
 ## Interactive and plain output
 
 In a genuine terminal, `anvil start` opens the interactive activation surface.
-Everything else — including every scripted context — gets the same plain text as
-before:
+Presentation cannot change intended mutations.
 
-| Context                                             | Output                    |
-| --------------------------------------------------- | ------------------------- |
-| A terminal (all of stdin, stdout, stderr are a TTY) | Interactive surface       |
-| `--no-tui`, or `ANVIL_NO_TUI=1`                     | Plain text                |
-| `--verify` or `--json`                              | Plain text / JSON         |
-| `anvil start --watch`                               | Plain text + event stream |
-| Piped, redirected, or run under CI                  | Plain text                |
+| Context                                                            | Output                                                                                 |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| A terminal (stdin, stdout, and stderr are TTYs)                    | Interactive TUI                                                                        |
+| `--no-tui` / `ANVIL_NO_TUI=1` on a real TTY (stdin and stderr TTY) | Interactive **plain** consent, not auto-install                                        |
+| `--verify` or `--json`                                             | Plain text / JSON (read-only; `--json` never installs)                                 |
+| `anvil start --watch`                                              | Plain text + event stream                                                              |
+| Piped, CI, or `ANVIL_NO_PROMPT` / `NONINTERACTIVE`                 | Unattended plain. New MCP needs `--mcp-client` / `--all-mcp-clients`; `--no-mcp` skips |
 
-`--no-tui` and `ANVIL_NO_TUI=1` are the permanent escape hatches — reach for
-either when a terminal session still needs plain output.
+Stdout redirect alone (`anvil start \| tee`) is presentation, not unattended.
+`--no-tui` remains the escape hatch for plain output on a terminal.
 
 ## Next step
 

@@ -144,6 +144,9 @@ test_success_banner_leads_with_ungated_welcome() {
   assert_not_contains "$output" "daily save-time protection" # retired-claim-ok: CIB-288
   assert_contains "$output" "anvil welcome"
   assert_contains "$output" "anvil start"
+  assert_contains "$output" "daily ensure after activation"
+  assert_not_contains "$output" "anvil intercept ensure"
+  assert_not_contains "$output" "anvil intercept restart"
 
   # Prefix up to the first occurrence of each command; the shorter prefix came
   # first. Each command is printed exactly once in the banner.

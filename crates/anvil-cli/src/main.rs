@@ -84,13 +84,13 @@ pub const EXIT_CONFIG_ERROR: u8 = 4;
 pub const EXIT_CROSS_BOUNDARY: u8 = 5;
 
 /// Daemon is not running and embedded fallback is unavailable. Reserved
-/// for future emission by `anvil doctor` / `anvil intercept ensure` /
+/// for future emission by `anvil doctor` / bare `anvil` (daily ensure) /
 /// hooks that strictly require the daemon.
 pub const EXIT_DAEMON_DOWN: u8 = 6;
 
 /// `proto-version-mismatch` between this CLI / hook and the running
 /// daemon (per ADR-036 §D-3). Reserved for future emission by
-/// `anvil intercept ensure` / hooks when the daemon's
+/// bare `anvil` / hooks when the daemon's
 /// `proto_version` is outside the surface's supported range.
 pub const EXIT_VERSION_MISMATCH: u8 = 7;
 
@@ -100,8 +100,8 @@ pub const EXIT_REDACTION_ERROR: u8 = 8;
 
 /// Discovery failed — runtime dir untrusted (lstat-ladder violation
 /// per ADR-036 §D-3) or `info.json` ownership / mode invalid.
-/// Reserved for future emission by `anvil doctor` / `anvil intercept
-/// ensure` / hooks that read the runtime sidecar.
+/// Reserved for future emission by `anvil doctor` / bare `anvil` /
+/// hooks that read the runtime sidecar.
 ///
 /// Note: code 9 remains reserved for future expansion. Code 8 is claimed
 /// by [`EXIT_REDACTION_ERROR`] (ADR-132).
@@ -1755,6 +1755,30 @@ mod tests {
             help.contains("turn protection on") || help.contains("daily ensure"),
             "help should name bare ensure role:\n{help}"
         );
+        assert!(
+            !help.contains("anvil intercept ensure"),
+            "root help must not teach intercept ensure:\n{help}"
+        );
+        assert!(
+            !help.contains("anvil intercept restart"),
+            "root help must not teach intercept restart:\n{help}"
+        );
+    }
+
+    #[test]
+    fn intercept_has_no_ensure_or_restart_subcommand() {
+        // ADR-145 / JSIMP-006: public intercept verbs stay start/status/
+        // unblock/stop. Daily ensure is bare `anvil`; recycle is
+        // `anvil mcp refresh --daemon restart`.
+        let command = augmented_cli_command();
+        let intercept = command
+            .find_subcommand("intercept")
+            .expect("intercept command exists");
+        let names: Vec<_> = intercept
+            .get_subcommands()
+            .map(clap::Command::get_name)
+            .collect();
+        assert_eq!(names, ["start", "status", "unblock", "stop"]);
     }
 
     #[test]

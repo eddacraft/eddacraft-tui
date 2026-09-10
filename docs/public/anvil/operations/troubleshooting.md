@@ -73,9 +73,10 @@ If refresh fails, run `anvil auth login` again. In CI, confirm the
 
 Action commands such as `anvil start`, bare `anvil`, `anvil gate`, and
 `anvil check` exit **`3`** when authentication is required so scripted `&&`
-chains stop cleanly. Read-only `anvil status` exits **`0`** and reports
-`authRequired` under `--json`. See
-[CLI exit codes](../reference/cli.md#exit-codes).
+chains stop cleanly. **Exception:** never-activated unsigned bare `anvil` (no
+project config) skips that wall, names `anvil start` / `anvil welcome`, and
+exits **`1`**. Read-only `anvil status` exits **`0`** and reports `authRequired`
+under `--json`. See [CLI exit codes](../reference/cli.md#exit-codes).
 
 ## Daily ensure fails or says not activated
 
@@ -93,9 +94,11 @@ anvil --json
 ```
 
 If the project was never activated, the command names `anvil start` or
-`anvil welcome`. Run `anvil start` to activate, then bare `anvil` on later days.
-For a read-only diagnosis without changing configuration, use
-`anvil start --verify`.
+`anvil welcome` and exits **`1`** (including when you are signed out). Run
+`anvil start` to activate, then bare `anvil` on later days. For a read-only
+diagnosis without changing configuration, use `anvil start --verify`. Daemon
+recycle is `anvil mcp refresh --daemon restart`; there is no
+`anvil intercept ensure`.
 
 ## Activation needs a restart
 

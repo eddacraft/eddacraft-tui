@@ -10,7 +10,8 @@ upstream:
   - crates/anvil-cli/src/commands/welcome.rs
   - crates/anvil-cli/src/commands/auth.rs
   - crates/anvil-cli/src/commands/start.rs
-verified_against: 0.9.3-beta
+  - crates/anvil-cli/src/activation/receipt.rs
+verified_against: 0.9.7-beta
 ---
 
 # Install and get first value
@@ -146,6 +147,11 @@ anvil start --verify
 
 No editor MCP? Use `anvil start --no-mcp` for the daemon-backed path only.
 
+Activation finishes with a short **closing receipt**: project, selected
+coverage, connected or pending client, policy mode, last proof, and `anvil` as
+the next daily command. Incomplete setup names one owner. `anvil status` and
+`anvil doctor` report the same facts.
+
 Full state vocabulary: [activation states](guides/start-output-contracts.md).
 
 ## 6. Day two: bare `anvil`
@@ -159,7 +165,9 @@ anvil
 That turns on the local daemon and **already configured** MCP entries. It does
 not open a setup picker and does not reinstall clients you skipped. If this
 project was never activated, the command tells you to run `anvil start` or
-`anvil welcome`. There is no separate `anvil intercept ensure` command.
+`anvil welcome` and exits `1` even when you are signed out. There is no separate
+`anvil intercept ensure` command. Daemon recycle is
+`anvil mcp refresh --daemon restart`.
 
 Machine-readable:
 

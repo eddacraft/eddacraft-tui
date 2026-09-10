@@ -161,11 +161,13 @@ printf "\n"
 # unauthenticated reader at it first dead-ends at the auth wall. The `start`
 # gloss describes the activation it performs, matching the CIB-260 wording in
 # `welcome.rs`; a bare `anvil start` does not attach save-time coverage, so
-# the banner no longer promises it.
+# the banner no longer promises it. ADR-145: after activation, daily use is
+# bare `anvil`. Do not teach `anvil intercept ensure`.
 printf "  Get started:\n"
 printf "    cd your-project/\n"
 printf "    anvil welcome    ${DIM}see what Anvil finds in your repo${RESET}\n"
 printf "    anvil start      ${DIM}activate this repo (sign-in required)${RESET}\n"
+printf "    anvil            ${DIM}daily ensure after activation${RESET}\n"
 printf "\n"
 printf "  Or run anvil --help for all commands.\n"
 printf "  ${DIM}https://docs.eddacraft.ai${RESET}\n"
