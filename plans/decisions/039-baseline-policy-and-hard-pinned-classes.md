@@ -326,7 +326,7 @@ context.
 ## References
 
 - **Spec:** [`2026-05-07-anvil-multilayer-protection-architecture.md`](../specs/2026-05-07-anvil-multilayer-protection-architecture.md) §7.5 (baseline mechanism)
-- **Brainstorm:** [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md)
+- **Brainstorm:** [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../archive/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md)
 - **Companion ADRs:**
   - ADR-036 — Daemon scope (parent: identity is established at baseline)
   - ADR-037 — Witness chain (companion: baseline writes genesis line)

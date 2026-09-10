@@ -22,7 +22,7 @@ remaining support-crate disposition).
 > (EXCEPT-008), and capsule inclusion (EXCEPT-009) all Merged 2026-07-04;
 > only EXCEPT-011 (capsule tip-alignment) and EXCEPT-012 (AD-2 crate
 > extraction) remain Proposed. Brainstorm:
-> [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
+> [`../brainstorms/git-native-governance/`](../archive/brainstorms/git-native-governance/).
 
 2026-06-12: items confirmed in the v0.8.0-beta tag (record:
 plans/releases/v0.8.0-beta.md) advanced to Released/Shipped; enforcement

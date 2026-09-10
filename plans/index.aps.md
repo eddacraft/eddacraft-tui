@@ -439,8 +439,8 @@ tasks total. See [ADR-104](./decisions/104-dashboard-host-server-module-boundary
 **Why Dashboard:** The CLI remains the primary developer interface; the
 dashboard serves team leads, platform engineers, and compliance roles who need
 persistent views, historical trends, and graphical visualisations that a
-terminal cannot provide. See [brainstorm](./brainstorms/dashboard-web-ui.md) and
-[json-render approach](./brainstorms/json-render-dashboard.md) for background.
+terminal cannot provide. See [brainstorm](./archive/brainstorms/dashboard-web-ui.md) and
+[json-render approach](./archive/brainstorms/json-render-dashboard.md) for background.
 
 ### Policy Governance
 

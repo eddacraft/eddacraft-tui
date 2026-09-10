@@ -299,7 +299,7 @@ witness file is minimal portable proof.
 ## References
 
 - **Spec:** [`2026-05-07-anvil-multilayer-protection-architecture.md`](../specs/2026-05-07-anvil-multilayer-protection-architecture.md) §5, §7
-- **Brainstorm:** [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md) §1.7 (witness file user proposal), §3 (alternatives considered)
+- **Brainstorm:** [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../archive/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md) §1.7 (witness file user proposal), §3 (alternatives considered)
 - **Companion ADRs:**
   - ADR-036 — Daemon scope, discovery, OS-boundary policy (parent of execution-scope concept)
   - ADR-038 — Hook surface + noise discipline (companion: hooks that write the witness)

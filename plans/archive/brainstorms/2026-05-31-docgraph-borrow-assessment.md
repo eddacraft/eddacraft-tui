@@ -7,7 +7,7 @@ single-author, 0-adoption repo). Borrow the policy/evidence source-quality
 *drift-as-evidence* model and advisory provenance discipline — already
 adjudicated *In* / *advisory-only* by the scope guard. Decline the indexer /
 FTS / knowledge-graph search surface (scope guard: *Out*). Companion decision:
-[ADR-062](../decisions/062-policy-evidence-drift-as-evidence.md) (Proposed).
+[ADR-062](../../decisions/062-policy-evidence-drift-as-evidence.md) (Proposed).
 Exact module touch list + gaps in §7; suggested CIB filings (next-available
 numbers) in §7.3.**
 **Source:** https://github.com/Detective-XH/DocGraph (MIT, Go, v0.2.3)
@@ -46,7 +46,7 @@ rather than hidden retrieval risk.
 
 ## 2. Scope-guard test
 
-Per [`docs/vision/anvil-scope-guard.md`](../../docs/vision/anvil-scope-guard.md),
+Per [`docs/vision/anvil-scope-guard.md`](../../../docs/vision/anvil-scope-guard.md),
 a feature earns its place only if it passes all five tests: **save-time,
 deterministic, evidence-producing, preventive, local-first.** The scope guard's
 own *Borderline Cases* table has **already adjudicated the exact DocGraph
@@ -79,16 +79,16 @@ reference implementation of the union of three in-flight modules.
 
 | DocGraph capability | Anvil equivalent (status) |
 | ------------------- | ------------------------- |
-| Drift audit codes `policy.*` / `research.*` over prose artefacts | **MDGOV** (markdown-governance, Draft) — standalone Rust crate `crates/anvil-markdown-governance/` ([ADR-028](../decisions/028-markdown-governance-crate.md)); roadmap names an unbuilt **M2 "claim hygiene"** tier these codes map onto. |
+| Drift audit codes `policy.*` / `research.*` over prose artefacts | **MDGOV** (markdown-governance, Draft) — standalone Rust crate `crates/anvil-markdown-governance/` ([ADR-028](../../decisions/028-markdown-governance-crate.md)); roadmap names an unbuilt **M2 "claim hygiene"** tier these codes map onto. |
 | `policy.stale_review` / `policy.superseded_referenced` / freshness | **DOCGOV** (documentation-governance, In Progress 9/12) — already owns lifecycle/freshness metadata and `Supersedes:`/`Superseded by:` sweeping. |
 | Findings attached to exported evidence | **CEWS** (compliance-evidence-workspace, Draft) — exposes `EvidenceRecord` / `ControlEvidenceMap` / `ComplianceWorkspaceReport`; CEWS-002 links policy/eval outcomes → evidence; CEWS-004 export packs. |
-| `DriftFinding` record shape | **Already plural in Anvil** — `DriftFinding` (`crates/anvil-checks/src/surface/env/drift.rs:49`), `Finding` (`crates/anvil-policy-engine/src/result.rs:49`), `BaselineFinding` (`crates/anvil-baseline/src/finding.rs:13`), plus Secret/Entropy/Env/Gitignore/ProdValue/CommandSafety findings. [ADR-058](../decisions/058-sarif-shared-emitter-no-finding-model.md) **deliberately did not unify them**. |
-| Deterministic audit + injected `AsOf` | Matches Core Philosophy ([ADR-001](../decisions/001-planless-first.md)/[002](../decisions/002-warnings-over-blocks.md)/[003](../decisions/003-new-edges-only.md)); baseline new-edges-only. |
-| Advisory, provenance-bound enrichment | **LAC** (lineage-authorship-confidence, Ready) + witness chain ([ADR-037](../decisions/037-witness-chain-and-l4-policy.md)). |
+| `DriftFinding` record shape | **Already plural in Anvil** — `DriftFinding` (`crates/anvil-checks/src/surface/env/drift.rs:49`), `Finding` (`crates/anvil-policy-engine/src/result.rs:49`), `BaselineFinding` (`crates/anvil-baseline/src/finding.rs:13`), plus Secret/Entropy/Env/Gitignore/ProdValue/CommandSafety findings. [ADR-058](../../decisions/058-sarif-shared-emitter-no-finding-model.md) **deliberately did not unify them**. |
+| Deterministic audit + injected `AsOf` | Matches Core Philosophy ([ADR-001](../../decisions/001-planless-first.md)/[002](../../decisions/002-warnings-over-blocks.md)/[003](../../decisions/003-new-edges-only.md)); baseline new-edges-only. |
+| Advisory, provenance-bound enrichment | **LAC** (lineage-authorship-confidence, Ready) + witness chain ([ADR-037](../../decisions/037-witness-chain-and-l4-policy.md)). |
 | Reviewable context pack (hashes + citations, snapshot-not-live) | `graph-context-delivery` + CEWS export packs. |
 | Indexer / parsers / FTS5 / TF-IDF+Jaccard similarity / workspace fan-out | **Out of lane** (scope guard: doc search = Out). Anvil is not a retrieval engine. |
 | `code.*` (missing symbol / undocumented export / unanchored feature) | `graph-v2-foundation` (symbols/exports) — but DocGraph only does shallow doc-comment scraping; **beta-later**. |
-| `anvil drift` / architecture-edge drift ([ADR-052](../decisions/052-automated-drift-snapshots.md)) | **Distinct axis** — that "drift" is *code edges*; this borrow is *source-document quality*. Naming must not collide (see §6). |
+| `anvil drift` / architecture-edge drift ([ADR-052](../../decisions/052-automated-drift-snapshots.md)) | **Distinct axis** — that "drift" is *code edges*; this borrow is *source-document quality*. Naming must not collide (see §6). |
 
 Anvil's lane: **deterministic, evidence-producing governance of change at
 save/commit/push time.** DocGraph's drift-as-evidence slice sits squarely in it;
@@ -118,7 +118,7 @@ finding on a cited source caps strength: any `error` (e.g. `policy.conflicting`)
 → `weak`; any `warning` (e.g. `policy.stale_review`) → `moderate`; clean →
 `strong`. Computed against an **injected `AsOf`** (reproducible). The decision
 still exports — strength drops, reasons attach. Warnings-over-blocks
-([ADR-002](../decisions/002-warnings-over-blocks.md)), not a gate.
+([ADR-002](../../decisions/002-warnings-over-blocks.md)), not a gate.
 
 ### Borrow C — MDGOV M2 claim-hygiene checks from the taxonomy (concrete · Use directly as spec)
 
@@ -173,7 +173,7 @@ opaque RAG).
   collide. Use `evidence_*`-scoped names (`evidence_drift_findings`,
   `EvidenceDriftFinding`). Also avoid `policy_source` (already a local in
   `crates/anvil-cli/src/commands/policy/eval.rs`) → use `policy_source_ref`.
-- **Finding-model boundary.** [ADR-058](../decisions/058-sarif-shared-emitter-no-finding-model.md)
+- **Finding-model boundary.** [ADR-058](../../decisions/058-sarif-shared-emitter-no-finding-model.md)
   rejected a *unified cross-command* finding model. These are **domain findings
   on the evidence record**, mapped to SARIF per-command — *not* that. State the
   boundary explicitly (ADR-062 does).
@@ -189,7 +189,7 @@ opaque RAG).
 **Decline DocGraph code/runtime adoption. Borrow the policy/evidence
 drift-as-evidence model + advisory-enrichment discipline, reimplemented in Rust,
 landing on existing modules. Cite DocGraph as parallel evolution; no
-dependency.** Land [ADR-062](../decisions/062-policy-evidence-drift-as-evidence.md)
+dependency.** Land [ADR-062](../../decisions/062-policy-evidence-drift-as-evidence.md)
 (Proposed) to record the boundaries.
 
 ### 7.1 APS modules to update (exact list)
@@ -230,7 +230,7 @@ tool-call interception.
 
 ### 7.3 Suggested CIB filings (next-available numbers)
 
-File under [`continuous-improvement-backlog`](../modules/continuous-improvement-backlog.aps.md)
+File under [`continuous-improvement-backlog`](../../modules/continuous-improvement-backlog.aps.md)
 (allocate next-available CIB IDs at filing time — not hard-coded here to avoid a
 race):
 
@@ -246,9 +246,9 @@ race):
 ## 8. Open questions
 
 - Should `evidence_drift_findings` be **baselined** (new-edges-only,
-  [ADR-003](../decisions/003-new-edges-only.md)) so pre-existing stale policies
+  [ADR-003](../../decisions/003-new-edges-only.md)) so pre-existing stale policies
   don't flip every decision to `weak` on first run — and are any classes
-  **hard-pinned** never-baseline ([ADR-039](../decisions/039-baseline-policy-and-hard-pinned-classes.md))?
+  **hard-pinned** never-baseline ([ADR-039](../../decisions/039-baseline-policy-and-hard-pinned-classes.md))?
   Likely: baseline freshness, hard-pin `policy.conflicting`.
 - Does the witness chain already carry enough source-provenance that
   `policy_source_digest` is derivable from it rather than re-collected?

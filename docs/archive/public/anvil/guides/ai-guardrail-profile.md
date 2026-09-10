@@ -8,11 +8,11 @@ public_unlisted: true
 owner: DOCSYNC
 upstream:
   - docs/public/anvil/concepts/gates.md
-  - docs/public/anvil/guides/agent-harness.md
+  - docs/public/anvil/guides/../../../../public/anvil/guides/agent-harness.md
 verified_against: 0.9.0-beta
 ---
 
 # AI guardrail profile
 
-Use [checks, findings, and gates](../concepts/gates.md) to select a gate
-profile, then [protect AI-assisted writes](agent-harness.md) for client setup.
+Use [checks, findings, and gates](../../../../public/anvil/concepts/gates.md) to select a gate
+profile, then [protect AI-assisted writes](../../../../public/anvil/guides/agent-harness.md) for client setup.

@@ -249,8 +249,8 @@ Why per-execution-scope specifically:
 
 ## References
 
-- **Round-1 brainstorm:** [`2026-05-07-daemon-sessions-surfaces-boundaries.md`](../brainstorms/2026-05-07-daemon-sessions-surfaces-boundaries.md)
-- **Round-2 brainstorm:** [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md)
+- **Round-1 brainstorm:** [`2026-05-07-daemon-sessions-surfaces-boundaries.md`](../archive/brainstorms/2026-05-07-daemon-sessions-surfaces-boundaries.md)
+- **Round-2 brainstorm:** [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../archive/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md)
 - **Spec (consolidated):** [`2026-05-07-anvil-multilayer-protection-architecture.md`](../specs/2026-05-07-anvil-multilayer-protection-architecture.md)
 - **Spec (round-1, superseded):** [`2026-05-07-daemon-lifecycle-and-discovery.md`](../specs/2026-05-07-daemon-lifecycle-and-discovery.md)
 - **Companion ADRs (split per planning direction):**

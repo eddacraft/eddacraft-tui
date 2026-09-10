@@ -5,7 +5,7 @@
 Proposed
 
 Emerged from the DocGraph borrow assessment
-([`plans/archive/brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../brainstorms/2026-05-31-docgraph-borrow-assessment.md)).
+([`plans/archive/brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../archive/brainstorms/2026-05-31-docgraph-borrow-assessment.md)).
 Ready for council/PR review; not yet operator-ratified.
 
 ## Date
@@ -151,7 +151,7 @@ In, so this is execution of an accepted direction, not a new scope claim.
 
 ## References
 
-- Borrow assessment: [`../brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../brainstorms/2026-05-31-docgraph-borrow-assessment.md)
+- Borrow assessment: [`../brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../archive/brainstorms/2026-05-31-docgraph-borrow-assessment.md)
 - Scope guard: [`../../docs/vision/anvil-scope-guard.md`](../../docs/vision/anvil-scope-guard.md) (Borderline Cases: policy drift = In)
 - External: [`Detective-XH/DocGraph`](https://github.com/Detective-XH/DocGraph) (MIT, Go, v0.2.3)
 - Related ADRs: [ADR-001](001-planless-first.md), [ADR-002](002-warnings-over-blocks.md), [ADR-003](003-new-edges-only.md), [ADR-028](028-markdown-governance-crate.md), [ADR-037](037-witness-chain-and-l4-policy.md), [ADR-039](039-baseline-policy-and-hard-pinned-classes.md), [ADR-040](040-rust-policy-engine-regorus.md), [ADR-052](052-automated-drift-snapshots.md), [ADR-058](058-sarif-shared-emitter-no-finding-model.md)

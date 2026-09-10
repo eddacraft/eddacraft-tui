@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                                            | Downstream                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Persisted Clawpatch finding/run records; current source and tests; [issue triage and APS authority](../../plans/specs/2026-05-28-issue-triage-and-aps-authority.md) | [CLAW30 intake receipt](../../plans/archive/modules/clawpatch-2026-08-30-intake.aps.md); GitHub issues [#4230](https://github.com/eddacraft/anvil-001/issues/4230)–[#4233](https://github.com/eddacraft/anvil-001/issues/4233) and [#4280](https://github.com/eddacraft/anvil-001/issues/4280)–[#4282](https://github.com/eddacraft/anvil-001/issues/4282) |
+| Persisted Clawpatch finding/run records; current source and tests; [issue triage and APS authority](../../../plans/specs/2026-05-28-issue-triage-and-aps-authority.md) | [CLAW30 intake receipt](../../../plans/archive/modules/clawpatch-2026-08-30-intake.aps.md); GitHub issues [#4230](https://github.com/eddacraft/anvil-001/issues/4230)–[#4233](https://github.com/eddacraft/anvil-001/issues/4233) and [#4280](https://github.com/eddacraft/anvil-001/issues/4280)–[#4282](https://github.com/eddacraft/anvil-001/issues/4282) |
 
 **Source paths reviewed:**
 
@@ -82,42 +82,42 @@ mistaken for the whole queue.
 
 ### Request and process bounds
 
-[`GET /auth/logout`](../../apps/docs-shell/app/auth/logout/route.ts) mutates the
+[`GET /auth/logout`](../../../apps/docs-shell/app/auth/logout/route.ts) mutates the
 session cookie, so #4230 owns the same-origin, non-GET contract decision.
 
-[`request_daemon_diagnostics`](../../crates/anvil-cli/src/mcp/validation.rs) has
+[`request_daemon_diagnostics`](../../../crates/anvil-cli/src/mcp/validation.rs) has
 no whole-exchange deadline, while
-[`git_recent_files`](../../crates/anvil-cli/src/services/sample_analyser.rs)
+[`git_recent_files`](../../../crates/anvil-cli/src/services/sample_analyser.rs)
 drains piped output only after the child exits. #4231 owns the shared
 bounded-I/O invariant.
 
-[`read_blobs_batch`](../../crates/anvil-cli/src/graph_base_producer.rs) buffers
+[`read_blobs_batch`](../../../crates/anvil-cli/src/graph_base_producer.rs) buffers
 the complete `git cat-file --batch` transcript before enforcing its per-blob
 limit. #4232 owns the aggregate memory-bound design.
 
 ### Fixture ownership
 
-[`secret_streaming.rs`](../../crates/anvil-checks/tests/secret_streaming.rs) and
-[`secret_coverage_surfaces.rs`](../../crates/anvil-cli/tests/secret_coverage_surfaces.rs)
+[`secret_streaming.rs`](../../../crates/anvil-checks/tests/secret_streaming.rs) and
+[`secret_coverage_surfaces.rs`](../../../crates/anvil-cli/tests/secret_coverage_surfaces.rs)
 rely on manual or absent cleanup. #4233 owns conversion to the existing
 `TempDir` lifetime pattern.
 
 ### Vendored-rules refresh and tests
 
-[`refresh-gitleaks-ruleset.sh`](../../scripts/secret/refresh-gitleaks-ruleset.sh)
+[`refresh-gitleaks-ruleset.sh`](../../../scripts/secret/refresh-gitleaks-ruleset.sh)
 uses the ref object's SHA directly, so an annotated tag supplies a tag-object
 SHA where the raw-content URL needs a commit. The converter tests also stop at
 helper return values instead of proving the `convert` rejection and
 `secret_group` decisions. #4280 owns both residuals at the same refresh
 boundary.
 
-[`pattern_warm.rs`](../../crates/anvil-intercept/tests/pattern_warm.rs) uses a 5
+[`pattern_warm.rs`](../../../crates/anvil-intercept/tests/pattern_warm.rs) uses a 5
 ms wall-clock threshold as the correctness oracle after service construction.
 Scheduler pre-emption can therefore fail a correctly warmed process. #4281 has a
 design checkpoint for deterministic observation while preserving the single-test
 binary.
 
-[`secret_vendored_tier1.rs`](../../crates/anvil-checks/tests/secret_vendored_tier1.rs)
+[`secret_vendored_tier1.rs`](../../../crates/anvil-checks/tests/secret_vendored_tier1.rs)
 states that every credential-shaped canary is assembled at runtime but embeds
 one canonical AWS example as a literal. Its shape-allowlist test also checks the
 matcher and high-confidence flags separately without exercising a vendored scan
@@ -126,14 +126,14 @@ or suppression provenance. #4282 owns the paired test-only repair.
 ## Closed calibration
 
 `fnd_sig-feat-test-suite-f53827d8bc-e_ddafcd834c` is fixed: the helper in
-[`secret_file_coverage.rs`](../../crates/anvil-checks/tests/secret_file_coverage.rs)
+[`secret_file_coverage.rs`](../../../crates/anvil-checks/tests/secret_file_coverage.rs)
 returns `tempfile::TempDir`, retains ownership for the test lifetime, and has an
 unwind-cleanup regression test. The implementation landed in CLAWOPEN-008
 through [PR #4216](https://github.com/eddacraft/anvil-001/pull/4216).
 
 `fnd_sig-feat-test-suite-78062855d2-d_114aaf17ab` is `wont-fix` at the current
 boundary.
-[`GitCommitNonEvaluation`](../../crates/anvil-checks/src/conformance/evaluate.rs)
+[`GitCommitNonEvaluation`](../../../crates/anvil-checks/src/conformance/evaluate.rs)
 has no `detail` field, and `pr_git_footprint_non_evaluations` copies only
 commit, reason, stage, counts, digest, and bounded diagnostics. The fixture's
 raw detail cannot cross without an explicit type and contract change, so another

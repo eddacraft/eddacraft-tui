@@ -4,9 +4,9 @@
 | ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Runbook | Authoritative | ACTMO | Live   | Last reviewed 2026-09-09 for JREL-005 typed readiness and no-MCP success; filed 2026-06-26 for ACTMO-009 against ADR-092 and `anvil start` |
 
-| Upstream                                                                                                                                                                                                                                                 | Downstream                                                                                                                                                                |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ACTMO](../../plans/modules/activation-mcp-optional.aps.md), [ADR-092](../../plans/decisions/092-mcp-optional-activation-spine.md), [`anvil start`](../../crates/anvil-cli/src/commands/start.rs) `plans/decisions/092-mcp-optional-activation-spine.md` | [Activation as-built](../architecture/activation-as-built.md), [Wow start guide](../public/anvil/guides/wow-start-demo.md), [Hook coexistence](anvil-hook-coexistence.md) |
+| Upstream                                                                                                                                                                                                                                                 | Downstream                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ACTMO](../../plans/modules/activation-mcp-optional.aps.md), [ADR-092](../../plans/decisions/092-mcp-optional-activation-spine.md), [`anvil start`](../../crates/anvil-cli/src/commands/start.rs) `plans/decisions/092-mcp-optional-activation-spine.md` | [Activation as-built](../architecture/activation-as-built.md), [Wow start guide](../archive/public/anvil/guides/wow-start-demo.md), [Hook coexistence](anvil-hook-coexistence.md) |
 
 Use this runbook when an organisation blocks editor MCP integration, has not yet
 approved AI-client MCP wiring (Claude Code, Cursor, Codex, VS Code, and the rest
@@ -166,5 +166,5 @@ started under a different `$XDG_RUNTIME_DIR` (or none), status still finds it;
   implementation and validation tracking.
 - [Activation as-built](../architecture/activation-as-built.md) — current
   source-backed lifecycle and state mapping.
-- [Wow start guide](../public/anvil/guides/wow-start-demo.md) — public-facing
-  first-run behaviour.
+- [Wow start guide](../archive/public/anvil/guides/wow-start-demo.md) —
+  public-facing first-run behaviour.

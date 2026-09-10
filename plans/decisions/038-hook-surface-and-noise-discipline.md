@@ -268,7 +268,7 @@ optional richness, not load-bearing for protection.
 ## References
 
 - **Spec:** [`2026-05-07-anvil-multilayer-protection-architecture.md`](../specs/2026-05-07-anvil-multilayer-protection-architecture.md) §6
-- **Brainstorm:** [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md) §1.6 (Serena rule), §2 principle 1
+- **Brainstorm:** [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../archive/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md) §1.6 (Serena rule), §2 principle 1
 - **Companion ADRs:**
   - ADR-036 — Daemon scope (parent: where the daemon's I/O surface lives)
   - ADR-037 — Witness chain (companion: hooks write the witness)

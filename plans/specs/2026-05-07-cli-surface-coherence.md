@@ -515,4 +515,4 @@ single source-of-truth manifest (probably YAML) so the docs / `--help`
    (YAML?) and tooling to render to `--help` / man / docs.
 
 These are documented gaps for the future-session input file
-[`2026-05-07-remaining-design-gaps.md`](../brainstorms/2026-05-07-remaining-design-gaps.md).
+[`2026-05-07-remaining-design-gaps.md`](../archive/brainstorms/2026-05-07-remaining-design-gaps.md).

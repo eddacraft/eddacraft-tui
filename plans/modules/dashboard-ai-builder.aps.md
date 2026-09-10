@@ -14,7 +14,7 @@ unchanged at 0/6.
 
 Integrate the json-render approach into the web dashboard, enabling users to
 compose custom dashboard views via natural language prompts. This is the
-realisation of the [json-render brainstorm](../brainstorms/json-render-dashboard.md)
+realisation of the [json-render brainstorm](../archive/brainstorms/json-render-dashboard.md)
 — AI generates constrained JSON referencing the component catalogue, which React
 renders progressively. The structured pages (DASHCORE, DASHARCH, DASHOPS) cover
 90% of usage; the AI Builder provides escape velocity for the remaining 10%.

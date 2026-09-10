@@ -174,7 +174,7 @@ ADR-123.
 
 - [`docs/specs/`](../specs/) — non-architecture design contracts (for example
   watch-output)
-- [`docs/internal/`](../internal/) — engineering-internal briefs
+- [`docs/internal/`](../archive/internal/) — engineering-internal briefs
 - [`docs/runbooks/`](../runbooks/) — operational procedures (current release
   runbook: [`release-runbook.md`](../runbooks/release-runbook.md))
 - [`docs/guides/`](../guides/) — developer practice

@@ -26,14 +26,14 @@ CIB-048) in §7.3.**
 
 A borrow assessment of an external repo, in the format of
 [`2026-06-03-meho-borrow-assessment.md`](./2026-06-03-meho-borrow-assessment.md),
-[`2026-05-24-drako-borrow-assessment.md`](./2026-05-24-drako-borrow-assessment.md),
+[`2026-05-24-drako-borrow-assessment.md`](../archive/brainstorms/2026-05-24-drako-borrow-assessment.md),
 and
-[`2026-05-22-proxilion-pic-borrow-assessment.md`](./2026-05-22-proxilion-pic-borrow-assessment.md).
+[`2026-05-22-proxilion-pic-borrow-assessment.md`](../archive/brainstorms/2026-05-22-proxilion-pic-borrow-assessment.md).
 The goal is **not** to adopt Node9 but to mine it for reusable ideas,
 scope-guard each one, map it onto exact APS modules, and name the gaps. Facts
 were read from the public repo landing on 2026-06-06 and cross-checked against
 `plans/modules/*`, `docs/vision/anvil-scope-guard.md`, the
-[agent-security-package brainstorm](./agent-security-package.md), and the prior
+[agent-security-package brainstorm](../archive/brainstorms/agent-security-package.md), and the prior
 assessments above.
 
 **Maturity note up front:** Node9 is the most-adopted candidate assessed to date
@@ -118,7 +118,7 @@ almost every collector the exposure report would view over.
 | Tool capability view before a call | **POLCAP** (policy-capability-discovery) · **Proposed** — `anvil policy capabilities` gives a governed agent a deterministic, signed, machine-readable view of action families it may attempt, with **fail-closed semantics for unknown/stale cap-IDs**. This is Anvil's *advisory* answer to "what can this agent do"; `gate` stays the enforcement authority. Strong conceptual overlap with Node9's `tools/list` shaping — but Anvil's is creation-time + advisory, not a runtime intercept. |
 | Tool-definition pinning by hash + drift | **Partial gap.** Anvil hashes policy bundles (`rules_sha`, MLP2-014) and pins update artefacts (ADR-045 signing), but has **no MCP-tool-definition pin/baseline**. `anvil mcp-config` touches MCP server config; it does not pin tool *definitions* and diff them. This is the one genuinely net-new deterministic check Node9 suggests (mirrors the agent-security-package brainstorm idea #5 "Tool Definition Integrity & Registry"). |
 | DLP / credential scanning | **IORISK** (io-risk-controls) · **Ready** — provider-agnostic input/output risk controls (prompt injection, sensitive-data leakage); `anvil-checks` secret detection already ships. Scanning *reachable credential files* as a one-shot exposure pass is a thin extension; scanning *live tool traffic* is out. |
-| First-run exposure / "blast radius" report | **CIB-015 already decided the shape.** The `anvil bom` triage (Merged 2026-05-26, [brainstorm](./2026-05-26-anvil-bom-surface.md)) concluded: a read-only **view + `--diff` drift gate** over existing collectors earns its place; new collectors (MCP-server inventory, credential-reference registry) were **rejected**. Node9's exposure report is the same surface with a sharper *sales* framing ("what would have been blocked"). |
+| First-run exposure / "blast radius" report | **CIB-015 already decided the shape.** The `anvil bom` triage (Merged 2026-05-26, [brainstorm](../archive/brainstorms/2026-05-26-anvil-bom-surface.md)) concluded: a read-only **view + `--diff` drift gate** over existing collectors earns its place; new collectors (MCP-server inventory, credential-reference registry) were **rejected**. Node9's exposure report is the same surface with a sharper *sales* framing ("what would have been blocked"). |
 | "What would have been blocked" evidence | **Partial gap / strong fit.** Anvil already separates *current posture* from *new regressions* mechanically (`cutoff_commit`, baseline; CIB-016 names the phrasing). It has report-only transport paths (daemon-save-time `roundtrip_validate_paths`). It does **not** yet have a single first-run command that runs the gate in **report-only mode** and renders "N findings Anvil's gate would flag here." That framing is the borrow. |
 | Risk score fused into routing | **ACTAX** (policy-action-taxonomy) · `RiskScore` output (ACTAX-020) routed to `warn/fence/interrupt` tiers, with **AGOV trust score as session amplifier** (ACTAX-021). Anvil already *has* an internal scalar — for routing, not for display. This directly informs Morgan's open question (§6, §8). |
 | Quarantine / fail-closed | **AGOV-001/006**, INTD/surface-drivers reliability-budget quarantine, `015-intercept-loop-enforcement.md` ("fail closed for wrapped launches"). Anvil's quarantine fences *its own* surfaces; it is not a session-level MCP quarantine. |

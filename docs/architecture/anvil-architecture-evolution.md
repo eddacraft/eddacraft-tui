@@ -95,14 +95,15 @@ Core is not a watcher; it defines meaning.
 ### 3.1 Invariant Violation Streaming
 
 As you type, Anvil streams structural violations and guidance (not lint noise).
-See [Aspirational Ultimate Feature](../vision/aspirational-ultimate-feature.md).
+See
+[Aspirational Ultimate Feature](../archive/vision/aspirational-ultimate-feature.md).
 
 ### 3.2 Behavioural Diff Review ("What Changed in Behaviour?")
 
 Instead of text diffs, Anvil summarises semantic deltas: public surface growth,
 new external calls, privilege expansion. See
-[Aspirational Ultimate Feature](../vision/aspirational-ultimate-feature.md) and
-[Rust Kernel Spec](rust-kernel-spec.md).
+[Aspirational Ultimate Feature](../archive/vision/aspirational-ultimate-feature.md)
+and [Rust Kernel Spec](rust-kernel-spec.md).
 
 ### 3.3 Constitutional Enforcement for Humans and AI
 
@@ -411,9 +412,9 @@ Diagrams remain downstream of the kernel; they are renderers, not analysers.
 ### Phase C (First Investor "Wow")
 
 - Behavioural diff MVP: "what changed in behaviour" summary — see
-  [Aspirational Ultimate Feature](../vision/aspirational-ultimate-feature.md)
+  [Aspirational Ultimate Feature](../archive/vision/aspirational-ultimate-feature.md)
 - Live invariant streaming demo: immediate, semantic, deterministic — see
-  [Aspirational Ultimate Feature](../vision/aspirational-ultimate-feature.md)
+  [Aspirational Ultimate Feature](../archive/vision/aspirational-ultimate-feature.md)
 
 ### Phase D (In Progress)
 
@@ -427,7 +428,7 @@ Diagrams remain downstream of the kernel; they are renderers, not analysers.
 ## 10. Non-Goals (For Sanity)
 
 - Distributed watcher mesh (future) — see
-  [Aspirational Ultimate Feature](../vision/aspirational-ultimate-feature.md)
+  [Aspirational Ultimate Feature](../archive/vision/aspirational-ultimate-feature.md)
 - Cross-repo awareness (enterprise mode later) — see
   [Rust Kernel Spec](rust-kernel-spec.md)
 - Full deep dataflow analysis in v1
@@ -443,7 +444,7 @@ Diagrams remain downstream of the kernel; they are renderers, not analysers.
   repo (target) — see [Rust Kernel Spec](rust-kernel-spec.md)
 - Output parity with legacy engine for supported policies
 - Developers report the tool "feels alive" (invariant streaming) — see
-  [Aspirational Ultimate Feature](../vision/aspirational-ultimate-feature.md)
+  [Aspirational Ultimate Feature](../archive/vision/aspirational-ultimate-feature.md)
 
 ### H2 Success Criteria
 

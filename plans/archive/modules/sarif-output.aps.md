@@ -17,7 +17,7 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 > **Provenance:** Promoted from
 > [CIB-014](../../modules/continuous-improvement-backlog.aps.md) on 2026-05-29. Source
-> brainstorm: [2026-05-24 Drako borrow assessment](../../brainstorms/2026-05-24-drako-borrow-assessment.md)
+> brainstorm: [2026-05-24 Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md)
 > §4 Borrow A (Drako cited as parallel evolution, not dependency). Design pass
 > resolving the three open gates:
 > [2026-05-29 SARIF output design](../../specs/2026-05-29-sarif-output-design.md).

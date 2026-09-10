@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [`plans/modules/clawpatch-techniques-adoption.aps.md`](../modules/clawpatch-techniques-adoption.aps.md), upstream `openclaw/clawpatch` README | Future CPTA discovery/spec work; optional Council workflow updates |
+| [`plans/modules/clawpatch-techniques-adoption.aps.md`](../../modules/clawpatch-techniques-adoption.aps.md), upstream `openclaw/clawpatch` README | Future CPTA discovery/spec work; optional Council workflow updates |
 
 ## Context
 

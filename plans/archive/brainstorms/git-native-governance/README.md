@@ -32,9 +32,9 @@ intentionally unedited. Where they conflict with shipped code or the ADRs,
   shipped a flat `anvil/exceptions/store.json`, and the layout decision
   belongs to EXCEPT-003.
 - Authoritative decisions:
-  [ADR-072](../../decisions/072-git-native-governance-substrate.md),
-  [ADR-073](../../decisions/073-durable-vs-local-anvil-state.md),
-  [ADR-074](../../decisions/074-review-capsule-v0-format.md).
+  [ADR-072](../../../decisions/072-git-native-governance-substrate.md),
+  [ADR-073](../../../decisions/073-durable-vs-local-anvil-state.md),
+  [ADR-074](../../../decisions/074-review-capsule-v0-format.md).
 
 ## Recommended first implementation slice
 

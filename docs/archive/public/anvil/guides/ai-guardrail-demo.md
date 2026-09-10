@@ -7,7 +7,7 @@ public_unlisted: true
 owner: DOCSYNC
 upstream:
   - docs/public/anvil/first-gate.md
-  - docs/public/anvil/guides/agent-harness.md
+  - docs/public/anvil/guides/../../../../public/anvil/guides/agent-harness.md
 verified_against: 0.9.0-beta
 ---
 
@@ -16,5 +16,5 @@ verified_against: 0.9.0-beta
 This walkthrough has been consolidated so setup and expected results stay
 consistent.
 
-Use the [ten-minute protection tutorial](../first-gate.md), then continue with
-[protect AI-assisted writes](agent-harness.md).
+Use the [ten-minute protection tutorial](../../../../public/anvil/first-gate.md), then continue with
+[protect AI-assisted writes](../../../../public/anvil/guides/agent-harness.md).

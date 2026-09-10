@@ -17,7 +17,7 @@ resolved 2026-06-12, see note below.)
 > (capsule v0 format) were Accepted via full council review
 > (accept-with-changes; changes applied). Capsule implementation items
 > (GITGOV-003+) are authorised. Brainstorm:
-> [`../brainstorms/git-native-governance/`](../../brainstorms/git-native-governance/).
+> [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
 
 ## Purpose
 

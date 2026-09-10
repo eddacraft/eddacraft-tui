@@ -282,7 +282,7 @@ archive.
 
 - **Status:** Released/Shipped via v0.7.3-beta (8bfd48c4 · 2026-05-31). Merged 2026-05-26 via PR #1995
 - **Summary:** Triaged 2026-05-26 →
-  [`anvil-bom-surface`](../brainstorms/2026-05-26-anvil-bom-surface.md).
+  [`anvil-bom-surface`](../archive/brainstorms/2026-05-26-anvil-bom-surface.md).
   **Decline to file an APS item now.** Of five slices, three survive the
   scope-guard as a read-only _view_ over existing production-wired collectors
   (agents via the detected-agents cache; policy refs via `anvil policy
@@ -316,7 +316,7 @@ archive.
 - **Validation:** Manual cross-check that the three surfaces emit
   the new phrasing; `pnpm format:check`; CLI snapshot tests on
   baseline/check output updated to the new wording.
-- **Identified From:** [2026-05-24 Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md)
+- **Identified From:** [2026-05-24 Drako borrow assessment](../archive/brainstorms/2026-05-24-drako-borrow-assessment.md)
   §4 Borrow C — pure framing borrow, no code mechanics change.
 - **Files:** `crates/anvil-cli/src/commands/baseline.rs`,
   `crates/anvil-cli/src/commands/check.rs`,

@@ -6,7 +6,7 @@
 > coordination, rule distribution). The continuation is captured in
 > [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](./2026-05-07-anvil-multilayer-protection-brainstorm.md)
 > (round 2) and consolidated as the spec
-> [`2026-05-07-anvil-multilayer-protection-architecture.md`](../specs/2026-05-07-anvil-multilayer-protection-architecture.md).
+> [`2026-05-07-anvil-multilayer-protection-architecture.md`](../../specs/2026-05-07-anvil-multilayer-protection-architecture.md).
 > Recommendations in §10 / §11 of this doc are partially superseded by
 > those follow-on artefacts; the scenario inventory and council
 > personas remain useful reference.

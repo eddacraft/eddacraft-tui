@@ -21,7 +21,7 @@ the scope is whole-product, not engine-only.
 
 - [`cli-command-truth-review.md`](cli-command-truth-review.md) — CLI docs vs
   runtime registry (CLICT)
-- [`kindling-performance-and-integration-assessment.md`](kindling-performance-and-integration-assessment.md)
+- [`../archive/reviews/kindling-performance-and-integration-assessment.md`](../archive/reviews/kindling-performance-and-integration-assessment.md)
 
 ---
 
@@ -749,7 +749,7 @@ Use when the review scope is whole-product rather than the shipped binary.
 - [ ] `packages/kindling-integration/`
 - [ ] CLI kindling / edda / ember commands
 - Related:
-  [`kindling-performance-and-integration-assessment.md`](kindling-performance-and-integration-assessment.md)
+  [`../archive/reviews/kindling-performance-and-integration-assessment.md`](../archive/reviews/kindling-performance-and-integration-assessment.md)
 
 ### Chunk 19 — Driver client (optional, P3)
 

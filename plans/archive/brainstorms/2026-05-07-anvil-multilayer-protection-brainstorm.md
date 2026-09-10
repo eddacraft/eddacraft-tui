@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-07
 **Status:** Brainstorm (companion to
-[`2026-05-07-anvil-multilayer-protection-architecture.md`](../specs/2026-05-07-anvil-multilayer-protection-architecture.md)
+[`2026-05-07-anvil-multilayer-protection-architecture.md`](../../specs/2026-05-07-anvil-multilayer-protection-architecture.md)
 spec).
 **Round-1 predecessor:**
 [`2026-05-07-daemon-sessions-surfaces-boundaries.md`](./2026-05-07-daemon-sessions-surfaces-boundaries.md)
@@ -551,7 +551,7 @@ For the assistant's future use (and any reviewer of these docs):
 
 This brainstorm is a record, not a proposal. The proposal lives in the
 spec
-[`2026-05-07-anvil-multilayer-protection-architecture.md`](../specs/2026-05-07-anvil-multilayer-protection-architecture.md).
+[`2026-05-07-anvil-multilayer-protection-architecture.md`](../../specs/2026-05-07-anvil-multilayer-protection-architecture.md).
 ADRs ADR-037 / -038 / -039 (witness chain, hook surface, baseline
 policy) are still to be written.
 

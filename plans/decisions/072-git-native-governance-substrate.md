@@ -37,7 +37,7 @@ schema is frozen. Without it, each new evidence type risks inventing its own
 storage location and trust model.
 
 The brainstorm pack at
-[`plans/archive/brainstorms/git-native-governance/`](../brainstorms/git-native-governance/)
+[`plans/archive/brainstorms/git-native-governance/`](../archive/brainstorms/git-native-governance/)
 captures the full strategic framing. This ADR records only the substrate
 decision; the durable/local path boundary is ADR-073 and the capsule v0 format
 is ADR-074.

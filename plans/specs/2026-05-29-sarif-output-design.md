@@ -6,7 +6,7 @@
 
 | Upstream                                                                          | Downstream                          |
 | --------------------------------------------------------------------------------- | ----------------------------------- |
-| [CIB-014](../modules/continuous-improvement-backlog.aps.md), [Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md) §4 Borrow A | `sarif-output.aps.md` (SARIFOUT module), candidate ADRs |
+| [CIB-014](../modules/continuous-improvement-backlog.aps.md), [Drako borrow assessment](../archive/brainstorms/2026-05-24-drako-borrow-assessment.md) §4 Borrow A | `sarif-output.aps.md` (SARIFOUT module), candidate ADRs |
 
 ## Problem
 

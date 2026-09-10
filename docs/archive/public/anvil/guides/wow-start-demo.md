@@ -16,6 +16,6 @@ verified_against: 0.9.0-beta
 
 The maintained first-value path is:
 
-1. [Install and get first value](../quickstart.md).
-2. [Run the ten-minute protection tutorial](../first-gate.md).
-3. [Test the current beta](../beta-testing-guide.md).
+1. [Install and get first value](../../../../public/anvil/quickstart.md).
+2. [Run the ten-minute protection tutorial](../../../../public/anvil/first-gate.md).
+3. [Test the current beta](../../../../public/anvil/beta-testing-guide.md).

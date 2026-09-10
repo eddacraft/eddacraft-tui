@@ -7,9 +7,9 @@
 > with a deliberate three-piece OSS surface (`eddacraft-tui`,
 > `anvil-plan-spec`, `kindling`) that does *not* include the product
 > code. The licensing question is therefore not open — see
-> [ADR-018: Product / IP Architecture](../decisions/018-product-ip-architecture.md)
+> [ADR-018: Product / IP Architecture](../../decisions/018-product-ip-architecture.md)
 > for the resolved framing and
-> [`docs/architecture/oss-surface.md`](../../docs/architecture/oss-surface.md)
+> [`docs/architecture/oss-surface.md`](../../../docs/architecture/oss-surface.md)
 > for the external-facing description. This document is kept as
 > historical context for the conversation that produced ADR-018.
 
@@ -201,5 +201,5 @@ what FSL is and the auto-conversion clause.
 
 *This document is retained for historical discussion context only. The
 decision was later resolved in
-[`ADR-018: Product / IP Architecture`](../decisions/018-product-ip-architecture.md);
+[`ADR-018: Product / IP Architecture`](../../decisions/018-product-ip-architecture.md);
 update DIST-008 in the plan accordingly.*

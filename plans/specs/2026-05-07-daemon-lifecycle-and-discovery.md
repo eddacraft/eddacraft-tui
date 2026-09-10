@@ -15,7 +15,7 @@ of which the superseding spec references rather than restates.
 **APS:** Proposes new module `daemon-lifecycle` (DLIFE) and updates to INTD,
 DRVR, RMCPF.
 **Decision:** ADR-036 (`daemon-scope-discovery-and-boundaries.md`)
-**Brainstorm:** [2026-05-07-daemon-sessions-surfaces-boundaries.md](../brainstorms/2026-05-07-daemon-sessions-surfaces-boundaries.md)
+**Brainstorm:** [2026-05-07-daemon-sessions-surfaces-boundaries.md](../archive/brainstorms/2026-05-07-daemon-sessions-surfaces-boundaries.md)
 
 > **Inner-shape rule.** This spec adds new metadata around the daemon, but
 > does not change the canonical [`anvil.diagnostic.v1`][diag] inner shape,

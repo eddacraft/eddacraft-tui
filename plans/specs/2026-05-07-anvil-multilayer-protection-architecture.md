@@ -9,8 +9,8 @@ INTD, DRVR, RMCP, RMCPF, RTAI, LAUNCH (all named in §17).
 **Decision:** [`ADR-036`](../decisions/036-daemon-scope-discovery-and-boundaries.md)
 (updated for this scope) plus a new ADR-037 covering the witness chain
 and L4 policy framework (separate doc).
-**Brainstorm:** [`2026-05-07-daemon-sessions-surfaces-boundaries.md`](../brainstorms/2026-05-07-daemon-sessions-surfaces-boundaries.md)
-(round 1: daemon scope) plus [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md)
+**Brainstorm:** [`2026-05-07-daemon-sessions-surfaces-boundaries.md`](../archive/brainstorms/2026-05-07-daemon-sessions-surfaces-boundaries.md)
+(round 1: daemon scope) plus [`2026-05-07-anvil-multilayer-protection-brainstorm.md`](../archive/brainstorms/2026-05-07-anvil-multilayer-protection-brainstorm.md)
 (round 2: multi-layer defense, witness chain, baseline, hooks).
 
 > **Inner-shape rule.** Diagnostics carried at every layer are the canonical

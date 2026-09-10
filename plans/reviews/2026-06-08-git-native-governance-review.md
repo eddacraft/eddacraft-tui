@@ -162,7 +162,7 @@ Checked specifically, since GV2 is the adjacent active stream:
 ## 7. Related docs
 
 - Companion map: [`governance-module-family-map.md`](./governance-module-family-map.md)
-- Brainstorm: [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/)
+- Brainstorm: [`../brainstorms/git-native-governance/`](../archive/brainstorms/git-native-governance/)
 - ADRs: [072](../decisions/072-git-native-governance-substrate.md),
   [073](../decisions/073-durable-vs-local-anvil-state.md),
   [074](../decisions/074-review-capsule-v0-format.md)

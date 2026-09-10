@@ -17,6 +17,6 @@ verified_against: 0.9.0-beta
 
 Choose the maintained path:
 
-- [Solo developer workflow](../guides/solo-dev-flow.md)
-- [Team workflow](../guides/team-flow.md)
-- [Protect AI-assisted writes](../guides/agent-harness.md)
+- [Solo developer workflow](../../../../public/anvil/guides/solo-dev-flow.md)
+- [Team workflow](../../../../public/anvil/guides/team-flow.md)
+- [Protect AI-assisted writes](../../../../public/anvil/guides/agent-harness.md)

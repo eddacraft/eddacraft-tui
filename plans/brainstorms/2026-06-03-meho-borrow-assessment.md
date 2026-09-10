@@ -22,9 +22,9 @@ v0.10.0, 673 commits, 3★, vendor: evoila GmbH)
 ## 0. What this document is
 
 A borrow assessment of an external repo, in the format of
-[`2026-05-31-docgraph-borrow-assessment.md`](./2026-05-31-docgraph-borrow-assessment.md),
-[`2026-05-24-drako-borrow-assessment.md`](./2026-05-24-drako-borrow-assessment.md),
-and [`2026-05-22-proxilion-pic-borrow-assessment.md`](./2026-05-22-proxilion-pic-borrow-assessment.md).
+[`2026-05-31-docgraph-borrow-assessment.md`](../archive/brainstorms/2026-05-31-docgraph-borrow-assessment.md),
+[`2026-05-24-drako-borrow-assessment.md`](../archive/brainstorms/2026-05-24-drako-borrow-assessment.md),
+and [`2026-05-22-proxilion-pic-borrow-assessment.md`](../archive/brainstorms/2026-05-22-proxilion-pic-borrow-assessment.md).
 The goal is **not** to adopt MEHO but to mine it for reusable governance ideas,
 scope-guard each one, map it onto exact APS modules, and name the gaps. Facts
 were read from the public repo landing on 2026-06-03 and cross-checked against

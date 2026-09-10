@@ -8,7 +8,7 @@ _view_ over existing collectors; two are rejected (MCP servers, credential
 refs); one defers to AGOV-007 (controlled actions). The shape that earns its
 place is a view + `--diff` drift gate, slotted under AGOV when that module
 leaves the launch parking lot. CIB-015 closes with this recorded defer.**
-**Source:** [CIB-015](../modules/continuous-improvement-backlog.aps.md#cib-015-triage-anvil-bom-surface-before-filing-as-aps),
+**Source:** [CIB-015](../../modules/continuous-improvement-backlog.aps.md#cib-015-triage-anvil-bom-surface-before-filing-as-aps),
 authorised by the [Drako borrow assessment](./2026-05-24-drako-borrow-assessment.md)
 §4 Borrow B + §8 open questions.
 

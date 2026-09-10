@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                                                               | Downstream                                                 |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [`dev-acceleration-benchmark-spec.md`](../architecture/dev-acceleration-benchmark-spec.md), DEVACC-001..010 (no live agent yet) `docs/architecture/dev-acceleration-benchmark-spec.md` | `plans/archive/modules/dev-acceleration-benchmarks.aps.md` |
+| [`dev-acceleration-benchmark-spec.md`](../../architecture/dev-acceleration-benchmark-spec.md), DEVACC-001..010 (no live agent yet) `docs/architecture/dev-acceleration-benchmark-spec.md` | `plans/archive/modules/dev-acceleration-benchmarks.aps.md` |
 
 ## What this note covers (no headless-agent choice required)
 

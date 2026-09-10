@@ -12,15 +12,15 @@ the catalogue/prose, reuse the enum tokens as facts. One provenance question
 [`aeoess/agent-governance-vocabulary`](https://github.com/aeoess/agent-governance-vocabulary)
 (Apache-2.0, v0.1 draft), surfaced via Morgan research note
 _Agent Governance Vocabulary (2026-05-29)_.
-**Scope-guard:** [`../../docs/vision/anvil-scope-guard.md`](../../docs/vision/anvil-scope-guard.md)
+**Scope-guard:** [`../../docs/vision/anvil-scope-guard.md`](../../../docs/vision/anvil-scope-guard.md)
 **Related modules:** AGOV
-([`../modules/agent-governance-patterns.aps.md`](../modules/agent-governance-patterns.aps.md)),
+([`../modules/agent-governance-patterns.aps.md`](../../modules/agent-governance-patterns.aps.md)),
 ACTAX
-([`../modules/policy-action-taxonomy.aps.md`](../modules/policy-action-taxonomy.aps.md)),
+([`../modules/policy-action-taxonomy.aps.md`](../../modules/policy-action-taxonomy.aps.md)),
 OPENSPEC
-([`../modules/open-spec-adapter.aps.md`](../modules/open-spec-adapter.aps.md)),
+([`../modules/open-spec-adapter.aps.md`](../../modules/open-spec-adapter.aps.md)),
 CEWS
-([`../modules/compliance-evidence-workspace.aps.md`](../modules/compliance-evidence-workspace.aps.md))
+([`../modules/compliance-evidence-workspace.aps.md`](../../modules/compliance-evidence-workspace.aps.md))
 
 ---
 

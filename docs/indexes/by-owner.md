@@ -100,12 +100,11 @@
 
 ## CIB
 
-| Document                                                                                                 | Path                                                         | Type  | Authority     | Owner | Status |
-| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ----- | ------------- | ----- | ------ |
-| [Clawpatch open findings — 2026-08-28](../../docs/archive/reviews/2026-08-28-clawpatch-open-findings.md) | `docs/archive/reviews/2026-08-28-clawpatch-open-findings.md` | Guide | Advisory      | CIB   | Live   |
-| [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                            | `docs/guides/continuous-improvement-log.md`                  | Guide | Authoritative | CIB   | Live   |
-| [GCTX dogfood failure points (2026-08-16)](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md) | `docs/reviews/2026-08-16-gctx-dogfood-failure-points.md`     | Guide | Advisory      | CIB   | Live   |
-| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md)   | `docs/specs/policy-eval-output-v1.md`                        | Spec  | Authoritative | CIB   | Live   |
+| Document                                                                                                 | Path                                                     | Type  | Authority     | Owner | Status |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Continuous Improvement Log](../../docs/guides/continuous-improvement-log.md)                            | `docs/guides/continuous-improvement-log.md`              | Guide | Authoritative | CIB   | Live   |
+| [GCTX dogfood failure points (2026-08-16)](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md) | `docs/reviews/2026-08-16-gctx-dogfood-failure-points.md` | Guide | Advisory      | CIB   | Live   |
+| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md)   | `docs/specs/policy-eval-output-v1.md`                    | Spec  | Authoritative | CIB   | Live   |
 
 ## CIB, FLEET-007, BACT
 
@@ -124,12 +123,6 @@
 | Document                                                                                      | Path                                              | Type  | Authority | Owner  | Status |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------- | ----- | --------- | ------ | ------ |
 | [Clawpatch intake triage — 2026-09-04](../../docs/reviews/2026-09-04-clawpatch-latest-run.md) | `docs/reviews/2026-09-04-clawpatch-latest-run.md` | Guide | Advisory  | CLAW04 | Live   |
-
-## CLAW30
-
-| Document                                                                                                            | Path                                                      | Type  | Authority | Owner  | Status |
-| ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----- | --------- | ------ | ------ |
-| [Clawpatch intake triage — 2026-08-30 to 2026-08-31](../../docs/archive/reviews/2026-08-30-clawpatch-latest-run.md) | `docs/archive/reviews/2026-08-30-clawpatch-latest-run.md` | Guide | Advisory  | CLAW30 | Live   |
 
 ## CLI
 
@@ -173,12 +166,6 @@
 | Document                                                | Path                             | Type  | Authority     | Owner | Status |
 | ------------------------------------------------------- | -------------------------------- | ----- | ------------- | ----- | ------ |
 | [Local Dashboard](../../docs/guides/local-dashboard.md) | `docs/guides/local-dashboard.md` | Guide | Authoritative | DASH  | Live   |
-
-## DEVACC
-
-| Document                                                                                                      | Path                                                     | Type  | Authority | Owner  | Status |
-| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----- | --------- | ------ | ------ |
-| [DEVACC MVP evidence note (Tier A + dry-run B)](../../docs/archive/reviews/2026-08-11-devacc-mvp-evidence.md) | `docs/archive/reviews/2026-08-11-devacc-mvp-evidence.md` | Guide | Advisory  | DEVACC | Live   |
 
 ## DEVACC (plans/archive/modules/dev-acceleration-benchmarks.aps.md)
 
@@ -304,12 +291,6 @@
 | ---------------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- | --------- | ------------------------------------------------------ | ------ |
 | [Graph v2 Foundation — Architecture Spec](../../docs/architecture/graph-v2-foundation-spec.md) | `docs/architecture/graph-v2-foundation-spec.md` | Spec | Derived   | GV2 (plans/archive/modules/graph-v2-foundation.aps.md) | Live   |
 
-## HARNESS
-
-| Document                                                                                             | Path                                                     | Type  | Authority     | Owner   | Status |
-| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----- | ------------- | ------- | ------ |
-| [eddacraft Autonomy Constitution (v0)](../../docs/archive/guides/eddacraft-autonomy-constitution.md) | `docs/archive/guides/eddacraft-autonomy-constitution.md` | Guide | Authoritative | HARNESS | Draft  |
-
 ## INTD
 
 | Document                                                                                   | Path                                         | Type    | Authority     | Owner | Status |
@@ -332,12 +313,6 @@
 | [Rust Architecture — Full Overview](../../docs/architecture/rust-architecture-overview.md) | `docs/architecture/rust-architecture-overview.md`   | Guide    | Derived       | KERN  | Live       |
 | [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)              | `docs/architecture/rust-kernel-spec.md`             | Spec     | Historical    | KERN  | Deprecated |
 | [anvil-kernel compatibility record](../../docs/architecture/kernel-as-built.md)            | `docs/architecture/kernel-as-built.md`              | As-built | Historical    | KERN  | Deprecated |
-
-## KFIT
-
-| Document                                                                                                                         | Path                                                                      | Type  | Authority | Owner | Status |
-| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----- | --------- | ----- | ------ |
-| [Kindling Performance and Integration Assessment](../../docs/archive/reviews/kindling-performance-and-integration-assessment.md) | `docs/archive/reviews/kindling-performance-and-integration-assessment.md` | Guide | Advisory  | KFIT  | Draft  |
 
 ## KIND
 
@@ -387,17 +362,11 @@
 | [Main-First Cutover](../../docs/runbooks/main-first-cutover.md)               | `docs/runbooks/main-first-cutover.md`    | Runbook | Authoritative | OPMODEL | Live   |
 | [Worktree Policy](../../docs/guides/worktree-policy.md)                       | `docs/guides/worktree-policy.md`         | Guide   | Authoritative | OPMODEL | Live   |
 
-## OPS
-
-| Document                                                                                            | Path                                              | Type | Authority | Owner | Status |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ---- | --------- | ----- | ------ |
-| [Real-time Operations Feed Contract (Draft)](../../docs/archive/internal/realtime-feed-contract.md) | `docs/archive/internal/realtime-feed-contract.md` | Spec | Derived   | OPS   | Draft  |
-
 ## POLENG (plans/archive/modules/policy-engine.aps.md)
 
 | Document                                                                      | Path                            | Type | Authority     | Owner                                               | Status |
 | ----------------------------------------------------------------------------- | ------------------------------- | ---- | ------------- | --------------------------------------------------- | ------ |
-| [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md) | `docs/specs/policy-input-v1.md` | Spec | Authoritative | POLENG (plans/archive/modules/policy-engine.aps.md) | Draft  |
+| [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md) | `docs/specs/policy-input-v1.md` | Spec | Authoritative | POLENG (plans/archive/modules/policy-engine.aps.md) | Live   |
 
 ## POLVAL
 
@@ -411,12 +380,6 @@
 | ---------------------------------------------------------- | ---------------------------- | ----- | ------------- | ----- | ------ |
 | [Edda Memory Management](../../docs/guides/edda-memory.md) | `docs/guides/edda-memory.md` | Guide | Authoritative | RCLI3 | Live   |
 
-## RELEASE
-
-| Document                                                                                                                                                       | Path                                                                                | Type  | Authority  | Owner   | Status   |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----- | ---------- | ------- | -------- |
-| [Anvil v0.2.1-beta Release Test Report (Edda/Ember/Stack + Tutorial)](../../docs/archive/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md) | `docs/archive/testing/releases/ANVIL-v0.2.1-beta-RELEASE-TEST-REPORT-2026-03-15.md` | Guide | Historical | RELEASE | Archived |
-
 ## RELORCH
 
 | Document                                                                                  | Path                                               | Type    | Authority     | Owner   | Status |
@@ -428,12 +391,6 @@
 | [Rollback Bad Candidate Artefact](../../docs/runbooks/rollback-bad-candidate-artefact.md) | `docs/runbooks/rollback-bad-candidate-artefact.md` | Runbook | Authoritative | RELORCH | Live   |
 | [Rollback Bad Published Release](../../docs/runbooks/rollback-bad-published-release.md)   | `docs/runbooks/rollback-bad-published-release.md`  | Runbook | Authoritative | RELORCH | Live   |
 | [Rollback Bad main](../../docs/runbooks/rollback-bad-main.md)                             | `docs/runbooks/rollback-bad-main.md`               | Runbook | Authoritative | RELORCH | Live   |
-
-## RLB
-
-| Document                                                                                                           | Path                                                               | Type  | Authority | Owner | Status |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | ----- | --------- | ----- | ------ |
-| [CLI Command Benchmark Tool Investigation](../../docs/archive/reviews/cli-command-benchmark-tool-investigation.md) | `docs/archive/reviews/cli-command-benchmark-tool-investigation.md` | Guide | Advisory  | RLB   | Draft  |
 
 ## RLB (plans/modules/resource-load-benchmarking.aps.md)
 
@@ -477,11 +434,10 @@
 
 ## STRATEGY
 
-| Document                                                                               | Path                                                 | Type  | Authority | Owner    | Status |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------- | ----- | --------- | -------- | ------ |
-| [Beta Demo Script (Mac Screen Recording)](../../docs/strategy/beta-demo-script.md)     | `docs/strategy/beta-demo-script.md`                  | Guide | Advisory  | STRATEGY | Live   |
-| [Borrow / Adopt Candidates](../../docs/strategy/borrow-adopt-candidates.md)            | `docs/strategy/borrow-adopt-candidates.md`           | Guide | Advisory  | STRATEGY | Live   |
-| [Competitor Tier 2 Tracking](../../docs/archive/strategy/competitor-tier2-tracking.md) | `docs/archive/strategy/competitor-tier2-tracking.md` | Guide | Advisory  | STRATEGY | Live   |
+| Document                                                                           | Path                                       | Type  | Authority | Owner    | Status |
+| ---------------------------------------------------------------------------------- | ------------------------------------------ | ----- | --------- | -------- | ------ |
+| [Beta Demo Script (Mac Screen Recording)](../../docs/strategy/beta-demo-script.md) | `docs/strategy/beta-demo-script.md`        | Guide | Advisory  | STRATEGY | Live   |
+| [Borrow / Adopt Candidates](../../docs/strategy/borrow-adopt-candidates.md)        | `docs/strategy/borrow-adopt-candidates.md` | Guide | Advisory  | STRATEGY | Live   |
 
 ## TEST
 
@@ -523,18 +479,11 @@
 
 ## VISION
 
-| Document                                                                                                                        | Path                                                   | Type  | Authority     | Owner  | Status |
-| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----- | ------------- | ------ | ------ |
-| [Anvil Scope Guard](../../docs/vision/anvil-scope-guard.md)                                                                     | `docs/vision/anvil-scope-guard.md`                     | Guide | Authoritative | VISION | Live   |
-| [Anvil Vision](../../docs/vision/anvil-vision.md)                                                                               | `docs/vision/anvil-vision.md`                          | Guide | Authoritative | VISION | Live   |
-| [Constitutional Engineering](../../docs/vision/constitutional-engineering.md)                                                   | `docs/vision/constitutional-engineering.md`            | Guide | Advisory      | VISION | Live   |
-| [The Ultimate Feature: A Real-Time Deterministic Semantic Guardian](../../docs/archive/vision/aspirational-ultimate-feature.md) | `docs/archive/vision/aspirational-ultimate-feature.md` | Guide | Advisory      | VISION | Draft  |
-
-## WEAVE
-
-| Document                                                                            | Path                                           | Type | Authority | Owner | Status |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------- | ---- | --------- | ----- | ------ |
-| [weave: Internal Agent Harness](../../docs/archive/internal/weave-feature-brief.md) | `docs/archive/internal/weave-feature-brief.md` | Spec | Advisory  | WEAVE | Draft  |
+| Document                                                                      | Path                                        | Type  | Authority     | Owner  | Status |
+| ----------------------------------------------------------------------------- | ------------------------------------------- | ----- | ------------- | ------ | ------ |
+| [Anvil Scope Guard](../../docs/vision/anvil-scope-guard.md)                   | `docs/vision/anvil-scope-guard.md`          | Guide | Authoritative | VISION | Live   |
+| [Anvil Vision](../../docs/vision/anvil-vision.md)                             | `docs/vision/anvil-vision.md`               | Guide | Authoritative | VISION | Live   |
+| [Constitutional Engineering](../../docs/vision/constitutional-engineering.md) | `docs/vision/constitutional-engineering.md` | Guide | Advisory      | VISION | Live   |
 
 ## WOUT (plans/archive/modules/watch-output-contract.aps.md)
 

@@ -31,7 +31,7 @@ custom dashboards. A Rust-side spec interpreter lets `anvil dashboard` render
 the same `.anvil/dashboards/*.json` files directly in the terminal — same data,
 same spec, different surface.
 
-**Spec:** Extends [json-render brainstorm](../../brainstorms/json-render-dashboard.md)
+**Spec:** Extends [json-render brainstorm](../brainstorms/json-render-dashboard.md)
 and builds on the Ratatui surface architecture from RATS and PORT modules.
 
 ## In Scope

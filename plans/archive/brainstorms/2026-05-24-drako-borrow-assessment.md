@@ -206,7 +206,7 @@ coherence spec or the wow-start docs.
    `continuous-improvement-backlog` on 2026-05-24:
 
    - **Borrow A (SARIF export):** filed as
-     [CIB-014](../modules/continuous-improvement-backlog.aps.md#cib-014-sarif-output-for-anvil-check-anvil-gate-anvil-audit).
+     [CIB-014](../../modules/continuous-improvement-backlog.aps.md#cib-014-sarif-output-for-anvil-check-anvil-gate-anvil-audit).
      `--format sarif` on `anvil check` / `anvil gate` / `anvil
      audit`, pinned to the GitHub Code Scanning subset of SARIF
      2.1.0 (results + rules + locations + suppressions). Slot into
@@ -215,7 +215,7 @@ coherence spec or the wow-start docs.
      first so SARIF doesn't mirror a known bug). Promotable to a
      dedicated module if scope grows.
    - **Borrow B (`anvil bom`):** filed as
-     [CIB-015](../modules/continuous-improvement-backlog.aps.md#cib-015-triage-anvil-bom-surface-before-filing-as-aps)
+     [CIB-015](../../modules/continuous-improvement-backlog.aps.md#cib-015-triage-anvil-bom-surface-before-filing-as-aps)
      — **triage-only**. The CIB authorises a brainstorm follow-up
      at `plans/brainstorms/YYYY-MM-DD-anvil-bom-surface.md` that
      scope-guards each slice (agents / MCP servers / policy refs /
@@ -225,7 +225,7 @@ coherence spec or the wow-start docs.
      filing follow-up APS items (likely under AGOV) or recording a
      decline.
    - **Borrow C (baseline framing):** filed as
-     [CIB-016](../modules/continuous-improvement-backlog.aps.md#cib-016-name-current-posture-vs-new-regression-in-baseline-output).
+     [CIB-016](../../modules/continuous-improvement-backlog.aps.md#cib-016-name-current-posture-vs-new-regression-in-baseline-output).
      Docs / output-string change in `anvil baseline`, `anvil
      check`, and wow-start tutorial copy. No behaviour change.
      Lowest-risk of the three borrows.

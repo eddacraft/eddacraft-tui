@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                                                                                                                          | Downstream                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Clawpatch finding records from the seven runs listed below; [documentation governance](../guides/documentation-governance.md); [CLAWSCAN archive](../../plans/archive/modules/clawpatch-recent-scan-repair-wave.aps.md); current source and tests | Operator-selected APS repair wave or opportunistic fixes; this report does not create execution authority |
+| Clawpatch finding records from the seven runs listed below; [documentation governance](../../guides/documentation-governance.md); [CLAWSCAN archive](../../../plans/archive/modules/clawpatch-recent-scan-repair-wave.aps.md); current source and tests | Operator-selected APS repair wave or opportunistic fixes; this report does not create execution authority |
 
 **Source paths reviewed:**
 
@@ -118,9 +118,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-4b653635ed-942f_02d471ad28
 - **Scanner classification:** medium · contract-mismatch
 - **Evidence:**
-  [manifest accessors](../../packages/anvil/flags-catalogue/src/manifest.ts),
-  [catalogue accessor precedent](../../packages/anvil/flags-catalogue/src/catalogue.ts),
-  and the [package contract](../../packages/anvil/flags-catalogue/README.md).
+  [manifest accessors](../../../packages/anvil/flags-catalogue/src/manifest.ts),
+  [catalogue accessor precedent](../../../packages/anvil/flags-catalogue/src/catalogue.ts),
+  and the [package contract](../../../packages/anvil/flags-catalogue/README.md).
 - **Assessment:** The manifest, group, audience, and environment accessors
   return module-singleton objects directly. A consumer can mutate nested values
   and change later accessor and flagByKey results. Catalogue decisions then
@@ -135,9 +135,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-90c6a94493-3f60_9ee60decc4
 - **Scanner classification:** medium · contract-mismatch
 - **Evidence:**
-  [catalogue value types](../../crates/anvil-settings/src/types.rs),
-  [resolver](../../crates/anvil-settings/src/resolver.rs), and
-  [settings service](../../crates/anvil-settings/src/service.rs).
+  [catalogue value types](../../../crates/anvil-settings/src/types.rs),
+  [resolver](../../../crates/anvil-settings/src/resolver.rs), and
+  [settings service](../../../crates/anvil-settings/src/service.rs).
 - **Assessment:** Resolution accepts JSON values without checking the
   catalogue's ValueType. The service can therefore emit a value that contradicts
   the setting definition while presenting the snapshot as internally consistent.
@@ -152,9 +152,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-90c6a94493-a47c_e469ff7b9a
 - **Scanner classification:** high · confirmed-bug
 - **Evidence:**
-  [constraint evaluator](../../crates/anvil-settings/src/constraints.rs),
-  [resolved setting shape](../../crates/anvil-settings/src/resolver.rs), and
-  [SETCON-005](../../plans/archive/modules/settings-truth-contract.aps.md#setcon-005-policy-constraint-layer).
+  [constraint evaluator](../../../crates/anvil-settings/src/constraints.rs),
+  [resolved setting shape](../../../crates/anvil-settings/src/resolver.rs), and
+  [SETCON-005](../../../plans/archive/modules/settings-truth-contract.aps.md#setcon-005-policy-constraint-layer).
 - **Assessment:** RequireApproval returns success without evaluating approval
   state, and ResolvedSetting carries no approval evidence. This is a genuine
   settings contract gap, but not an active shipped exploit because the governed
@@ -170,9 +170,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-90c6a94493-2dae_ac42adc07a
 - **Scanner classification:** medium · contract-mismatch
 - **Evidence:**
-  [runtime digest](../../crates/anvil-settings/src/runtime_state.rs),
-  [model revision](../../crates/anvil-settings/src/service.rs), and
-  [ADR-132](../../plans/decisions/132-settings-truth-contract.md).
+  [runtime digest](../../../crates/anvil-settings/src/runtime_state.rs),
+  [model revision](../../../crates/anvil-settings/src/service.rs), and
+  [ADR-132](../../../plans/decisions/132-settings-truth-contract.md).
 - **Assessment:** preserve-order JSON serialisation feeds both digest paths.
   Semantically equivalent maps with different insertion order therefore appear
   to be different settings state.
@@ -186,7 +186,7 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-90c6a94493-b99c_8ca9b53256
 - **Scanner classification:** medium · confirmed-bug
 - **Evidence:**
-  [resolver Delete handling](../../crates/anvil-settings/src/resolver.rs).
+  [resolver Delete handling](../../../crates/anvil-settings/src/resolver.rs).
 - **Assessment:** Delete clears the current value only when it is the final
   candidate. In a sequence such as append, Delete, append, the pre-Delete
   collection survives and contaminates the later result.
@@ -199,9 +199,9 @@ must not be read as 510 newly confirmed defects.
 
 - **Finding:** fnd_sig-feat-route-8799ede6c4-dd3891_c05bd63a20
 - **Scanner classification:** high · contract-mismatch
-- **Evidence:** [admin approval route](../../apps/anvil-api/src/routes/admin.ts)
+- **Evidence:** [admin approval route](../../../apps/anvil-api/src/routes/admin.ts)
   and
-  [SEC-007](../../plans/modules/security.aps.md#sec-007-atomic-token-revocation-hardening).
+  [SEC-007](../../../plans/modules/security.aps.md#sec-007-atomic-token-revocation-hardening).
 - **Assessment:** The approval claim requires approved_at to be null. An account
   approved once and later suspended therefore cannot use the documented admin
   approval surface to return to active status.
@@ -215,8 +215,8 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-route-dad030c9a3-d923ad_09016e1842
 - **Scanner classification:** medium · confirmed-bug
 - **Evidence:**
-  [GitHub device route](../../apps/anvil-api/src/routes/auth-github-device.ts)
-  and [ADR-066](../../plans/decisions/066-github-device-flow-cli-auth.md).
+  [GitHub device route](../../../apps/anvil-api/src/routes/auth-github-device.ts)
+  and [ADR-066](../../../plans/decisions/066-github-device-flow-cli-auth.md).
 - **Assessment:** Credential lookup happens before session lookup and stored
   minted-session replay. A transient credential outage blocks recovery of a
   licence that is already durably minted and needs no upstream call.
@@ -230,9 +230,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-service-b6b9358432-46e3_bbe96abfba
 - **Scanner classification:** medium · contract-mismatch
 - **Evidence:**
-  [GitHub identity fetch](../../apps/anvil-api/src/lib/github-user.ts),
-  [ADR-066](../../plans/decisions/066-github-device-flow-cli-auth.md), and
-  [auth as-built](../architecture/auth-as-built.md).
+  [GitHub identity fetch](../../../apps/anvil-api/src/lib/github-user.ts),
+  [ADR-066](../../../plans/decisions/066-github-device-flow-cli-auth.md), and
+  [auth as-built](../../architecture/auth-as-built.md).
 - **Assessment:** The implementation throws unless the primary email is
   verified, although the first-link contract accepts any verified GitHub email.
   Users with an unverified primary and verified secondary are rejected before
@@ -247,8 +247,8 @@ must not be read as 510 newly confirmed defects.
 
 - **Finding:** fnd_sig-feat-route-19b5dcc053-32bace_ecd0c8bd99
 - **Scanner classification:** medium · confirmed-bug
-- **Evidence:** [waitlist route](../../apps/anvil-api/src/routes/waitlist.ts)
-  and [waitlist tests](../../apps/anvil-api/src/__tests__/waitlist.test.ts).
+- **Evidence:** [waitlist route](../../../apps/anvil-api/src/routes/waitlist.ts)
+  and [waitlist tests](../../../apps/anvil-api/src/__tests__/waitlist.test.ts).
 - **Assessment:** The database upsert completes before the awaited admin
   notification. Notification failure reaches the outer error handler and returns
   500 even though the signup exists, encouraging retries and presenting a false
@@ -265,9 +265,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-route-c9bbbefdb4-3d5549_d877699857
 - **Scanner classification:** medium · test-gap
 - **Evidence:**
-  [callback route](../../apps/docs-shell/app/auth/callback/route.ts),
-  [docs-auth design](../../plans/specs/2026-04-03-docs-auth-gating-design.md),
-  and [Vitest configuration](../../apps/docs-shell/vitest.config.ts).
+  [callback route](../../../apps/docs-shell/app/auth/callback/route.ts),
+  [docs-auth design](../../../plans/specs/2026-04-03-docs-auth-gating-design.md),
+  and [Vitest configuration](../../../apps/docs-shell/vitest.config.ts).
 - **Assessment:** State decryption, nonce comparison, provider errors, BAUTH
   outcomes, redirects, and cookie issuance are security-sensitive observable
   branches. None is exercised at the route boundary.
@@ -282,8 +282,8 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-route-0fc07f4172-f0ced0_6460acabcb
 - **Scanner classification:** medium · test-gap
 - **Evidence:**
-  [install route](../../apps/website/app/api/early-access/install/route.ts) and
-  [current tests](../../apps/website/app/api/early-access/install/route.test.ts).
+  [install route](../../../apps/website/app/api/early-access/install/route.ts) and
+  [current tests](../../../apps/website/app/api/early-access/install/route.test.ts).
 - **Assessment:** Tests cover upstream timeouts but not malformed input,
   upstream status mapping, malformed JSON, or the valid-and-isEdict predicate
   that gates distribution of the install command.
@@ -300,9 +300,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-83f17ec600-78d2_38bd906098
 - **Scanner classification:** medium · confirmed-bug
 - **Evidence:**
-  [account activity mapping](../../apps/anvil-api/src/lib/account-activity-metrics.ts)
+  [account activity mapping](../../../apps/anvil-api/src/lib/account-activity-metrics.ts)
   and
-  [tests](../../apps/anvil-api/src/__tests__/account-activity-metrics.test.ts).
+  [tests](../../../apps/anvil-api/src/__tests__/account-activity-metrics.test.ts).
 - **Assessment:** Number coercion turns null, false, empty strings, and
   whitespace into zero. Malformed database values therefore become a plausible
   1970 timestamp and can distort activity windows and quiet-account cohorts.
@@ -316,9 +316,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-49c5c2a728-0640_c321ad6f8f
 - **Scanner classification:** medium · confirmed-bug
 - **Evidence:**
-  [public-reference generator](../../scripts/docs/generate-anvil-public-reference.mjs)
+  [public-reference generator](../../../scripts/docs/generate-anvil-public-reference.mjs)
   and
-  [product-catalogue generator](../../scripts/docs/generate-product-catalogue.mjs).
+  [product-catalogue generator](../../../scripts/docs/generate-product-catalogue.mjs).
 - **Assessment:** Both generators overwrite committed output directly. An
   interruption or partial write can destroy a previously valid file; the
   multi-output reference generator can also leave a mixed generation.
@@ -333,7 +333,7 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-library-5ed95bd031-ebb5_118ed07435
 - **Scanner classification:** medium · confirmed-bug
 - **Evidence:**
-  [public diagram tooling](../../scripts/docs/lib/public-diagrams.mjs).
+  [public diagram tooling](../../../scripts/docs/lib/public-diagrams.mjs).
 - **Assessment:** The tooling checks raw title and description attributes only
   for truthiness. Whitespace-only values therefore satisfy the nominal non-empty
   contract while producing no meaningful accessible name.
@@ -346,8 +346,8 @@ must not be read as 510 newly confirmed defects.
 
 - **Finding:** fnd_sig-feat-route-c6c95ee31e-9b089f_43160b2454
 - **Scanner classification:** medium · test-gap
-- **Evidence:** [OTP route](../../apps/anvil-api/src/routes/auth-otp.ts) and
-  [mocked concurrency test](../../apps/anvil-api/src/__tests__/auth-otp.test.ts).
+- **Evidence:** [OTP route](../../../apps/anvil-api/src/routes/auth-otp.ts) and
+  [mocked concurrency test](../../../apps/anvil-api/src/__tests__/auth-otp.test.ts).
 - **Assessment:** The JavaScript mock encodes the promised atomic behaviour and
   will pass even if the real query regresses to read-then-write. This finding is
   coverage debt, not proof that the current advisory-locked query races.
@@ -362,7 +362,7 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-test-suite-3ee4f472b1-6_9d9d7dc190
 - **Scanner classification:** medium · test-gap
 - **Evidence:**
-  [conformance evaluation tests](../../crates/anvil-checks/tests/conformance_evaluate.rs).
+  [conformance evaluation tests](../../../crates/anvil-checks/tests/conformance_evaluate.rs).
 - **Assessment:** Active tests construct evidence directly. The only case that
   drives GitExtractor and then evaluates the result is ignored because it
   depends on this repository's history.
@@ -376,9 +376,9 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-test-suite-77ddfbae71-4_f4106d3c1b
 - **Scanner classification:** medium · test-gap
 - **Evidence:**
-  [secret calibration runner](../../crates/anvil-checks/tests/secret_calibration.rs),
-  [SDT module](../../plans/archive/modules/secret-detection-truth.aps.md), and
-  [testing guide](../guides/testing.md).
+  [secret calibration runner](../../../crates/anvil-checks/tests/secret_calibration.rs),
+  [SDT module](../../../plans/archive/modules/secret-detection-truth.aps.md), and
+  [testing guide](../../guides/testing.md).
 - **Assessment:** A benign case without a declared non-vacuity control still
   enters benign_total. It can look clean simply because it never resembled a
   detectable secret, artificially improving the reported false-positive rate.
@@ -394,7 +394,7 @@ must not be read as 510 newly confirmed defects.
 - **Evidence:**
   [Git status selection](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/anvil/runtime/src/watch/git-status.ts),
   [tests](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/anvil/runtime/src/watch/git-status.test.ts),
-  and the [runtime maturity note](../../packages/anvil/runtime/README.md).
+  and the [runtime maturity note](../../../packages/anvil/runtime/README.md).
 - **Assessment:** With since set, the implementation always returns the
   ref-based diff and never reads staged or unstaged flags. Callers cannot obtain
   the selection promised by the public options.
@@ -425,8 +425,8 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-route-24c7d2a330-771f31_1ce2eab8d0
 - **Scanner classification:** medium · docs-gap
 - **Evidence:**
-  [GitHub OAuth route](../../apps/anvil-api/src/routes/auth-github.ts) and the
-  [API README](../../apps/anvil-api/README.md).
+  [GitHub OAuth route](../../../apps/anvil-api/src/routes/auth-github.ts) and the
+  [API README](../../../apps/anvil-api/README.md).
 - **Assessment:** The environment table omits credentials required by hosted
   OAuth and CLI device flows. An operator following the owning README can deploy
   an authentication surface that fails at runtime.
@@ -441,7 +441,7 @@ must not be read as 510 newly confirmed defects.
 
 - **Finding:** fnd_sig-feat-route-9eb65fea2f-a2ad37_77eb4d489d
 - **Scanner classification:** low · test-gap
-- **Evidence:** [error page](../../apps/docs-shell/app/auth/error/page.tsx).
+- **Evidence:** [error page](../../../apps/docs-shell/app/auth/error/page.tsx).
 - **Assessment:** A typo in a recognised reason can silently fall back to the
   generic message. This is user-facing diagnosability debt, not an auth bypass.
 - **Minimum repair:** Test one recognised reason and unknown or absent reasons;
@@ -453,7 +453,7 @@ must not be read as 510 newly confirmed defects.
 
 - **Finding:** fnd_sig-feat-route-ea68cde701-4d56a1_c1562065ab
 - **Scanner classification:** low · test-gap
-- **Evidence:** [pending page](../../apps/docs-shell/app/auth/pending/page.tsx).
+- **Evidence:** [pending page](../../../apps/docs-shell/app/auth/pending/page.tsx).
 - **Assessment:** Recovery copy and the retry, support, and email-verification
   destinations can drift while typecheck and build remain green.
 - **Minimum repair:** Add a focused rendered-component test.
@@ -463,7 +463,7 @@ must not be read as 510 newly confirmed defects.
 
 - **Finding:** fnd_sig-feat-route-f44022f02c-73c870_78633640ed
 - **Scanner classification:** low · risk
-- **Evidence:** [docs landing page](../../apps/docs-shell/app/page.tsx).
+- **Evidence:** [docs landing page](../../../apps/docs-shell/app/page.tsx).
 - **Assessment:** force-dynamic disables full-route caching although the page
   contains no request-specific data. The cost is unnecessary server rendering,
   not incorrect content.
@@ -476,7 +476,7 @@ must not be read as 510 newly confirmed defects.
 
 - **Finding:** fnd_sig-feat-route-f44022f02c-6068aa_9490310487
 - **Scanner classification:** low · test-gap
-- **Evidence:** [docs landing page](../../apps/docs-shell/app/page.tsx).
+- **Evidence:** [docs landing page](../../../apps/docs-shell/app/page.tsx).
 - **Assessment:** Primary APS, kindling, and anvil destinations and accessible
   labels are not pinned by tests.
 - **Minimum repair:** Add one rendered-component smoke test.
@@ -486,8 +486,8 @@ must not be read as 510 newly confirmed defects.
 
 - **Finding:** fnd_sig-feat-route-25b003a83f-6b469c_711e4b12d8
 - **Scanner classification:** low · docs-gap
-- **Evidence:** [admin route](../../apps/anvil-api/src/routes/admin.ts) and the
-  [API README](../../apps/anvil-api/README.md).
+- **Evidence:** [admin route](../../../apps/anvil-api/src/routes/admin.ts) and the
+  [API README](../../../apps/anvil-api/README.md).
 - **Assessment:** The implemented GET /api/v1/admin/fleet route is absent from
   the owning endpoint inventory. This is discovery drift, not a runtime defect.
 - **Minimum repair:** Add the endpoint, authentication boundary, and response
@@ -500,7 +500,7 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-test-suite-794320ab38-7_cc53786ee0
 - **Scanner classification:** low · test-gap
 - **Evidence:**
-  [AST follow-up integration test](../../crates/anvil-cli/tests/ast_followup.rs).
+  [AST follow-up integration test](../../../crates/anvil-cli/tests/ast_followup.rs).
 - **Assessment:** The command requests JSON, but the test only searches stdout
   for RS-001. Human text or malformed JSON containing that token can pass.
 - **Minimum repair:** Parse stdout and assert the structured finding code and
@@ -513,7 +513,7 @@ must not be read as 510 newly confirmed defects.
 - **Scanner classification:** medium · confirmed-bug
 - **Evidence:**
   [queue manager](https://github.com/eddacraft/anvil-001/blob/96bcaf39fd436ea5d68415dedc62c90976db1236/packages/anvil/runtime/src/concurrency/queue-manager.ts)
-  and the [runtime maturity note](../../packages/anvil/runtime/README.md).
+  and the [runtime maturity note](../../../packages/anvil/runtime/README.md).
 - **Assessment:** waitForLock attempts direct acquisition before honouring an
   existing queue. A new caller can overtake the queue head at release time. The
   defect is real, but this JS runtime path is winding down.
@@ -527,7 +527,7 @@ must not be read as 510 newly confirmed defects.
 - **Finding:** fnd_sig-feat-test-suite-f53827d8bc-e_ddafcd834c
 - **Scanner classification:** low · risk
 - **Evidence:**
-  [secret file coverage tests](../../crates/anvil-checks/tests/secret_file_coverage.rs).
+  [secret file coverage tests](../../../crates/anvil-checks/tests/secret_file_coverage.rs).
 - **Assessment:** Manual cleanup occurs after assertions. A panic leaves unique
   directories containing files larger than 1 MiB in the system temporary
   directory.
