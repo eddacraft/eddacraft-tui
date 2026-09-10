@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                        |
-| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-09-10 for the command-safety hot-path refactor (single-pass matcher selection + allocation-leaner wrapper unwrap in `src/command_safety/`); the evaluation-flow diagram still shows command safety as its own family with no topology change. |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                |
+| ------------ | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-09-10 for secret entropy FP inline-ignore / allowlist surfacing in `src/secret/` and the command-safety hot-path refactor in `src/command_safety/`; the evaluation-flow diagram still shows command safety as its own family with no topology change. |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -33,6 +33,7 @@ compile-time embedded copy of that file. `ANVIL_REGISTRY_PATH` or an API
 ## Evaluation flow
 
 ```mermaid
+%% secret-fp freshness 2026-09-10
 flowchart LR
     Input[caller paths or guarded bytes] --> Filter[reusable scan filter]
     Filter --> Families{check families}
