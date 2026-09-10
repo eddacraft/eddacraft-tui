@@ -5,7 +5,7 @@
 
 | ID      | Owner      | Status      |
 | ------- | ---------- | ----------- |
-| SURFSQL | joshuaboys | In Progress |
+| SURFSQL | joshuaboys | Done        |
 
 **Last reviewed:** 2026-06-18
 

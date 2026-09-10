@@ -2,7 +2,7 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 12/16 |
+| JOURNEY | Conductor | Josh | high | In Progress | 13/16 |
 
 **Last reviewed:** 2026-09-10 — JOURNEY-013 first-run navigation observation closed as fixed (claim #4577) on `62e1facd7` (carries `e586b6e53`). No splash. JSIMP-001 may consume recorded residuals; JSIMP not started in this item. Prior: JOURNEY-015 pinned-main rehearsal Merged (claim #4572).
 Historical delivery evidence remains unchanged.

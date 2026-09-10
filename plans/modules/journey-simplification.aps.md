@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JSIMP | Josh | high | Ready | 0/6 |
+| JSIMP | Josh | high | Ready | 1/6 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 

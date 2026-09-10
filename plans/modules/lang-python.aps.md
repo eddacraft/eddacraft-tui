@@ -5,7 +5,7 @@
 
 | ID    | Owner | Status      |
 | ----- | ----- | ----------- |
-| PYLAN | —     | In Progress |
+| PYLAN | —     | Done        |
 
 **Last reviewed:** 2026-06-18 (substrate + governance slice landed; PYLAN-009
 FP bar accepted at N=1%. Promoted
