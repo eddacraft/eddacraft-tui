@@ -205,6 +205,15 @@ pub fn run(args: &UninstallArgs, global: &GlobalArgs) -> Result<()> {
         return Ok(());
     }
 
+    let _config_lock = if plan
+        .actions
+        .iter()
+        .any(|action| matches!(action, Action::RemoveAnvilrc { .. }))
+    {
+        Some(crate::util::ConfigMutationLock::try_acquire(&project_root)?)
+    } else {
+        None
+    };
     let outcomes = execute_plan(&plan, args.force);
 
     if global.json {
@@ -399,7 +408,8 @@ fn execute_action(action: &Action) -> ActionOutcome {
                 remove_directory(path)
             }
         }
-        Action::RemoveAnvilrc { path } | Action::RemoveCredentials { path } => remove_file(path),
+        Action::RemoveAnvilrc { path } => remove_project_config_file(path),
+        Action::RemoveCredentials { path } => remove_file(path),
         Action::RemoveMcpEntry { path, .. } => remove_mcp_entry(path),
     };
 
@@ -504,6 +514,22 @@ fn remove_file(path: &Path) -> Result<(OutcomeStatus, String)> {
     }
     fs::remove_file(path).with_context(|| format!("removing {}", path.display()))?;
     Ok((OutcomeStatus::Removed, "file removed".into()))
+}
+
+fn remove_project_config_file(path: &Path) -> Result<(OutcomeStatus, String)> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            anyhow::bail!("{} is not a regular project config", path.display())
+        }
+        Ok(_) => {
+            crate::util::remove_file_nofollow(path)?;
+            Ok((OutcomeStatus::Removed, "file removed".into()))
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Ok((OutcomeStatus::NotPresent, "already gone".into()))
+        }
+        Err(error) => Err(error).context("stat project config"),
+    }
 }
 
 /// Strip the `mcpServers.anvil` entry (if any) from a JSON config file,

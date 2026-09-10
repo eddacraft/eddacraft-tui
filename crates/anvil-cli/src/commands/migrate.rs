@@ -192,6 +192,14 @@ pub(crate) fn run_schema_in(
     json_mode: bool,
 ) -> Result<()> {
     let installed = env!("CARGO_PKG_VERSION");
+    let _config_lock = if args.apply {
+        match crate::util::lock_existing_project_config(root)? {
+            Some(lock) => Some(lock),
+            None => crate::util::lock_project_config_create(root)?,
+        }
+    } else {
+        None
+    };
 
     // Origin version: the anvil version that created this project's
     // identity, read from `anvil/project-id` (MLP2-003). This — not
@@ -252,7 +260,10 @@ pub(crate) fn run_schema_in(
         );
     };
 
-    let mut value = anvil_config::parse_file(&discovered.path)
+    let config_before = crate::util::observe_regular_nofollow(&discovered.path)?;
+    let config_raw =
+        std::str::from_utf8(&config_before.bytes).context("project config is not UTF-8")?;
+    let mut value = anvil_config::parse_str(config_raw, discovered.format, &discovered.path)
         .with_context(|| format!("parsing {}", discovered.path.display()))?;
 
     let step_descriptions: Vec<String> =
@@ -299,7 +310,7 @@ pub(crate) fn run_schema_in(
             discovered.format.extension()
         )
     })?;
-    crate::util::atomic_write(&discovered.path, serialised.as_bytes())
+    crate::util::compare_and_swap_nofollow(&discovered.path, &config_before, serialised.as_bytes())
         .with_context(|| format!("writing {}", discovered.path.display()))?;
 
     if json_mode {
@@ -340,6 +351,15 @@ pub(crate) fn run_gate_config_in(
 ) -> Result<()> {
     use crate::commands::gate_config as gc;
 
+    let _config_lock = if args.apply {
+        match crate::util::lock_existing_project_config(root)? {
+            Some(lock) => Some(lock),
+            None => crate::util::lock_project_config_create(root)?,
+        }
+    } else {
+        None
+    };
+
     let Some(legacy) = gc::load_legacy_gate_config(root)? else {
         bail!(
             "no legacy {} to fold at {} (nothing to do)",
@@ -349,6 +369,28 @@ pub(crate) fn run_gate_config_in(
     };
 
     let mut project = crate::commands::config::load_project_config(root)?;
+    let config_before = match crate::util::observe_regular_nofollow(&project.writable_path) {
+        Ok(observed) => {
+            let config_raw =
+                std::str::from_utf8(&observed.bytes).context("project config is not UTF-8")?;
+            project.value = anvil_config::parse_str(
+                config_raw,
+                project.writable_format,
+                &project.writable_path,
+            )?;
+            Some(observed)
+        }
+        Err(error)
+            if error.chain().any(|cause| {
+                cause
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+            }) =>
+        {
+            None
+        }
+        Err(error) => return Err(error),
+    };
     let section = anvil_config::GateSection::from_config_value(&project.value)
         .map_err(|e| anyhow::anyhow!("invalid config: {e}"))?;
     let (effective_now, has_explicit) = gc::effective_selection(&project.value, section.as_ref());
@@ -449,7 +491,7 @@ pub(crate) fn run_gate_config_in(
     if folded.is_empty() {
         let mut legacy_removed = false;
         if args.apply {
-            std::fs::remove_file(root.join(gc::LEGACY_GATE_CONFIG_REL))?;
+            crate::util::remove_file_nofollow(&root.join(gc::LEGACY_GATE_CONFIG_REL))?;
             legacy_removed = true;
         }
         // Issue #3947: one document (or the historical prose) per outcome.
@@ -571,8 +613,12 @@ pub(crate) fn run_gate_config_in(
     }
 
     let text = crate::commands::config::serialize_config(&project.value, project.writable_format)?;
-    crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
-    std::fs::remove_file(root.join(gc::LEGACY_GATE_CONFIG_REL))?;
+    if let Some(before) = config_before {
+        crate::util::compare_and_swap_nofollow(&project.writable_path, &before, text.as_bytes())?;
+    } else {
+        crate::util::write_new_nofollow(&project.writable_path, text.as_bytes())?;
+    }
+    crate::util::remove_file_nofollow(&root.join(gc::LEGACY_GATE_CONFIG_REL))?;
     if json_mode {
         crate::output::json::print(&serde_json::json!({
             "outcome": "applied",
@@ -607,6 +653,14 @@ pub(crate) fn run_architecture_in(
     root: &Path,
     json_mode: bool,
 ) -> Result<()> {
+    let _config_lock = if args.apply {
+        match crate::util::lock_existing_project_config(root)? {
+            Some(lock) => Some(lock),
+            None => crate::util::lock_project_config_create(root)?,
+        }
+    } else {
+        None
+    };
     if !anvil_architecture::yaml_parser::architecture_yaml_exists(root) {
         bail!(
             "no standalone .anvil/architecture.yaml at {} (nothing to do)",
@@ -615,6 +669,28 @@ pub(crate) fn run_architecture_in(
     }
 
     let mut project = crate::commands::config::load_project_config(root)?;
+    let config_before = match crate::util::observe_regular_nofollow(&project.writable_path) {
+        Ok(observed) => {
+            let config_raw =
+                std::str::from_utf8(&observed.bytes).context("project config is not UTF-8")?;
+            project.value = anvil_config::parse_str(
+                config_raw,
+                project.writable_format,
+                &project.writable_path,
+            )?;
+            Some(observed)
+        }
+        Err(error)
+            if error.chain().any(|cause| {
+                cause
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+            }) =>
+        {
+            None
+        }
+        Err(error) => return Err(error),
+    };
     if project
         .value
         .get("architecture")
@@ -667,7 +743,11 @@ pub(crate) fn run_architecture_in(
     root_obj.insert("architecture".into(), serde_json::json!({ "source": rel }));
 
     let text = crate::commands::config::serialize_config(&project.value, project.writable_format)?;
-    crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
+    if let Some(before) = config_before {
+        crate::util::compare_and_swap_nofollow(&project.writable_path, &before, text.as_bytes())?;
+    } else {
+        crate::util::write_new_nofollow(&project.writable_path, text.as_bytes())?;
+    }
     if json_mode {
         crate::output::json::print(&serde_json::json!({
             "outcome": "applied",
@@ -687,6 +767,12 @@ pub(crate) fn run_architecture_in(
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    fn temp_repo() -> TempDir {
+        let root = TempDir::new().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        root
+    }
 
     // -----------------------------------------------------------------
     // `format` subcommand (MLP2-040) — behaviour preserved under the
@@ -709,14 +795,14 @@ mod tests {
 
     #[test]
     fn errors_when_no_project_config_present() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         let err = run_format_in(&format_args("yaml", false, false), tmp.path(), false).unwrap_err();
         assert!(err.to_string().contains("no project config"), "{err}");
     }
 
     #[test]
     fn converts_canonical_yaml_to_json() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
         run_format_in(&format_args("json", false, false), tmp.path(), false).unwrap();
         let parsed: serde_json::Value =
@@ -729,7 +815,7 @@ mod tests {
 
     #[test]
     fn migrates_json_anvilrc_to_yaml() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_anvilrc(tmp.path(), r#"{"checks":["secret-detection"]}"#);
         run_format_in(&format_args("yaml", false, false), tmp.path(), false).unwrap();
 
@@ -745,7 +831,7 @@ mod tests {
 
     #[test]
     fn migrates_yaml_anvilrc_to_toml() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_anvilrc(tmp.path(), "checks: [\"a\", \"b\"]\n");
         run_format_in(&format_args("toml", false, false), tmp.path(), false).unwrap();
 
@@ -757,7 +843,7 @@ mod tests {
 
     #[test]
     fn migrates_toml_anvilrc_to_json() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_anvilrc(tmp.path(), "checks = [\"secret-detection\"]\n");
         run_format_in(&format_args("json", false, false), tmp.path(), false).unwrap();
 
@@ -769,7 +855,7 @@ mod tests {
 
     #[test]
     fn removes_legacy_anvilrc_when_flag_set() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_anvilrc(tmp.path(), r#"{"checks":[]}"#);
         run_format_in(&format_args("yaml", false, true), tmp.path(), false).unwrap();
 
@@ -779,7 +865,7 @@ mod tests {
 
     #[test]
     fn refuses_to_overwrite_without_force() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
         std::fs::write(tmp.path().join(".anvil.json"), "pre-existing\n").unwrap();
 
@@ -791,7 +877,7 @@ mod tests {
 
     #[test]
     fn force_overwrites_existing_target() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - x\n").unwrap();
         std::fs::write(tmp.path().join(".anvil.json"), "garbage\n").unwrap();
 
@@ -804,7 +890,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_format() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_anvilrc(tmp.path(), r#"{"checks":[]}"#);
         let err = run_format_in(&format_args("ini", false, false), tmp.path(), false).unwrap_err();
         assert!(
@@ -817,7 +903,7 @@ mod tests {
     fn round_trips_through_anvil_config_discover() {
         // The whole point of the migration is that `anvil-config::discover`
         // + `parse_file` then reads the new file back as the same Value.
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_anvilrc(
             tmp.path(),
             r#"{"checks":["secret-detection","import-boundaries"]}"#,
@@ -845,7 +931,7 @@ mod tests {
     fn bare_migrate_routes_to_format() {
         // `anvil migrate` with no subcommand dispatches through `run_in`'s
         // `None` arm to `format` (and prints the deprecation notice).
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_anvilrc(tmp.path(), r#"{"checks":["secret-detection"]}"#);
         run_in(&MigrateArgs { command: None }, tmp.path(), false).unwrap();
         assert!(tmp.path().join(".anvil.yaml").exists());
@@ -856,7 +942,7 @@ mod tests {
         // The `Schema` arm of `run_in` reaches `run_schema_in` with the
         // (empty) production registry — exercised here against a project
         // with identity + config so it resolves to the no-op path.
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_project_id(tmp.path(), "0.1.0");
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
@@ -910,7 +996,7 @@ mod tests {
 
     #[test]
     fn schema_no_project_id_is_graceful() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
             "checks: [secret-detection]\n",
@@ -925,7 +1011,7 @@ mod tests {
 
     #[test]
     fn schema_no_registered_migration_is_noop() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_project_id(tmp.path(), "0.1.0");
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
@@ -947,7 +1033,7 @@ mod tests {
 
     #[test]
     fn schema_dry_run_previews_without_writing() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_project_id(tmp.path(), "0.1.0");
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
@@ -967,7 +1053,7 @@ mod tests {
 
     #[test]
     fn schema_apply_writes_migrated_config() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_project_id(tmp.path(), "0.1.0");
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
@@ -989,7 +1075,7 @@ mod tests {
 
     #[test]
     fn schema_missing_config_with_applicable_migration_errors() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_project_id(tmp.path(), "0.1.0");
         // Migration applies, but there is no .anvil.<ext> to migrate.
         let err =
@@ -1002,7 +1088,7 @@ mod tests {
 
     #[test]
     fn schema_malformed_project_version_errors() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_project_id(tmp.path(), "garbage-not-semver");
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
@@ -1021,7 +1107,7 @@ mod tests {
     /// `camelCase` keys convert to canonical `snake_case` on the way through.
     #[test]
     fn format_migration_normalizes_legacy_keys() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(
             tmp.path().join(".anvilrc"),
             r#"{"schemaVersion":"1.0.0","planningDir":"plans","checks":[]}"#,
@@ -1049,7 +1135,7 @@ mod tests {
 
     #[test]
     fn gate_fold_dry_run_writes_nothing() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_legacy(
             tmp.path(),
             r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":true}],"thresholds":{"overall_score":90}}"#,
@@ -1061,7 +1147,7 @@ mod tests {
 
     #[test]
     fn gate_fold_weakening_requires_confirmation() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         // Legacy disables secret-detection (in the default effective
         // selection) — folding the selection would weaken enforcement.
         write_legacy(
@@ -1090,7 +1176,7 @@ mod tests {
 
     #[test]
     fn gate_fold_respects_existing_selection_and_folds_absent_only() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
             "checks: [secret-detection]\ngate:\n  thresholds:\n    overall_score: 95\n",
@@ -1125,7 +1211,7 @@ mod tests {
     /// legacy-DISABLED check's folded config would select it.
     #[test]
     fn gate_fold_materialises_section_driven_selection() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
             "gate:\n  checks:\n    lint: {}\n",
@@ -1158,7 +1244,7 @@ mod tests {
     /// the default selection. Refused with guidance.
     #[test]
     fn gate_fold_all_disabled_legacy_is_refused() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_legacy(
             tmp.path(),
             r#"{"version":1,"checks":[{"name":"lint","description":"","enabled":false}],"thresholds":{}}"#,
@@ -1171,7 +1257,7 @@ mod tests {
 
     #[test]
     fn gate_fold_without_legacy_file_is_a_clear_error() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         let err = run_gate_config_in(&gate_args(false, false), tmp.path(), false).unwrap_err();
         assert!(err.to_string().contains("nothing to do"), "{err}");
     }
@@ -1184,7 +1270,7 @@ mod tests {
 
     #[test]
     fn architecture_migrate_adds_source_key_preserving_other_keys() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
         std::fs::write(
             tmp.path().join(".anvil/architecture.yaml"),
@@ -1213,7 +1299,7 @@ mod tests {
 
     #[test]
     fn architecture_migrate_refuses_when_section_exists_or_no_file() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         let err = run_architecture_in(&arch_migrate_args(false), tmp.path(), false).unwrap_err();
         assert!(err.to_string().contains("nothing to do"), "{err}");
 

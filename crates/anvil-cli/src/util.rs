@@ -3,6 +3,175 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
+const MAX_MUTATION_FILE_BYTES: u64 = 8 * 1024 * 1024;
+
+/// Descriptor-bound identity and digest of a regular file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FileStamp {
+    identity_a: u64,
+    identity_b: u64,
+    digest: [u8; 32],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ObservedFile {
+    pub bytes: Vec<u8>,
+    pub stamp: FileStamp,
+}
+
+/// Observe a bounded regular file without following its leaf or parents.
+pub(crate) fn observe_regular_nofollow(path: &Path) -> Result<ObservedFile> {
+    #[cfg(unix)]
+    {
+        use std::os::fd::AsFd;
+
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let leaf = path
+            .file_name()
+            .with_context(|| format!("read path has no file name: {}", path.display()))?;
+        let parent_fd = open_dir_nofollow_unix(parent)?;
+        observe_regular_at_unix(parent_fd.as_fd(), leaf)
+    }
+    #[cfg(windows)]
+    {
+        let observed = anvil_intercept_win32::path_nofollow::observe_regular_nofollow(path)?;
+        if observed.bytes.len() as u64 > MAX_MUTATION_FILE_BYTES {
+            bail!("file exceeds {MAX_MUTATION_FILE_BYTES} byte mutation limit");
+        }
+        let digest = sha256_bytes(&observed.bytes);
+        Ok(ObservedFile {
+            bytes: observed.bytes,
+            stamp: FileStamp {
+                identity_a: observed.volume_serial,
+                identity_b: observed.file_index,
+                digest,
+            },
+        })
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = path;
+        bail!("descriptor-bound file observation is unsupported on this platform")
+    }
+}
+
+/// Replace an existing regular file only when its descriptor-bound identity
+/// and digest still match the planning observation.
+pub(crate) fn compare_and_swap_nofollow(
+    path: &Path,
+    expected: &ObservedFile,
+    replacement: &[u8],
+) -> Result<ObservedFile> {
+    #[cfg(unix)]
+    {
+        use std::os::fd::AsFd;
+
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let leaf = path
+            .file_name()
+            .with_context(|| format!("write path has no file name: {}", path.display()))?;
+        let parent_fd = open_dir_nofollow_unix(parent)?;
+        let current = observe_regular_at_unix(parent_fd.as_fd(), leaf)?;
+        if current.stamp != expected.stamp {
+            bail!(
+                "{} changed after planning; re-run to compute a fresh patch",
+                path.display()
+            );
+        }
+        atomic_write_at_unix(parent_fd.as_fd(), parent, leaf, replacement)?;
+        observe_regular_at_unix(parent_fd.as_fd(), leaf)
+    }
+    #[cfg(windows)]
+    {
+        let observed = anvil_intercept_win32::path_nofollow::compare_and_swap_nofollow(
+            path,
+            expected.stamp.identity_a,
+            expected.stamp.identity_b,
+            &expected.bytes,
+            replacement,
+        )?;
+        if observed.bytes.len() as u64 > MAX_MUTATION_FILE_BYTES {
+            bail!("file exceeds {MAX_MUTATION_FILE_BYTES} byte mutation limit");
+        }
+        let digest = sha256_bytes(&observed.bytes);
+        Ok(ObservedFile {
+            bytes: observed.bytes,
+            stamp: FileStamp {
+                identity_a: observed.volume_serial,
+                identity_b: observed.file_index,
+                digest,
+            },
+        })
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, expected, replacement);
+        bail!("descriptor-bound compare-and-swap is unsupported on this platform")
+    }
+}
+
+pub(crate) fn remove_if_unchanged(path: &Path, expected: &ObservedFile) -> Result<bool> {
+    #[cfg(unix)]
+    {
+        use nix::unistd::{UnlinkatFlags, unlinkat};
+        use std::os::fd::AsFd;
+
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let leaf = path
+            .file_name()
+            .with_context(|| format!("remove path has no file name: {}", path.display()))?;
+        let parent_fd = open_dir_nofollow_unix(parent)?;
+        let current = match observe_regular_at_unix(parent_fd.as_fd(), leaf) {
+            Ok(current) => current,
+            Err(error)
+                if error.chain().any(|cause| {
+                    cause
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+                }) =>
+            {
+                return Ok(false);
+            }
+            Err(error) => return Err(error),
+        };
+        if current.stamp != expected.stamp {
+            return Ok(false);
+        }
+        unlinkat(parent_fd.as_fd(), leaf, UnlinkatFlags::NoRemoveDir)
+            .map_err(std::io::Error::from)?;
+        Ok(true)
+    }
+    #[cfg(windows)]
+    {
+        Ok(anvil_intercept_win32::path_nofollow::remove_if_unchanged(
+            path,
+            expected.stamp.identity_a,
+            expected.stamp.identity_b,
+            &expected.bytes,
+        )?)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, expected);
+        bail!("descriptor-bound guarded removal is unsupported on this platform")
+    }
+}
+
+fn sha256_bytes(bytes: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+
+    Sha256::digest(bytes).into()
+}
+
 /// Held, process-scoped exclusion for cooperating project-config writers.
 ///
 /// The lock lives below Git's common directory, so linked worktrees contend on
@@ -30,6 +199,37 @@ impl ConfigMutationLock {
             ),
             Err(error) => Err(error).context("acquiring project-config mutation lock"),
         }
+    }
+}
+
+/// Acquire the shared lock whenever a main-config variant already exists.
+/// Absent-file creation remains available outside Git and must use an
+/// exclusive writer.
+pub(crate) fn lock_existing_project_config(root: &Path) -> Result<Option<ConfigMutationLock>> {
+    let exists = [
+        ".anvil.yaml",
+        ".anvil.yml",
+        ".anvil.json",
+        ".anvil.toml",
+        ".anvilrc",
+    ]
+    .into_iter()
+    .any(|name| std::fs::symlink_metadata(root.join(name)).is_ok());
+    if exists {
+        ConfigMutationLock::try_acquire(root).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+/// Coordinate absent-file creation when Git metadata is available. A plain
+/// directory may still create an absent file exclusively, but malformed or
+/// unsafe Git metadata is never treated as "not Git".
+pub(crate) fn lock_project_config_create(root: &Path) -> Result<Option<ConfigMutationLock>> {
+    match anvil_config::mutation_lock_path(root) {
+        Ok(_) => ConfigMutationLock::try_acquire(root).map(Some),
+        Err(anvil_config::MutationLockError::MissingGitCommonDir) => Ok(None),
+        Err(error) => Err(error.into()),
     }
 }
 
@@ -1187,15 +1387,80 @@ fn remove_nofollow_unix(path: &Path, is_dir: bool) -> Result<()> {
 }
 
 #[cfg(unix)]
+#[allow(
+    clippy::useless_conversion,
+    reason = "libc device and inode widths differ across supported Unix targets"
+)]
+fn observe_regular_at_unix(
+    parent: std::os::fd::BorrowedFd<'_>,
+    leaf: &std::ffi::OsStr,
+) -> Result<ObservedFile> {
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::{Mode, SFlag, fstat};
+
+    let fd = openat(
+        parent,
+        leaf,
+        OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(std::io::Error::from)?;
+    let stat = fstat(&fd).map_err(std::io::Error::from)?;
+    if !SFlag::from_bits_truncate(stat.st_mode).contains(SFlag::S_IFREG) {
+        bail!("observed path is not a regular file");
+    }
+    let size = u64::try_from(stat.st_size).map_err(|_| anyhow::anyhow!("negative file size"))?;
+    if size > MAX_MUTATION_FILE_BYTES {
+        bail!("file exceeds {MAX_MUTATION_FILE_BYTES} byte mutation limit");
+    }
+    let capacity =
+        usize::try_from(size).map_err(|_| anyhow::anyhow!("file size does not fit usize"))?;
+    let mut bytes = Vec::with_capacity(capacity);
+    let file = std::fs::File::from(fd);
+    file.take(MAX_MUTATION_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_MUTATION_FILE_BYTES {
+        bail!("file exceeds {MAX_MUTATION_FILE_BYTES} byte mutation limit");
+    }
+    let identity_a = stat
+        .st_dev
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("file device identity does not fit u64"))?;
+    let identity_b = stat
+        .st_ino
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("file inode identity does not fit u64"))?;
+    Ok(ObservedFile {
+        stamp: FileStamp {
+            identity_a,
+            identity_b,
+            digest: sha256_bytes(&bytes),
+        },
+        bytes,
+    })
+}
+
+#[cfg(unix)]
 fn atomic_write_nofollow_unix(parent: &Path, leaf: &std::ffi::OsStr, data: &[u8]) -> Result<()> {
     use std::os::fd::AsFd;
+
+    let dirfd = open_dir_nofollow_unix(parent)?;
+    atomic_write_at_unix(dirfd.as_fd(), parent, leaf, data)
+}
+
+#[cfg(unix)]
+fn atomic_write_at_unix(
+    dirfd: std::os::fd::BorrowedFd<'_>,
+    parent: &Path,
+    leaf: &std::ffi::OsStr,
+    data: &[u8],
+) -> Result<()> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use nix::fcntl::{OFlag, openat, renameat};
     use nix::sys::stat::{Mode, fchmod};
     use nix::unistd::{UnlinkatFlags, unlinkat};
 
-    let dirfd = open_dir_nofollow_unix(parent)?;
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
@@ -1210,7 +1475,7 @@ fn atomic_write_nofollow_unix(parent: &Path, leaf: &std::ffi::OsStr, data: &[u8]
         let flags =
             OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
         let fd = match openat(
-            dirfd.as_fd(),
+            dirfd,
             temp_name.as_str(),
             flags,
             Mode::from_bits_truncate(0o600),
@@ -1223,33 +1488,21 @@ fn atomic_write_nofollow_unix(parent: &Path, leaf: &std::ffi::OsStr, data: &[u8]
             }
         };
         if let Err(err) = fchmod(&fd, Mode::from_bits_truncate(0o600)) {
-            let _ = unlinkat(
-                dirfd.as_fd(),
-                temp_name.as_str(),
-                UnlinkatFlags::NoRemoveDir,
-            );
+            let _ = unlinkat(dirfd, temp_name.as_str(), UnlinkatFlags::NoRemoveDir);
             return Err(std::io::Error::from(err)).context("setting temp file mode 0o600");
         }
 
         let mut file = std::fs::File::from(fd);
         if let Err(err) = file.write_all(data).and_then(|()| file.flush()) {
-            let _ = unlinkat(
-                dirfd.as_fd(),
-                temp_name.as_str(),
-                UnlinkatFlags::NoRemoveDir,
-            );
+            let _ = unlinkat(dirfd, temp_name.as_str(), UnlinkatFlags::NoRemoveDir);
             return Err(err).context("writing temp file payload");
         }
         drop(file);
 
-        match renameat(dirfd.as_fd(), temp_name.as_str(), dirfd.as_fd(), leaf) {
+        match renameat(dirfd, temp_name.as_str(), dirfd, leaf) {
             Ok(()) => return Ok(()),
             Err(err) => {
-                let _ = unlinkat(
-                    dirfd.as_fd(),
-                    temp_name.as_str(),
-                    UnlinkatFlags::NoRemoveDir,
-                );
+                let _ = unlinkat(dirfd, temp_name.as_str(), UnlinkatFlags::NoRemoveDir);
                 last_err = Some(
                     anyhow::Error::from(std::io::Error::from(err)).context(format!(
                         "renaming temp file into place under {}",
@@ -1274,6 +1527,10 @@ fn atomic_write_nofollow_unix(parent: &Path, leaf: &std::ffi::OsStr, data: &[u8]
 /// check-then-write window cannot be exploited by a concurrent writer.
 ///
 /// On Unix the file is created with mode 0o600.
+#[cfg_attr(
+    any(unix, windows),
+    allow(dead_code, reason = "portable fallback and direct unit coverage")
+)]
 pub fn write_new(path: &Path, data: &[u8]) -> Result<()> {
     #[cfg_attr(not(unix), allow(unused_mut))]
     let mut opts = std::fs::OpenOptions::new();
@@ -1309,38 +1566,16 @@ pub fn write_new_nofollow(path: &Path, data: &[u8]) -> Result<()> {
         .parent()
         .filter(|candidate| !candidate.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    let leaf = path
-        .file_name()
-        .with_context(|| format!("write path has no file name: {}", path.display()))?;
     create_dir_all_nofollow(parent)?;
 
     #[cfg(unix)]
     {
-        use std::os::fd::AsFd;
-
-        use nix::fcntl::{OFlag, openat};
-        use nix::sys::stat::{Mode, fchmod};
-
-        let parent_fd = open_dir_nofollow_unix(parent)?;
-        let flags =
-            OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
-        let fd = openat(
-            parent_fd.as_fd(),
-            leaf,
-            flags,
-            Mode::from_bits_truncate(0o600),
-        )
-        .map_err(std::io::Error::from)
-        .with_context(|| format!("creating {}", path.display()))?;
-        fchmod(&fd, Mode::from_bits_truncate(0o600))
-            .map_err(std::io::Error::from)
-            .with_context(|| format!("securing {}", path.display()))?;
-        let mut file = std::fs::File::from(fd);
-        file.write_all(data)
-            .with_context(|| format!("writing {}", path.display()))?;
-        file.flush()
-            .with_context(|| format!("flushing {}", path.display()))?;
-        Ok(())
+        let leaf = path
+            .file_name()
+            .with_context(|| format!("write path has no file name: {}", path.display()))?;
+        write_new_nofollow_unix(parent, leaf, path, data, |file, payload| {
+            file.write_all(payload).and_then(|()| file.flush())
+        })
     }
 
     #[cfg(windows)]
@@ -1354,6 +1589,48 @@ pub fn write_new_nofollow(path: &Path, data: &[u8]) -> Result<()> {
         refuse_symlink_path_components(parent)?;
         write_new(path, data)
     }
+}
+
+#[cfg(unix)]
+fn write_new_nofollow_unix<F>(
+    parent: &Path,
+    leaf: &std::ffi::OsStr,
+    display_path: &Path,
+    data: &[u8],
+    writer: F,
+) -> Result<()>
+where
+    F: FnOnce(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
+{
+    use std::os::fd::AsFd;
+
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::{Mode, fchmod};
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+
+    let parent_fd = open_dir_nofollow_unix(parent)?;
+    let flags =
+        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = openat(
+        parent_fd.as_fd(),
+        leaf,
+        flags,
+        Mode::from_bits_truncate(0o600),
+    )
+    .map_err(std::io::Error::from)
+    .with_context(|| format!("creating {}", display_path.display()))?;
+    if let Err(error) = fchmod(&fd, Mode::from_bits_truncate(0o600)) {
+        let _ = unlinkat(parent_fd.as_fd(), leaf, UnlinkatFlags::NoRemoveDir);
+        return Err(std::io::Error::from(error))
+            .with_context(|| format!("securing {}", display_path.display()));
+    }
+    let mut file = std::fs::File::from(fd);
+    if let Err(error) = writer(&mut file, data) {
+        drop(file);
+        let _ = unlinkat(parent_fd.as_fd(), leaf, UnlinkatFlags::NoRemoveDir);
+        return Err(error).with_context(|| format!("writing {}", display_path.display()));
+    }
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -2209,6 +2486,57 @@ mod tests {
 
         assert!(format!("{error:#}").contains("symlink"));
         assert!(!outside.path().join("policy.yml").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn descriptor_bound_compare_and_swap_rejects_changed_bytes_and_identity() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("config");
+        std::fs::write(&path, b"before").unwrap();
+        let observed = observe_regular_nofollow(&path).unwrap();
+
+        std::fs::write(&path, b"changed").unwrap();
+        assert!(compare_and_swap_nofollow(&path, &observed, b"after").is_err());
+
+        std::fs::remove_file(&path).unwrap();
+        std::fs::write(&path, b"before").unwrap();
+        assert!(compare_and_swap_nofollow(&path, &observed, b"after").is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"before");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn descriptor_bound_compare_and_swap_and_guarded_remove_succeed() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("config");
+        std::fs::write(&path, b"before").unwrap();
+        let before = observe_regular_nofollow(&path).unwrap();
+        let published = compare_and_swap_nofollow(&path, &before, b"after").unwrap();
+        assert_eq!(published.bytes, b"after");
+        assert!(remove_if_unchanged(&path, &published).unwrap());
+        assert!(!path.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exclusive_create_removes_partial_leaf_after_payload_failure() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("partial");
+        let error = write_new_nofollow_unix(
+            root.path(),
+            std::ffi::OsStr::new("partial"),
+            &path,
+            b"complete payload",
+            |file, _| {
+                file.write_all(b"prefix")?;
+                Err(std::io::Error::other("injected payload failure"))
+            },
+        )
+        .unwrap_err();
+
+        assert!(format!("{error:#}").contains("injected payload failure"));
+        assert!(!path.exists());
     }
 
     #[test]

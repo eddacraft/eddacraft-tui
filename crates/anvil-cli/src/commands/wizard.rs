@@ -141,6 +141,19 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
             "{existing} already exists in {name} — use `anvil init --force` to overwrite"
         );
     }
+    let _config_lock = crate::util::lock_project_config_create(project_dir)?;
+    if let Some(existing) = [
+        ".anvil.yaml",
+        ".anvil.yml",
+        ".anvil.json",
+        ".anvil.toml",
+        ".anvilrc",
+    ]
+    .iter()
+    .find(|name| project_dir.join(name).exists())
+    {
+        anyhow::bail!("{existing} appeared while scaffolding {name}; re-run after reviewing it");
+    }
 
     let anvil_dir = project_dir.join(".anvil");
     std::fs::create_dir_all(&anvil_dir).context("failed to create .anvil directory")?;
@@ -153,7 +166,7 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
         "checks": checks,
     });
     let config_content = serde_json::to_string_pretty(&config)?;
-    crate::util::atomic_write(&config_path, config_content.as_bytes())
+    crate::util::write_new_nofollow(&config_path, config_content.as_bytes())
         .context("failed to write .anvil.json")?;
 
     println!();

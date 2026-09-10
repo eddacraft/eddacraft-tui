@@ -71,6 +71,13 @@ const FILE_ACCESS: u32 = GENERIC_READ | GENERIC_WRITE | DELETE | SYNCHRONIZE;
 
 struct OwnedHandle(HANDLE);
 
+/// Descriptor-bound regular-file observation used by the scaffold CAS layer.
+pub struct ObservedRegularFile {
+    pub bytes: Vec<u8>,
+    pub volume_serial: u64,
+    pub file_index: u64,
+}
+
 // SAFETY: a Win32 HANDLE is a kernel-object reference safe to move between
 // threads; the kernel serialises its own access.
 unsafe impl Send for OwnedHandle {}
@@ -165,7 +172,11 @@ pub fn write_new_nofollow(path: &Path, data: &[u8]) -> io::Result<()> {
         FILE_ATTRIBUTE_NORMAL,
         true,
     )?;
-    write_all_handle(file.raw(), data)
+    if let Err(error) = write_all_handle(file.raw(), data) {
+        let _ = dispose_handle(file.raw());
+        return Err(error);
+    }
+    Ok(())
 }
 
 /// Atomically write `data` to `path` without following reparse points.
@@ -301,6 +312,100 @@ pub fn read_nofollow(path: &Path) -> io::Result<Vec<u8>> {
     let dir = open_existing_dir(parent, false)?;
     let file = nt_open_at(dir.raw(), leaf, OpenKind::File, FILE_ACCESS, true)?;
     read_handle(file.raw())
+}
+
+/// Observe a regular file and its stable Windows object identity beneath a
+/// pinned, no-reparse parent.
+pub fn observe_regular_nofollow(path: &Path) -> io::Result<ObservedRegularFile> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path
+        .file_name()
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "read path has no file name"))?;
+    let dir = open_existing_dir(parent, false)?;
+    observe_regular_at(dir.raw(), leaf)
+}
+
+/// Publish only if identity and bytes still equal the planning observation.
+pub fn compare_and_swap_nofollow(
+    path: &Path,
+    expected_volume_serial: u64,
+    expected_file_index: u64,
+    expected_bytes: &[u8],
+    replacement: &[u8],
+) -> io::Result<ObservedRegularFile> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path
+        .file_name()
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "write path has no file name"))?;
+    let dir = open_existing_dir(parent, true)?;
+    let current = observe_regular_at(dir.raw(), leaf)?;
+    if current.volume_serial != expected_volume_serial
+        || current.file_index != expected_file_index
+        || current.bytes != expected_bytes
+    {
+        return Err(io::Error::other(
+            "file changed after planning; re-run to compute a fresh patch",
+        ));
+    }
+    atomic_write_at(dir.raw(), leaf, replacement)?;
+    observe_regular_at(dir.raw(), leaf)
+}
+
+/// Delete the exact observed object only while identity and bytes still match.
+pub fn remove_if_unchanged(
+    path: &Path,
+    expected_volume_serial: u64,
+    expected_file_index: u64,
+    expected_bytes: &[u8],
+) -> io::Result<bool> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let leaf = path
+        .file_name()
+        .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "remove path has no file name"))?;
+    let dir = open_existing_dir(parent, true)?;
+    let file = match nt_open_at(dir.raw(), leaf, OpenKind::File, FILE_ACCESS, true) {
+        Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    let current = observe_open_regular(file.raw())?;
+    if current.volume_serial != expected_volume_serial
+        || current.file_index != expected_file_index
+        || current.bytes != expected_bytes
+    {
+        return Ok(false);
+    }
+    dispose_handle(file.raw())?;
+    Ok(true)
+}
+
+fn observe_regular_at(parent: HANDLE, leaf: &OsStr) -> io::Result<ObservedRegularFile> {
+    let file = nt_open_at(parent, leaf, OpenKind::File, FILE_ACCESS, true)?;
+    observe_open_regular(file.raw())
+}
+
+fn observe_open_regular(handle: HANDLE) -> io::Result<ObservedRegularFile> {
+    let mut info = BY_HANDLE_FILE_INFORMATION::default();
+    // SAFETY: `handle` is live and `info` is a valid output buffer.
+    let ok = unsafe { GetFileInformationByHandle(handle, &mut info) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let bytes = read_handle(handle)?;
+    Ok(ObservedRegularFile {
+        bytes,
+        volume_serial: u64::from(info.dwVolumeSerialNumber),
+        file_index: (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow),
+    })
 }
 
 fn remove_at(path: &Path, is_dir: bool) -> io::Result<()> {

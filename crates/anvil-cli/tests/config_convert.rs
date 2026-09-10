@@ -6,9 +6,15 @@
 use std::path::Path;
 use std::process::Command;
 
-use tempfile::tempdir;
+use tempfile::{TempDir, tempdir};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
+
+fn temp_git_repo() -> TempDir {
+    let root = tempdir().unwrap();
+    std::fs::create_dir(root.path().join(".git")).unwrap();
+    root
+}
 
 fn run_anvil(root: &Path, args: &[&str]) -> std::process::Output {
     Command::new(ANVIL_BIN)
@@ -39,7 +45,7 @@ fn assert_success(output: &std::process::Output, context: &str) {
 
 #[test]
 fn config_convert_yml_to_json_rewrites_format_metadata() {
-    let root = tempdir().unwrap();
+    let root = temp_git_repo();
     write_yml_with_format_meta(root.path());
 
     let output = run_anvil(
@@ -55,7 +61,7 @@ fn config_convert_yml_to_json_rewrites_format_metadata() {
 
 #[test]
 fn migrate_format_yml_to_json_rewrites_format_metadata() {
-    let root = tempdir().unwrap();
+    let root = temp_git_repo();
     write_yml_with_format_meta(root.path());
 
     let output = run_anvil(
@@ -71,7 +77,7 @@ fn migrate_format_yml_to_json_rewrites_format_metadata() {
 
 #[test]
 fn config_convert_stdout_rewrites_format_metadata() {
-    let root = tempdir().unwrap();
+    let root = temp_git_repo();
     write_yml_with_format_meta(root.path());
 
     let output = run_anvil(
@@ -91,7 +97,7 @@ fn config_convert_stdout_rewrites_format_metadata() {
 
 #[test]
 fn config_convert_remove_old_rewrites_format_metadata() {
-    let root = tempdir().unwrap();
+    let root = temp_git_repo();
     std::fs::write(
         root.path().join(".anvil.json"),
         "{\n  \"format\": \"json\",\n  \"checks\": []\n}\n",
@@ -145,7 +151,7 @@ fn yaml_destination_tokens_use_canonical_metadata_across_owned_writers() {
             ],
         ),
     ] {
-        let root = tempdir().unwrap();
+        let root = temp_git_repo();
         std::fs::write(
             root.path().join(".anvil.json"),
             "{\n  \"format\": \"json\",\n  \"checks\": []\n}\n",
@@ -199,7 +205,7 @@ fn yaml_destination_tokens_use_canonical_metadata_across_owned_writers() {
     }
 
     for requested in ["yml", "yaml"] {
-        let root = tempdir().unwrap();
+        let root = temp_git_repo();
         std::fs::write(
             root.path().join(".anvil.json"),
             "{\n  \"format\": \"json\",\n  \"checks\": []\n}\n",

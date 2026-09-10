@@ -21,6 +21,9 @@ pub struct ProjectIdentity {
     pub project_uuid: String,
     pub created_at: Option<String>,
     pub created_by_version: Option<String>,
+    /// Project-scaffold identity schema. Legacy identities omit this field;
+    /// scaffold foundation validation requires the current value.
+    pub scaffold_version: Option<u32>,
     pub forked_from: Option<String>,
     /// MLP2-003: root commit SHA (`git rev-list --max-parents=0
     /// HEAD`). Persisted at activation; verified against the live
@@ -131,6 +134,7 @@ impl ProjectIdentity {
             project_uuid: Uuid::now_v7().to_string(),
             created_at: Some(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()),
             created_by_version: Some(anvil_version.to_string()),
+            scaffold_version: Some(1),
             forked_from: None,
             first_commit: None,
             origin_canonical: None,
@@ -150,7 +154,9 @@ impl ProjectIdentity {
         if let Some(v) = &self.created_by_version {
             let _ = writeln!(out, "created_by_version: {v}");
         }
-        let _ = writeln!(out, "scaffold_version: 1");
+        if let Some(version) = self.scaffold_version {
+            let _ = writeln!(out, "scaffold_version: {version}");
+        }
         if let Some(parent) = &self.forked_from {
             let _ = writeln!(out, "forked_from: {parent}");
         }
@@ -169,6 +175,7 @@ impl ProjectIdentity {
         let mut project_uuid: Option<String> = None;
         let mut created_at: Option<String> = None;
         let mut created_by_version: Option<String> = None;
+        let mut scaffold_version: Option<u32> = None;
         let mut forked_from: Option<String> = None;
         let mut first_commit: Option<String> = None;
         let mut origin_canonical: Option<String> = None;
@@ -200,6 +207,20 @@ impl ProjectIdentity {
                 "project_uuid" => project_uuid = Some(value.to_string()),
                 "created_at" => created_at = Some(value.to_string()),
                 "created_by_version" => created_by_version = Some(value.to_string()),
+                "scaffold_version" => {
+                    if scaffold_version.is_some() {
+                        return Err(IdentityError::Malformed(format!(
+                            "line {}: duplicate scaffold_version",
+                            lineno + 1
+                        )));
+                    }
+                    scaffold_version = Some(value.parse::<u32>().map_err(|_| {
+                        IdentityError::Malformed(format!(
+                            "line {}: scaffold_version is not an unsigned integer",
+                            lineno + 1
+                        ))
+                    })?);
+                }
                 "forked_from" => forked_from = Some(value.to_string()),
                 "first_commit" => first_commit = Some(value.to_string()),
                 "origin_canonical" => origin_canonical = Some(value.to_string()),
@@ -267,6 +288,7 @@ impl ProjectIdentity {
             project_uuid,
             created_at,
             created_by_version,
+            scaffold_version,
             forked_from,
             first_commit,
             origin_canonical,
@@ -1157,6 +1179,35 @@ created_at: 2026-05-07T12:34:56Z
     }
 
     #[test]
+    fn scaffold_version_round_trips_and_legacy_identity_remains_parseable() {
+        let fresh = ProjectIdentity::new_fresh("0.9.7-beta");
+        assert_eq!(
+            ProjectIdentity::parse(&fresh.render())
+                .unwrap()
+                .scaffold_version,
+            Some(1)
+        );
+
+        let legacy = "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n";
+        assert_eq!(
+            ProjectIdentity::parse(legacy).unwrap().scaffold_version,
+            None
+        );
+    }
+
+    #[test]
+    fn parse_rejects_malformed_or_duplicate_scaffold_version() {
+        let prefix = "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\n";
+        assert!(ProjectIdentity::parse(&format!("{prefix}scaffold_version: nope\n")).is_err());
+        assert!(
+            ProjectIdentity::parse(&format!(
+                "{prefix}scaffold_version: 1\nscaffold_version: 1\n"
+            ))
+            .is_err()
+        );
+    }
+
+    #[test]
     fn ensure_returns_disk_state_after_write() {
         // Council C-2: after a successful write, the returned
         // identity must match what's on disk (so concurrent callers
@@ -1181,6 +1232,7 @@ created_at: 2026-05-07T12:34:56Z
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: Some("2026-05-07T12:34:56Z".into()),
             created_by_version: Some("0.7.0".into()),
+            scaffold_version: Some(1),
             forked_from: None,
             first_commit: Some("a3b2ea4e1234567890abcdef1234567890abcdef".into()),
             origin_canonical: Some("github.com/eddacraft/anvil".into()),
@@ -1325,6 +1377,7 @@ origin_canonical:
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: None,
             created_by_version: None,
+            scaffold_version: None,
             forked_from: None,
             first_commit: Some(live_first.clone()),
             origin_canonical: Some(live_origin),
@@ -1347,6 +1400,7 @@ origin_canonical:
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: None,
             created_by_version: None,
+            scaffold_version: None,
             forked_from: None,
             first_commit: Some(live_first),
             origin_canonical: Some("gitlab.com/eddacraft/anvil".into()),
@@ -1376,6 +1430,7 @@ origin_canonical:
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: None,
             created_by_version: None,
+            scaffold_version: None,
             forked_from: None,
             first_commit: Some("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".into()),
             origin_canonical: Some(read_origin_canonical(dir.path()).unwrap().unwrap()),
@@ -1411,6 +1466,7 @@ origin_canonical:
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: None,
             created_by_version: None,
+            scaffold_version: None,
             forked_from: Some("9b8a7c6d-5e4f-3210-fedc-ba0987654321".into()),
             // Recorded values are the parent project's — they will
             // mismatch live but `forked_from` lets the attach through.
@@ -1439,6 +1495,7 @@ origin_canonical:
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: None,
             created_by_version: None,
+            scaffold_version: None,
             forked_from: None,
             first_commit: None,
             origin_canonical: None,
@@ -1457,6 +1514,7 @@ origin_canonical:
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: None,
             created_by_version: None,
+            scaffold_version: None,
             forked_from: None,
             first_commit: None,
             origin_canonical: None,
@@ -1486,6 +1544,7 @@ origin_canonical:
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: None,
             created_by_version: None,
+            scaffold_version: None,
             forked_from: None,
             first_commit: Some("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".into()),
             origin_canonical: None,
@@ -1528,6 +1587,7 @@ origin_canonical:
             project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".into(),
             created_at: None,
             created_by_version: None,
+            scaffold_version: None,
             forked_from: None,
             first_commit: None,
             origin_canonical: Some("github.com/eddacraft/anvil".into()),

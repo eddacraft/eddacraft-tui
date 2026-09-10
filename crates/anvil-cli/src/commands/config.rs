@@ -186,7 +186,24 @@ fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<std::pat
     // a gated ANVIL_HOME without `--touch-project-state`.
     crate::install_root::ensure_project_write_allowed("config set")?;
 
+    let _lock = match crate::util::lock_existing_project_config(root)? {
+        Some(lock) => Some(lock),
+        None => crate::util::lock_project_config_create(root)?,
+    };
     let mut config = load_project_config(root)?;
+    let before = match crate::util::observe_regular_nofollow(&config.writable_path) {
+        Ok(observed) => Some(observed),
+        Err(error)
+            if error.chain().any(|cause| {
+                cause
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+            }) =>
+        {
+            None
+        }
+        Err(error) => return Err(error),
+    };
     ensure_rule_mode(&mut config.value, rule, mode);
     // ADR-120 pt 3 "rewritten on the next owned write": an owned write
     // of a legacy-cased file emits canonical snake_case keys.
@@ -197,8 +214,11 @@ fn set_rule_mode(root: &Path, rule: &str, mode: &str) -> anyhow::Result<std::pat
     RuleModes::from_value(&config.value).with_context(|| format!("invalid rule mode `{mode}`"))?;
 
     let text = serialize_config(&config.value, config.writable_format)?;
-    std::fs::write(&config.writable_path, text)
-        .with_context(|| format!("writing {}", config.writable_path.display()))?;
+    if let Some(before) = before {
+        crate::util::compare_and_swap_nofollow(&config.writable_path, &before, text.as_bytes())?;
+    } else {
+        crate::util::write_new_nofollow(&config.writable_path, text.as_bytes())?;
+    }
     Ok(config.writable_path)
 }
 
@@ -224,8 +244,14 @@ pub(crate) fn convert_and_write(
 ) -> anyhow::Result<ConvertOutcome> {
     crate::install_root::ensure_project_write_allowed(write_gate)?;
 
+    let _lock = crate::util::lock_existing_project_config(root)?;
     let dest_format = parse_output_format(to)?;
-    let source = source_project_config(root)?;
+    let mut source = source_project_config(root)?;
+    let source_observed = crate::util::observe_regular_nofollow(&source.writable_path)?;
+    let source_raw =
+        std::str::from_utf8(&source_observed.bytes).context("project config is not UTF-8")?;
+    source.value =
+        anvil_config::parse_str(source_raw, source.writable_format, &source.writable_path)?;
     let dest = root.join(format!(".anvil.{}", dest_format.extension()));
 
     let same_path = source.writable_path == dest;
@@ -244,12 +270,36 @@ pub(crate) fn convert_and_write(
     align_format_metadata(&mut value, dest_format);
 
     let text = serialize_config(&value, dest_format)?;
-    crate::util::atomic_write(&dest, text.as_bytes())
-        .with_context(|| format!("writing {}", dest.display()))?;
+    let destination_before = if same_path {
+        Some(source_observed.clone())
+    } else {
+        match crate::util::observe_regular_nofollow(&dest) {
+            Ok(observed) => Some(observed),
+            Err(error)
+                if error.chain().any(|cause| {
+                    cause
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+                }) =>
+            {
+                None
+            }
+            Err(error) => return Err(error),
+        }
+    };
+    if let Some(before) = destination_before {
+        crate::util::compare_and_swap_nofollow(&dest, &before, text.as_bytes())?;
+    } else {
+        crate::util::write_new_nofollow(&dest, text.as_bytes())?;
+    }
 
     if remove_old && !same_path {
-        std::fs::remove_file(&source.writable_path)
-            .with_context(|| format!("removing {}", source.writable_path.display()))?;
+        if !crate::util::remove_if_unchanged(&source.writable_path, &source_observed)? {
+            bail!(
+                "{} changed during conversion; source was preserved",
+                source.writable_path.display()
+            );
+        }
         return Ok(ConvertOutcome {
             source: source.writable_path,
             destination: dest,
@@ -488,9 +538,15 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    fn temp_repo() -> TempDir {
+        let root = TempDir::new().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        root
+    }
+
     #[test]
     fn show_reports_default_rule_modes_when_config_is_missing() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
 
         let output = collect_config_show(tmp.path()).unwrap().render_human();
 
@@ -500,7 +556,7 @@ mod tests {
 
     #[test]
     fn set_creates_yaml_config_and_preserves_rule_mode() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
 
         set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap();
 
@@ -511,7 +567,7 @@ mod tests {
 
     #[test]
     fn set_preserves_existing_json_config_format() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.json"), "{}").unwrap();
 
         set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap();
@@ -525,8 +581,33 @@ mod tests {
     }
 
     #[test]
-    fn set_preserves_existing_toml_config_format() {
+    fn set_refuses_existing_config_without_git_mutation_authority() {
         let tmp = TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks: []\n").unwrap();
+
+        let error = set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap_err();
+
+        assert!(format!("{error:#}").contains("no trustworthy Git common directory"));
+        assert_eq!(
+            std::fs::read_to_string(tmp.path().join(".anvil.yaml")).unwrap(),
+            "checks: []\n"
+        );
+    }
+
+    #[test]
+    fn set_refuses_while_shared_config_lock_is_held() {
+        let tmp = temp_repo();
+        std::fs::write(tmp.path().join(".anvil.yaml"), "checks: []\n").unwrap();
+        let _held = crate::util::ConfigMutationLock::try_acquire(tmp.path()).unwrap();
+
+        let error = set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap_err();
+
+        assert!(format!("{error:#}").contains("already modifying project configuration"));
+    }
+
+    #[test]
+    fn set_preserves_existing_toml_config_format() {
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.toml"), "").unwrap();
 
         set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap();
@@ -540,7 +621,7 @@ mod tests {
     fn set_updates_existing_anvilrc_in_place() {
         // legacy-fallback coverage (.anvilrc deliberately) — `config set`
         // must edit the legacy file in place, not seed a canonical twin.
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvilrc"), "{}").unwrap();
 
         set_rule_mode(tmp.path(), "public-api-expansion", "enforce").unwrap();
@@ -556,7 +637,7 @@ mod tests {
 
     #[test]
     fn convert_prints_requested_format_without_writing_start_flags() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         set_rule_mode(tmp.path(), "new-dependency-introduction", "off").unwrap();
 
         let output = convert_config(tmp.path(), "toml").unwrap();
@@ -571,7 +652,7 @@ mod tests {
 
     #[test]
     fn convert_writes_canonical_dest_and_never_anvilrc() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
 
         let msg = convert_and_write(tmp.path(), "json", false, false, "config convert")
@@ -589,7 +670,7 @@ mod tests {
 
     #[test]
     fn convert_refuses_anvilrc_dest() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks: []\n").unwrap();
         let err =
             convert_and_write(tmp.path(), "anvilrc", false, false, "config convert").unwrap_err();
@@ -599,7 +680,7 @@ mod tests {
 
     #[test]
     fn convert_remove_old_deletes_source_when_dest_differs() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
         convert_and_write(tmp.path(), "toml", false, true, "config convert").unwrap();
         assert!(tmp.path().join(".anvil.toml").exists());
@@ -608,7 +689,7 @@ mod tests {
 
     #[test]
     fn convert_remove_old_keeps_file_on_same_format_rewrite() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.yaml"), "schemaVersion: \"1.0.0\"\n").unwrap();
         convert_and_write(tmp.path(), "yaml", false, true, "config convert").unwrap();
         assert!(tmp.path().join(".anvil.yaml").exists());
@@ -619,7 +700,7 @@ mod tests {
 
     #[test]
     fn convert_write_errors_when_no_config() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         let err =
             convert_and_write(tmp.path(), "yaml", false, false, "config convert").unwrap_err();
         assert!(err.to_string().contains("no project config"), "{err}");
@@ -632,7 +713,7 @@ mod tests {
     /// with no config materialises the canonical file.
     #[test]
     fn set_with_no_config_creates_canonical_file() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         set_rule_mode(tmp.path(), "public-api-expansion", "off").unwrap();
         assert!(tmp.path().join(".anvil.yaml").exists());
         assert!(!tmp.path().join(".anvilrc").exists());
@@ -643,7 +724,7 @@ mod tests {
     /// (in place — the filename does not change; migration is explicit).
     #[test]
     fn set_rewrites_legacy_camel_keys_in_place() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(
             tmp.path().join(".anvilrc"),
             r#"{"schemaVersion":"1.0.0","planningDir":"plans","checks":[]}"#,
@@ -660,7 +741,7 @@ mod tests {
     /// edits the discover winner and leaves the legacy file untouched.
     #[test]
     fn set_edits_the_discover_winner_in_dual_state() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks":["lint"]}"#).unwrap();
         std::fs::write(tmp.path().join(".anvil.yaml"), "checks:\n  - lint\n").unwrap();
         let legacy_before = std::fs::read(tmp.path().join(".anvilrc")).unwrap();
@@ -678,7 +759,7 @@ mod tests {
     /// files and stays silent for canonical ones.
     #[test]
     fn show_renders_the_legacy_key_note() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(
             tmp.path().join(".anvil.yaml"),
             "schemaVersion: \"1.0.0\"\nchecks: []\n",
@@ -727,7 +808,7 @@ mod tests {
     fn convert_rewrites_embedded_format_metadata_pairwise() {
         for src in CONVERT_FORMATS {
             for dest in CONVERT_FORMATS {
-                let tmp = TempDir::new().unwrap();
+                let tmp = temp_repo();
                 let src_fmt = parse_output_format(src).unwrap();
                 let dest_fmt = parse_output_format(dest).unwrap();
                 write_format_fixture(tmp.path(), src_fmt, src_fmt.extension());
@@ -753,7 +834,7 @@ mod tests {
 
     #[test]
     fn convert_stdout_rewrites_embedded_format_metadata() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_format_fixture(tmp.path(), ConfigFormat::Yml, "yml");
 
         let output = convert_config(tmp.path(), "json").unwrap();
@@ -768,7 +849,7 @@ mod tests {
 
     #[test]
     fn convert_rewrites_stale_same_path_format_metadata() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_format_fixture(tmp.path(), ConfigFormat::Yaml, "yml");
 
         convert_and_write(tmp.path(), "yaml", false, true, "config convert").unwrap();
@@ -781,7 +862,7 @@ mod tests {
 
     #[test]
     fn convert_does_not_invent_format_metadata_when_absent() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(tmp.path().join(".anvil.yml"), "checks:\n  - lint\n").unwrap();
 
         convert_and_write(tmp.path(), "json", false, true, "config convert").unwrap();
@@ -793,7 +874,7 @@ mod tests {
 
     #[test]
     fn convert_legacy_anvilrc_rewrites_format_metadata() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         std::fs::write(
             tmp.path().join(".anvilrc"),
             "{\n  \"format\": \"json\",\n  \"checks\": []\n}\n",
@@ -809,7 +890,7 @@ mod tests {
 
     #[test]
     fn convert_round_trip_does_not_oscillate_format_metadata() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = temp_repo();
         write_format_fixture(tmp.path(), ConfigFormat::Yaml, "yaml");
 
         for dest in ["json", "toml", "yml", "yaml"] {
@@ -833,7 +914,7 @@ mod tests {
         use crate::commands::init::{AnvilConfig, generate_config};
         use crate::config_view::InitConfigView;
 
-        let src = TempDir::new().unwrap();
+        let src = temp_repo();
         generate_config(
             &AnvilConfig {
                 format: "yaml".to_string(),
@@ -846,7 +927,7 @@ mod tests {
         let converted = anvil_config::parse_file(&src.path().join(".anvil.json")).unwrap();
         let converted_view = InitConfigView::from_value(&converted).unwrap();
 
-        let fresh = TempDir::new().unwrap();
+        let fresh = temp_repo();
         generate_config(
             &AnvilConfig {
                 format: "json".to_string(),

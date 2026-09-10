@@ -247,6 +247,11 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
     // production binary reads. Refuse under a gated ANVIL_HOME.
     crate::install_root::ensure_project_write_allowed("gate-config write")?;
 
+    let _config_lock = match crate::util::lock_existing_project_config(workspace)? {
+        Some(lock) => Some(lock),
+        None => crate::util::lock_project_config_create(workspace)?,
+    };
+
     let canonical_name = validated_toggle_target(check_name)?;
 
     if !enable
@@ -262,6 +267,25 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
     }
 
     let mut project = load_project_config(workspace)?;
+    let config_before = match crate::util::observe_regular_nofollow(&project.writable_path) {
+        Ok(observed) => {
+            let raw = std::str::from_utf8(&observed.bytes)
+                .map_err(|error| anyhow::anyhow!("project config is not UTF-8: {error}"))?;
+            project.value =
+                anvil_config::parse_str(raw, project.writable_format, &project.writable_path)?;
+            Some(observed)
+        }
+        Err(error)
+            if error.chain().any(|cause| {
+                cause
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+            }) =>
+        {
+            None
+        }
+        Err(error) => return Err(error),
+    };
     let section = anvil_config::GateSection::from_config_value(&project.value)
         .map_err(crate::output::invalid_config)?;
     let (mut selected, _) = effective_selection(&project.value, section.as_ref());
@@ -309,7 +333,11 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
     );
 
     let text = serialize_config(&project.value, project.writable_format)?;
-    crate::util::atomic_write(&project.writable_path, text.as_bytes())?;
+    if let Some(before) = config_before {
+        crate::util::compare_and_swap_nofollow(&project.writable_path, &before, text.as_bytes())?;
+    } else {
+        crate::util::write_new_nofollow(&project.writable_path, text.as_bytes())?;
+    }
 
     let action = if enable { "Enabled" } else { "Disabled" };
     match mode {
@@ -382,6 +410,12 @@ pub(crate) fn load_legacy_gate_config(workspace: &Path) -> Result<Option<GateCon
 mod tests {
     use super::*;
 
+    fn temp_repo() -> tempfile::TempDir {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        root
+    }
+
     fn write_yaml(dir: &Path, body: &str) {
         std::fs::write(dir.join(".anvil.yaml"), body).unwrap();
     }
@@ -394,7 +428,7 @@ mod tests {
 
     #[test]
     fn view_defaults_when_no_config_file() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         let view = build_view(dir.path()).unwrap();
         assert_eq!(view.checks.len(), 9);
         assert_eq!(view.thresholds.get("overall_score"), Some(&80));
@@ -404,7 +438,7 @@ mod tests {
 
     #[test]
     fn view_reflects_top_level_checks_selection() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks:\n  - secret-detection\n");
         let view = build_view(dir.path()).unwrap();
         let secret = view
@@ -419,7 +453,7 @@ mod tests {
 
     #[test]
     fn view_surfaces_gate_section_thresholds_and_config() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(
             dir.path(),
             "checks: [secret-detection]\ngate:\n  thresholds:\n    overall_score: 95\n  checks:\n    secret-detection:\n      max_findings: 0\n",
@@ -441,7 +475,7 @@ mod tests {
 
     #[test]
     fn disable_writes_explicit_top_level_list() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks:\n  - lint\n  - coverage\n");
         run_toggle(dir.path(), "coverage", false, OutputMode::Plain).unwrap();
         let value = read_yaml(dir.path());
@@ -456,7 +490,7 @@ mod tests {
 
     #[test]
     fn enable_appends_to_selection_and_persists() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks:\n  - lint\n");
         run_toggle(dir.path(), "coverage", true, OutputMode::Plain).unwrap();
         let value = read_yaml(dir.path());
@@ -471,7 +505,7 @@ mod tests {
 
     #[test]
     fn toggle_accepts_legacy_internal_name() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks:\n  - secret-detection\n  - lint\n");
         // "architecture" is the legacy internal name for import-boundaries.
         run_toggle(dir.path(), "architecture", true, OutputMode::Plain).unwrap();
@@ -487,7 +521,7 @@ mod tests {
 
     #[test]
     fn toggle_with_no_config_materialises_defaults_in_canonical_file() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         run_toggle(dir.path(), "coverage", true, OutputMode::Plain).unwrap();
         assert!(dir.path().join(".anvil.yaml").exists());
         let value = read_yaml(dir.path());
@@ -503,7 +537,7 @@ mod tests {
 
     #[test]
     fn toggle_preserves_unrelated_config_keys() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(
             dir.path(),
             "schema_version: \"1.0.0\"\nchecks: [lint]\ngate:\n  thresholds:\n    overall_score: 90\n",
@@ -518,7 +552,7 @@ mod tests {
 
     #[test]
     fn disable_hard_pinned_check_is_refused() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks:\n  - secret-detection\n");
         for check in ["secret-detection", "command-safety"] {
             let err = run_toggle(dir.path(), check, false, OutputMode::Plain).unwrap_err();
@@ -553,7 +587,7 @@ mod tests {
     /// and would silently fall back to defaults / section keys.
     #[test]
     fn disable_emptying_selection_is_refused() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks:\n  - lint\n");
         let err = run_toggle(dir.path(), "lint", false, OutputMode::Plain).unwrap_err();
         let msg = err.to_string();
@@ -565,7 +599,7 @@ mod tests {
 
     #[test]
     fn disable_emptying_section_driven_selection_is_refused() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "gate:\n  checks:\n    lint: {}\n");
         let err = run_toggle(dir.path(), "lint", false, OutputMode::Plain).unwrap_err();
         assert!(err.to_string().contains("no selected checks"), "{err}");
@@ -573,7 +607,7 @@ mod tests {
 
     #[test]
     fn enable_hard_pinned_check_is_allowed() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks:\n  - lint\n");
         run_toggle(dir.path(), "secret-detection", true, OutputMode::Plain).unwrap();
     }
@@ -582,7 +616,7 @@ mod tests {
 
     #[test]
     fn toggle_unknown_check_suggests_closest_id() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         let err = run_toggle(dir.path(), "lnt", false, OutputMode::Plain).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("Unknown check"), "got: {msg}");
@@ -591,7 +625,7 @@ mod tests {
 
     #[test]
     fn toggle_known_but_non_configurable_check_is_not_a_typo() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         let err = run_toggle(dir.path(), "sql-migrations", false, OutputMode::Plain).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("not configurable via gate-config"), "{msg}");
@@ -602,7 +636,7 @@ mod tests {
 
     #[test]
     fn toggle_never_writes_legacy_json() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks: [lint]\n");
         run_toggle(dir.path(), "coverage", true, OutputMode::Plain).unwrap();
         assert!(
@@ -613,7 +647,7 @@ mod tests {
 
     #[test]
     fn list_ignores_legacy_json_contents() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = temp_repo();
         write_yaml(dir.path(), "checks: [lint]\n");
         std::fs::create_dir_all(dir.path().join(".anvil")).unwrap();
         std::fs::write(

@@ -4,6 +4,7 @@
 //! consume this crate; they do not read configuration files for settings
 //! purposes and they do not write configuration except through the service.
 
+pub mod bootstrap;
 mod canonical_json;
 pub mod catalogue;
 pub mod constraints;
@@ -17,6 +18,7 @@ pub mod seed;
 pub mod service;
 pub mod types;
 
+pub use bootstrap::{BootstrapError, BootstrapMutation, BootstrapSetting};
 pub use catalogue::{Catalogue, CatalogueEntry, CatalogueError, ProjectConfigTarget};
 pub use constraints::{ApprovalEvidence, Constraint, ConstraintError, PolicyBundle};
 pub use envelope::{Envelope, EnvelopeCommand, SCHEMA_VERSION};

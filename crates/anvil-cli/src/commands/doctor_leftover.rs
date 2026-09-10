@@ -265,6 +265,7 @@ fn present_config_names(root: &Path) -> std::io::Result<Vec<String>> {
 
 fn remove_shadowed_configs(root: &Path, names: &[String]) -> Result<String> {
     crate::install_root::ensure_project_write_allowed("doctor leftover")?;
+    let _lock = crate::util::lock_existing_project_config(root)?;
     let present = present_config_names(root).context("listing project config files")?;
     let winner = present.first().map(String::as_str);
     for name in names {
@@ -275,7 +276,8 @@ fn remove_shadowed_configs(root: &Path, names: &[String]) -> Result<String> {
             bail!("refusing to remove {name}: not a present project config");
         }
         let path = root.join(name);
-        std::fs::remove_file(&path).with_context(|| format!("removing {}", path.display()))?;
+        crate::util::remove_file_nofollow(&path)
+            .with_context(|| format!("removing {}", path.display()))?;
     }
     Ok(format!("removed shadowed {}", names.join(", ")))
 }
@@ -331,6 +333,12 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
+    fn temp_repo() -> tempfile::TempDir {
+        let root = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        root
+    }
+
     fn write(root: &Path, rel: &str, body: &str) {
         if let Some(parent) = root.join(rel).parent() {
             std::fs::create_dir_all(parent).unwrap();
@@ -348,14 +356,14 @@ mod tests {
 
     #[test]
     fn leftover_offers_empty_when_single_canonical() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: []\n");
         assert!(leftover_offers_in(tmp.path()).is_empty());
     }
 
     #[test]
     fn leftover_offers_lone_anvilrc() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvilrc", r#"{"checks":[]}"#);
         let offers = leftover_offers_in(tmp.path());
         assert_eq!(offers.len(), 1);
@@ -371,7 +379,7 @@ mod tests {
 
     #[test]
     fn leftover_offers_shadowed_anvilrc_does_not_include_winner() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: []\n");
         write(tmp.path(), ".anvilrc", "{}");
         let offers = leftover_offers_in(tmp.path());
@@ -387,7 +395,7 @@ mod tests {
 
     #[test]
     fn leftover_offers_dual_canonical_removes_shadowed_not_winner() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: []\n");
         write(tmp.path(), ".anvil.json", "{}");
         let offers = leftover_offers_in(tmp.path());
@@ -403,7 +411,7 @@ mod tests {
 
     #[test]
     fn leftover_offers_gate_config_and_unrecorded_architecture() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: [secret-detection]\n");
         write(
             tmp.path(),
@@ -430,7 +438,7 @@ mod tests {
 
     #[test]
     fn leftover_offers_shadowed_architecture_not_delegated() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "architecture:\n  layers: {}\n");
         write(
             tmp.path(),
@@ -444,7 +452,7 @@ mod tests {
 
     #[test]
     fn leftover_offers_empty_when_architecture_delegates_to_legacy() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(
             tmp.path(),
             ".anvil.yaml",
@@ -460,7 +468,7 @@ mod tests {
 
     #[test]
     fn parse_choice_numbers_skip_and_unknown() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvilrc", "{}");
         let offer = leftover_offers_in(tmp.path()).pop().unwrap();
         assert!(matches!(
@@ -479,7 +487,7 @@ mod tests {
 
     #[test]
     fn apply_migrate_anvilrc_writes_yaml() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvilrc", r#"{"checks":["secret-detection"]}"#);
         apply_leftover_choice(
             tmp.path(),
@@ -492,7 +500,7 @@ mod tests {
 
     #[test]
     fn apply_remove_shadowed_keeps_winner() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: []\n");
         write(tmp.path(), ".anvilrc", "{}");
         apply_leftover_choice(
@@ -508,7 +516,7 @@ mod tests {
 
     #[test]
     fn apply_remove_refuses_discover_winner() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: []\n");
         write(tmp.path(), ".anvil.json", "{}");
         let err = apply_leftover_choice(
@@ -525,7 +533,7 @@ mod tests {
 
     #[test]
     fn apply_skip_is_noop() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvilrc", "{}");
         apply_leftover_choice(tmp.path(), &LeftoverChoice::Skip).unwrap();
         assert!(tmp.path().join(".anvilrc").is_file());
@@ -534,7 +542,7 @@ mod tests {
 
     #[test]
     fn apply_record_architecture_source() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: [lint]\n");
         write(
             tmp.path(),
@@ -549,7 +557,7 @@ mod tests {
 
     #[test]
     fn apply_remove_shadowed_architecture() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "architecture:\n  layers: {}\n");
         write(
             tmp.path(),
@@ -563,7 +571,7 @@ mod tests {
 
     #[test]
     fn run_offers_skip_writes_nothing() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: []\n");
         write(tmp.path(), ".anvilrc", "{}");
         let offers = leftover_offers_in(tmp.path());
@@ -579,7 +587,7 @@ mod tests {
 
     #[test]
     fn run_offers_applies_numbered_choice() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvil.yaml", "checks: []\n");
         write(tmp.path(), ".anvilrc", "{}");
         let offers = leftover_offers_in(tmp.path());
@@ -593,7 +601,7 @@ mod tests {
 
     #[test]
     fn run_offers_eof_skips() {
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = temp_repo();
         write(tmp.path(), ".anvilrc", "{}");
         let offers = leftover_offers_in(tmp.path());
         let mut input = Cursor::new("");

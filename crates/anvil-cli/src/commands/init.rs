@@ -17,7 +17,7 @@ use anvil_checks::antipattern::WarningSeverity;
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
-    /// Overwrite existing configuration without prompting.
+    /// Re-run additive setup; operator-owned project configuration is preserved.
     #[arg(long)]
     pub force: bool,
 }
@@ -26,8 +26,7 @@ pub struct InitArgs {
 const SCHEMA_VERSION: &str = "1.0.0";
 
 /// The legacy config filename. Never written since UCFG-001 / ADR-120
-/// pt 1 — kept for detection, refusal copy, and `--force` replacement
-/// of a legacy file. `anvil migrate format` remains the explicit
+/// pt 1 — kept for detection and refusal copy. `anvil migrate format` remains the explicit
 /// conversion path for existing repos.
 pub(crate) const LEGACY_CONFIG_FILE_NAME: &str = ".anvilrc";
 
@@ -130,29 +129,9 @@ pub(crate) fn run_in(
     {
         // Name the file we actually detected — a repo with only `.anvil.yaml`
         // must not claim `.anvilrc` already exists (Dave pack-04 CFG-1).
-        anyhow::bail!("{existing} already exists. Use --force to overwrite.");
-    }
-
-    // A zero-byte config file stub is treated as "missing" by `config_exists_in`,
-    // but `write_new` (O_CREAT | O_EXCL) would still fail because the inode
-    // exists. Remove the empty stub so the upcoming create proceeds cleanly
-    // — the only information it could possibly hold is "nothing".
-    if !args.force {
-        for name in [
-            LEGACY_CONFIG_FILE_NAME.to_string(),
-            canonical_config_file_name("yaml"),
-            canonical_config_file_name("json"),
-            canonical_config_file_name("toml"),
-        ] {
-            let config_path = root.join(&name);
-            if let Ok(meta) = fs::metadata(&config_path)
-                && meta.is_file()
-                && meta.len() == 0
-            {
-                fs::remove_file(&config_path)
-                    .with_context(|| format!("failed to remove empty {}", config_path.display()))?;
-            }
-        }
+        anyhow::bail!(
+            "{existing} already exists and is operator-owned. Use `anvil config set` or `anvil migrate format` for an explicit config mutation."
+        );
     }
 
     if global.json {
@@ -401,28 +380,33 @@ pub(crate) fn generate_config_with_force(
         .with_context(|| format!("failed to create directory {}", root.display()))?;
     let file_name = canonical_config_file_name(&config.format);
     let path = root.join(&file_name);
-    if force {
-        crate::util::atomic_write(&path, content.as_bytes())
-            .with_context(|| format!("failed to write {file_name}"))?;
-        // `--force` replaces the project config: a legacy `.anvilrc`
-        // left beside the new canonical file would create the exact
-        // dual-truth state doctor warns about, seeded by our own tool.
-        let legacy = root.join(LEGACY_CONFIG_FILE_NAME);
-        if legacy.is_file() {
-            fs::remove_file(&legacy)
-                .with_context(|| format!("failed to remove legacy {LEGACY_CONFIG_FILE_NAME}"))?;
-            eprintln!("anvil: removed legacy {LEGACY_CONFIG_FILE_NAME} (replaced by {file_name})");
-        }
-    } else {
-        crate::util::write_new(&path, content.as_bytes())
-            .with_context(|| format!("failed to write {file_name}"))?;
+    let _lock = match crate::util::lock_existing_project_config(root)? {
+        Some(lock) => Some(lock),
+        None => crate::util::lock_project_config_create(root)?,
+    };
+    let existing_config = [
+        ".anvil.yaml",
+        ".anvil.yml",
+        ".anvil.json",
+        ".anvil.toml",
+        LEGACY_CONFIG_FILE_NAME,
+    ]
+    .into_iter()
+    .find(|name| root.join(name).exists());
+    if force && let Some(existing) = existing_config {
+        anyhow::bail!(
+            "refusing to replace operator-owned {existing}; use `anvil config set` or `anvil migrate format` for an explicit config mutation"
+        );
     }
+    crate::util::write_new_nofollow(&path, content.as_bytes())
+        .with_context(|| format!("failed to write {file_name}"))?;
 
     fs::create_dir_all(root.join(".anvil/cache")).context("failed to create .anvil/cache/")?;
 
     // Seed the example gate-summary dashboard so `anvil dashboard gate-summary`
     // works out of the box after a gate run (#2237).
-    seed_example_dashboard(root, force)?;
+    // Scaffold force never replaces auxiliary operator-owned content.
+    seed_example_dashboard(root, false)?;
 
     let gitignore_updated = append_gitignore_entry(root)?;
 
@@ -432,20 +416,10 @@ pub(crate) fn generate_config_with_force(
             .with_context(|| format!("failed to create {}/", config.planning_dir))?;
     }
 
-    // PSCAF-001: route the two functional foundation/policy slices through
-    // the shared additive engine. The public init presentation and removal of
-    // legacy runtime/scan ownership land in PSCAF-002; this seam ensures the
-    // current command no longer leaves L4 permanently unreachable meanwhile.
-    let foundation = crate::scaffold::reconcile_foundation(root)?;
-    if !foundation.satisfies_dependency() {
-        anyhow::bail!(
-            "foundation needs input: {}",
-            foundation
-                .diagnostic
-                .as_deref()
-                .unwrap_or("project foundation is not valid")
-        );
-    }
+    // PSCAF-001 supplies the shared foundation reconciler, but the existing
+    // start TUI still presents config and identity as independent actions.
+    // Full foundation composition belongs to PSCAF-006; invoking it here
+    // would write identity when the operator selected config only.
     let policy = crate::scaffold::reconcile_acceptance_policy(root)?;
     let policy_written = policy.outcome == crate::scaffold::MutationOutcome::Created;
 
@@ -1080,11 +1054,6 @@ mod tests {
         fs::create_dir_all(dir.path().join("anvil")).unwrap();
         let custom = "KEEP-FORCE\n";
         fs::write(dir.path().join("anvil/policy.yml"), custom).unwrap();
-        fs::write(
-            dir.path().join(".anvil.yaml"),
-            "schema_version: \"1.0.0\"\n",
-        )
-        .unwrap();
         let args = InitArgs { force: true };
         let global = no_tui_global();
         run_in(&args, &global, dir.path(), InitInvocation::Standalone).expect("force init");
@@ -1163,22 +1132,21 @@ planningDir: plans
     }
 
     #[test]
-    fn force_replaces_legacy_anvilrc_with_canonical_file() {
+    fn force_refuses_to_replace_legacy_anvilrc() {
         let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join(".git")).unwrap();
         fs::write(dir.path().join(".anvilrc"), r#"{"old": true}"#).unwrap();
 
         let args = InitArgs { force: true };
         let global = no_tui_global();
         let result = run_in(&args, &global, dir.path(), InitInvocation::Standalone);
-        assert!(result.is_ok());
-
-        // The canonical file replaces the legacy one — leaving both
-        // would seed the dual-truth state doctor warns about.
-        assert!(!dir.path().join(".anvilrc").exists());
-        let content = fs::read_to_string(dir.path().join(".anvil.yaml")).unwrap();
-        assert!(content.contains("schema_version"));
-        assert!(content.contains("1.0.0"));
-        assert!(!content.contains("old"));
+        let error = result.unwrap_err();
+        assert!(format!("{error:#}").contains("refusing to replace operator-owned .anvilrc"));
+        assert_eq!(
+            fs::read_to_string(dir.path().join(".anvilrc")).unwrap(),
+            r#"{"old": true}"#
+        );
+        assert!(!dir.path().join(".anvil.yaml").exists());
     }
 
     #[test]

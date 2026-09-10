@@ -1972,6 +1972,18 @@ pub(crate) fn pre_write_anvil_config_format(
         return Ok(());
     }
 
+    let _config_lock = crate::util::lock_project_config_create(root)?;
+    // Re-check under the common lock so two cooperating creators cannot seed
+    // different extensions after the initial read-only inspection.
+    if target.exists() {
+        return Ok(());
+    }
+    if let Some(existing) = existing_project_config_path(root)? {
+        let warning = format_ignored_existing_config_warning(&existing);
+        eprintln!("{warning}");
+        return Ok(());
+    }
+
     // Build the default config value. Mirrors `init::AnvilConfig::default()`
     // shape (schema_version / planning_dir / format / checks) so a project
     // adopted via `--format` reads identically to one adopted via the
@@ -1981,7 +1993,7 @@ pub(crate) fn pre_write_anvil_config_format(
     let value = default_anvil_config_value(format);
     let serialised = serialise_to_format(&value, format)
         .with_context(|| format!("serialising default config as {}", format.extension()))?;
-    crate::util::atomic_write(&target, serialised.as_bytes())
+    crate::util::write_new_nofollow(&target, serialised.as_bytes())
         .with_context(|| format!("writing {}", target.display()))?;
     Ok(())
 }

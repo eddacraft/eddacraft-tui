@@ -2882,11 +2882,19 @@ fn apply_produce_locks_fix(check: &mut DiagnosticCheck, speak: bool) {
 fn apply_config_exists_fix(check: &mut DiagnosticCheck, speak: bool) {
     // UCFG-001 / ADR-120 pt 1: the auto-fix creates the
     // canonical file; no command creates a new `.anvilrc`.
-    // This arm only runs when the presence probe found no
-    // config at all, and `fs::write` truncates any racing
-    // zero-byte stub — no pre-cleanup needed.
+    // This arm only runs when the presence probe found no config. Exclusive
+    // creation refuses a racing file instead of truncating it.
     let path = Path::new(".anvil.yaml");
-    match std::fs::write(path, default_config_yaml()) {
+    let _config_lock = match crate::util::lock_project_config_create(Path::new(".")) {
+        Ok(lock) => lock,
+        Err(error) => {
+            if speak {
+                eprintln!("  Failed to fix config-exists: {error:#}");
+            }
+            return;
+        }
+    };
+    match crate::util::write_new_nofollow(path, default_config_yaml().as_bytes()) {
         Ok(()) => {
             check.status = CheckStatus::Pass;
             check.message = ".anvil.yaml created with defaults".to_string();

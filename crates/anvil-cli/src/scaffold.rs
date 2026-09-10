@@ -62,6 +62,7 @@ pub(crate) enum TargetKind {
 pub(crate) struct OwnedTarget {
     pub kind: TargetKind,
     pub target: &'static str,
+    pub replaceable: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -79,75 +80,99 @@ pub(crate) struct ComponentDefinition {
     pub dependencies: &'static [ComponentId],
     pub inactive_consequence: &'static str,
     pub later_command: &'static str,
-    pub replaceable: bool,
 }
 
 const FOUNDATION_TARGETS: &[OwnedTarget] = &[
     OwnedTarget {
         kind: TargetKind::ConfigSetting,
         target: "project.schema_version",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::ConfigSetting,
         target: "project.format",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::File,
         target: "anvil/project-id",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::IdentityField,
         target: "project_uuid",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::IdentityField,
         target: "created_at",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::IdentityField,
         target: "created_by_version",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::IdentityField,
         target: "scaffold_version",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::IgnoreLine,
         target: ".anvil/",
+        replaceable: false,
+    },
+    OwnedTarget {
+        kind: TargetKind::IgnoreLine,
+        target: "anvil/exceptions/.lock",
+        replaceable: false,
+    },
+    OwnedTarget {
+        kind: TargetKind::IgnoreLine,
+        target: "anvil/witness/.chain-initialised",
+        replaceable: false,
     },
 ];
 const POLICY_TARGETS: &[OwnedTarget] = &[OwnedTarget {
     kind: TargetKind::File,
     target: "anvil/policy.yml",
+    replaceable: false,
 }];
 const ARCHITECTURE_TARGETS: &[OwnedTarget] = &[
     OwnedTarget {
         kind: TargetKind::ConfigSetting,
         target: "project.architecture.source",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::File,
         target: "anvil/architecture.yaml",
+        replaceable: true,
     },
 ];
 const CHECK_TARGETS: &[OwnedTarget] = &[
     OwnedTarget {
         kind: TargetKind::ConfigSetting,
         target: "protection.checks",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::ConfigSetting,
         target: "protection.enforcement.mode",
+        replaceable: false,
     },
 ];
 const PLANNING_TARGETS: &[OwnedTarget] = &[
     OwnedTarget {
         kind: TargetKind::ConfigSetting,
         target: "project.planning.dir",
+        replaceable: false,
     },
     OwnedTarget {
         kind: TargetKind::File,
         target: "plans/index.aps.md",
+        replaceable: false,
     },
 ];
 const FOUNDATION_DEPENDENCY: &[ComponentId] = &[ComponentId::Foundation];
@@ -163,7 +188,6 @@ const CATALOGUE: &[ComponentDefinition] = &[
         dependencies: &[],
         inactive_consequence: "No optional project protection can be activated safely",
         later_command: "anvil init --profile core",
-        replaceable: false,
     },
     ComponentDefinition {
         id: ComponentId::AcceptancePolicy,
@@ -175,7 +199,6 @@ const CATALOGUE: &[ComponentDefinition] = &[
         dependencies: FOUNDATION_DEPENDENCY,
         inactive_consequence: "L4 deliberately passes without evaluating a change",
         later_command: "anvil init --include acceptance-policy",
-        replaceable: false,
     },
     ComponentDefinition {
         id: ComponentId::Architecture,
@@ -187,7 +210,6 @@ const CATALOGUE: &[ComponentDefinition] = &[
         dependencies: FOUNDATION_DEPENDENCY,
         inactive_consequence: "Architecture-boundary checks remain unavailable",
         later_command: "anvil init --include architecture",
-        replaceable: true,
     },
     ComponentDefinition {
         id: ComponentId::Checks,
@@ -199,7 +221,6 @@ const CATALOGUE: &[ComponentDefinition] = &[
         dependencies: FOUNDATION_DEPENDENCY,
         inactive_consequence: "Project checks keep their existing or built-in defaults",
         later_command: "anvil init --include checks",
-        replaceable: false,
     },
     ComponentDefinition {
         id: ComponentId::Planning,
@@ -211,7 +232,6 @@ const CATALOGUE: &[ComponentDefinition] = &[
         dependencies: FOUNDATION_DEPENDENCY,
         inactive_consequence: "APS planning support is not scaffolded",
         later_command: "anvil init --include planning",
-        replaceable: false,
     },
 ];
 
@@ -387,6 +407,7 @@ pub(crate) fn reconcile_acceptance_policy(
         crate::policy_load::DEFAULT_ACCEPTANCE_POLICY_YML.as_bytes(),
     ) {
         Ok(()) => {
+            let created = crate::util::observe_regular_nofollow(&path)?;
             let variants = crate::policy_load::policy_variants(root)?;
             if variants.len() == 1 && variants[0] == path {
                 return Ok(ComponentResult {
@@ -400,11 +421,7 @@ pub(crate) fn reconcile_acceptance_policy(
 
             // An external writer introduced another variant during our
             // exclusive create. Remove only the exact bytes we created.
-            if std::fs::read(&path).ok().as_deref()
-                == Some(crate::policy_load::DEFAULT_ACCEPTANCE_POLICY_YML.as_bytes())
-            {
-                crate::util::remove_file_nofollow(&path)?;
-            }
+            let _ = crate::util::remove_if_unchanged(&path, &created)?;
             Ok(inspect_acceptance_policy(
                 root,
                 &crate::policy_load::policy_variants(root)?,
@@ -473,6 +490,26 @@ const IGNORE_LINES: [&str; 3] = [
     "anvil/witness/.chain-initialised",
 ];
 
+struct ExistingUpdate {
+    path: std::path::PathBuf,
+    before: crate::util::ObservedFile,
+    desired: Vec<u8>,
+}
+
+type IdentityUpdatePlan = Result<Option<(crate::util::ObservedFile, Vec<u8>)>, String>;
+
+enum AppliedMutation {
+    Created {
+        path: std::path::PathBuf,
+        observed: crate::util::ObservedFile,
+    },
+    Published {
+        path: std::path::PathBuf,
+        before: crate::util::ObservedFile,
+        published: crate::util::ObservedFile,
+    },
+}
+
 /// Reconcile the mandatory foundation without creating runtime state, plans,
 /// hooks, scans, baselines, or integrations.
 #[allow(
@@ -480,8 +517,6 @@ const IGNORE_LINES: [&str; 3] = [
     reason = "foundation preflight, ordered writes and exact rollback form one transaction boundary"
 )]
 pub(crate) fn reconcile_foundation(root: &std::path::Path) -> anyhow::Result<ComponentResult> {
-    use anyhow::Context;
-
     let configs = existing_main_configs(root)?;
     if configs.len() > 1 {
         return Ok(foundation_needs_input(
@@ -497,9 +532,164 @@ pub(crate) fn reconcile_foundation(root: &std::path::Path) -> anyhow::Result<Com
             FOUNDATION_CONFIG_YAML,
         ));
     }
-    if let Some(config_path) = configs.first()
-        && let Err(diagnostic) = validate_foundation_config(config_path)
-    {
+    let mut existing_updates = Vec::new();
+    let config_create = if let Some(path) = configs.first() {
+        match plan_foundation_config_update(path)? {
+            Ok(Some(update)) => {
+                existing_updates.push(update);
+                None
+            }
+            Ok(None) => None,
+            Err((diagnostic, patch)) => {
+                return Ok(foundation_needs_input(
+                    ComponentHealth::Invalid,
+                    diagnostic,
+                    &patch,
+                ));
+            }
+        }
+    } else {
+        Some((
+            root.join(".anvil.yaml"),
+            FOUNDATION_CONFIG_YAML.as_bytes().to_vec(),
+        ))
+    };
+
+    let identity_path = root.join("anvil/project-id");
+    let identity_create = match crate::util::observe_regular_nofollow(&identity_path) {
+        Ok(before) => match plan_identity_update(before)? {
+            Ok(Some(update)) => {
+                existing_updates.push(ExistingUpdate {
+                    path: identity_path.clone(),
+                    before: update.0,
+                    desired: update.1,
+                });
+                None
+            }
+            Ok(None) => None,
+            Err(diagnostic) => {
+                return Ok(foundation_needs_input(
+                    ComponentHealth::Invalid,
+                    diagnostic,
+                    "created_at: <RFC3339 time>\ncreated_by_version: <anvil version>\nscaffold_version: 1\n",
+                ));
+            }
+        },
+        Err(error) if is_not_found(&error) => {
+            let rendered =
+                crate::activation::identity::ProjectIdentity::new_fresh(env!("CARGO_PKG_VERSION"))
+                    .render();
+            Some((identity_path, rendered.into_bytes()))
+        }
+        Err(error) => {
+            return Ok(foundation_needs_input(
+                ComponentHealth::Invalid,
+                error.to_string(),
+                "scaffold_version: 1\n",
+            ));
+        }
+    };
+
+    let ignore_path = root.join(".gitignore");
+    let ignore_create = match crate::util::observe_regular_nofollow(&ignore_path) {
+        Ok(before) => {
+            let raw = String::from_utf8(before.bytes.clone()).map_err(anyhow::Error::from)?;
+            match append_missing_ignore_lines(Some(&raw)) {
+                Some(desired) => {
+                    existing_updates.push(ExistingUpdate {
+                        path: ignore_path.clone(),
+                        before,
+                        desired: desired.into_bytes(),
+                    });
+                    None
+                }
+                None => None,
+            }
+        }
+        Err(error) if is_not_found(&error) => Some((
+            ignore_path,
+            append_missing_ignore_lines(None)
+                .unwrap_or_default()
+                .into_bytes(),
+        )),
+        Err(error) => {
+            return Ok(foundation_needs_input(
+                ComponentHealth::Invalid,
+                error.to_string(),
+                &IGNORE_LINES.join("\n"),
+            ));
+        }
+    };
+
+    // Existing-file augmentation is automatic only when every linked
+    // worktree can coordinate through the Git-common-dir lock.
+    let _lock = if existing_updates.is_empty() {
+        None
+    } else {
+        match crate::util::ConfigMutationLock::try_acquire(root) {
+            Ok(lock) => Some(lock),
+            Err(error) => {
+                let patch = existing_updates
+                    .iter()
+                    .map(|update| String::from_utf8_lossy(&update.desired))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                return Ok(foundation_needs_input(
+                    ComponentHealth::Invalid,
+                    error.to_string(),
+                    &patch,
+                ));
+            }
+        }
+    };
+
+    let mut journal = Vec::new();
+    let apply_result = (|| -> anyhow::Result<()> {
+        if let Some((path, bytes)) = config_create {
+            apply_create(&path, &bytes, &mut journal)?;
+        }
+        if let Some(config_path) = configs.first()
+            && let Some(update) = existing_updates
+                .iter()
+                .find(|update| &update.path == config_path)
+        {
+            apply_existing(update, &mut journal)?;
+        }
+        foundation_boundary()?;
+        if let Some((path, bytes)) = identity_create {
+            apply_create(&path, &bytes, &mut journal)?;
+        }
+        if let Some(update) = existing_updates
+            .iter()
+            .find(|update| update.path == root.join("anvil/project-id"))
+        {
+            apply_existing(update, &mut journal)?;
+        }
+        foundation_boundary()?;
+        if let Some((path, bytes)) = ignore_create {
+            apply_create(&path, &bytes, &mut journal)?;
+        }
+        if let Some(update) = existing_updates
+            .iter()
+            .find(|update| update.path == root.join(".gitignore"))
+        {
+            apply_existing(update, &mut journal)?;
+        }
+        foundation_boundary()?;
+        foundation_boundary()?;
+        inspect_complete_foundation(root)
+    })();
+
+    if let Err(error) = apply_result {
+        let rollback_errors = rollback_applied(&journal);
+        let diagnostic = if rollback_errors.is_empty() {
+            error.to_string()
+        } else {
+            format!(
+                "{error}; rollback was incomplete: {}",
+                rollback_errors.join("; ")
+            )
+        };
         return Ok(foundation_needs_input(
             ComponentHealth::Invalid,
             diagnostic,
@@ -507,103 +697,12 @@ pub(crate) fn reconcile_foundation(root: &std::path::Path) -> anyhow::Result<Com
         ));
     }
 
-    let identity_path = root.join("anvil/project-id");
-    match std::fs::symlink_metadata(&identity_path) {
-        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
-            return Ok(foundation_needs_input(
-                ComponentHealth::Invalid,
-                format!("{} is not a regular file", identity_path.display()),
-                "scaffold_version: 1\n",
-            ));
-        }
-        Ok(_) => {
-            let raw = anvil_config::read_to_string_bounded(&identity_path)
-                .with_context(|| format!("read {}", identity_path.display()))?;
-            if let Err(error) = crate::activation::identity::ProjectIdentity::parse(&raw) {
-                return Ok(foundation_needs_input(
-                    ComponentHealth::Invalid,
-                    error.to_string(),
-                    "scaffold_version: 1\n",
-                ));
-            }
-            if !raw.lines().any(|line| line.trim() == "scaffold_version: 1") {
-                return Ok(foundation_needs_input(
-                    ComponentHealth::Invalid,
-                    "anvil/project-id has no scaffold_version: 1 metadata".to_owned(),
-                    "scaffold_version: 1\n",
-                ));
-            }
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error).context("inspect anvil/project-id"),
-    }
-
-    let ignore_path = root.join(".gitignore");
-    let initial_ignore = read_regular_optional(&ignore_path)?;
-    let desired_ignore = append_missing_ignore_lines(initial_ignore.as_deref());
-    if initial_ignore.is_some()
-        && desired_ignore.is_some()
-        && anvil_config::mutation_lock_path(root).is_err()
-    {
-        return Ok(foundation_needs_input(
-            ComponentHealth::Invalid,
-            "existing .gitignore cannot be augmented without a Git common-dir lock".to_owned(),
-            desired_ignore.as_deref().unwrap_or_default(),
-        ));
-    }
-
-    let mut created_paths = Vec::new();
-    let mut created_any = false;
-    if configs.is_empty() {
-        let path = root.join(".anvil.yaml");
-        crate::util::write_new_nofollow(&path, FOUNDATION_CONFIG_YAML.as_bytes())?;
-        created_paths.push((path, FOUNDATION_CONFIG_YAML.as_bytes().to_vec()));
-        created_any = true;
-    }
-
-    if !identity_path.exists() {
-        let identity =
-            crate::activation::identity::ProjectIdentity::new_fresh(env!("CARGO_PKG_VERSION"));
-        let rendered = identity.render();
-        if let Err(error) = crate::util::write_new_nofollow(&identity_path, rendered.as_bytes()) {
-            rollback_exact_created(&created_paths);
-            return Err(error);
-        }
-        created_paths.push((identity_path, rendered.into_bytes()));
-        created_any = true;
-    }
-
-    let mut configured = false;
-    if let Some(desired) = desired_ignore {
-        if let Some(initial) = initial_ignore {
-            let _lock = match crate::util::ConfigMutationLock::try_acquire(root) {
-                Ok(lock) => lock,
-                Err(error) => {
-                    rollback_exact_created(&created_paths);
-                    return Ok(foundation_needs_input(
-                        ComponentHealth::Invalid,
-                        error.to_string(),
-                        &desired,
-                    ));
-                }
-            };
-            let current = read_regular_optional(&ignore_path)?.unwrap_or_default();
-            if current != initial {
-                rollback_exact_created(&created_paths);
-                return Ok(foundation_needs_input(
-                    ComponentHealth::Invalid,
-                    ".gitignore changed while the foundation was being reconciled".to_owned(),
-                    &append_missing_ignore_lines(Some(&current)).unwrap_or(current),
-                ));
-            }
-            crate::util::atomic_write_nofollow(&ignore_path, desired.as_bytes())?;
-            configured = true;
-        } else {
-            crate::util::write_new_nofollow(&ignore_path, desired.as_bytes())?;
-            created_any = true;
-        }
-    }
-
+    let created_any = journal
+        .iter()
+        .any(|entry| matches!(entry, AppliedMutation::Created { .. }));
+    let configured = journal
+        .iter()
+        .any(|entry| matches!(entry, AppliedMutation::Published { .. }));
     Ok(ComponentResult {
         component: ComponentId::Foundation,
         outcome: if created_any {
@@ -638,55 +737,195 @@ fn existing_main_configs(root: &std::path::Path) -> std::io::Result<Vec<std::pat
     Ok(paths)
 }
 
-fn validate_foundation_config(path: &std::path::Path) -> Result<(), String> {
-    let value = if path.file_name().and_then(std::ffi::OsStr::to_str) == Some(".anvilrc") {
-        let raw = anvil_config::read_to_string_bounded(path).map_err(|error| error.to_string())?;
-        anvil_config::parse_str(&raw, anvil_config::ConfigFormat::Yaml, path)
-            .map_err(|error| error.to_string())?
-    } else {
-        anvil_config::parse_file(path).map_err(|error| error.to_string())?
+fn plan_foundation_config_update(
+    path: &std::path::Path,
+) -> anyhow::Result<Result<Option<ExistingUpdate>, (String, String)>> {
+    let before = match crate::util::observe_regular_nofollow(path) {
+        Ok(observed) => observed,
+        Err(error) => return Ok(Err((error.to_string(), FOUNDATION_CONFIG_YAML.to_owned()))),
     };
+    let raw = match std::str::from_utf8(&before.bytes) {
+        Ok(raw) => raw,
+        Err(error) => return Ok(Err((error.to_string(), FOUNDATION_CONFIG_YAML.to_owned()))),
+    };
+    let format = config_format(path);
+    let value = match anvil_config::parse_str(raw, format, path) {
+        Ok(value) => value,
+        Err(error) => return Ok(Err((error.to_string(), FOUNDATION_CONFIG_YAML.to_owned()))),
+    };
+    if let Some(schema) = value.get("schema_version")
+        && schema.as_str() != Some("1.0.0")
+    {
+        return Ok(Err((
+            format!("{} has unsupported schema_version", path.display()),
+            FOUNDATION_CONFIG_YAML.to_owned(),
+        )));
+    }
+    let expected_format = format_label_for_config(format);
+    if let Some(configured) = value.get("format")
+        && configured.as_str() != Some(expected_format)
+    {
+        return Ok(Err((
+            format!(
+                "{} format must be {expected_format} for this config path",
+                path.display()
+            ),
+            FOUNDATION_CONFIG_YAML.to_owned(),
+        )));
+    }
+    let catalogue = anvil_settings::first_release_catalogue()?;
+    let additions = [
+        anvil_settings::BootstrapSetting {
+            key: "project.schema_version".to_owned(),
+            value: serde_json::Value::String("1.0.0".to_owned()),
+        },
+        anvil_settings::BootstrapSetting {
+            key: "project.format".to_owned(),
+            value: serde_json::Value::String(expected_format.to_owned()),
+        },
+    ];
+    match catalogue.plan_project_config_bootstrap(raw, format, &additions)? {
+        anvil_settings::BootstrapMutation::Unchanged => Ok(Ok(None)),
+        anvil_settings::BootstrapMutation::Updated(desired) => {
+            validate_foundation_config_bytes(path, desired.as_bytes())
+                .map_err(anyhow::Error::msg)?;
+            Ok(Ok(Some(ExistingUpdate {
+                path: path.to_path_buf(),
+                before,
+                desired: desired.into_bytes(),
+            })))
+        }
+        anvil_settings::BootstrapMutation::NeedsInput { patch, reason } => Ok(Err((reason, patch))),
+    }
+}
+
+fn config_format(path: &std::path::Path) -> anvil_config::ConfigFormat {
+    if path.file_name().and_then(std::ffi::OsStr::to_str) == Some(".anvilrc") {
+        anvil_config::ConfigFormat::Yaml
+    } else {
+        anvil_config::ConfigFormat::from_path(path).unwrap_or(anvil_config::ConfigFormat::Yaml)
+    }
+}
+
+fn format_label_for_config(format: anvil_config::ConfigFormat) -> &'static str {
+    match format {
+        anvil_config::ConfigFormat::Yaml | anvil_config::ConfigFormat::Yml => "yaml",
+        anvil_config::ConfigFormat::Json => "json",
+        anvil_config::ConfigFormat::Toml => "toml",
+    }
+}
+
+fn validate_foundation_config_bytes(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    let raw = std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
+    let format = config_format(path);
+    let value = anvil_config::parse_str(raw, format, path).map_err(|error| error.to_string())?;
     if value
         .get("schema_version")
         .and_then(serde_json::Value::as_str)
         != Some("1.0.0")
     {
         return Err(format!(
-            "{} must preserve operator bytes; add schema_version: 1.0.0 manually",
+            "{} must contain schema_version 1.0.0",
             path.display()
         ));
     }
-    if value
-        .get("format")
-        .and_then(serde_json::Value::as_str)
-        .is_none()
-    {
-        return Err(format!(
-            "{} must preserve operator bytes; add a supported format manually",
-            path.display()
-        ));
+    let expected = format_label_for_config(format);
+    if value.get("format").and_then(serde_json::Value::as_str) != Some(expected) {
+        return Err(format!("{} must contain format {expected}", path.display()));
     }
     Ok(())
 }
 
-fn read_regular_optional(path: &std::path::Path) -> anyhow::Result<Option<String>> {
-    use anyhow::Context;
-
-    match std::fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
-            anyhow::bail!("{} is not a regular file", path.display())
-        }
-        Ok(_) => std::fs::read_to_string(path)
-            .map(Some)
-            .with_context(|| format!("read {}", path.display())),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error).with_context(|| format!("inspect {}", path.display())),
+fn plan_identity_update(before: crate::util::ObservedFile) -> anyhow::Result<IdentityUpdatePlan> {
+    let raw = match std::str::from_utf8(&before.bytes) {
+        Ok(raw) => raw,
+        Err(error) => return Ok(Err(error.to_string())),
+    };
+    let identity = match crate::activation::identity::ProjectIdentity::parse(raw) {
+        Ok(identity) => identity,
+        Err(error) => return Ok(Err(error.to_string())),
+    };
+    if let Some(created_at) = identity.created_at.as_deref()
+        && chrono::DateTime::parse_from_rfc3339(created_at).is_err()
+    {
+        return Ok(Err(
+            "anvil/project-id has invalid created_at metadata".to_owned()
+        ));
     }
+    if identity
+        .created_by_version
+        .as_deref()
+        .is_some_and(str::is_empty)
+    {
+        return Ok(Err(
+            "anvil/project-id has empty created_by_version metadata".to_owned(),
+        ));
+    }
+    if identity
+        .scaffold_version
+        .is_some_and(|version| version != 1)
+    {
+        return Ok(Err(
+            "anvil/project-id has unsupported scaffold_version metadata".to_owned(),
+        ));
+    }
+
+    let mut desired = raw.to_owned();
+    if !desired.is_empty() && !desired.ends_with('\n') {
+        desired.push('\n');
+    }
+    if identity.created_at.is_none() {
+        desired.push_str("created_at: ");
+        desired.push_str(&chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string());
+        desired.push('\n');
+    }
+    if identity.created_by_version.is_none() {
+        desired.push_str("created_by_version: ");
+        desired.push_str(env!("CARGO_PKG_VERSION"));
+        desired.push('\n');
+    }
+    if identity.scaffold_version.is_none() {
+        desired.push_str("scaffold_version: 1\n");
+    }
+    if desired.as_bytes() == before.bytes {
+        if let Err(error) = validate_complete_identity(&identity) {
+            return Ok(Err(error));
+        }
+        return Ok(Ok(None));
+    }
+    let reparsed = crate::activation::identity::ProjectIdentity::parse(&desired)
+        .map_err(|error| anyhow::anyhow!(error))?;
+    if let Err(error) = validate_complete_identity(&reparsed) {
+        return Ok(Err(error));
+    }
+    Ok(Ok(Some((before, desired.into_bytes()))))
+}
+
+fn validate_complete_identity(
+    identity: &crate::activation::identity::ProjectIdentity,
+) -> Result<(), String> {
+    let created_at = identity
+        .created_at
+        .as_deref()
+        .ok_or_else(|| "anvil/project-id has no created_at metadata".to_owned())?;
+    chrono::DateTime::parse_from_rfc3339(created_at)
+        .map_err(|_| "anvil/project-id has invalid created_at metadata".to_owned())?;
+    if identity
+        .created_by_version
+        .as_deref()
+        .is_none_or(str::is_empty)
+    {
+        return Err("anvil/project-id has no created_by_version metadata".to_owned());
+    }
+    if identity.scaffold_version != Some(1) {
+        return Err("anvil/project-id must contain scaffold_version 1".to_owned());
+    }
+    Ok(())
 }
 
 fn append_missing_ignore_lines(existing: Option<&str>) -> Option<String> {
     let existing = existing.unwrap_or_default();
-    let present = existing.lines().map(str::trim).collect::<BTreeSet<_>>();
+    let present = existing.lines().collect::<BTreeSet<_>>();
     let missing = IGNORE_LINES
         .into_iter()
         .filter(|line| !present.contains(line))
@@ -719,12 +958,128 @@ fn foundation_needs_input(
     }
 }
 
-fn rollback_exact_created(created: &[(std::path::PathBuf, Vec<u8>)]) {
-    for (path, expected) in created.iter().rev() {
-        if std::fs::read(path).ok().as_deref() == Some(expected.as_slice()) {
-            let _ = crate::util::remove_file_nofollow(path);
+fn apply_create(
+    path: &std::path::Path,
+    bytes: &[u8],
+    journal: &mut Vec<AppliedMutation>,
+) -> anyhow::Result<()> {
+    crate::util::write_new_nofollow(path, bytes)?;
+    let observed = crate::util::observe_regular_nofollow(path)?;
+    journal.push(AppliedMutation::Created {
+        path: path.to_path_buf(),
+        observed,
+    });
+    Ok(())
+}
+
+fn apply_existing(
+    update: &ExistingUpdate,
+    journal: &mut Vec<AppliedMutation>,
+) -> anyhow::Result<()> {
+    let published =
+        crate::util::compare_and_swap_nofollow(&update.path, &update.before, &update.desired)?;
+    journal.push(AppliedMutation::Published {
+        path: update.path.clone(),
+        before: update.before.clone(),
+        published,
+    });
+    Ok(())
+}
+
+fn rollback_applied(journal: &[AppliedMutation]) -> Vec<String> {
+    let mut errors = Vec::new();
+    for mutation in journal.iter().rev() {
+        match mutation {
+            AppliedMutation::Created { path, observed } => {
+                match crate::util::remove_if_unchanged(path, observed) {
+                    Ok(true) => {}
+                    Ok(false) => errors.push(format!(
+                        "{} changed after creation and was preserved",
+                        path.display()
+                    )),
+                    Err(error) => errors.push(format!(
+                        "could not remove transaction-created {}: {error}",
+                        path.display()
+                    )),
+                }
+            }
+            AppliedMutation::Published {
+                path,
+                before,
+                published,
+            } => {
+                if let Err(error) =
+                    crate::util::compare_and_swap_nofollow(path, published, &before.bytes)
+                {
+                    errors.push(format!(
+                        "could not restore transaction-updated {}: {error}",
+                        path.display()
+                    ));
+                }
+            }
         }
     }
+    errors
+}
+
+fn inspect_complete_foundation(root: &std::path::Path) -> anyhow::Result<()> {
+    let configs = existing_main_configs(root)?;
+    if configs.len() != 1 {
+        anyhow::bail!("foundation requires exactly one main config");
+    }
+    let config = crate::util::observe_regular_nofollow(&configs[0])?;
+    validate_foundation_config_bytes(&configs[0], &config.bytes).map_err(anyhow::Error::msg)?;
+
+    let identity = crate::util::observe_regular_nofollow(&root.join("anvil/project-id"))?;
+    let raw_identity = std::str::from_utf8(&identity.bytes)?;
+    let parsed = crate::activation::identity::ProjectIdentity::parse(raw_identity)?;
+    validate_complete_identity(&parsed).map_err(anyhow::Error::msg)?;
+
+    let ignore = crate::util::observe_regular_nofollow(&root.join(".gitignore"))?;
+    let raw_ignore = std::str::from_utf8(&ignore.bytes)?;
+    for expected in IGNORE_LINES {
+        if !raw_ignore.lines().any(|line| line == expected) {
+            anyhow::bail!(".gitignore is missing exact foundation line {expected}");
+        }
+    }
+    Ok(())
+}
+
+fn is_not_found(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|io| io.kind() == std::io::ErrorKind::NotFound)
+    })
+}
+
+#[cfg(test)]
+thread_local! {
+    static FOUNDATION_FAILURE_BOUNDARY: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
+
+#[cfg(test)]
+fn foundation_boundary() -> anyhow::Result<()> {
+    FOUNDATION_FAILURE_BOUNDARY.with(|boundary| match boundary.get() {
+        Some(0) => {
+            boundary.set(None);
+            anyhow::bail!("injected foundation failure")
+        }
+        Some(remaining) => {
+            boundary.set(Some(remaining - 1));
+            Ok(())
+        }
+        None => Ok(()),
+    })
+}
+
+#[cfg(not(test))]
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "production and fault-injected test boundaries share one call contract"
+)]
+fn foundation_boundary() -> anyhow::Result<()> {
+    Ok(())
 }
 
 #[cfg(test)]
@@ -737,29 +1092,46 @@ mod tests {
         assert_eq!(catalogue.len(), 5);
         assert_eq!(catalogue[0].id, ComponentId::Foundation);
         assert!(catalogue[0].mandatory);
-        assert!(!catalogue[0].replaceable);
+        assert!(
+            catalogue[0]
+                .targets
+                .iter()
+                .all(|target| !target.replaceable)
+        );
         assert!(
             catalogue
                 .iter()
                 .any(|entry| entry.id == ComponentId::AcceptancePolicy
                     && entry.later_command == "anvil init --include acceptance-policy"
-                    && !entry.replaceable)
+                    && entry.targets.iter().all(|target| !target.replaceable))
         );
+        let replaceable = catalogue
+            .iter()
+            .flat_map(|component| component.targets)
+            .filter(|target| target.replaceable)
+            .collect::<Vec<_>>();
+        assert_eq!(replaceable.len(), 1);
+        assert_eq!(replaceable[0].target, "anvil/architecture.yaml");
     }
 
     #[test]
     fn every_config_target_resolves_through_the_settings_catalogue() {
         let settings = anvil_settings::first_release_catalogue().expect("settings catalogue");
-        for target in catalogue()
+        let scaffold_targets = catalogue()
             .iter()
             .flat_map(|component| component.targets)
             .filter(|target| target.kind == TargetKind::ConfigSetting)
-        {
-            assert!(
-                settings.project_config_target(target.target).is_some(),
-                "{} has no canonical project-config target",
-                target.target
-            );
+            .map(|target| target.target)
+            .collect::<BTreeSet<_>>();
+        let settings_targets = settings
+            .project_config_targets()
+            .map(|(key, _)| key)
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(scaffold_targets, settings_targets);
+        for key in scaffold_targets {
+            let entry = settings.get(key).expect("catalogued setting");
+            assert_eq!(entry.canonical_writer, "settings-service");
         }
     }
 
@@ -881,7 +1253,7 @@ mod tests {
     }
 
     #[test]
-    fn foundation_preserves_existing_config_bytes_and_reports_missing_keys() {
+    fn foundation_adds_missing_config_keys_without_changing_existing_bytes() {
         let root = tempfile::tempdir().unwrap();
         std::fs::create_dir(root.path().join(".git")).unwrap();
         let config = root.path().join(".anvil.yaml");
@@ -890,9 +1262,148 @@ mod tests {
 
         let result = reconcile_foundation(root.path()).unwrap();
 
+        assert_eq!(result.outcome, MutationOutcome::Created);
+        assert_eq!(result.health, ComponentHealth::Valid);
+        let updated = std::fs::read_to_string(config).unwrap();
+        assert!(updated.starts_with(original));
+        assert!(updated.contains("schema_version: \"1.0.0\"\n"));
+        assert!(updated.contains("format: \"yaml\"\n"));
+    }
+
+    #[test]
+    fn foundation_augments_every_supported_config_format() {
+        for (name, body, preserved) in [
+            (
+                ".anvil.yml",
+                "# keep yml\nchecks: []\n",
+                "# keep yml\nchecks: []\n",
+            ),
+            (
+                ".anvil.json",
+                "{\n    \"checks\" : []\n}\n",
+                "    \"checks\" : []",
+            ),
+            (
+                ".anvil.toml",
+                "# keep toml\nchecks = [\"lint\"]\n",
+                "# keep toml\nchecks = [\"lint\"]\n",
+            ),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            std::fs::create_dir(root.path().join(".git")).unwrap();
+            let path = root.path().join(name);
+            std::fs::write(&path, body).unwrap();
+
+            let result = reconcile_foundation(root.path()).unwrap();
+
+            assert_eq!(result.health, ComponentHealth::Valid, "{name}");
+            let updated = std::fs::read_to_string(path).unwrap();
+            assert!(updated.contains(preserved), "{name}: {updated}");
+        }
+    }
+
+    #[test]
+    fn foundation_augments_owned_identity_fields_without_rotating_uuid() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        std::fs::create_dir(root.path().join("anvil")).unwrap();
+        std::fs::write(
+            root.path().join(".anvil.yaml"),
+            "schema_version: \"1.0.0\"\nformat: yaml\nenforcement:\n  mode: block\n",
+        )
+        .unwrap();
+        let uuid = "01997e4a-1b2c-7345-8901-abcdef123456";
+        std::fs::write(
+            root.path().join("anvil/project-id"),
+            format!("project_uuid: {uuid}\n"),
+        )
+        .unwrap();
+
+        let result = reconcile_foundation(root.path()).unwrap();
+
+        assert_eq!(result.outcome, MutationOutcome::Created);
+        assert_eq!(result.health, ComponentHealth::Valid);
+        let identity = std::fs::read_to_string(root.path().join("anvil/project-id")).unwrap();
+        assert!(identity.starts_with(&format!("project_uuid: {uuid}\n")));
+        assert!(identity.contains("created_at:"));
+        assert!(identity.contains("created_by_version:"));
+        assert!(identity.contains("scaffold_version: 1\n"));
+        assert!(
+            std::fs::read_to_string(root.path().join(".anvil.yaml"))
+                .unwrap()
+                .contains("mode: block")
+        );
+    }
+
+    #[test]
+    fn foundation_rejects_unsupported_identity_scaffold_version() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        std::fs::create_dir(root.path().join("anvil")).unwrap();
+        std::fs::write(
+            root.path().join(".anvil.yaml"),
+            "schema_version: \"1.0.0\"\nformat: yaml\n",
+        )
+        .unwrap();
+        let identity = "project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456\ncreated_at: 2026-09-10T00:00:00Z\ncreated_by_version: 0.9.7-beta\nscaffold_version: 0\n";
+        std::fs::write(root.path().join("anvil/project-id"), identity).unwrap();
+
+        let result = reconcile_foundation(root.path()).unwrap();
+
+        assert_eq!(result.outcome, MutationOutcome::NeedsInput);
+        assert_eq!(result.health, ComponentHealth::Invalid);
+        assert_eq!(
+            std::fs::read_to_string(root.path().join("anvil/project-id")).unwrap(),
+            identity
+        );
+        assert!(!root.path().join(".gitignore").exists());
+    }
+
+    #[test]
+    fn foundation_rejects_path_inconsistent_format_without_writing() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        let config = root.path().join(".anvil.json");
+        let original = r#"{"schema_version":"1.0.0","format":"yaml"}"#;
+        std::fs::write(&config, original).unwrap();
+
+        let result = reconcile_foundation(root.path()).unwrap();
+
         assert_eq!(result.outcome, MutationOutcome::NeedsInput);
         assert_eq!(result.health, ComponentHealth::Invalid);
         assert_eq!(std::fs::read_to_string(config).unwrap(), original);
-        assert!(result.patch.unwrap().contains("schema_version"));
+        assert!(!root.path().join("anvil/project-id").exists());
+    }
+
+    #[test]
+    fn foundation_rolls_back_each_fresh_multi_file_failure_boundary() {
+        for boundary in 0..4 {
+            let root = tempfile::tempdir().unwrap();
+            std::fs::create_dir(root.path().join(".git")).unwrap();
+            FOUNDATION_FAILURE_BOUNDARY.with(|slot| slot.set(Some(boundary)));
+
+            let result = reconcile_foundation(root.path()).unwrap();
+
+            assert_eq!(result.outcome, MutationOutcome::NeedsInput);
+            assert!(!root.path().join(".anvil.yaml").exists());
+            assert!(!root.path().join("anvil/project-id").exists());
+            assert!(!root.path().join(".gitignore").exists());
+        }
+    }
+
+    #[test]
+    fn foundation_failure_restores_existing_file_publications() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join(".git")).unwrap();
+        let config = root.path().join(".anvil.yaml");
+        let original = "checks:\n  - lint\n";
+        std::fs::write(&config, original).unwrap();
+        FOUNDATION_FAILURE_BOUNDARY.with(|slot| slot.set(Some(0)));
+
+        let result = reconcile_foundation(root.path()).unwrap();
+
+        assert_eq!(result.outcome, MutationOutcome::NeedsInput);
+        assert_eq!(std::fs::read_to_string(config).unwrap(), original);
+        assert!(!root.path().join("anvil/project-id").exists());
     }
 }

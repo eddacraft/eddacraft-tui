@@ -165,6 +165,16 @@ impl Catalogue {
         self.project_config_targets.get(key)
     }
 
+    /// Iterate over every canonical project-config bootstrap target.
+    ///
+    /// Scaffold composition uses this reverse view to prove that it neither
+    /// omits nor invents settings-service-owned project config targets.
+    pub fn project_config_targets(&self) -> impl Iterator<Item = (&str, &ProjectConfigTarget)> {
+        self.project_config_targets
+            .iter()
+            .map(|(key, target)| (key.as_str(), target))
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
