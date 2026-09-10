@@ -1185,6 +1185,5 @@ never with feature work.
 - Exclusive APS reconcile marks JSIMP-006 Merged, stored N/M 6/6,
   module Done. JOURNEY-016 owns simplification acceptance.
 - Avoided: splash/always-on/dashboard; GATT/JREL/CCTX/RTAI/PSCAF.
-- Next: exclusive APS reconcile of JSIMP-006 → Merged (this branch),
-  then `/dev-loop complete` JOURNEY-016.
+- Next: `/dev-loop complete` JOURNEY-016.
 
