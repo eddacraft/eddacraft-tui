@@ -80,7 +80,7 @@ engineering maintenance are recorded in the
   yet.** A never-activated checkout gets the existing not-activated report
   (exit 1) instead of the licence prompt. Once project config exists, daily
   ensure stays entitled as before. `anvil welcome` remains optional ungated
-  learning and does not run start MCP, hook, daemon, or workflow mutations while
+  learning and does not start MCP, hook, daemon, or workflow mutations while
   unsigned.
 
 - **Unattended `anvil start` no longer treats missing MCP as consent.** New MCP
