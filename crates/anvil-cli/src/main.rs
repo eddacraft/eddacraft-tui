@@ -1781,7 +1781,10 @@ mod tests {
         names.sort_unstable();
         let mut expected = ["start", "status", "unblock", "stop"];
         expected.sort_unstable();
-        assert_eq!(names, expected, "intercept verbs are start/status/unblock/stop (order-agnostic)");
+        assert_eq!(
+            names, expected,
+            "intercept verbs are start/status/unblock/stop (order-agnostic)"
+        );
     }
 
     #[test]
