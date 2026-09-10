@@ -3343,18 +3343,33 @@ verdict: completed"
     fn seed_project_config_writes_config_only() {
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
-        let (generated, config) =
-            seed_project_config(dir.path(), "yaml", vec!["secret-detection".into()]).unwrap();
-        assert!(generated.config_path.ends_with(".anvil.yaml"));
-        assert_eq!(config.format, "yaml");
-        assert!(dir.path().join(".anvil.yaml").is_file());
-        assert!(
-            !home.path().join(".cursor").exists() && !home.path().join(".claude.json").exists(),
-            "unsigned config-seed must not write MCP client files"
-        );
-        assert!(
-            !dir.path().join(".husky").exists() && !dir.path().join(".git/hooks").exists(),
-            "unsigned config-seed must not install git hooks"
+        let xdg = home.path().join("xdg");
+        let anvil_home = home.path().join("anvil-home");
+        temp_env::with_vars(
+            [
+                ("HOME", Some(home.path().as_os_str())),
+                ("USERPROFILE", Some(home.path().as_os_str())),
+                ("XDG_CONFIG_HOME", Some(xdg.as_os_str())),
+                ("ANVIL_HOME", Some(anvil_home.as_os_str())),
+            ],
+            || {
+                let (generated, config) =
+                    seed_project_config(dir.path(), "yaml", vec!["secret-detection".into()])
+                        .unwrap();
+                assert!(generated.config_path.ends_with(".anvil.yaml"));
+                assert_eq!(config.format, "yaml");
+                assert!(dir.path().join(".anvil.yaml").is_file());
+                assert!(
+                    !home.path().join(".cursor").exists()
+                        && !home.path().join(".claude.json").exists()
+                        && !xdg.join("cursor").exists(),
+                    "unsigned config-seed must not write MCP client files"
+                );
+                assert!(
+                    !dir.path().join(".husky").exists() && !dir.path().join(".git/hooks").exists(),
+                    "unsigned config-seed must not install git hooks"
+                );
+            },
         );
     }
 
