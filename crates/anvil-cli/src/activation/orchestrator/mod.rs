@@ -27,6 +27,24 @@ pub mod install;
 
 pub use install::{InstallOutcome, InstallReport, SkipReason};
 
+/// Shared config-seed for welcome's accepted setup. Writes project config
+/// only — no MCP, hooks, daemon, or workflow mutations (ADR-145 /
+/// JSIMP-003). Start's entitled `InitConfig` path still uses `init::run_in`.
+pub(crate) fn seed_project_config(
+    root: &Path,
+    format: &str,
+    checks: Vec<String>,
+) -> anyhow::Result<(init::GeneratedConfig, init::AnvilConfig)> {
+    let config = init::AnvilConfig {
+        format: format.to_string(),
+        checks,
+        ..init::AnvilConfig::default()
+    };
+    let generated =
+        init::generate_config(&config, root).context("could not seed project config")?;
+    Ok((generated, config))
+}
+
 /// How `anvil start` will present activation to the operator.
 ///
 /// The distinction is deliberately owned by the activation orchestrator rather
@@ -3319,6 +3337,25 @@ verdict: completed"
             McpInstallPolicy::Install,
             &crate::activation::mcp_client::all_client_ids(),
         )
+    }
+
+    #[test]
+    fn seed_project_config_writes_config_only() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let (generated, config) =
+            seed_project_config(dir.path(), "yaml", vec!["secret-detection".into()]).unwrap();
+        assert!(generated.config_path.ends_with(".anvil.yaml"));
+        assert_eq!(config.format, "yaml");
+        assert!(dir.path().join(".anvil.yaml").is_file());
+        assert!(
+            !home.path().join(".cursor").exists() && !home.path().join(".claude.json").exists(),
+            "unsigned config-seed must not write MCP client files"
+        );
+        assert!(
+            !dir.path().join(".husky").exists() && !dir.path().join(".git/hooks").exists(),
+            "unsigned config-seed must not install git hooks"
+        );
     }
 
     #[test]

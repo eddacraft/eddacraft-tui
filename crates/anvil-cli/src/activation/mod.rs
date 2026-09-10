@@ -36,7 +36,7 @@ pub use posture::SharedPostureFacts;
 // `ProtectionState`, `McpClientId`, `McpTier`, `WatchTier`, and
 // `ConfigStatus` remain accessible as `activation::{diagnostic,state}::…`
 // until then.
-pub use diagnostic::{ActivationDiagnostic, verify};
+pub use diagnostic::{ActivationDiagnostic, config_status, verify};
 #[allow(unused_imports)] // contract surface for downstream PRs
 pub use language_profile::{CoverageTier, LanguageProfileEntry, RepoLanguageProfile, profile_repo};
 pub use render::{

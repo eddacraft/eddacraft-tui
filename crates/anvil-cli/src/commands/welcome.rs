@@ -655,14 +655,12 @@ fn guided_init_config(
     crate::commands::init::GeneratedConfig,
     crate::commands::init::AnvilConfig,
 )> {
-    let config = crate::commands::init::AnvilConfig {
-        format: crate::commands::init::format_label(format),
+    crate::activation::orchestrator::seed_project_config(
+        root,
+        &crate::commands::init::format_label(format),
         checks,
-        ..crate::commands::init::AnvilConfig::default()
-    };
-    let generated = crate::commands::init::generate_config(&config, root)
-        .context("could not save config for the selected project")?;
-    Ok((generated, config))
+    )
+    .context("could not save config for the selected project")
 }
 
 fn run_guided_init(

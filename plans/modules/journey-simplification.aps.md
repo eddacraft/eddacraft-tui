@@ -54,13 +54,13 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-003: Share setup and resume across welcome, start and bare
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** New users reach activation continuously and returning users resume without repeated onboarding.
 - **Expected Outcome:** The agreed first-use bare flow offers setup or unsigned discovery without silent installation or premature auth; welcome delegates accepted setup to the same activation service as start. One project context and separate learning/adoption/runtime state persist throughout. Direct start needs no tutorial prerequisite; cancelled or deferred paths resume honestly.
 - **Dependencies:** JSIMP-001, JSIMP-002
 - **Coordinates with:** JREL-006/-007/-008 already repair progress, root and terminal faults; JOURNEY-012 pointer remains until deliberately migrated.
-- **Files:** `crates/anvil-cli/src/commands/welcome.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/ensure.rs`, `crates/anvil-cli/src/services/first_run.rs`, `crates/anvil-tui/src/surfaces/onboarding/`
+- **Files:** `crates/anvil-cli/src/main.rs`, `crates/anvil-cli/src/activation/diagnostic.rs`, `crates/anvil-cli/src/activation/orchestrator/mod.rs`, `crates/anvil-cli/src/commands/welcome.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/ensure.rs`, `crates/anvil-cli/src/services/first_run.rs`, `crates/anvil-cli/tests/bare_invocation.rs`, `crates/anvil-tui/src/surfaces/onboarding/`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; fresh welcome/start/bare, interrupted setup, unsigned discovery, subsequent repo and next-session fixtures pass without duplicate setup implementations.
 - **Confidence:** medium — contract details are gated by JSIMP-001 and user observation.
 

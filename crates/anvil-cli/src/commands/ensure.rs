@@ -290,8 +290,7 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     let root = util::workspace_root().unwrap_or_else(|_| PathBuf::from("."));
     let root = root.as_path();
 
-    let probe = activation::verify(root);
-    if probe.config == ConfigStatus::Absent {
+    if activation::config_status(root) == ConfigStatus::Absent {
         return report_not_activated(global, root);
     }
 

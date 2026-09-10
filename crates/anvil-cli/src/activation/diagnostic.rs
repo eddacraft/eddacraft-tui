@@ -330,6 +330,13 @@ impl ActivationDiagnostic {
     }
 }
 
+/// Read-only config-file probe. Does not touch MCP, daemon, or worktree
+/// registration. Used by first-use bare routing (ADR-145 / JSIMP-003) so
+/// never-activated unsigned entry can skip the licence wall without MCP I/O.
+pub fn config_status(root: &Path) -> ConfigStatus {
+    probe_config_status(root)
+}
+
 /// Probe activation state at `root`. PR 2 lands the contract; deeper
 /// probes (real MCP detection, baseline, watch identity) plug into
 /// this function in PR 3, PR 4, and PR 5.
@@ -1089,6 +1096,14 @@ mod tests {
         d.watch = WatchTier::Running;
         assert!(!d.mcp_pre_write_wired_or_live());
         assert_eq!(d.protection_state(), ProtectionState::Watching);
+    }
+
+    #[test]
+    fn config_status_probes_files_without_mcp_io() {
+        let dir = TempDir::new().unwrap();
+        assert_eq!(config_status(dir.path()), ConfigStatus::Absent);
+        std::fs::write(dir.path().join(".anvil.yaml"), "version: 1\nchecks: []\n").unwrap();
+        assert_eq!(config_status(dir.path()), ConfigStatus::Valid);
     }
 
     #[test]

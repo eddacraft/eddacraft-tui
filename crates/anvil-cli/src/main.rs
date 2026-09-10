@@ -532,6 +532,17 @@ fn command_requests_structured_output(cmd: &Commands) -> bool {
 /// This predicate only classifies auth-bypass eligibility; gate enrolment is
 /// defined separately by `command_canonical_name` and `CLI_GATED_COMMANDS`.
 /// Only explicit no-write modes bypass a gate they would otherwise encounter.
+/// ADR-145 / JSIMP-003: never-activated means `ConfigStatus::Absent` only.
+/// Invalid config, welcome-seeded config, and spine-without-config stay on
+/// the entitled ensure path. Probe is config-file only — no MCP I/O.
+fn skips_auth_for_never_activated_bare() -> bool {
+    let root = util::workspace_root().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    matches!(
+        activation::config_status(&root),
+        activation::diagnostic::ConfigStatus::Absent
+    )
+}
+
 fn skips_auth_for_local_read_only_diagnostic(cmd: &Commands) -> bool {
     match cmd {
         Commands::Status(args) => args.verify,
@@ -1346,9 +1357,15 @@ fn main() -> ExitCode {
             .is_some_and(command_requests_structured_output);
     let auth_outcome = match &cli.command {
         None => {
-            // Bare ensure is an action surface (ADR-114) — same licence wall
-            // as `start`.
-            check_auth(&cli.global, true, wants_json)
+            // Bare ensure is an action surface (ADR-114). ADR-145 / JSIMP-003
+            // skips the licence wall only when project config is Absent so
+            // first-use can reuse `report_not_activated`. Config present
+            // stays entitled.
+            if skips_auth_for_never_activated_bare() {
+                Ok(())
+            } else {
+                check_auth(&cli.global, true, wants_json)
+            }
         }
         Some(cmd) if requires_auth(cmd) && !skips_auth_for_local_read_only_diagnostic(cmd) => {
             check_auth(&cli.global, allows_interactive_auth_prompt(cmd), wants_json)
