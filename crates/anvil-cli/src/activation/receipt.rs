@@ -133,21 +133,24 @@ impl ClosingReceipt {
         let home = crate::util::user_home_dir();
         let intent = IntegrationIntent::infer(root, home.as_deref());
         let (client, mcp_proof) = prove_mcp(diag, &intent);
-        let save_time_proof = if opts.run_proofs {
-            prove_save_time(root, diag)
+        let persisted = load_persisted(root);
+        let (save_time_proof, proof_at) = if opts.run_proofs {
+            (prove_save_time(root, diag), chrono::Utc::now().to_rfc3339())
+        } else if let Some(stored) = persisted {
+            (stored.last_proof.save_time, stored.last_proof.at)
         } else {
-            load_persisted(root).map_or_else(
-                || ProofArm {
+            (
+                ProofArm {
                     outcome: ProofKind::HonestSkip,
                     detail: "not observed yet".to_string(),
                 },
-                |stored| stored.last_proof.save_time,
+                chrono::Utc::now().to_rfc3339(),
             )
         };
         let last_proof = LastProof {
             mcp: mcp_proof,
             save_time: save_time_proof,
-            at: chrono::Utc::now().to_rfc3339(),
+            at: proof_at,
         };
         let next = next_override.unwrap_or_else(|| next_for(diag, &client));
         let receipt = Self {
@@ -159,8 +162,15 @@ impl ClosingReceipt {
             last_proof,
             next,
         };
-        if opts.persist && !crate::install_root::project_writes_gated() {
-            let _ = persist(&receipt, root);
+        if opts.persist
+            && !crate::install_root::project_writes_gated()
+            && let Err(error) = persist(&receipt, root)
+        {
+            tracing::warn!(
+                error = %error,
+                path = %receipt_path(root).display(),
+                "could not persist closing receipt"
+            );
         }
         receipt
     }
@@ -203,7 +213,8 @@ impl ClosingReceipt {
         })
     }
 
-    /// Collapsible TUI rows (same facts as [`Self::render_human`]).
+    /// Collapsible TUI rows. Omits `next:` so the wrapping guidance band
+    /// (CIB-275) remains the single next-step owner.
     pub(crate) fn verdict_rows(&self) -> Vec<String> {
         vec![
             format!("project: {}", self.project),
@@ -211,9 +222,20 @@ impl ClosingReceipt {
             format!("client: {}", client_line(&self.client)),
             format!("policy: {}", self.policy_mode),
             format!("last proof: {}", last_proof_line(&self.last_proof)),
-            format!("next: {}", self.next),
         ]
     }
+}
+
+/// Drop competing `next:` / `Next:` lines so the receipt owns the ending.
+pub(crate) fn strip_next_step_lines(output: &str) -> String {
+    output
+        .lines()
+        .filter(|line| !line.trim_start().to_ascii_lowercase().starts_with("next:"))
+        .fold(String::new(), |mut rendered, line| {
+            rendered.push_str(line);
+            rendered.push('\n');
+            rendered
+        })
 }
 
 fn proof_kind_label(kind: ProofKind) -> &'static str {
@@ -225,7 +247,9 @@ fn proof_kind_label(kind: ProofKind) -> &'static str {
 }
 
 fn project_name(root: &Path) -> String {
-    root.file_name()
+    let resolved = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    resolved
+        .file_name()
         .and_then(|name| name.to_str())
         .filter(|name| !name.is_empty() && *name != ".")
         .map_or_else(|| "this project".to_string(), ToOwned::to_owned)
@@ -631,7 +655,35 @@ mod tests {
             loaded.last_proof.save_time.detail,
             written.last_proof.save_time.detail
         );
+        assert_eq!(loaded.last_proof.at, written.last_proof.at);
         assert_eq!(loaded.to_json()["project"], written.to_json()["project"]);
+        assert_ne!(loaded.project, "this project");
+    }
+
+    #[test]
+    fn project_name_uses_directory_basename() {
+        let root = TempDir::new().unwrap();
+        let expected = root
+            .path()
+            .canonicalize()
+            .unwrap()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert_eq!(project_name(root.path()), expected);
+        assert_ne!(expected, "this project");
+    }
+
+    #[test]
+    fn strip_next_step_lines_leaves_a_single_receipt_owner() {
+        let mixed = "ACTIVATION\n  next: repair this\n  Next: also this\n";
+        let stripped = strip_next_step_lines(mixed);
+        assert!(
+            !stripped.to_ascii_lowercase().contains("next:"),
+            "{stripped}"
+        );
     }
 
     #[test]

@@ -158,8 +158,17 @@ fn start_activation_fixture_path(name: &str) -> std::path::PathBuf {
 
 #[cfg(not(target_os = "windows"))]
 fn normalise_start_activation_output(raw: &str, workdir: &Path, home: &Path) -> String {
+    let project = workdir
+        .canonicalize()
+        .ok()
+        .and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| "this project".to_string());
     raw.replace(&workdir.display().to_string(), "<WORKTREE>")
         .replace(&home.display().to_string(), "<HOME>")
+        .replace(&project, "<PROJECT>")
         .replace('\\', "/")
         // The worktree line embeds git's discovery error verbatim. The
         // harness pins GIT_CEILING_DIRECTORIES (see `start_command_env`) so

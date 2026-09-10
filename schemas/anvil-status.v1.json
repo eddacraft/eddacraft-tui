@@ -91,6 +91,15 @@
       "description": "JSIMP-005: persistent closing receipt shared with `anvil start` and `anvil doctor`. Additive; existing fields stay.",
       "type": "object",
       "additionalProperties": true,
+      "required": [
+        "schema_version",
+        "project",
+        "selected_coverage",
+        "client",
+        "policy_mode",
+        "last_proof",
+        "next"
+      ],
       "properties": {
         "schema_version": { "type": "string", "const": "anvil.closing-receipt.v1" },
         "project": { "type": "string" },

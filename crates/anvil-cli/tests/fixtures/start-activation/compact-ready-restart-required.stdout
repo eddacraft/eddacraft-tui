@@ -6,7 +6,7 @@ ACTIVATION
   readiness: starting
   components: config=ready daemon=disabled worktree=disabled save_time=disabled mcp=starting
 RECEIPT
-  project: this project
+  project: <PROJECT>
   coverage: mcp: wired (restart pending); daemon: not attesting; save-time: not attached
   client: Claude Code, Cursor, Codex, OpenCode, Gemini CLI, Antigravity, OpenClaw, VS Code, GitHub Copilot CLI, Grok Build, Warp, Zed (pending)
   policy: defaults

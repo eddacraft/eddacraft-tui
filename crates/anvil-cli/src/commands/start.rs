@@ -543,7 +543,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         };
         insert_readiness_before_next(&mut human_output, &readiness);
         if let Some(receipt) = &receipt {
-            human_output = strip_next_step_lines(&human_output);
+            human_output = activation::receipt::strip_next_step_lines(&human_output);
             human_output.push_str(&receipt.render_human());
         }
         if matches!(render_mode, StartRenderMode::Tui) {
@@ -2498,17 +2498,6 @@ fn start_daemon_opt_out(args: &StartArgs) -> bool {
 
 fn start_mcp_opt_out(args: &StartArgs) -> bool {
     args.no_mcp || std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty())
-}
-
-fn strip_next_step_lines(output: &str) -> String {
-    output
-        .lines()
-        .filter(|line| !line.trim_start().to_ascii_lowercase().starts_with("next:"))
-        .fold(String::new(), |mut rendered, line| {
-            rendered.push_str(line);
-            rendered.push('\n');
-            rendered
-        })
 }
 
 fn insert_readiness_before_next(output: &mut String, readiness: &EnsureReadiness) {

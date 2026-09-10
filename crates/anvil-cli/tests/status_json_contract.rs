@@ -104,13 +104,21 @@ fn status_reports_unavailable_selected_daemon_and_exits_nonzero() {
         doc["next"],
         "run bare `anvil` to restore the save-time daemon"
     );
+    assert_eq!(doc["receipt"]["next"], doc["next"]);
 
     let human = run_status_with_required_daemon(workspace.path(), home.path(), false);
     assert_eq!(human.status.code(), Some(1));
     let stdout = String::from_utf8_lossy(&human.stdout);
     assert!(stdout.contains("Readiness: failed"), "{stdout}");
     assert!(stdout.contains("daemon=failed"), "{stdout}");
-    assert_eq!(stdout.matches("Next:").count(), 1, "{stdout}");
+    assert_eq!(
+        stdout
+            .lines()
+            .filter(|line| line.trim_start().to_ascii_lowercase().starts_with("next:"))
+            .count(),
+        1,
+        "{stdout}"
+    );
     assert!(stdout.contains("bare `anvil`"), "{stdout}");
     assert!(
         !stdout.contains("anvil intercept start --foreground"),

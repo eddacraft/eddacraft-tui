@@ -157,7 +157,7 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             mcp,
         )?;
     } else if status_prefers_tui(global) {
-        run_status_tui(data, &activation, &readiness)?;
+        run_status_tui(data, &activation, &readiness, &worktree)?;
     } else {
         warn_if_status_tui_unavailable(global);
         print_plain(
@@ -218,23 +218,37 @@ fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
         merge_status_readiness_json(&mut value, &readiness);
         if let serde_json::Value::Object(object) = &mut value {
+            let next = status_readiness_action(&readiness);
             let receipt = activation::ClosingReceipt::capture(
                 Path::new("."),
                 &activation,
                 activation::CaptureOptions::verify(),
-                crate::commands::status::status_readiness_action(&readiness),
+                next.clone(),
             );
             object.insert("receipt".to_owned(), receipt.to_json());
+            if next.is_none() {
+                object.insert(
+                    "next".to_owned(),
+                    serde_json::Value::String(receipt.next.clone()),
+                );
+            }
         }
         let json = serde_json::to_string_pretty(&value)?;
         println!("{json}");
     } else {
-        print!("{}", render_verify_activation(&activation, &readiness));
+        let next = status_readiness_action(&readiness);
         let receipt = activation::ClosingReceipt::capture(
             Path::new("."),
             &activation,
             activation::CaptureOptions::verify(),
-            crate::commands::status::status_readiness_action(&readiness),
+            next,
+        );
+        print!(
+            "{}",
+            activation::receipt::strip_next_step_lines(&render_verify_activation(
+                &activation,
+                &readiness
+            ))
         );
         print!("{}", receipt.render_human());
         print!("{}", render_rule_mode_summary(Path::new(".")));
@@ -247,7 +261,7 @@ fn run_verify(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 graph.as_ref(),
             )
         );
-        print!("{}", render_status_readiness(&readiness, true));
+        print!("{}", render_status_readiness(&readiness, false));
         // MLP2-051g — verbose tier-evidence on stderr. Suppressed
         // under `--json` (consumers expect a single JSON document on
         // stdout; the stderr block does not change that contract,
@@ -1077,9 +1091,10 @@ fn run_status_tui(
     data: StatusData,
     activation: &activation::ActivationDiagnostic,
     readiness: &EnsureReadiness,
+    worktree: &Path,
 ) -> anyhow::Result<()> {
     let receipt = activation::ClosingReceipt::capture(
-        Path::new("."),
+        worktree,
         activation,
         activation::CaptureOptions::inspect(),
         status_readiness_action(readiness),
@@ -1114,12 +1129,15 @@ fn print_plain(
     if let Some(next) = status_readiness_action(context.readiness) {
         snapshot.next_action = next;
     }
-    print!("{}", render_plain_legible(&snapshot));
     let receipt = activation::ClosingReceipt::capture(
         &root,
         activation_diag,
         activation::CaptureOptions::inspect(),
         Some(snapshot.next_action.clone()),
+    );
+    print!(
+        "{}",
+        activation::receipt::strip_next_step_lines(&render_plain_legible(&snapshot))
     );
     print!("{}", receipt.render_human());
     // Rule-mode summary line is appended as advisory context. The
@@ -2380,13 +2398,14 @@ fn print_json(
             .iter()
             .find(|entry| entry.worktree == worktree)
     });
-    let next = status_readiness_action(&readiness);
+    let readiness_next = status_readiness_action(&readiness);
     let receipt = activation::ClosingReceipt::capture(
         worktree,
         activation_diag,
         activation::CaptureOptions::inspect(),
-        next.clone(),
+        readiness_next.clone(),
     );
+    let next = readiness_next.or_else(|| Some(receipt.next.clone()));
     let driver_readiness = driver.map(|_| readiness.components.save_time.state.label());
     let output = StatusOutput {
         schema_version: STATUS_SCHEMA_VERSION,
