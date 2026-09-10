@@ -1,5 +1,13 @@
 # JSIMP-001 design council — ADR-145
 
+| Type | Authority | Owner | Status | Freshness |
+| ---- | --------- | ----- | ------ | --------- |
+| Spec | Advisory | JSIMP | Draft (design-council decision; ADR-145 accepted in this PR) | 2026-09-10 — against `feat/jsimp-001-continuous-journey` / ADR-145 |
+
+| Upstream | Downstream |
+| -------- | ---------- |
+| [ADR-145](../decisions/145-continuous-command-journey.md), [transition matrix](../specs/2026-09-10-continuous-command-journey.md), [JSIMP module](../modules/journey-simplification.aps.md) | JSIMP-002..006 implementation items; CLI surface / quickstart docs updated in this PR |
+
 **Date:** 2026-09-10
 **Mode:** design (risk-selected)
 **Target:** ADR-145 + transition matrix (pre-implementation)
