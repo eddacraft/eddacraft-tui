@@ -11,6 +11,30 @@ const ENV_WRAPPERS: &[&str] = &["env", "command", "nohup", "nice", "time", "stra
 const INTERPRETER_COMMANDS: &[&str] = &["python", "python3", "node", "ruby", "perl", "php"];
 const SHELL_LIKE_INTERPRETERS: &[&str] = &["bash", "sh", "zsh", "dash"];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WrapperKind {
+    Shell,
+    Privileged,
+    Env,
+    Interpreter,
+    None,
+}
+
+#[must_use]
+fn classify_command_name(name: &str) -> WrapperKind {
+    if SHELL_WRAPPERS.contains(&name) {
+        WrapperKind::Shell
+    } else if PRIVILEGED_WRAPPERS.contains(&name) {
+        WrapperKind::Privileged
+    } else if ENV_WRAPPERS.contains(&name) {
+        WrapperKind::Env
+    } else if INTERPRETER_COMMANDS.contains(&name) {
+        WrapperKind::Interpreter
+    } else {
+        WrapperKind::None
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ShellToken {
     Word(String),
@@ -45,47 +69,23 @@ pub struct CompoundCommandResult {
     pub operators: Vec<String>,
 }
 
-#[must_use]
-fn is_shell_wrapper(cmd: &str) -> bool {
-    SHELL_WRAPPERS.contains(&normalise_command_name(cmd).as_str())
-}
-
-#[must_use]
-fn is_privileged_wrapper(cmd: &str) -> bool {
-    PRIVILEGED_WRAPPERS.contains(&normalise_command_name(cmd).as_str())
-}
-
-#[must_use]
-fn is_env_wrapper(cmd: &str) -> bool {
-    ENV_WRAPPERS.contains(&normalise_command_name(cmd).as_str())
-}
-
-#[must_use]
-fn is_interpreter(cmd: &str) -> bool {
-    INTERPRETER_COMMANDS.contains(&normalise_command_name(cmd).as_str())
-}
-
 /// Reduce an executable token to its basename for wrapper recognition and rule
 /// matching. Path forms such as `/bin/rm` and `./rm` both become `rm`. Bare
 /// names are left unchanged. Degenerate path-only tokens (e.g. `/`) are kept.
 #[must_use]
-fn normalise_command_name(token: &str) -> String {
+fn normalise_command_name(token: &str) -> &str {
     let trimmed = token.trim();
     if trimmed.is_empty() {
-        return String::new();
+        return trimmed;
     }
     if !trimmed.contains('/') && !trimmed.contains('\\') {
-        return trimmed.to_string();
+        return trimmed;
     }
     let stripped = trimmed.trim_end_matches(['/', '\\']);
     if stripped.is_empty() {
-        return trimmed.to_string();
+        return trimmed;
     }
-    stripped
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(stripped)
-        .to_string()
+    stripped.rsplit(['/', '\\']).next().unwrap_or(stripped)
 }
 
 const PIPELINE_GRAMMAR_PREFIXES: &[&str] = &[
@@ -111,7 +111,10 @@ pub fn pipeline_stage_head(raw: &str) -> String {
             index += 1;
             continue;
         }
-        if is_privileged_wrapper(&name) || is_env_wrapper(&name) {
+        if matches!(
+            classify_command_name(name),
+            WrapperKind::Privileged | WrapperKind::Env
+        ) {
             index += 1;
             while index < tokens.len() && tokens[index].starts_with('-') {
                 let flag = tokens[index].as_str();
@@ -149,9 +152,9 @@ pub fn pipeline_stage_head(raw: &str) -> String {
             continue;
         }
         if name_l == "busybox" && index + 1 < tokens.len() {
-            return normalise_command_name(&tokens[index + 1]);
+            return normalise_command_name(&tokens[index + 1]).to_string();
         }
-        return name;
+        return name.to_string();
     }
     String::new()
 }
@@ -375,7 +378,13 @@ fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
 }
 
 #[must_use]
-fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
+enum EnvCommand<'a> {
+    Tokens(&'a [String]),
+    SplitString(Vec<String>),
+}
+
+#[must_use]
+fn extract_env_command(tokens: &[String]) -> Option<EnvCommand<'_>> {
     const ENV_OPTIONS_WITH_VALUE: &[&str] = &["-C", "--chdir", "-u", "--unset"];
 
     let mut start_index = 1;
@@ -388,12 +397,12 @@ fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
         if token == "-S" || token == "--split-string" {
             return tokens.get(start_index + 1).and_then(|inner| {
                 let inner_tokens = tokenise(inner);
-                (!inner_tokens.is_empty()).then_some(inner_tokens)
+                (!inner_tokens.is_empty()).then_some(EnvCommand::SplitString(inner_tokens))
             });
         }
         if let Some(inner) = token.strip_prefix("--split-string=") {
             let inner_tokens = tokenise(inner);
-            return (!inner_tokens.is_empty()).then_some(inner_tokens);
+            return (!inner_tokens.is_empty()).then_some(EnvCommand::SplitString(inner_tokens));
         }
         if token.contains('=') && !token.starts_with('-') {
             start_index += 1;
@@ -419,7 +428,7 @@ fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
         }
     }
 
-    (start_index < tokens.len()).then(|| tokens[start_index..].to_vec())
+    (start_index < tokens.len()).then(|| EnvCommand::Tokens(&tokens[start_index..]))
 }
 
 #[must_use]
@@ -447,8 +456,7 @@ fn extract_interpreter_commands(tokens: &[String], interpreter: Option<&str>) ->
         .filter_map(|p| Regex::new(p).ok())
         .collect();
 
-    if interpreter
-        .is_none_or(|cmd| SHELL_LIKE_INTERPRETERS.contains(&normalise_command_name(cmd).as_str()))
+    if interpreter.is_none_or(|cmd| SHELL_LIKE_INTERPRETERS.contains(&normalise_command_name(cmd)))
         && let Ok(re) = Regex::new(r"\$\(\s*(.*?)\s*\)")
     {
         patterns.push(re);
@@ -487,7 +495,7 @@ const SUDO_LONG_FLAGS_WITH_ARGS: &[&str] = &[
 ];
 
 #[must_use]
-fn extract_privileged_command(tokens: &[String]) -> Option<Vec<String>> {
+fn extract_privileged_command(tokens: &[String]) -> Option<&[String]> {
     let mut start_index = 1;
     while start_index < tokens.len() {
         let token = &tokens[start_index];
@@ -514,42 +522,11 @@ fn extract_privileged_command(tokens: &[String]) -> Option<Vec<String>> {
         }
     }
 
-    (start_index < tokens.len()).then(|| tokens[start_index..].to_vec())
-}
-
-#[must_use]
-fn remaining_starts_with_recognised_wrapper(cmd: &str) -> bool {
-    let trimmed = cmd.trim();
-    if trimmed.is_empty() {
-        return false;
-    }
-    let tokens = tokenise(trimmed);
-    // Skip shell-style assignments so residual forms like `FOO=1 env rm ...`
-    // still count as incomplete wrapper analysis at the depth limit.
-    let Some(first) = tokens
-        .iter()
-        .find(|token| !is_environment_assignment(token))
-    else {
-        return false;
-    };
-    is_shell_wrapper(first)
-        || is_privileged_wrapper(first)
-        || is_env_wrapper(first)
-        || is_interpreter(first)
+    (start_index < tokens.len()).then(|| &tokens[start_index..])
 }
 
 #[must_use]
 fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
-    if depth >= MAX_UNWRAP_DEPTH {
-        return UnwrapResult {
-            unwrapped: cmd.to_string(),
-            wrappers: Vec::new(),
-            // Fail closed when the residual still looks like a wrapper chain we
-            // stopped peeling early; residual real commands are complete.
-            incomplete: remaining_starts_with_recognised_wrapper(cmd),
-        };
-    }
-
     let trimmed = cmd.trim();
     if trimmed.is_empty() {
         return UnwrapResult {
@@ -560,70 +537,65 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
     }
 
     let tokens = tokenise(trimmed);
+    unwrap_tokens(&tokens, depth, Some(trimmed))
+}
+
+#[must_use]
+fn unwrap_tokens(tokens: &[String], depth: usize, original: Option<&str>) -> UnwrapResult {
+    if depth >= MAX_UNWRAP_DEPTH {
+        let unwrapped = original.map_or_else(|| join_shell_tokens(tokens), str::to_string);
+        return UnwrapResult {
+            incomplete: tokens
+                .iter()
+                .find(|token| !is_environment_assignment(token))
+                .is_some_and(|first| {
+                    classify_command_name(normalise_command_name(first)) != WrapperKind::None
+                }),
+            unwrapped,
+            wrappers: Vec::new(),
+        };
+    }
+
     let Some(first_token) = tokens.first() else {
         return UnwrapResult {
-            unwrapped: cmd.to_string(),
+            unwrapped: original.unwrap_or_default().to_string(),
             wrappers: Vec::new(),
             incomplete: false,
         };
     };
 
-    if is_shell_wrapper(first_token)
-        && let Some(inner_cmd) = extract_shell_wrapper_arg(&tokens)
-    {
-        let inner = unwrap_command(&inner_cmd, depth + 1);
-        let mut wrappers = vec![normalise_command_name(first_token)];
-        wrappers.extend(inner.wrappers);
-        return UnwrapResult {
-            unwrapped: inner.unwrapped,
-            wrappers,
-            incomplete: inner.incomplete,
-        };
-    }
-
-    if is_privileged_wrapper(first_token)
-        && let Some(remaining) = extract_privileged_command(&tokens)
-    {
-        let inner = unwrap_command(&join_shell_tokens(&remaining), depth + 1);
-        let mut wrappers = vec![normalise_command_name(first_token)];
-        wrappers.extend(inner.wrappers);
-        return UnwrapResult {
-            unwrapped: inner.unwrapped,
-            wrappers,
-            incomplete: inner.incomplete,
-        };
-    }
-
-    if is_env_wrapper(first_token)
-        && let Some(remaining) = extract_env_command(&tokens)
-    {
-        let inner = unwrap_command(&join_shell_tokens(&remaining), depth + 1);
-        let mut wrappers = vec![normalise_command_name(first_token)];
-        wrappers.extend(inner.wrappers);
-        return UnwrapResult {
-            unwrapped: inner.unwrapped,
-            wrappers,
-            incomplete: inner.incomplete,
-        };
-    }
-
-    if is_interpreter(first_token) {
-        let inner_cmds = extract_interpreter_commands(&tokens, Some(first_token));
-        if !inner_cmds.is_empty() {
-            let joined = inner_cmds.join(" && ");
-            let inner = unwrap_command(&joined, depth + 1);
-            let mut wrappers = vec![normalise_command_name(first_token)];
-            wrappers.extend(inner.wrappers);
-            return UnwrapResult {
-                unwrapped: inner.unwrapped,
-                wrappers,
-                incomplete: inner.incomplete,
-            };
+    let first_name = normalise_command_name(first_token);
+    let wrapper_kind = classify_command_name(first_name);
+    let inner = match wrapper_kind {
+        WrapperKind::Shell => {
+            extract_shell_wrapper_arg(tokens).map(|inner_cmd| unwrap_command(&inner_cmd, depth + 1))
         }
+        WrapperKind::Privileged => extract_privileged_command(tokens)
+            .map(|remaining| unwrap_tokens(remaining, depth + 1, None)),
+        WrapperKind::Env => extract_env_command(tokens).map(|remaining| match remaining {
+            EnvCommand::Tokens(tokens) => unwrap_tokens(tokens, depth + 1, None),
+            EnvCommand::SplitString(tokens) => unwrap_tokens(&tokens, depth + 1, None),
+        }),
+        WrapperKind::Interpreter => {
+            let inner_cmds = extract_interpreter_commands(tokens, Some(first_token));
+            (!inner_cmds.is_empty()).then(|| unwrap_command(&inner_cmds.join(" && "), depth + 1))
+        }
+        WrapperKind::None => None,
+    };
+
+    if let Some(inner) = inner {
+        let mut wrappers = Vec::with_capacity(inner.wrappers.len() + 1);
+        wrappers.push(first_name.to_string());
+        wrappers.extend(inner.wrappers);
+        return UnwrapResult {
+            unwrapped: inner.unwrapped,
+            wrappers,
+            incomplete: inner.incomplete,
+        };
     }
 
     UnwrapResult {
-        unwrapped: trimmed.to_string(),
+        unwrapped: original.map_or_else(|| join_shell_tokens(tokens), str::to_string),
         wrappers: Vec::new(),
         incomplete: false,
     }
@@ -779,7 +751,7 @@ fn parse_from_tokens(
         };
     }
 
-    let command = normalise_command_name(&tokens[command_index]);
+    let command = normalise_command_name(&tokens[command_index]).to_string();
     let rest = tokens[command_index + 1..].to_vec();
     let (flags, _args) = split_at_separator(&rest);
     let subcommand = extract_subcommand(&command, &rest);
@@ -1312,6 +1284,24 @@ mod tests {
         let parsed = parse_command(r#"env --split-string="rm -rf /""#);
         assert_eq!(parsed.command, "rm");
         assert_eq!(parsed.wrapper_chain, vec!["env"]);
+    }
+
+    #[test]
+    fn token_native_wrappers_preserve_quoted_arguments() {
+        let parsed = parse_command(r#"sudo env FOO=bar rm -rf "path with spaces""#);
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["path with spaces"]);
+        assert_eq!(parsed.wrapper_chain, vec!["sudo", "env"]);
+    }
+
+    #[test]
+    fn split_string_payload_can_continue_through_token_native_wrappers() {
+        let parsed = parse_command(r#"sudo env -S "env FOO=bar rm -rf /""#);
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["/"]);
+        assert_eq!(parsed.wrapper_chain, vec!["sudo", "env", "env"]);
     }
 
     #[test]

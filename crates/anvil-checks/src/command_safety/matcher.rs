@@ -324,16 +324,12 @@ pub fn find_matching_rule(
     rules: &[CommandRule],
     context: Option<&MatcherContext>,
 ) -> Option<CommandRule> {
-    let mut sorted = rules.to_vec();
-    sorted.sort_by(|left, right| {
-        let left_score = calculate_specificity(left);
-        let right_score = calculate_specificity(right);
-        right_score.cmp(&left_score)
-    });
-
-    sorted
-        .into_iter()
-        .find(|rule| match_rule(parsed, rule, context))
+    rules
+        .iter()
+        .enumerate()
+        .filter(|(_, rule)| match_rule(parsed, rule, context))
+        .max_by_key(|(index, rule)| (calculate_specificity(rule), std::cmp::Reverse(*index)))
+        .map(|(_, rule)| rule.clone())
 }
 
 #[must_use]
@@ -691,6 +687,16 @@ mod tests {
             matched.as_ref().map(|rule| rule.id.as_str()),
             Some("specific")
         );
+    }
+
+    #[test]
+    fn equal_specificity_preserves_input_order() {
+        let first = make_rule("first");
+        let second = make_rule("second");
+        let parsed = parse_command("git status");
+
+        let matched = find_matching_rule(&parsed, &[first, second], None);
+        assert_eq!(matched.as_ref().map(|rule| rule.id.as_str()), Some("first"));
     }
 
     #[test]
