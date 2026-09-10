@@ -679,10 +679,10 @@ $ anvil --help
 **Class:** Setup **Purpose:** Activate or **reconfigure** Anvil in this
 repository. **When to use:** First-time setup, adding MCP after a prior decline,
 or repairing activation after a config change. Direct `anvil start` does not
-require `anvil welcome` or the tutorial (ADR-145). Writes `.anvil.yaml` (or the
-`--format` choice) if no project config exists and can install MCP / workflow
-consent items. `--verify` and `--json` are read-only. For a quiet daily
-on-switch without reinstall, use bare `anvil` instead.
+require `anvil welcome` or the tutorial. Writes `.anvil.yaml` (or the `--format`
+choice) if no project config exists and can install MCP / workflow consent
+items. `--verify` and `--json` are read-only. For a quiet daily on-switch
+without reinstall, use bare `anvil` instead.
 
 **Synopsis:**
 `anvil start [--verify] [--watch] [--format <fmt>] [--new-identity] [--why]`
@@ -992,9 +992,9 @@ $ anvil migrate architecture --apply
 **Class:** Background (start) / Admin (stop/status) **Purpose:** Manage the
 Anvil intercept daemon. **When to use:** To start, stop, inspect, or unblock the
 local intercept daemon that enables pre-write MCP validation. This is an
-operator/implementation surface (ADR-082 / ADR-145). Daily ensure is bare
-`anvil`. Daemon recycle is `anvil mcp refresh --daemon restart`. There is **no**
-public `anvil intercept ensure` or `anvil intercept restart`.
+operator/implementation surface. Daily ensure is bare `anvil`. Daemon recycle is
+`anvil mcp refresh --daemon restart`. There is **no** public
+`anvil intercept ensure` or `anvil intercept restart`.
 
 **Synopsis:** `anvil intercept <start|status|unblock|stop>`
 

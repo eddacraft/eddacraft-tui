@@ -1,8 +1,8 @@
 # anvil checks architecture
 
-| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------ | ------------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-09-02 for the CIB-373 entropy record-id allowlist and against the prefix-gated tier-1 compilation in `src/secret/vendored.rs`; the evaluation-flow diagram is unaffected. Prior review 2026-08-30 against CONF-011's range-level PR declaration evaluator in `src/conformance/evaluate.rs`; the diagram makes the production PR declaration plus exact Git range input explicit. Previously reviewed 2026-08-30 against SDT-004's vendored tier-1 secret ruleset and CONF-005's deterministic PR-body adapter. |
+| Type         | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                        |
+| ------------ | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Authoritative | SCAN  | Live   | Last reviewed 2026-09-10 for the command-safety hot-path refactor (single-pass matcher selection + allocation-leaner wrapper unwrap in `src/command_safety/`); the evaluation-flow diagram still shows command safety as its own family with no topology change. |
 
 | Upstream                                                                                        | Downstream                                                                |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -41,7 +41,7 @@ flowchart LR
     Families --> Secret[secret and entropy]
     Families --> Reason[reasoning]
     Families --> Surface[env, SQL, Dockerfile, GitHub Actions, shell]
-    Families --> Command[command safety]
+    Families --> Command[command safety hot path]
     Families --> Conformance[intent conformance]
     PR[PR declaration + exact Git range] --> Conformance
     Anti --> Results[typed findings and diagnostics]
