@@ -73,6 +73,12 @@ channel is not a prerequisite. Publication remains a separate authorised cut.
 Simplification may start once JOURNEY-015 passes without waiting for
 publication.
 
+**JOURNEY-015 disposition (2026-09-10):** pinned-main rehearsal **pass** on
+`3f8890e15` (claim #4572; evidence under
+`plans/audits/2026-09-10-journey-015-*`). Claim freeze, changelog, standing
+release gates, and publication authority remain **not** granted. JSIMP may
+start; not started by that gate.
+
 ### Primary claim
 
 _Not selected._ Promote only after operator intake names the theme and freezes

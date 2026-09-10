@@ -2,10 +2,9 @@
 
 | ID | Type | Owner | Priority | Status | Progress |
 | -- | ---- | ----- | -------- | ------ | -------- |
-| JOURNEY | Conductor | Josh | high | In Progress | 11/16 |
+| JOURNEY | Conductor | Josh | high | In Progress | 12/16 |
 
-**Last reviewed:** 2026-09-10 — JOURNEY-014 reliability closure evidence recorded; JREL Done 13/13. JOURNEY-015 unlocked; JSIMP still gated. Prior: reliability-first programme authorised; JREL and
-JSIMP intake added. JOURNEY-013 promoted to Ready for current-build observation.
+**Last reviewed:** 2026-09-10 — JOURNEY-015 pinned-main rehearsal + release handoff Merged (claim #4572). Linux journey:verify 7/7 incl. upgrade; CI journey-verify green on `3f8890e15`. macOS/Windows same-pin legs waived by merge. JSIMP unlocked, not started. Prior: JOURNEY-014 reliability closure; JREL Done 13/13.
 Historical delivery evidence remains unchanged.
 
 ## Purpose
@@ -444,13 +443,13 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 ### JOURNEY-015: Pinned-main journey rehearsal and existing release handoff
 
-- **Status:** Ready
+- **Status:** Merged — claim #4572. Evidence: [2026-09-10 pinned-main rehearsal](../audits/2026-09-10-journey-015-pinned-main-rehearsal.md) + [identity](../audits/2026-09-10-journey-015-identity.json) + [CI identity](../audits/2026-09-10-journey-015-ci-identity.json) on pinned `3f8890e15`. Local journey:verify pass (7/7, upgrade required); CI journey-verify pass (6/6 required). Operator platform waiver for macOS/Windows same-pin legs recorded by merge. Release disposition: claim freeze / publication not authorised; simplification permitted.
 - **Intent:** Verify what a user will install without building an internal release system.
 - **Expected Outcome:** Build from a recorded main SHA with the repository's supported build/CI process. Record binary version/hash and supported-platform results for fresh signed-out welcome, entitled start, optional/no MCP, one and multiple configured clients, healthy bare anvil, second repository/worktree, interrupted setup and resume, daemon death/restart, save-time child death, MCP restart/update, machine output and upgrade from the previous public build. Include real client calls and an observed save-time finding; config or PID presence is insufficient. Required failures block handoff. Record the release disposition and evidence in the existing release process; claim freeze, changelog, standing release gates and explicit publication authority remain required. Passing this gate permits simplification even if publication is scheduled later.
 - **Dependencies:** JOURNEY-014
 - **Coordinates with:** JREL-012, JOURNEY-013
 - **Validation:** `pnpm validate:full`; `pnpm release-plan:check`; JREL-012's recorded end-to-end command; Linux/macOS/Windows matrix and interactive evidence on the same pinned source. Any platform waiver must be explicitly recorded by the operator, never inferred from a different platform's pass.
-- **Confidence:** medium — no release or runtime success is claimed by the plan.
+- **Confidence:** high — Linux conductor + CI identities recorded; macOS/Windows waived by operator merge; no publication claimed.
 
 ### JOURNEY-016: Simplified journey acceptance and documentation closeout
 

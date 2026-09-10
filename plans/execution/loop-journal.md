@@ -1076,3 +1076,20 @@ never with feature work.
 - GATT left untouched. CIB-405 remains Proposed.
 - Next: exclusive APS reconcile of JREL-013 → Merged 13/13 / module Done
   (this branch), then JOURNEY-014 if still Ready.
+
+## Cycle — 2026-09-10 (JOURNEY-015 pinned-main rehearsal)
+
+- Target: JOURNEY-015. Harness: Grok Bot executor (plain SSH; no tmux). Mode:
+  autonomous complete plus rebase-merge on green (no admin merge).
+- Isolation: `/home/aneki/.grok/worktrees/src-anvil-001/journey-015` on
+  `docs/journey-015-pinned-main-rehearsal`. Claim #4572.
+- Pin: `3f8890e15`. Local `journey:verify --require-upgrade` pass (7/7) with
+  Homebrew `0.9.7-beta` previous public. CI journey-verify pass on run
+  `34423562600`. APS lint clean; release-plan:check ok.
+- Evidence: `plans/audits/2026-09-10-journey-015-pinned-main-rehearsal.md` +
+  identity JSON (local + CI). Operator macOS/Windows same-pin waiver by merge.
+- Release disposition: rehearsal pass; claim freeze / publication not authorised;
+  JSIMP permitted, not started.
+- Avoided: JOURNEY-016, JSIMP, session `anvil` tmux.
+- Next: land this PR; do not start JSIMP in this lane.
+

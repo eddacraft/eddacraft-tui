@@ -1,0 +1,53 @@
+{
+  "sourceSha": "3f8890e15cc498b60b681ff67d1b4254c39f0adf",
+  "binary": {
+    "path": "/home/aneki/.cache/anvil-targets/journey-015/debug/anvil",
+    "sha256": "0b9a23100e759ead3fb43ff7af8b1444b685df922f1adcb7bd170f66e8c5c05f",
+    "version": "anvil 0.9.7-beta"
+  },
+  "platform": {
+    "os": "linux",
+    "arch": "x64",
+    "name": "linux"
+  },
+  "executedAt": "2026-09-10T01:19:41.416Z",
+  "catalog": "/home/aneki/Projects/src/anvil-001/scripts/journey/scenarios.json",
+  "scenarios": [
+    {
+      "id": "daemon-identity",
+      "result": "pass",
+      "detail": "/home/aneki/Projects/src/anvil-001/crates/anvil-cli/tests/daemon_identity.rs"
+    },
+    {
+      "id": "save-time-driver-recovery",
+      "result": "pass",
+      "detail": "/home/aneki/Projects/src/anvil-001/crates/anvil-cli/tests/save_time_driver_recovery.rs"
+    },
+    {
+      "id": "mcp-protection-claim",
+      "result": "pass",
+      "detail": "/home/aneki/Projects/src/anvil-001/crates/anvil-cli/tests/mcp_protection_claim.rs"
+    },
+    {
+      "id": "mcp-stdio",
+      "result": "pass",
+      "detail": "/home/aneki/Projects/src/anvil-001/crates/anvil-cli/tests/mcp_serve_stdio.rs"
+    },
+    {
+      "id": "e2e-cli",
+      "result": "pass",
+      "detail": "test:cli"
+    },
+    {
+      "id": "e2e-smoke",
+      "result": "pass",
+      "detail": "test:smoke"
+    },
+    {
+      "id": "upgrade-previous-public",
+      "result": "pass",
+      "detail": "/home/linuxbrew/.linuxbrew/bin/anvil"
+    }
+  ],
+  "previousPublicBinary": "/home/linuxbrew/.linuxbrew/bin/anvil"
+}
