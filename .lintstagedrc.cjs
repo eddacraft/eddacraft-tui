@@ -68,7 +68,9 @@ const isAgentConfig = (file) => {
     normalised.includes('/.agents/') ||
     normalised.startsWith('.agents/') ||
     normalised.includes('/.grok/') ||
-    normalised.startsWith('.grok/')
+    normalised.startsWith('.grok/') ||
+    normalised.includes('/.github/agents/') ||
+    normalised.startsWith('.github/agents/')
   );
 };
 
