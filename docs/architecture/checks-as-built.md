@@ -872,10 +872,10 @@ user-config decision before invoking the partition helper. Tracked at
 
 ### G-02: SQL coverage is partial
 
-`SURFSQL` (`../../plans/archive/modules/surface-sql-migrations.aps.md`) Phase 1
-is not yet shipped. SQL files (`.sql`) are classified `partial` in
-`LANGUAGE_REGISTRY` (`activation-as-built.md` §"Language profile"); the secret
-scanner runs on `.sql` (cross-language) but no structural governance is wired.
+`SURFSQL` (`plans/archive/modules/surface-sql-migrations.aps.md`) Phase 1 is not
+yet shipped. SQL files (`.sql`) are classified `partial` in `LANGUAGE_REGISTRY`
+(`activation-as-built.md` §"Language profile"); the secret scanner runs on
+`.sql` (cross-language) but no structural governance is wired.
 
 ### G-03: Markdown coverage is partial
 
@@ -1046,7 +1046,7 @@ CLI seams (`crates/anvil-cli/src/`):
   — SCAN-001 parallel walk + SCAN-002 ReDoS hardening.
 - [`plans/archive/modules/surface-env-files.aps.md`](../../plans/archive/modules/surface-env-files.aps.md)
   — SURFENV-001..004 plan + acceptance.
-- [`../../plans/archive/modules/realtime-ai-validation.aps.md`](../../plans/archive/modules/realtime-ai-validation.aps.md)
+- [`plans/archive/modules/realtime-ai-validation.aps.md`](../../plans/archive/modules/realtime-ai-validation.aps.md)
   — AI-001 family open question 3 (rule lives in `anvil-checks`, not in a
   standalone reasoning crate).
 - [`plans/archive/modules/ai-guardrail-profile.aps.md`](../../plans/archive/modules/ai-guardrail-profile.aps.md)

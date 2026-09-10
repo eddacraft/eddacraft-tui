@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status |
 | --- | --- | --- | --- |
-| RIO | @joshuaboys | P1 | Complete|
+| RIO | @joshuaboys | P1 | Complete |
 
 **Packages:** eddacraft-anvil
 

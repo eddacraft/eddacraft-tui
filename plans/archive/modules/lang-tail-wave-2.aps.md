@@ -25,7 +25,7 @@
 > the new `anvil-grammar-wat` crate so the kernel keeps `forbid(unsafe_code)`.
 > **All work items merged** (LTW2-001..005); the external-corpus smoke
 > (LTW2-004, #3014) ran ~2,527 real OSS files with **0 panics**. Shipped via
-> v0.9.0-beta (`6b0ed1d1`, 2026-07-12), so the module is **Done**. See the audit table below
+> v0.9.0-beta (`6b0ed1d1`, 2026-07-12), so the module is **Complete**. See the audit table below
 > for evidence.
 
 ## Grammar Maturity Audit (LTW2-001) — COMPLETE 2026-06-29

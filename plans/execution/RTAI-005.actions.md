@@ -43,7 +43,7 @@ cross-platform daemon client keeps Unix sockets and Windows named pipes aligned.
   `crates/anvil-intercept-proto/src/protocol.rs`,
   `crates/anvil-intercept/src/{ipc.rs,save_time.rs}` — restored to `main` for
   this PR; navigation changes are rebuilt under LSPNAV.
-- `../archive/modules/realtime-ai-validation.aps.md` — RTAI-005 evidence and status;
+- `plans/archive/modules/realtime-ai-validation.aps.md` — RTAI-005 evidence and status;
   no navigation claims.
 
 ## Task 1: Remove navigation from PR #3360
@@ -186,7 +186,7 @@ cross-platform daemon client keeps Unix sockets and Windows named pipes aligned.
 
 **Files:**
 
-- Modify: `../archive/modules/realtime-ai-validation.aps.md`
+- Modify: `plans/archive/modules/realtime-ai-validation.aps.md`
 
 - [ ] Update RTAI-005 only with fresh diagnostics evidence, branch/PR reference,
       and its true lifecycle status. Keep LSPNAV as a separate Proposed module.

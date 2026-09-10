@@ -62,4 +62,4 @@ Verified: <!-- filled by cleanup agent -->
 The JREL-004 closeout was validated in a Linux sandbox running as uid 0, so
 the XDG-set-then-unset leg and the chmod-based fixtures need a normal user
 account. Both crate suites otherwise passed; see the module closeout in
-`../../archive/modules/journey-reliability.aps.md`.
+`plans/archive/modules/journey-reliability.aps.md`.

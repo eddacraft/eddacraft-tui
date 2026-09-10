@@ -321,7 +321,7 @@ RMCP-001 is complete when review confirms:
 
 - `plans/modules/rust-mcp-launch-shim.aps.md`
 - `plans/modules/rust-mcp-full-port.aps.md`
-- `../archive/modules/realtime-ai-validation.aps.md` (`RTAI-006`, `RTAI-008`)
+- `plans/archive/modules/realtime-ai-validation.aps.md` (`RTAI-006`, `RTAI-008`)
 - `plans/specs/2026-04-26-diagnostic-envelope-coordination.md`
 - `plans/decisions/031-validation-latency-rubric.md`
 - `plans/decisions/030-surface-drivers-supersede-napi-cutover.md`
