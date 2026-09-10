@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JSIMP | Josh | high | Ready | 4/6 |
+| JSIMP | Josh | high | Ready | 5/6 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -78,7 +78,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-005: Prove first value and provide a truthful closing receipt
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-10 via PR #4607
 - **Priority:** P1
 - **Intent:** The user finishes setup knowing what works and what to do tomorrow.
 - **Expected Outcome:** Selected MCP coverage is demonstrated through an actual supported client validation action; save-time coverage through a real saved fixture. Clean/no-supported-language outcomes stay honest and demos stay isolated. A persistent closing receipt names project, selected coverage, connected/pending client, policy mode, last proof and bare anvil for next use; incomplete setup names one actionable owner. Status and doctor consume the same facts.

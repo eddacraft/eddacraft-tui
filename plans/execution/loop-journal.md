@@ -1158,3 +1158,18 @@ never with feature work.
 - Next: exclusive APS reconcile of JSIMP-004 → Merged (this branch),
   then `/dev-loop complete` JSIMP-005…006 in order.
 
+## Cycle — 2026-09-10 (JSIMP-005 integrated)
+
+- Target: JSIMP-005. Harness: Grok (`GROK_AGENT=1`). Mode: autonomous
+  complete plus rebase-merge on green (no admin merge).
+- Feature PR #4607 (`feat/jsimp-005-closing-receipt`) rebase-merged;
+  tip on `origin/main` (`66236baa1`).
+- Claim #4606 closed by #4607. Closing receipt names project, coverage,
+  client, policy, last proof and one next step. Status and doctor share
+  those facts. Start `--verify`/`--json` stay byte-stable.
+- Verify-loop repair-required on duplicate next/project name; repaired
+  in #4607 before merge. Copilot threads resolved.
+- Avoided: splash/always-on/dashboard; JOURNEY-016 (deps incomplete).
+- Next: exclusive APS reconcile of JSIMP-005 → Merged (this branch),
+  then `/dev-loop complete` JSIMP-006.
+
