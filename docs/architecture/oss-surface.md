@@ -1,8 +1,8 @@
 # eddacraft OSS Surface
 
-| Type  | Authority | Owner  | Status | Freshness                                        |
-| ----- | --------- | ------ | ------ | ------------------------------------------------ |
-| Guide | Derived   | DOCGOV | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type  | Authority | Owner  | Status | Freshness                                                                                                                                                                      |
+| ----- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Derived   | DOCGOV | Live   | Last reviewed 2026-09-10 against ADR-018 / ADR-047 after archive-path reference tidy; OSS surface inventory unchanged. Prior: Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
 | Upstream                                                                                                                          | Downstream                                    |
 | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
