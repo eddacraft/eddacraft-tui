@@ -312,7 +312,7 @@ pub fn read_nofollow(path: &Path) -> io::Result<Vec<u8>> {
     })?;
     let dir = open_existing_dir(parent, false)?;
     let file = nt_open_at(dir.raw(), leaf, OpenKind::File, FILE_ACCESS, true)?;
-    read_handle(file.raw())
+    read_handle(file.raw(), None)
 }
 
 /// Observe a regular file and its stable Windows object identity beneath a
@@ -408,13 +408,8 @@ fn observe_open_regular(handle: HANDLE) -> io::Result<ObservedRegularFile> {
             "file exceeds 8 MiB mutation limit",
         ));
     }
-    let bytes = read_handle(handle)?;
-    if bytes.len() as u64 > MAX_OBSERVED_FILE_BYTES {
-        return Err(io::Error::new(
-            ErrorKind::InvalidData,
-            "file exceeds 8 MiB mutation limit",
-        ));
-    }
+    // Cap during the read so a concurrently growing file cannot force unbounded allocation.
+    let bytes = read_handle(handle, Some(MAX_OBSERVED_FILE_BYTES))?;
     Ok(ObservedRegularFile {
         bytes,
         volume_serial: u64::from(info.dwVolumeSerialNumber),
@@ -914,18 +909,39 @@ fn write_all_handle(handle: HANDLE, mut data: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-fn read_handle(handle: HANDLE) -> io::Result<Vec<u8>> {
+fn read_handle(handle: HANDLE, max_bytes: Option<u64>) -> io::Result<Vec<u8>> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 64 * 1024];
     loop {
+        let request_bytes = match max_bytes {
+            Some(max) => {
+                let probe = max.checked_add(1).ok_or_else(|| {
+                    io::Error::new(
+                        ErrorKind::InvalidInput,
+                        "guarded-read ceiling must be less than u64::MAX",
+                    )
+                })?;
+                let remaining = probe.saturating_sub(buf.len() as u64);
+                if remaining == 0 {
+                    return Err(io::Error::new(
+                        ErrorKind::InvalidData,
+                        "file exceeds 8 MiB mutation limit",
+                    ));
+                }
+                remaining.min(chunk.len() as u64) as u32
+            }
+            None => chunk.len() as u32,
+        };
         let mut read: u32 = 0;
         // SAFETY: `handle` is a live read handle; `chunk` is a valid mutable
-        // buffer; `&mut read` is a valid out param; null OVERLAPPED = sync IO.
+        // buffer of `request_bytes`; `&mut read` is a valid out param; null
+        // OVERLAPPED = sync IO. A capped read requests at most `max + 1` so
+        // overflow is detected without growing the buffer past the ceiling.
         let ok = unsafe {
             windows_sys::Win32::Storage::FileSystem::ReadFile(
                 handle,
                 chunk.as_mut_ptr(),
-                chunk.len() as u32,
+                request_bytes,
                 &mut read,
                 null_mut(),
             )
@@ -935,6 +951,14 @@ fn read_handle(handle: HANDLE) -> io::Result<Vec<u8>> {
         }
         if read == 0 {
             break;
+        }
+        if let Some(max) = max_bytes {
+            if buf.len() as u64 + u64::from(read) > max {
+                return Err(io::Error::new(
+                    ErrorKind::InvalidData,
+                    "file exceeds 8 MiB mutation limit",
+                ));
+            }
         }
         buf.extend_from_slice(&chunk[..read as usize]);
     }

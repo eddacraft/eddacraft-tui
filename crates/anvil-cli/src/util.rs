@@ -195,7 +195,7 @@ fn quarantine_remove_at_unix(
 
     use nix::fcntl::{OFlag, openat, renameat};
     use nix::sys::stat::{Mode, mkdirat};
-    use nix::unistd::{UnlinkatFlags, unlinkat};
+    use nix::unistd::{UnlinkatFlags, dup, unlinkat};
 
     static QUARANTINE_COUNTER: AtomicU64 = AtomicU64::new(0);
     let quarantine = loop {
@@ -230,11 +230,25 @@ fn quarantine_remove_at_unix(
         return Err(std::io::Error::from(error).into());
     }
 
-    let moved = observe_regular_at_unix(quarantine_fd.as_fd(), candidate)?;
+    let candidate_fd = openat(
+        quarantine_fd.as_fd(),
+        candidate,
+        OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(std::io::Error::from)?;
+    let observed_fd = dup(&candidate_fd).map_err(std::io::Error::from)?;
+    let moved = observe_regular_fd_unix(observed_fd)?;
     // Rename updates ctime; compare inode+digest only.
-    if moved.stamp.same_inode_and_digest(&expected.stamp) {
-        unlinkat(quarantine_fd.as_fd(), candidate, UnlinkatFlags::NoRemoveDir)
-            .map_err(std::io::Error::from)?;
+    // Re-validate the directory entry against the held fd immediately before
+    // unlink so a same-UID rename cannot substitute a different inode.
+    if moved.stamp.same_inode_and_digest(&expected.stamp)
+        && unlink_if_directory_entry_matches_fd(
+            quarantine_fd.as_fd(),
+            candidate,
+            candidate_fd.as_fd(),
+        )?
+    {
         unlinkat(parent_fd, quarantine.as_str(), UnlinkatFlags::RemoveDir)
             .map_err(std::io::Error::from)?;
         return Ok(true);
@@ -258,6 +272,29 @@ fn quarantine_remove_at_unix(
     }
 
     bail!("file changed during guarded removal; bytes were preserved in {quarantine}/candidate")
+}
+
+#[cfg(unix)]
+fn unlink_if_directory_entry_matches_fd(
+    dir_fd: std::os::fd::BorrowedFd<'_>,
+    name: &std::ffi::OsStr,
+    observed_fd: std::os::fd::BorrowedFd<'_>,
+) -> Result<bool> {
+    use nix::fcntl::AtFlags;
+    use nix::sys::stat::{fstat, fstatat};
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+
+    let fd_stat = fstat(observed_fd).map_err(std::io::Error::from)?;
+    let named_stat = match fstatat(dir_fd, name, AtFlags::AT_SYMLINK_NOFOLLOW) {
+        Ok(stat) => stat,
+        Err(nix::errno::Errno::ENOENT) => return Ok(false),
+        Err(error) => return Err(std::io::Error::from(error).into()),
+    };
+    if fd_stat.st_dev != named_stat.st_dev || fd_stat.st_ino != named_stat.st_ino {
+        return Ok(false);
+    }
+    unlinkat(dir_fd, name, UnlinkatFlags::NoRemoveDir).map_err(std::io::Error::from)?;
+    Ok(true)
 }
 
 fn sha256_bytes(bytes: &[u8]) -> [u8; 32] {

@@ -41,14 +41,14 @@ pub fn mutation_lock_path(repo_root: &Path) -> Result<PathBuf, MutationLockError
         return Err(MutationLockError::InvalidGitMetadata(dot_git));
     }
 
-    let git_dir = if metadata.is_dir() {
+    let (git_dir, gitfile) = if metadata.is_dir() {
         let git_dir = canonicalise(&dot_git)?;
         if std::fs::symlink_metadata(git_dir.join("commondir")).is_ok() {
             return Err(MutationLockError::InvalidGitMetadata(
                 git_dir.join("commondir"),
             ));
         }
-        git_dir
+        (git_dir, false)
     } else if metadata.is_file() {
         let raw =
             std::fs::read_to_string(&dot_git).map_err(|source| MutationLockError::Inspect {
@@ -67,7 +67,7 @@ pub fn mutation_lock_path(repo_root: &Path) -> Result<PathBuf, MutationLockError
             repo_root.join(path)
         })?;
         validate_worktree_backlink(&dot_git, &git_dir)?;
-        git_dir
+        (git_dir, true)
     } else {
         return Err(MutationLockError::InvalidGitMetadata(dot_git));
     };
@@ -94,7 +94,7 @@ pub fn mutation_lock_path(repo_root: &Path) -> Result<PathBuf, MutationLockError
                 git_dir.join(relative)
             })?
         }
-        Err(source) if source.kind() == std::io::ErrorKind::NotFound => git_dir,
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => git_dir.clone(),
         Err(source) => {
             return Err(MutationLockError::Inspect {
                 path: common_marker,
@@ -102,6 +102,10 @@ pub fn mutation_lock_path(repo_root: &Path) -> Result<PathBuf, MutationLockError
             });
         }
     };
+
+    if gitfile {
+        validate_gitfile_worktree_layout(&dot_git, &git_dir, &common_dir)?;
+    }
 
     Ok(common_dir.join(LOCK_RELATIVE_PATH))
 }
@@ -122,6 +126,40 @@ fn validate_worktree_backlink(dot_git: &Path, git_dir: &Path) -> Result<(), Muta
         return Err(MutationLockError::InvalidGitMetadata(backlink));
     }
     Ok(())
+}
+
+/// A gitfile is Git authority only when `git_dir` is the worktree admin
+/// directory `<common_dir>/worktrees/<name>` and that entry still points at
+/// the gitfile. Reciprocal `gitdir` metadata alone can be planted against an
+/// attacker-chosen `commondir`.
+fn validate_gitfile_worktree_layout(
+    dot_git: &Path,
+    git_dir: &Path,
+    common_dir: &Path,
+) -> Result<(), MutationLockError> {
+    let worktrees_path = common_dir.join("worktrees");
+    let Ok(metadata) = std::fs::symlink_metadata(&worktrees_path) else {
+        return Err(MutationLockError::InvalidGitMetadata(worktrees_path));
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(MutationLockError::InvalidGitMetadata(worktrees_path));
+    }
+    let worktrees = canonicalise(&worktrees_path)?;
+    let name = git_dir
+        .file_name()
+        .filter(|name| !name.is_empty() && *name != "." && *name != "..")
+        .ok_or_else(|| MutationLockError::InvalidGitMetadata(git_dir.to_path_buf()))?;
+    let parent = git_dir
+        .parent()
+        .ok_or_else(|| MutationLockError::InvalidGitMetadata(git_dir.to_path_buf()))?;
+    if parent != worktrees.as_path() {
+        return Err(MutationLockError::InvalidGitMetadata(git_dir.to_path_buf()));
+    }
+    let expected = canonicalise(&worktrees.join(name))?;
+    if expected != git_dir {
+        return Err(MutationLockError::InvalidGitMetadata(git_dir.to_path_buf()));
+    }
+    validate_worktree_backlink(dot_git, &expected)
 }
 
 fn canonicalise(path: &Path) -> Result<PathBuf, MutationLockError> {

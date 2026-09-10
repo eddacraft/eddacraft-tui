@@ -44,6 +44,33 @@ fn planted_gitfile_cannot_redirect_lock_outside_the_repository() {
 }
 
 #[test]
+fn planted_gitfile_commondir_cannot_redirect_lock_outside_worktree_layout() {
+    let repo = tempfile::tempdir().expect("repo");
+    let fake_git_dir = tempfile::tempdir().expect("fake git dir");
+    let victim_common = tempfile::tempdir().expect("victim common");
+    fs::write(
+        fake_git_dir.path().join("gitdir"),
+        format!("{}\n", repo.path().join(".git").display()),
+    )
+    .expect("backlink");
+    fs::write(
+        fake_git_dir.path().join("commondir"),
+        format!("{}\n", victim_common.path().display()),
+    )
+    .expect("commondir");
+    fs::write(
+        repo.path().join(".git"),
+        format!("gitdir: {}\n", fake_git_dir.path().display()),
+    )
+    .expect("gitfile");
+
+    let error = anvil_config::mutation_lock_path(repo.path()).expect_err("synthetic worktree");
+
+    assert!(error.to_string().contains("invalid Git metadata"));
+    assert!(!victim_common.path().join("anvil").exists());
+}
+
+#[test]
 fn non_git_existing_file_mutation_has_no_lock_authority() {
     let repo = tempfile::tempdir().expect("repo");
 
