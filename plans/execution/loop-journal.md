@@ -1143,3 +1143,18 @@ never with feature work.
 - Next: exclusive APS reconcile of JSIMP-003 → Merged (this branch),
   then `/dev-loop complete` JSIMP-004…006 in order.
 
+## Cycle — 2026-09-10 (JSIMP-004 integrated)
+
+- Target: JSIMP-004. Harness: Grok (`GROK_AGENT=1`) in brew tmux
+  `gb-anvil:jsimp-drain`. Mode: autonomous complete plus rebase-merge
+  on green (no admin merge).
+- Feature PR #4604 (`feat/jsimp-004-remembered-intent`) rebase-merged;
+  tip on `origin/main`.
+- Claim #4601 closed by #4604. Daily integration intent is remembered;
+  healthy bare restore; omitted/disabled stay distinct from failed
+  repair. Unsigned doctor --fix is not an on-switch.
+- Prior session hung mid verify-loop after land; 004 is not re-verified.
+- Avoided: splash/always-on/dashboard; JOURNEY-016 (deps incomplete).
+- Next: exclusive APS reconcile of JSIMP-004 → Merged (this branch),
+  then `/dev-loop complete` JSIMP-005…006 in order.
+

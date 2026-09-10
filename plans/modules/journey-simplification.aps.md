@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JSIMP | Josh | high | Ready | 3/6 |
+| JSIMP | Josh | high | Ready | 4/6 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -66,13 +66,13 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-004: Remember integration intent and keep daily recovery quiet
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-10 via PR #4604
 - **Priority:** P1
 - **Intent:** Daily use respects selected coverage while reconfiguration remains deliberate.
 - **Expected Outcome:** Client, scope, executable and optional protection choices have one durable owner. Healthy bare ensure restores chosen coverage without pickers or needless rewrites; intentional omission/disablement stays distinct from failed installation. Start can deliberately reconsider choices. Ordinary recovery uses shared reliability operations and escalates to doctor only for unresolved faults. If JSIMP-001 accepts operator ensure/restart verbs, `doctor --fix` may invoke those shared operations for unresolved daemon-down faults; it is not the daily on-switch.
 - **Dependencies:** JSIMP-001, JSIMP-003
 - **Coordinates with:** JREL-009 protects current explicit launch overrides; this item provides unified selection/resume and does not reimplement its repair logic. JREL-005 names the public recovery command until this contract lands.
-- **Files:** `crates/anvil-cli/src/activation/`, `crates/anvil-cli/src/commands/ensure.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/doctor.rs`
+- **Files:** `crates/anvil-cli/src/activation/`, `crates/anvil-cli/src/activation/intent.rs`, `crates/anvil-cli/src/commands/ensure.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/doctor.rs`, `crates/anvil-cli/tests/save_time_driver_recovery.rs`, `crates/anvil-cli/tests/start.rs`, `crates/anvil-cli/tests/status_json_contract.rs`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; activate, decline/disable, repeat bare, add a client and reconfigure; assert selected intent, safe repair, no unexpected writes and one next action.
 - **Confidence:** medium — contract details are gated by JSIMP-001 and user observation.
 
