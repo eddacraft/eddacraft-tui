@@ -183,14 +183,19 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
   Deferred to JREL-005: surfacing the same-scope conflict through `intercept
   status` typed output, and headless recovery copy that names bare `anvil`
   rather than `anvil intercept start --foreground`. Deferred to JSIMP-001:
-  public `anvil intercept ensure` / `restart` verbs.
+  public `anvil intercept ensure` / `restart` verbs. Residual #4589
+  (2026-09-10): `crates/anvil-cli/tests/daemon_identity.rs` now proves
+  version-skew recycle through the built binary — a same-length patched
+  previous-install stand-in is recycled onto one CLI-version replacement,
+  and concurrent ensures do not signal that replacement. Injected-hook
+  recycle branches remain in `daemon_recycle` unit tests.
 - **Priority:** P1
 - **Intent:** Shell and editor environments converge on the same intended daemon instance.
 - **Expected Outcome:** Discovery, startup, registration, status and recycle agree on one verified instance across runtime/state-home endpoints. Concurrent cold starts or updates cannot produce duplicate daemons or stop a newly started replacement using stale identity. Expected replacement version and readiness are checked; isolated ANVIL_HOME installations remain distinct. Headless recovery names the existing ensure primitive and bare `anvil`, not `anvil intercept start --foreground`. Public `anvil intercept ensure` / `restart` verbs are out of scope for this item; they are a JSIMP-001 contract option after JOURNEY-015.
 - **Dependencies:** none
 - **Coordinates with:** DLIFE lifecycle, MCPLH-004 recycle, CIB-382 and merged sibling-discovery/repair fixes; CIB-405 separately owns caller migration to connection reuse. JSIMP-001 owns any later public ensure/restart verbs.
-- **Files:** `crates/anvil-intercept/src/ensure.rs`, `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/commands/daemon_recycle.rs`, `crates/anvil-cli/src/commands/intercept.rs`
-- **Validation:** `cargo test -p eddacraft-anvil-intercept --no-fail-fast`; `cargo test -p eddacraft-anvil --no-fail-fast`; run set/unset XDG environments in both orders, concurrent starts/recycles, stale canonical plus live sibling, and intentional isolated homes.
+- **Files:** `crates/anvil-intercept/src/ensure.rs`, `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/commands/daemon_recycle.rs`, `crates/anvil-cli/src/commands/intercept.rs`, `crates/anvil-cli/tests/daemon_identity.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --no-fail-fast`; `cargo test -p eddacraft-anvil --no-fail-fast`; `cargo test -p eddacraft-anvil --test daemon_identity --no-fail-fast`; run set/unset XDG environments in both orders, concurrent starts/recycles, stale canonical plus live sibling, and intentional isolated homes.
 - **Confidence:** medium — source-reviewed; reproduce through public boundaries before fixing.
 
 ### JREL-005: Typed readiness, failures and recovery outcomes

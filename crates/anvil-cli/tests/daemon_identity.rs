@@ -22,6 +22,14 @@
 //! a runtime dir set, so `/run/user/<uid>` is not a candidate. That is the
 //! #4432 / option B acceptance case.
 //!
+//! Recycle is proven through the same public binary. A same-length patch of
+//! `CARGO_PKG_VERSION` in a copy of `anvil` stands in for a previous install:
+//! ensure from the current binary must recycle that process onto one
+//! replacement at the CLI version, and concurrent ensures must not signal the
+//! replacement. Injected-hook recycle branches stay in `daemon_recycle` unit
+//! tests; they cannot be driven through the packaged binary. These fixtures
+//! set `XDG_RUNTIME_DIR`, so they never probe `/run/user/<uid>`.
+//!
 //! The "runtime dir set, then unset" order cannot be reproduced through the
 //! binary: a shell without `XDG_RUNTIME_DIR` only probes the fixed
 //! `/run/user/<uid>` sibling, which a hermetic test cannot re-root. That order
@@ -49,7 +57,11 @@ struct Shell {
 
 impl Shell {
     fn command(&self) -> Command {
-        let mut cmd = Command::new(ANVIL_BIN);
+        self.command_with_bin(Path::new(ANVIL_BIN))
+    }
+
+    fn command_with_bin(&self, bin: &Path) -> Command {
+        let mut cmd = Command::new(bin);
         cmd.env("HOME", &self.home)
             .env("USERPROFILE", &self.home)
             .env("ANVIL_DEV", "1")
@@ -153,8 +165,12 @@ fn seed_project(root: &Path) -> PathBuf {
 }
 
 fn spawn_daemon(shell: &Shell, project: &Path) -> DaemonChild {
+    spawn_daemon_bin(shell, project, Path::new(ANVIL_BIN))
+}
+
+fn spawn_daemon_bin(shell: &Shell, project: &Path, bin: &Path) -> DaemonChild {
     let child = shell
-        .command()
+        .command_with_bin(bin)
         .args(["intercept", "start", "--foreground"])
         .current_dir(project)
         .stdin(Stdio::null())
@@ -163,6 +179,28 @@ fn spawn_daemon(shell: &Shell, project: &Path) -> DaemonChild {
         .spawn()
         .expect("spawn intercept daemon");
     DaemonChild(child)
+}
+
+/// Launch a previous-install daemon the way a short-lived CLI does: the
+/// helper exits so init reaps the process. Recycle waits on `/proc/<pid>`
+/// vanishing; a test-parented `--foreground` child becomes a zombie and
+/// fails that wait even after SIGTERM.
+fn spawn_orphaned_daemon_bin(shell: &Shell, project: &Path, bin: &Path) {
+    let status = shell
+        .command_with_bin(Path::new("/bin/sh"))
+        .args([
+            "-c",
+            r#"exec "$1" intercept start --foreground < /dev/null >/dev/null 2>&1 &"#,
+            "anvil-previous",
+        ])
+        .arg(bin)
+        .current_dir(project)
+        .status()
+        .expect("orphan previous-install daemon");
+    assert!(
+        status.success(),
+        "failed to orphan previous-install daemon: {status}"
+    );
 }
 
 fn wait_for_status(shell: &Shell) -> serde_json::Value {
@@ -591,5 +629,234 @@ fn concurrent_ensures_from_disjoint_runtime_dirs_start_exactly_one_daemon() {
     assert!(
         other_shell_stdout.contains(&format!("pid {pid}")),
         "shell B status must name the shared daemon:\n{other_shell_stdout}"
+    );
+}
+
+fn health_version(status: &serde_json::Value) -> &str {
+    status["health"]["version"].as_str().unwrap_or_else(|| {
+        panic!("status JSON missing health.version: {status}");
+    })
+}
+
+fn wait_until_pid_dead(pid: u32) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while anvil_intercept_pid_alive(pid) {
+        assert!(
+            Instant::now() < deadline,
+            "pid {pid} did not exit after recycle"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Same-length stand-in for a previous install: the ELF string must not move.
+fn same_length_skew_version(current: &str) -> String {
+    assert!(
+        current.is_ascii() && !current.is_empty(),
+        "CARGO_PKG_VERSION must be a non-empty ASCII string so a previous-install stand-in can be patched in place"
+    );
+    let mut skewed: String = current
+        .bytes()
+        .map(|byte| if byte.is_ascii_digit() { b'0' } else { byte })
+        .map(char::from)
+        .collect();
+    if skewed == current {
+        let mut bytes = current.as_bytes().to_vec();
+        bytes[0] = if bytes[0] == b'x' { b'y' } else { b'x' };
+        skewed = String::from_utf8(bytes).expect("ASCII version");
+    }
+    assert_eq!(skewed.len(), current.len());
+    assert_ne!(skewed.as_str(), current);
+    skewed
+}
+
+fn write_version_skewed_binary(dest: &Path) -> String {
+    let current = env!("CARGO_PKG_VERSION");
+    let skewed = same_length_skew_version(current);
+    let mut bytes = fs::read(ANVIL_BIN).expect("read current anvil binary");
+    let from = current.as_bytes();
+    let to = skewed.as_bytes();
+    let mut replacements = 0usize;
+    let mut index = 0;
+    while index + from.len() <= bytes.len() {
+        if bytes[index..index + from.len()] == *from {
+            bytes[index..index + from.len()].copy_from_slice(to);
+            replacements += 1;
+            index += from.len();
+        } else {
+            index += 1;
+        }
+    }
+    assert!(
+        replacements > 0,
+        "the built anvil binary does not contain CARGO_PKG_VERSION {current:?} as a contiguous byte string, so a previous-install stand-in cannot be produced hermetically"
+    );
+    fs::write(dest, bytes).expect("write skewed anvil binary");
+    let mut permissions = fs::metadata(dest)
+        .expect("skewed binary metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(dest, permissions).expect("chmod skewed anvil binary");
+    skewed
+}
+
+/// JREL-004 / #4589: a live previous-version daemon is recycled through the
+/// public ensure surface onto one current-version replacement.
+#[test]
+fn version_skew_ensure_recycles_onto_one_current_daemon() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let home = root.path().join("home");
+    let runtime = root.path().join("runtime");
+    owner_only_dir(&home);
+    owner_only_dir(&runtime);
+    let project = seed_project(root.path());
+    let xdg = Shell {
+        home: home.clone(),
+        runtime_dir: Some(runtime.clone()),
+        anvil_home: None,
+    };
+    let _cleanup = StopOnDrop(vec![xdg.clone()]);
+
+    let skewed_bin = root.path().join("anvil-previous");
+    let skewed_version = write_version_skewed_binary(&skewed_bin);
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    spawn_orphaned_daemon_bin(&xdg, &project, &skewed_bin);
+    let before = wait_for_status(&xdg);
+    assert_eq!(health_version(&before), skewed_version);
+    let original_pid = pid_file_pid(&xdg.canonical_dir()).expect("skewed daemon PID file");
+    assert!(
+        anvil_intercept_pid_alive(original_pid),
+        "skewed daemon {original_pid} must be alive before recycle"
+    );
+
+    let ensure = xdg.ensure(&project);
+    assert!(
+        ensure.status.success(),
+        "ensure must recycle the skewed daemon: stdout={}\nstderr={}",
+        stdout_of(&ensure),
+        stderr_of(&ensure)
+    );
+    let stdout = stdout_of(&ensure);
+    assert!(
+        stdout.contains(&format!(
+            "daemon: recycled ({skewed_version} → {current_version})"
+        )),
+        "ensure must report the recycle through the public binary:\n{stdout}"
+    );
+
+    wait_until_pid_dead(original_pid);
+    let after = wait_for_status(&xdg);
+    assert_eq!(health_version(&after), current_version);
+    let replacement_pid = pid_file_pid(&xdg.canonical_dir()).expect("replacement PID file");
+    assert_ne!(
+        replacement_pid, original_pid,
+        "recycle must replace the skewed process"
+    );
+    assert!(
+        anvil_intercept_pid_alive(replacement_pid),
+        "replacement {replacement_pid} must be alive"
+    );
+    assert!(
+        !home.join(".local/state/anvil/intercept.pid").exists(),
+        "recycle must not leave a second daemon at the sibling endpoint"
+    );
+    let status_text = stdout_of(&xdg.status_human());
+    assert!(
+        status_text.contains(&format!("pid {replacement_pid}"))
+            && status_text.contains(&format!("version {current_version}")),
+        "status must name the replacement PID and CLI version:\n{status_text}"
+    );
+}
+
+/// JREL-004 / #4589: concurrent ensures against a skewed daemon must not
+/// signal the replacement they, or a racing caller, just started.
+#[test]
+fn concurrent_version_skew_ensures_do_not_signal_the_replacement() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let home = root.path().join("home");
+    let runtime = root.path().join("runtime");
+    owner_only_dir(&home);
+    owner_only_dir(&runtime);
+    let project = seed_project(root.path());
+    let xdg = Shell {
+        home: home.clone(),
+        runtime_dir: Some(runtime.clone()),
+        anvil_home: None,
+    };
+    let _cleanup = StopOnDrop(vec![xdg.clone()]);
+
+    let skewed_bin = root.path().join("anvil-previous");
+    let skewed_version = write_version_skewed_binary(&skewed_bin);
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    spawn_orphaned_daemon_bin(&xdg, &project, &skewed_bin);
+    let before = wait_for_status(&xdg);
+    assert_eq!(health_version(&before), skewed_version);
+    let original_pid = pid_file_pid(&xdg.canonical_dir()).expect("skewed daemon PID file");
+
+    let outputs: Vec<Output> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..2)
+            .map(|_| {
+                let shell = xdg.clone();
+                let project = project.clone();
+                scope.spawn(move || shell.ensure(&project))
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+
+    let mut recycled = 0;
+    let mut running = 0;
+    let mut started = 0;
+    for output in &outputs {
+        assert!(
+            output.status.success(),
+            "every concurrent ensure must succeed: stdout={}\nstderr={}",
+            stdout_of(output),
+            stderr_of(output)
+        );
+        let stdout = stdout_of(output);
+        if stdout.contains("daemon: recycled") {
+            recycled += 1;
+        } else if stdout.contains("daemon: running") {
+            running += 1;
+        } else if stdout.contains("daemon: started") {
+            started += 1;
+        } else {
+            panic!("unexpected daemon line:\n{stdout}");
+        }
+    }
+    assert!(
+        recycled >= 1,
+        "at least one caller must take the recycle path; recycled={recycled} running={running} started={started}"
+    );
+    assert_eq!(recycled + running + started, 2);
+
+    wait_until_pid_dead(original_pid);
+    let after = wait_for_status(&xdg);
+    assert_eq!(health_version(&after), current_version);
+    let replacement_pid = pid_file_pid(&xdg.canonical_dir()).expect("replacement PID file");
+    assert_ne!(replacement_pid, original_pid);
+    assert!(
+        anvil_intercept_pid_alive(replacement_pid),
+        "replacement {replacement_pid} must be alive"
+    );
+    // Give a late stop a chance to land; the replacement must survive it.
+    std::thread::sleep(Duration::from_millis(500));
+    assert!(
+        anvil_intercept_pid_alive(replacement_pid),
+        "a concurrent recycle must not signal the replacement pid {replacement_pid}"
+    );
+    let still = wait_for_status(&xdg);
+    assert_eq!(health_version(&still), current_version);
+    assert_eq!(
+        pid_file_pid(&xdg.canonical_dir()),
+        Some(replacement_pid),
+        "endpoint identity must stay on the surviving replacement"
+    );
+    assert!(
+        !home.join(".local/state/anvil/intercept.pid").exists(),
+        "no second daemon may appear at the sibling endpoint"
     );
 }
