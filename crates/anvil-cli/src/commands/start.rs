@@ -2589,6 +2589,11 @@ fn install_first_wave_mcp_clients_at(
     }
     let explicit = !args.mcp_client.is_empty();
     let force_all = force_all_mcp_clients(args);
+    // ADR-145 / JSIMP-002: unattended first-wave must not newly install
+    // detected clients unless the invocation named them.
+    if !explicit && !force_all && unattended_activation_session() {
+        return Ok(Vec::new());
+    }
     let env = RealDetectionEnv;
     let clients = if explicit {
         args.mcp_client.clone()
@@ -2681,6 +2686,16 @@ fn force_all_mcp_clients(args: &StartArgs) -> bool {
 fn start_is_interactive() -> bool {
     use std::io::IsTerminal as _;
     !crate::is_non_interactive_env() && std::io::stdout().is_terminal()
+}
+
+/// ADR-145 unattended predicate: stdin or stderr is not a TTY, or a
+/// known non-interactive env (`CI`, `ANVIL_NO_PROMPT`, …). `--no-tui` is
+/// not unattended. Stdout redirect alone is presentation.
+fn unattended_activation_session() -> bool {
+    use std::io::IsTerminal as _;
+    crate::is_non_interactive_env()
+        || !std::io::stdin().is_terminal()
+        || !std::io::stderr().is_terminal()
 }
 
 /// Render the one-line daemon lifecycle outcome for `anvil start`.

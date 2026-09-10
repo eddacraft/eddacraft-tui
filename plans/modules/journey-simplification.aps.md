@@ -42,7 +42,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-002: Separate actions and consent from output mode
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Priority:** P1
 - **Intent:** Changing presentation cannot silently change intended activation operations.
 - **Expected Outcome:** The accepted JSIMP-001 contract governs TUI/plain/JSON consistently. Verification is explicit and non-mutating; unattended installs require explicit accepted intent; piping does not unexpectedly select new integration choices. Existing start --json semantics migrate explicitly with tested compatibility rather than changing silently.

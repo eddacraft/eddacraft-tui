@@ -1270,6 +1270,7 @@ pub(crate) fn run_with_mcp_policy_and_mode(
         global,
         mcp_install_policy,
         &enabled,
+        force_all_mcp_clients || !explicit_clients.is_empty(),
         render_mode,
         rotate_identity,
         None,
@@ -1296,6 +1297,7 @@ pub(crate) fn run_with_mcp_policy_and_mode_observing<'a>(
         global,
         mcp_install_policy,
         &enabled,
+        force_all_mcp_clients || !explicit_clients.is_empty(),
         render_mode,
         rotate_identity,
         Some(observer),
@@ -1309,6 +1311,7 @@ fn run_with_home_and_policy<'a>(
     global: &GlobalArgs,
     mcp_install_policy: McpInstallPolicy,
     enabled: &BTreeSet<McpClientId>,
+    allow_new_mcp: bool,
     render_mode: StartRenderMode,
     rotate_identity: bool,
     observer: Option<&'a mut ActivationEventObserver<'a>>,
@@ -1322,6 +1325,7 @@ fn run_with_home_and_policy<'a>(
         registration::register_worktree_with_daemon,
         mcp_install_policy,
         enabled,
+        allow_new_mcp,
         render_mode,
         rotate_identity,
         observer,
@@ -1397,6 +1401,7 @@ where
         register_worktree,
         mcp_install_policy,
         enabled,
+        false,
         StartRenderMode::Plain,
         false,
         None,
@@ -1412,6 +1417,7 @@ fn run_with_home_and_registration_outcome<'a, R>(
     register_worktree: impl FnOnce(&Path) -> R,
     mcp_install_policy: McpInstallPolicy,
     enabled: &BTreeSet<McpClientId>,
+    allow_new_mcp: bool,
     render_mode: StartRenderMode,
     rotate_identity: bool,
     observer: Option<&'a mut ActivationEventObserver<'a>>,
@@ -1863,8 +1869,16 @@ where
                 )
             } else {
                 activation_run.start(ActivationStep::McpConsent);
-                let report =
-                    install::install_for_clients(root, home, &fresh, demand_interactive, enabled);
+                let consent = if demand_interactive {
+                    install::InstallConsentMode::DemandPicker
+                } else if allow_new_mcp {
+                    install::InstallConsentMode::AutoInstall
+                } else {
+                    install::InstallConsentMode::AutoRepair
+                };
+                let report = install::install_for_clients_with_consent_mode(
+                    root, home, &fresh, consent, enabled,
+                );
                 activation_run.complete(ActivationStep::McpConsent);
                 report
             }
@@ -2291,29 +2305,15 @@ fn refuse_workflow_parent_symlinks(root: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Decide whether to surface the interactive picker. We require:
-/// - not `--json` (defensive: in practice `commands/start.rs` short-
-///   circuits to read-only verify on `--json` so the orchestrator
-///   never runs in that mode, but the gate stays here so any future
-///   caller of `run_with_home` under `--json` cannot accidentally
-///   prompt)
-/// - not `--no-tui` (explicit user opt-out)
-/// - stdin is a TTY (`demand` reads keystrokes from stdin)
-/// - stderr is a TTY (`demand` renders the prompt to stderr; piping
-///   stderr to a file would render the prompt invisibly while still
-///   consuming keystrokes)
-/// - not running under a known non-interactive shell context
-///   (`CI=true`, `GIT_DIR` set, `ANVIL_NO_PROMPT`, etc. — see
-///   [`crate::is_non_interactive_env`])
+/// Decide whether consent is interactive (ADR-145 / JSIMP-002).
 ///
-/// Council remediation: previously checked `stdout.is_terminal()`, which
-/// misclassified `anvil start | tee log.txt` (auto-installs silently)
-/// and `echo "" | anvil start` (picker hangs on closed stdin). The new
-/// check matches the convention in `commands/tutorial.rs:41` and the
-/// auth-prompt gate in `main.rs:413`.
+/// Presentation (`--no-tui`) is **not** part of this gate: a real TTY with
+/// `--no-tui` is interactive **plain** consent, not unattended auto-install.
+/// Unattended is: `--json`, stdin or stderr not a TTY, or
+/// [`crate::is_non_interactive_env`] (`CI`, `ANVIL_NO_PROMPT`, …). Stdout
+/// redirect alone is presentation (`anvil start | tee`).
 fn is_interactive(global: &GlobalArgs) -> bool {
     !global.json
-        && !global.no_tui
         && std::io::stdin().is_terminal()
         && std::io::stderr().is_terminal()
         && !crate::is_non_interactive_env()
@@ -2327,8 +2327,8 @@ mod tests {
     use tempfile::TempDir;
 
     fn default_global() -> GlobalArgs {
-        // `--no-tui` forces the non-interactive auto-install branch
-        // so unit tests don't try to summon a picker.
+        // `--no-tui` is presentation-only (ADR-145). Unit tests still
+        // take the unattended path because they have no TTY.
         GlobalArgs {
             no_tui: true,
             ..Default::default()
@@ -2463,6 +2463,7 @@ verdict: completed"
             |_| WorktreeRegistration::DaemonUnavailable,
             McpInstallPolicy::Install,
             &crate::activation::mcp_client::all_client_ids(),
+            false,
             StartRenderMode::Tui,
             false,
             None,
@@ -3067,6 +3068,7 @@ verdict: completed"
             |_| WorktreeRegistration::DaemonUnavailable,
             McpInstallPolicy::Skip,
             &BTreeSet::new(),
+            false,
             StartRenderMode::Tui,
             true,
             None,
@@ -3109,6 +3111,7 @@ verdict: completed"
             |_| WorktreeRegistration::DaemonUnavailable,
             McpInstallPolicy::Install,
             &BTreeSet::new(),
+            false,
             StartRenderMode::Tui,
             false,
             None,
@@ -3270,6 +3273,27 @@ verdict: completed"
         global: &GlobalArgs,
     ) -> (ActivationDiagnostic, InstallReport) {
         run_with_home_for_test(root, Some(home), global).expect("orchestrator should succeed")
+    }
+
+    fn run_in_isolated_with_new_mcp(
+        root: &Path,
+        home: &Path,
+        global: &GlobalArgs,
+    ) -> (ActivationDiagnostic, InstallReport) {
+        run_with_home_and_registration_outcome(
+            root,
+            Some(home),
+            global,
+            |_| WorktreeRegistration::DaemonUnavailable,
+            McpInstallPolicy::Install,
+            &crate::activation::mcp_client::all_client_ids(),
+            true,
+            StartRenderMode::Plain,
+            false,
+            None,
+        )
+        .map(ActivationOutcome::into_legacy_parts)
+        .expect("orchestrator should succeed with explicit MCP intent")
     }
 
     fn run_with_home_for_test(
@@ -3633,6 +3657,7 @@ verdict: completed"
             },
             McpInstallPolicy::Skip,
             &BTreeSet::new(),
+            false,
             StartRenderMode::Plain,
             false,
             None,
@@ -3729,30 +3754,61 @@ verdict: completed"
     }
 
     #[test]
-    fn orchestrator_auto_installs_in_no_tui_mode() {
+    fn orchestrator_does_not_auto_install_not_present_without_explicit_intent() {
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         let global = default_global();
 
         let (_diag, report) = run_in_isolated(dir.path(), home.path(), &global);
 
-        // Both clients should have been auto-installed at home scope.
+        // ADR-145 / JSIMP-002: unattended NotPresent is not consent.
+        assert!(
+            !matches!(
+                report.per_client.get(&McpClientId::Cursor),
+                Some(InstallOutcome::Installed { .. })
+            ),
+            "Cursor must not auto-install without --mcp-client / --all-mcp-clients"
+        );
+        assert!(
+            !matches!(
+                report.per_client.get(&McpClientId::ClaudeCode),
+                Some(InstallOutcome::Installed { .. })
+            ),
+            "Claude Code must not auto-install without --mcp-client / --all-mcp-clients"
+        );
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+        assert!(!home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn orchestrator_auto_installs_not_present_with_explicit_intent() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        let (_diag, report) = run_with_home_and_registration_outcome(
+            dir.path(),
+            Some(home.path()),
+            &global,
+            |_| WorktreeRegistration::DaemonUnavailable,
+            McpInstallPolicy::Install,
+            &crate::activation::mcp_client::all_client_ids(),
+            true,
+            StartRenderMode::Plain,
+            false,
+            None,
+        )
+        .map(ActivationOutcome::into_legacy_parts)
+        .expect("explicit-intent install should succeed");
+
         assert!(
             matches!(
                 report.per_client.get(&McpClientId::Cursor),
                 Some(InstallOutcome::Installed { .. })
             ),
-            "Cursor must auto-install in --no-tui mode"
-        );
-        assert!(
-            matches!(
-                report.per_client.get(&McpClientId::ClaudeCode),
-                Some(InstallOutcome::Installed { .. })
-            ),
-            "Claude Code must auto-install in --no-tui mode"
+            "Cursor must install when allow_new_mcp is set"
         );
         assert!(home.path().join(".cursor/mcp.json").exists());
-        assert!(home.path().join(".claude.json").exists());
         let cursor_raw = std::fs::read_to_string(home.path().join(".cursor/mcp.json")).unwrap();
         let cursor: serde_json::Value = serde_json::from_str(&cursor_raw).unwrap();
         assert_eq!(
@@ -3805,7 +3861,7 @@ verdict: completed"
         let home = TempDir::new().unwrap();
         let global = default_global();
 
-        let (diag, _report) = run_in_isolated(dir.path(), home.path(), &global);
+        let (diag, _report) = run_in_isolated_with_new_mcp(dir.path(), home.path(), &global);
         let cursor_tier = diag.mcp.get(&McpClientId::Cursor).map(|r| r.tier);
         let claude_tier = diag.mcp.get(&McpClientId::ClaudeCode).map(|r| r.tier);
 
@@ -3841,7 +3897,7 @@ verdict: completed"
         let home = TempDir::new().unwrap();
         let global = default_global();
 
-        let (diag, _report) = run_in_isolated(dir.path(), home.path(), &global);
+        let (diag, _report) = run_in_isolated_with_new_mcp(dir.path(), home.path(), &global);
         let state = diag.protection_state();
         assert!(
             matches!(

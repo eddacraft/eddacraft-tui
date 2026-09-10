@@ -1,7 +1,9 @@
 //! MCP install step for activation (LAUNCH-009).
 //!
 //! Interactive: `MultiSelect` of detected clients (unticked by default).
-//! Non-interactive / CI: auto-install `NotPresent` and `SafeDrift` only.
+//! Unattended / CI: repair owned `SafeDrift` only unless the caller named
+//! explicit MCP intent (`--mcp-client` / `--all-mcp-clients`). `NotPresent`
+//! is not consent (ADR-145 / JSIMP-002).
 //! Explicit overrides and `UnsafeDrift` are never overwritten. Fresh writes limited to enabled/detected
 //! editors (ACTMO-012). Atomic writes via `util::atomic_write`.
 
@@ -76,8 +78,12 @@ pub struct InstallReport {
 pub(crate) enum InstallConsentMode {
     /// Use the existing `demand` picker.
     DemandPicker,
-    /// Headless/plain non-interactive path: install safe defaults.
+    /// Headless/plain path with explicit MCP intent: install `NotPresent`
+    /// and repair `SafeDrift` for enabled clients.
     AutoInstall,
+    /// Headless/plain path without explicit MCP intent (ADR-145): repair
+    /// owned `SafeDrift` only. Do not newly install `NotPresent`.
+    AutoRepair,
     /// ACTTUI-002 seam: the activation TUI owns consent, so this layer must not
     /// invoke `demand` and must not silently auto-install while the replacement
     /// widget is still pending (ACTTUI-004).
@@ -146,6 +152,7 @@ pub(crate) struct Candidate {
 /// infallible at the top level today; the signature stays available
 /// for the future spawn-probe step (LAUNCH-009.5) which can fail
 /// before the report is built.
+#[cfg(test)]
 pub fn install_for_clients(
     workspace: &Path,
     home: Option<&Path>,
@@ -156,6 +163,9 @@ pub fn install_for_clients(
     let consent_mode = if interactive {
         InstallConsentMode::DemandPicker
     } else {
+        // Explicit-intent / power-user helper: AutoInstall still writes
+        // NotPresent. The orchestrator uses AutoRepair for unattended
+        // invocations that did not name `--mcp-client` / `--all-mcp-clients`.
         InstallConsentMode::AutoInstall
     };
     install_for_clients_with_consent_mode(workspace, home, fresh, consent_mode, enabled)
@@ -363,6 +373,11 @@ fn resolve_chosen_ids(
                     DriftClass::NotPresent | DriftClass::SafeDrift { .. }
                 )
             })
+            .map(|candidate| candidate.id)
+            .collect(),
+        InstallSelection::Mode(InstallConsentMode::AutoRepair) => picker_inputs
+            .iter()
+            .filter(|candidate| matches!(candidate.drift, DriftClass::SafeDrift { .. }))
             .map(|candidate| candidate.id)
             .collect(),
         InstallSelection::Mode(InstallConsentMode::DeferToTui) => Vec::new(),
@@ -1259,6 +1274,33 @@ mod tests {
         let raw = fs::read_to_string(home.path().join(".cursor/mcp.json")).unwrap();
         let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
         assert_eq!(v["mcpServers"]["anvil"]["command"], "anvil");
+    }
+
+    #[test]
+    fn auto_repair_does_not_install_not_present() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let report = install_for_clients_with_consent_mode(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            InstallConsentMode::AutoRepair,
+            &all_enabled(),
+        );
+        assert!(
+            !home.path().join(".cursor/mcp.json").exists(),
+            "AutoRepair must not write NotPresent Cursor config"
+        );
+        assert!(
+            !home.path().join(".claude.json").exists(),
+            "AutoRepair must not write NotPresent Claude config"
+        );
+        assert!(
+            report
+                .per_client
+                .values()
+                .all(|outcome| { !matches!(outcome, InstallOutcome::Installed { .. }) })
+        );
     }
 
     #[test]

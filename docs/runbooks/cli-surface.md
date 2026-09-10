@@ -681,7 +681,10 @@ repository. **When to use:** First-time setup, adding MCP after a prior decline,
 or repairing activation after a config change. Direct `anvil start` does not
 require `anvil welcome` or the tutorial. Writes `.anvil.yaml` (or the `--format`
 choice) if no project config exists and can install MCP / workflow consent
-items. `--verify` and `--json` are read-only. For a quiet daily on-switch
+items. `--verify` and `--json` are read-only. `--no-tui` on a real
+terminal is plain interactive consent, not unattended auto-install.
+Piped, CI, and `ANVIL_NO_PROMPT` sessions do not newly install MCP unless
+`--mcp-client` or `--all-mcp-clients` is set. For a quiet daily on-switch
 without reinstall, use bare `anvil` instead.
 
 **Synopsis:**

@@ -197,6 +197,9 @@ enum PtyInteraction {
     Quit,
     EmptyApplyThenQuit,
     SelectFirstApplyThenQuit,
+    /// Interactive plain (`--no-tui` on a TTY): Enter skips unticked demand
+    /// pickers (ADR-145). Does not wait for the TUI alternate screen.
+    ConfirmPlainSkip,
 }
 
 #[cfg(unix)]
@@ -297,11 +300,24 @@ fn run_start_in_pty(
             Err(error) => panic!("read PTY output: {error}"),
         }
         let screen_enters = occurrence_count(&bytes, b"\x1b[?1049h");
+        if interaction_stage == 0
+            && matches!(interaction, PtyInteraction::ConfirmPlainSkip)
+            && bytes
+                .windows(b"press Enter to skip".len())
+                .any(|window| window == b"press Enter to skip")
+        {
+            master
+                .write_all(b"\r")
+                .expect("skip plain demand picker with Enter");
+            master.flush().unwrap();
+            interaction_stage = 1;
+        }
         if interaction_stage == 0 && screen_enters >= 1 {
             let keys = match interaction {
                 PtyInteraction::Quit => b"q".as_slice(),
                 PtyInteraction::EmptyApplyThenQuit => b"a".as_slice(),
                 PtyInteraction::SelectFirstApplyThenQuit => b" a".as_slice(),
+                PtyInteraction::ConfirmPlainSkip => b"\r".as_slice(),
             };
             master
                 .write_all(keys)
@@ -363,7 +379,7 @@ fn start_pty_no_tui_stays_on_the_plain_path() {
         dir.path(),
         home.path(),
         &["--no-tui", "--no-daemon", "--no-mcp"],
-        PtyInteraction::Quit,
+        PtyInteraction::ConfirmPlainSkip,
     );
 
     assert!(
