@@ -152,7 +152,8 @@ fn validate_gitfile_worktree_layout(
     let parent = git_dir
         .parent()
         .ok_or_else(|| MutationLockError::InvalidGitMetadata(git_dir.to_path_buf()))?;
-    if parent != worktrees.as_path() {
+    let parent = canonicalise(parent)?;
+    if parent != worktrees {
         return Err(MutationLockError::InvalidGitMetadata(git_dir.to_path_buf()));
     }
     let expected = canonicalise(&worktrees.join(name))?;
@@ -163,7 +164,7 @@ fn validate_gitfile_worktree_layout(
 }
 
 fn canonicalise(path: &Path) -> Result<PathBuf, MutationLockError> {
-    std::fs::canonicalize(path).map_err(|source| MutationLockError::Inspect {
+    dunce::canonicalize(path).map_err(|source| MutationLockError::Inspect {
         path: path.to_path_buf(),
         source,
     })

@@ -2058,7 +2058,7 @@ mod tests {
 
         assert_eq!(
             resolved,
-            selected.canonicalize().expect("canonical selected project")
+            crate::display_path::canonicalise(&selected).expect("canonical selected project")
         );
         assert_ne!(resolved, launch);
     }

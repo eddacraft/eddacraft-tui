@@ -168,8 +168,10 @@ pub fn render(path: &str, root: Option<&Path>) -> String {
 ///
 /// Checked on the string rather than via [`Path::is_absolute`] so a Windows
 /// path evaluated on a Unix host (tests, cross-platform fixtures) is still
-/// classified correctly.
-fn is_absolute_display(path: &str) -> bool {
+/// classified correctly. MCP status redaction uses the same rule so a Unix
+/// absolute path inside a Windows-hosted status string is still treated as
+/// path-bearing.
+pub fn is_absolute_display(path: &str) -> bool {
     if path.starts_with('/') || path.starts_with('\\') {
         return true;
     }
@@ -253,6 +255,21 @@ pub fn join_relative(base: &Path, relative: &str) -> PathBuf {
 /// one, and is identical to `std::fs::canonicalize` on Unix.
 pub fn canonicalise(path: &Path) -> std::io::Result<PathBuf> {
     dunce::canonicalize(path)
+}
+
+/// Strip `root` from `path` when `path` lies inside it.
+///
+/// Both sides are normalised (verbatim prefix, separators, Windows ASCII
+/// case) before comparison, so a dunce path and a `\\?\` canonical path of
+/// the same directory still strip. Returns `Some("")` when the two paths
+/// name the same location, and `None` when `path` is not inside `root`.
+#[must_use]
+pub fn relative_to(path: &Path, root: &Path) -> Option<String> {
+    let path_text = path.to_string_lossy();
+    let root_text = root.to_string_lossy();
+    let path = strip_verbatim_prefix(&path_text);
+    let root = strip_verbatim_prefix(&root_text);
+    strip_root(path.as_ref(), root.as_ref())
 }
 
 /// Format a location suffix, omitting the line when it is the whole-file
@@ -358,6 +375,23 @@ mod tests {
     fn strips_verbatim_root_against_ordinary_path() {
         let root = PathBuf::from(r"\\?\C:\project");
         assert_eq!(render(r"C:\project\src\app.py", Some(&root)), "src/app.py");
+    }
+
+    #[test]
+    fn relative_to_strips_verbatim_child_against_ordinary_root() {
+        let root = Path::new(r"C:\Users\dev\project");
+        let path = Path::new(r"\\?\C:\Users\dev\project\.anvil\architecture.yaml");
+        assert_eq!(
+            relative_to(path, root).as_deref(),
+            Some(".anvil/architecture.yaml")
+        );
+    }
+
+    #[test]
+    fn is_absolute_display_treats_unix_root_paths_as_absolute() {
+        assert!(is_absolute_display("/outside/private/anvil-mcp"));
+        assert!(is_absolute_display(r"C:\Users\operator\private"));
+        assert!(!is_absolute_display("daemon serving"));
     }
 
     #[test]

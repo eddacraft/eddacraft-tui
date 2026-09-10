@@ -1443,6 +1443,7 @@ dependencies = [
 name = "eddacraft-anvil-config"
 version = "0.9.7-beta"
 dependencies = [
+ "dunce",
  "libc",
  "semver",
  "serde",

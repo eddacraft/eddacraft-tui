@@ -149,12 +149,17 @@ fn workspace_root_path() -> Result<PathBuf, ReadError> {
 /// `redact_workspace_root` posture so an in-band error never leaks the operator's
 /// filesystem layout (council ADV-1/ADV-5/ADV-6).
 fn redact_root(root: &Path, message: &str) -> String {
-    let root_str = root.to_string_lossy();
-    if root_str.is_empty() {
-        message.to_string()
-    } else {
-        message.replace(root_str.as_ref(), ".")
+    let message = crate::display_path::strip_verbatim_prefix(message);
+    let root_raw = root.to_string_lossy();
+    let root_plain = crate::display_path::strip_verbatim_prefix(&root_raw);
+    let mut redacted = message.into_owned();
+    if !root_raw.is_empty() {
+        redacted = redacted.replace(root_raw.as_ref(), ".");
     }
+    if !root_plain.is_empty() && root_plain.as_ref() != root_raw.as_ref() {
+        redacted = redacted.replace(root_plain.as_ref(), ".");
+    }
+    redacted
 }
 
 fn read_baseline() -> Result<Value, ReadError> {
@@ -298,13 +303,13 @@ fn architecture_provenance(root: &std::path::Path) -> Value {
                 anvil_config::SectionProvenance::Delegated { path, .. },
             ),
         ))) => {
-            // Egress: never emit an absolute host path. When the
-            // canonical target does not strip against the workspace
-            // root, redact rather than fall back to the raw path.
-            let source = path.strip_prefix(root).map_or_else(
-                |_| redact_root(root, &path.to_string_lossy()),
-                |relative| relative.to_string_lossy().replace('\\', "/"),
-            );
+            // Egress: never emit an absolute host path. Strip with the
+            // display-path helper so a dunce root still matches a
+            // verbatim canonical target. Fall back to a redacted
+            // absolute rather than leaking `\\?\`.
+            let source = crate::display_path::relative_to(&path, root)
+                .filter(|relative| !relative.is_empty())
+                .unwrap_or_else(|| redact_root(root, &path.to_string_lossy()));
             json!({
                 "origin": "delegated",
                 "source": source,

@@ -204,15 +204,13 @@ fn nested_untrusted_git_root(workspace_root: &Path, server_root: &Path) -> bool 
 /// Linked worktrees that are not inside the server cwd redact to
 /// `worktree:<basename>` so the response stays identity-only (ADR-125).
 pub fn redact_workspace_root(workspace_root: &Path, server_root: &Path) -> String {
-    if let Ok(relative) = workspace_root.strip_prefix(server_root) {
-        if relative.as_os_str().is_empty() {
-            return ".".to_string();
-        }
-        return relative.to_string_lossy().replace('\\', "/");
-    }
-    match workspace_root.file_name() {
-        Some(name) => format!("worktree:{}", name.to_string_lossy()),
-        None => "worktree".to_string(),
+    match crate::display_path::relative_to(workspace_root, server_root) {
+        Some(relative) if relative.is_empty() => ".".to_string(),
+        Some(relative) => relative,
+        None => match workspace_root.file_name() {
+            Some(name) => format!("worktree:{}", name.to_string_lossy()),
+            None => "worktree".to_string(),
+        },
     }
 }
 

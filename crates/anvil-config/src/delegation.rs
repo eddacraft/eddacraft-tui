@@ -173,34 +173,29 @@ fn safe_source_path(
         });
     };
 
-    let canonical = workspace_root
-        .join(rel)
-        .canonicalize()
-        .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => DelegationError::MissingTarget {
-                section: section.to_string(),
-                path: rel.to_string(),
-            },
-            _ => DelegationError::Io {
-                section: section.to_string(),
-                path: rel.to_string(),
-                detail: e.to_string(),
-            },
-        })?;
-    let canonical_root = workspace_root
-        .canonicalize()
-        .map_err(|e| DelegationError::Io {
+    let canonical = dunce::canonicalize(workspace_root.join(rel)).map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => DelegationError::MissingTarget {
             section: section.to_string(),
             path: rel.to_string(),
-            detail: format!("canonicalising workspace root: {e}"),
-        })?;
+        },
+        _ => DelegationError::Io {
+            section: section.to_string(),
+            path: rel.to_string(),
+            detail: e.to_string(),
+        },
+    })?;
+    let canonical_root = dunce::canonicalize(workspace_root).map_err(|e| DelegationError::Io {
+        section: section.to_string(),
+        path: rel.to_string(),
+        detail: format!("canonicalising workspace root: {e}"),
+    })?;
     if !canonical.starts_with(&canonical_root) {
         return Err(DelegationError::EscapesWorkspace {
             section: section.to_string(),
             path: rel.to_string(),
         });
     }
-    if let Ok(main_canonical) = main_config_path.canonicalize()
+    if let Ok(main_canonical) = dunce::canonicalize(main_config_path)
         && canonical == main_canonical
     {
         return Err(DelegationError::SelfReference {
@@ -670,7 +665,7 @@ mod tests {
                 Err(_) | Ok(None) => {}
                 Ok(Some(resolved)) => {
                     if let SectionProvenance::Delegated { path, .. } = &resolved.provenance {
-                        let root = f.root().canonicalize().unwrap();
+                        let root = dunce::canonicalize(f.root()).unwrap();
                         assert!(
                             path.starts_with(&root),
                             "escaped workspace: {raw:?} -> {path:?}"

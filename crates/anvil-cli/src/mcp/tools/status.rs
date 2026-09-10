@@ -137,17 +137,7 @@ fn contains_absolute_path(detail: &str) -> bool {
                 '`' | '\'' | '"' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';'
             )
         });
-        Path::new(candidate).is_absolute()
-            || candidate.starts_with("\\\\")
-            || candidate.as_bytes().get(1) == Some(&b':')
-                && candidate
-                    .as_bytes()
-                    .get(2)
-                    .is_some_and(|separator| matches!(separator, b'/' | b'\\'))
-                && candidate
-                    .as_bytes()
-                    .first()
-                    .is_some_and(u8::is_ascii_alphabetic)
+        crate::display_path::is_absolute_display(candidate)
     })
 }
 
@@ -581,13 +571,11 @@ mod tests {
             .expect("payload is JSON");
         let server =
             crate::mcp::tools::shared::mcp_server_root().expect("test inside git worktree");
-        let expected = workspace
-            .canonicalize()
-            .expect("workspace canonicalizes")
-            .strip_prefix(&server)
-            .expect("workspace is under the admitted server worktree")
-            .to_string_lossy()
-            .replace('\\', "/");
+        let expected = crate::display_path::relative_to(
+            &crate::display_path::canonicalise(&workspace).expect("workspace canonicalizes"),
+            &server,
+        )
+        .expect("workspace is under the admitted server worktree");
         assert_eq!(payload["workspaceRoot"], expected);
     }
 

@@ -19,10 +19,12 @@ fn linked_worktrees_share_the_git_common_dir_lock() {
     .expect("gitfile");
 
     let path = anvil_config::mutation_lock_path(repo.path()).expect("lock path");
+    let expected = dunce::canonicalize(common.path())
+        .expect("canonical common dir")
+        .join("anvil/config-mutation.lock");
 
     assert_eq!(
-        path,
-        common.path().join("anvil/config-mutation.lock"),
+        path, expected,
         "linked worktrees must coordinate through the common Git directory"
     );
 }

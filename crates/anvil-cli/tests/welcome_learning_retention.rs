@@ -55,16 +55,35 @@ fn terminal_mode(file: &std::fs::File) -> nix::sys::termios::Termios {
     nix::sys::termios::tcgetattr(file).expect("read PTY terminal mode")
 }
 
+/// macOS sets `PENDIN` after a raw-mode round-trip ("retype pending input").
+/// That kernel status bit is not part of the product restore contract.
+#[cfg(unix)]
+fn assert_terminal_mode_restored(
+    after: &nix::sys::termios::Termios,
+    before: &nix::sys::termios::Termios,
+) {
+    let mut after = after.clone();
+    let mut before = before.clone();
+    after
+        .local_flags
+        .remove(nix::sys::termios::LocalFlags::PENDIN);
+    before
+        .local_flags
+        .remove(nix::sys::termios::LocalFlags::PENDIN);
+    assert_eq!(after.input_flags, before.input_flags, "input flags");
+    assert_eq!(after.output_flags, before.output_flags, "output flags");
+    assert_eq!(after.control_flags, before.control_flags, "control flags");
+    assert_eq!(after.local_flags, before.local_flags, "local flags");
+    assert_eq!(after.control_chars, before.control_chars, "control chars");
+}
+
 #[cfg(unix)]
 fn assert_terminal_restored(result: &PtyRun) {
     let enters = occurrence_count(result.transcript.as_bytes(), b"\x1b[?1049h");
     let leaves = occurrence_count(result.transcript.as_bytes(), b"\x1b[?1049l");
     assert!(enters > 0, "welcome never entered the alternate screen");
     assert_eq!(leaves, enters, "welcome left the alternate screen active");
-    assert_eq!(
-        result.terminal_mode_after, result.terminal_mode_before,
-        "welcome left the PTY terminal mode changed"
-    );
+    assert_terminal_mode_restored(&result.terminal_mode_after, &result.terminal_mode_before);
 }
 
 #[cfg(unix)]
@@ -76,10 +95,7 @@ fn assert_terminal_restored_after_panic(result: &PtyRun) {
         leaves >= enters,
         "panic recovery left the alternate screen active"
     );
-    assert_eq!(
-        result.terminal_mode_after, result.terminal_mode_before,
-        "panic recovery left the PTY terminal mode changed"
-    );
+    assert_terminal_mode_restored(&result.terminal_mode_after, &result.terminal_mode_before);
 }
 
 #[cfg(unix)]
@@ -152,6 +168,7 @@ fn run_welcome_script_with_options(
     let mut bytes = Vec::new();
     let mut buffer = [0_u8; 4096];
     let mut next_action = 0;
+    let mut search_from = 0;
     let deadline = Instant::now() + Duration::from_secs(30);
     let status = loop {
         match master.read(&mut buffer) {
@@ -164,10 +181,13 @@ fn run_welcome_script_with_options(
 
         if let Some((needle, input)) = actions.get(next_action)
             && occurrence_count(&bytes, b"\x1b[?1049h") >= 1
-            && bytes.windows(needle.len()).any(|window| window == *needle)
+            && bytes
+                .get(search_from..)
+                .is_some_and(|unseen| unseen.windows(needle.len()).any(|window| window == *needle))
         {
             master.write_all(input).expect("send scripted input");
             master.flush().expect("flush scripted input");
+            search_from = bytes.len();
             next_action += 1;
         }
 

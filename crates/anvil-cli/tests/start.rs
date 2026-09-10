@@ -224,6 +224,28 @@ fn terminal_mode(file: &std::fs::File) -> nix::sys::termios::Termios {
     nix::sys::termios::tcgetattr(file).expect("read PTY terminal mode")
 }
 
+/// macOS sets `PENDIN` after a raw-mode round-trip ("retype pending input").
+/// That kernel status bit is not part of the product restore contract.
+#[cfg(unix)]
+fn assert_terminal_mode_restored(
+    after: &nix::sys::termios::Termios,
+    before: &nix::sys::termios::Termios,
+) {
+    let mut after = after.clone();
+    let mut before = before.clone();
+    after
+        .local_flags
+        .remove(nix::sys::termios::LocalFlags::PENDIN);
+    before
+        .local_flags
+        .remove(nix::sys::termios::LocalFlags::PENDIN);
+    assert_eq!(after.input_flags, before.input_flags, "input flags");
+    assert_eq!(after.output_flags, before.output_flags, "output flags");
+    assert_eq!(after.control_flags, before.control_flags, "control flags");
+    assert_eq!(after.local_flags, before.local_flags, "local flags");
+    assert_eq!(after.control_chars, before.control_chars, "control chars");
+}
+
 #[cfg(unix)]
 fn occurrence_count(bytes: &[u8], needle: &[u8]) -> usize {
     bytes
@@ -432,7 +454,7 @@ fn start_pty_no_tui_stays_on_the_plain_path() {
         "--no-tui should print the plain activation dossier:\n{}",
         result.transcript,
     );
-    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
+    assert_terminal_mode_restored(&result.terminal_mode_after, &result.terminal_mode_before);
 }
 
 #[cfg(unix)]
@@ -480,7 +502,7 @@ fn start_tui_pty_enters_and_restores_the_alternate_screen() {
         result.transcript,
     );
     assert_screen_transitions(&result, 1);
-    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
+    assert_terminal_mode_restored(&result.terminal_mode_after, &result.terminal_mode_before);
 }
 
 #[cfg(unix)]
@@ -521,7 +543,7 @@ fn start_tui_cancel_on_fresh_repo_writes_nothing_and_restores_raw_mode() {
     );
     assert_no_tui_project_writes(dir.path());
     assert_screen_transitions(&result, 1);
-    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
+    assert_terminal_mode_restored(&result.terminal_mode_after, &result.terminal_mode_before);
 }
 
 #[cfg(unix)]
@@ -550,7 +572,7 @@ fn start_tui_empty_apply_reaches_verdict_without_writes_or_false_pass() {
         result.transcript
     );
     assert_no_tui_project_writes(dir.path());
-    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
+    assert_terminal_mode_restored(&result.terminal_mode_after, &result.terminal_mode_before);
 }
 
 #[cfg(unix)]
@@ -582,7 +604,7 @@ fn start_tui_selected_apply_writes_only_selection_then_reaches_verdict() {
     assert!(!dir.path().join("anvil/project-id").exists());
     assert!(!dir.path().join(".gitattributes").exists());
     assert!(!dir.path().join(".anvil/baseline.json").exists());
-    assert_eq!(result.terminal_mode_after, result.terminal_mode_before);
+    assert_terminal_mode_restored(&result.terminal_mode_after, &result.terminal_mode_before);
 }
 
 #[cfg(not(target_os = "windows"))]
