@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JSIMP | Josh | high | Ready | 2/6 |
+| JSIMP | Josh | high | Ready | 3/6 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -54,7 +54,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-003: Share setup and resume across welcome, start and bare
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-10 via PR #4599
 - **Priority:** P1
 - **Intent:** New users reach activation continuously and returning users resume without repeated onboarding.
 - **Expected Outcome:** The agreed first-use bare flow offers setup or unsigned discovery without silent installation or premature auth; welcome delegates accepted setup to the same activation service as start. One project context and separate learning/adoption/runtime state persist throughout. Direct start needs no tutorial prerequisite; cancelled or deferred paths resume honestly.
