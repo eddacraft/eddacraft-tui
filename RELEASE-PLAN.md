@@ -79,6 +79,12 @@ publication.
 release gates, and publication authority remain **not** granted. JSIMP may
 start; not started by that gate.
 
+**JOURNEY-016 disposition (2026-09-10):** simplification acceptance **pass** on
+`5489c6112` (claim #4613; evidence under
+`plans/audits/2026-09-10-journey-016-*`). No splash / always-on / dashboard.
+Claim freeze, changelog, standing release gates, and publication authority
+remain **not** granted.
+
 ### Primary claim
 
 _Not selected._ Promote only after operator intake names the theme and freezes

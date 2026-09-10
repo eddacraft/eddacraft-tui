@@ -1187,3 +1187,18 @@ never with feature work.
 - Avoided: splash/always-on/dashboard; GATT/JREL/CCTX/RTAI/PSCAF.
 - Next: `/dev-loop complete` JOURNEY-016.
 
+## Cycle — 2026-09-10 (JOURNEY-016 simplified acceptance)
+
+- Target: JOURNEY-016. Harness: Grok (`GROK_AGENT=1`). Mode: autonomous
+  complete plus rebase-merge on green (no admin merge).
+- Isolation: `/home/aneki/.grok/worktrees/src-anvil-001/journey-016` on
+  `docs/journey-016-simplified-acceptance`. Claim #4613.
+- Pin: `5489c6112`. Local `journey:verify --require-upgrade` pass (7/7)
+  with Homebrew `0.9.7-beta` previous public. First-time/returning/second-repo
+  observation recorded. No splash.
+- Evidence: `plans/audits/2026-09-10-journey-016-simplified-acceptance.md` +
+  identity JSON. Release disposition: acceptance pass; claim freeze /
+  publication not authorised.
+- Avoided: splash/always-on/dashboard; JSIMP redo; GATT/JREL/CCTX/RTAI/PSCAF.
+- Next: land this PR; exclusive APS N/M reconcile after merge if required.
+

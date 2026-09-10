@@ -4,7 +4,7 @@
 | -- | ---- | ----- | -------- | ------ | -------- |
 | JOURNEY | Conductor | Josh | high | In Progress | 13/16 |
 
-**Last reviewed:** 2026-09-10 — JOURNEY-013 first-run navigation observation closed as fixed (claim #4577) on `62e1facd7` (carries `e586b6e53`). No splash. JSIMP-001 may consume recorded residuals; JSIMP not started in this item. Prior: JOURNEY-015 pinned-main rehearsal Merged (claim #4572).
+**Last reviewed:** 2026-09-10 — JOURNEY-016 acceptance passed (claim #4613) on pinned `5489c6112`. JSIMP-001..006 Merged; JOURNEY-013 closed as fixed (no splash); JOURNEY-015 rehearsal Merged. No publication.
 Historical delivery evidence remains unchanged.
 
 ## Purpose
@@ -453,13 +453,14 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 ### JOURNEY-016: Simplified journey acceptance and documentation closeout
 
-- **Status:** Ready
+- **Status:** Merged — claim #4613. Evidence: [2026-09-10 simplified journey acceptance](../audits/2026-09-10-journey-016-simplified-acceptance.md) + [identity](../audits/2026-09-10-journey-016-identity.json) on pinned `5489c6112`. Decision: **pass**. No splash; no publication.
 - **Intent:** Prove first-time and returning users experience one understandable journey after the reliability repairs.
 - **Expected Outcome:** JSIMP's agreed command/state contract is implemented, documented and verified. Observe a first-time user from installation through first useful proof and a returning user on a later session and second repository. Both can identify current coverage and their next action without undocumented repair steps. Setup resumes, declined integrations stay declined, healthy daily invocation remains quiet, and changed machine contracts have explicit compatibility treatment. Record residual usability issues and resolve blocking ones before making a simplification release claim.
 - **Dependencies:** JOURNEY-015, JSIMP-001, JSIMP-002, JSIMP-003, JSIMP-004, JSIMP-005, JSIMP-006
 - **Coordinates with:** JOURNEY-013, JSIMP
+- **Files:** `plans/audits/2026-09-10-journey-016-simplified-acceptance.md`, `plans/audits/2026-09-10-journey-016-identity.json`, `RELEASE-PLAN.md`
 - **Validation:** `pnpm docs:check`; `pnpm aps:active-lint`; JREL-012's non-skipping journey command extended by JSIMP-006; linked first-time/returning-user observations against the same build.
-- **Confidence:** medium — design is gated by observation and JSIMP-001.
+- **Confidence:** high — Linux conductor + first-time/returning observation recorded; publication not claimed.
 
 ## Sequencing
 
