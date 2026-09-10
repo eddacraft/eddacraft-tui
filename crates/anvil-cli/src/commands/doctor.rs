@@ -2730,8 +2730,9 @@ fn apply_intercept_socket_rendezvous_fix(check: &mut DiagnosticCheck, speak: boo
                     capability,
                 )
             } else {
-                anvil_intercept::ensure::EnsureOutcome::NoStart {
-                    reason: anvil_intercept::ensure::NoStartReason::OptOut,
+                // Unsigned doctor --fix must not look like an operator opt-out.
+                anvil_intercept::ensure::EnsureOutcome::Failed {
+                    recovery: "doctor --fix will not start the daemon without a valid licence; run bare `anvil` once entitled".to_string(),
                 }
             }
         },

@@ -341,7 +341,9 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
         let home = util::user_home_dir();
         let summary = ensure_existing_mcp_entries(root, home.as_deref(), &fresh);
         let intent = crate::activation::intent::IntegrationIntent::infer(root, home.as_deref());
-        let absent_for_recovery = if intent.has_selected_mcp() || !intent.mcp_omitted() {
+        // Omission/decline is not a repair failure — keep the recovery count
+        // suppressed so ensure does not nag `anvil start` for intentional absence.
+        let absent_for_recovery = if intent.mcp_omitted() {
             0
         } else {
             summary.absent_for_recovery
