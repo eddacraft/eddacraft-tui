@@ -4,7 +4,7 @@
 | -- | ---- | ----- | -------- | ------ | -------- |
 | JOURNEY | Conductor | Josh | high | In Progress | 14/16 |
 
-**Last reviewed:** 2026-09-10 — JOURNEY-016 Merged via PR #4614 (claim #4613) on `a28033a5c`. Stored N/M 14/16 (ADR-053). JOURNEY-009/-010 retain hold/block. No publication.
+**Last reviewed:** 2026-09-10 — JOURNEY-016 Merged via PR #4614 (claim #4613); merge commit `a28033a5c`, acceptance evidence pinned to `5489c6112`. Stored N/M 14/16 (ADR-053). JOURNEY-009/-010 retain hold/block. No publication.
 Historical delivery evidence remains unchanged.
 
 ## Purpose
