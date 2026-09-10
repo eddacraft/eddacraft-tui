@@ -213,8 +213,8 @@ pub enum AllowlistProvenance {
 
 impl AllowlistProvenance {
     /// `true` for non-builtin opt-outs that can mask a genuine credential:
-    /// project custom_allowlist entries and in-source @anvil-ignore
-    /// (InlineIgnore). Builtin shape/keyword/fixture allowlists stay false.
+    /// project `custom_allowlist` entries and in-source `@anvil-ignore`
+    /// (`InlineIgnore`). Builtin shape/keyword/fixture allowlists stay false.
     #[must_use]
     pub fn is_operator_configured(&self) -> bool {
         matches!(
