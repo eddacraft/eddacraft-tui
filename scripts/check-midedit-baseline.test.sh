@@ -96,4 +96,43 @@ run_gate
 [[ "$code" -eq 0 ]] || fail "drift-only should exit 0, got $code"
 grep -qE '^WARN validation\.service' "$tmp/out" || fail "expected drift WARN on validation.service"
 
+
+# 6. Unknown future boundary over SLO → hard-fail (soft-warn is explicit for
+#    validation.service only; do not silently downgrade new boundaries).
+cat >"$tmp/baseline.json" <<'JSON'
+{
+  "schema_version": 1,
+  "tolerance": { "drift_pct": 15, "zero_baseline_floor_ms": 1.0 },
+  "slos": {
+    "validation.service": { "p95_ms": 50.0 },
+    "validation.roundtrip": { "p95_ms": 80.0 },
+    "validation.future": { "p95_ms": 40.0 }
+  },
+  "cases": {
+    "validation.service": {
+      "near_cap_1MiB_minus_1KiB": { "p50_ms": 23.0, "p95_ms": 24.0, "p99_ms": 25.0 }
+    },
+    "validation.roundtrip": {
+      "near_cap_1MiB_minus_1KiB": { "p50_ms": 31.0, "p95_ms": 36.0, "p99_ms": 44.0 }
+    },
+    "validation.future": {
+      "near_cap_1MiB_minus_1KiB": { "p50_ms": 10.0, "p95_ms": 12.0, "p99_ms": 14.0 }
+    }
+  }
+}
+JSON
+cat >"$tmp/bench.log" <<'LOG'
+--- ADR-031 mid-edit warm percentile sampler ---
+dimensions: mode=midEdit boundary=validation.service case=near_cap
+validation.service near_cap_1MiB_minus_1KiB: samples=10 p50=23.0ms p95=24.0ms p99=26.0ms
+dimensions: mode=midEdit boundary=validation.roundtrip case=near_cap
+validation.roundtrip near_cap_1MiB_minus_1KiB: samples=10 p50=31.0ms p95=36.0ms p99=45.0ms
+dimensions: mode=midEdit boundary=validation.future case=near_cap
+validation.future near_cap_1MiB_minus_1KiB: samples=10 p50=10.0ms p95=55.0ms p99=60.0ms
+--- end ADR-031 sampler ---
+LOG
+run_gate
+[[ "$code" -eq 1 ]] || fail "unknown-boundary-over-SLO should exit 1, got $code"
+grep -qE '^FAIL validation\.future' "$tmp/out" || fail "expected FAIL on validation.future"
+
 printf 'check-midedit-baseline.test.sh: ok\n'

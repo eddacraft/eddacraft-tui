@@ -11,7 +11,7 @@
     "driverProtocol": "json-rpc-2.0",
     "samplesPerCase": 500,
     "runner": "developer-machine-linux-x86_64",
-    "runner_note": "Baseline captured on a developer Ubuntu 24.04 / x86_64 box (2026-04-30). GitHub Actions ubuntu-24.04 / ubuntu-latest produce different numbers -- nightlies were false-failing when the gate hard-failed on validation.service near_cap (~55 ms vs 50) while validation.roundtrip stayed under 80 ms. CI now hard-fails only on roundtrip SLO (ADR-031 primary boundary); service SLO breaches are soft-warn attribution. TODO: re-baseline on the dedicated LINUX_RUNNER class once a full GHA midedit_roundtrip capture is recorded and committed -- that rebaseline is still owed; drift WARNs after runner-class changes remain advisory until then. Do not pretend this file is a GHA-captured baseline."
+    "runner_note": "Baseline captured on a developer Ubuntu 24.04 / x86_64 box (2026-04-30). GitHub Actions ubuntu-24.04 / ubuntu-latest produce different numbers -- nightlies were false-failing when the gate hard-failed on validation.service near_cap (~55 ms vs 50) while validation.roundtrip stayed under 80 ms. CI now hard-fails only on roundtrip SLO (ADR-031 primary boundary); service SLO breaches are soft-warn attribution. A GHA rebaseline on the dedicated LINUX_RUNNER class is still owed once a full midedit_roundtrip capture is recorded and committed; until then, drift WARNs after runner-class changes remain advisory. Do not pretend this file is a GHA-captured baseline."
   },
   "tolerance": {
     "drift_pct": 15,
@@ -19,32 +19,88 @@
     "policy": "p95 drift outside +/-drift_pct is a soft warning (CI passes). CI hard-fail requires a validation.roundtrip p95 that exceeds the ADR-031 SLO recorded in .slos (primary boundary). validation.service p95 over its .slos entry is soft-warn attribution only -- do not fail the nightly solely on service near_cap when roundtrip is still under SLO. Product ADR-031 numbers are unchanged; this is CI-gate alignment with the primary boundary. p50 and p99 are recorded for context but not gated -- see ADR-031 Regression policy. When a baseline p95 is 0 ms (sub-resolution case) the comparator switches from percentage drift to an absolute floor: a soft warn fires if observed p95 exceeds zero_baseline_floor_ms."
   },
   "slos": {
-    "validation.service": { "p95_ms": 50.0 },
-    "validation.roundtrip": { "p95_ms": 80.0 }
+    "validation.service": {
+      "p95_ms": 50.0
+    },
+    "validation.roundtrip": {
+      "p95_ms": 80.0
+    }
   },
   "cases": {
     "validation.service": {
-      "empty": { "p50_ms": 1.004, "p95_ms": 1.106, "p99_ms": 1.188 },
-      "small_1KiB": { "p50_ms": 1.05, "p95_ms": 1.157, "p99_ms": 1.257 },
-      "medium_64KiB": { "p50_ms": 2.392, "p95_ms": 2.676, "p99_ms": 2.921 },
-      "near_cap_1MiB_minus_1KiB": { "p50_ms": 23.024, "p95_ms": 24.412, "p99_ms": 25.462 },
+      "empty": {
+        "p50_ms": 1.004,
+        "p95_ms": 1.106,
+        "p99_ms": 1.188
+      },
+      "small_1KiB": {
+        "p50_ms": 1.05,
+        "p95_ms": 1.157,
+        "p99_ms": 1.257
+      },
+      "medium_64KiB": {
+        "p50_ms": 2.392,
+        "p95_ms": 2.676,
+        "p99_ms": 2.921
+      },
+      "near_cap_1MiB_minus_1KiB": {
+        "p50_ms": 23.024,
+        "p95_ms": 24.412,
+        "p99_ms": 25.462
+      },
       "binary_short_circuit": {
         "p50_ms": 0.0,
         "p95_ms": 0.0,
         "p99_ms": 0.0,
         "note": "Binary short-circuit returns before the rule pipeline runs; sub-microsecond cost is below the wall-clock resolution. With a zero baseline the comparator switches to the absolute-floor mode (.tolerance.zero_baseline_floor_ms): a soft warn fires if observed p95 exceeds the floor. Service SLO (50 ms) is attribution soft-warn only; CI hard-fail is validation.roundtrip."
       },
-      "unicode_heavy": { "p50_ms": 2.743, "p95_ms": 3.044, "p99_ms": 3.311 },
-      "dirty_secret_match": { "p50_ms": 2.424, "p95_ms": 2.646, "p99_ms": 2.837 }
+      "unicode_heavy": {
+        "p50_ms": 2.743,
+        "p95_ms": 3.044,
+        "p99_ms": 3.311
+      },
+      "dirty_secret_match": {
+        "p50_ms": 2.424,
+        "p95_ms": 2.646,
+        "p99_ms": 2.837
+      }
     },
     "validation.roundtrip": {
-      "empty": { "p50_ms": 1.247, "p95_ms": 1.436, "p99_ms": 1.547 },
-      "small_1KiB": { "p50_ms": 1.298, "p95_ms": 1.514, "p99_ms": 1.596 },
-      "medium_64KiB": { "p50_ms": 3.15, "p95_ms": 3.55, "p99_ms": 3.818 },
-      "near_cap_1MiB_minus_1KiB": { "p50_ms": 30.982, "p95_ms": 36.42, "p99_ms": 44.446 },
-      "binary_short_circuit": { "p50_ms": 0.056, "p95_ms": 0.072, "p99_ms": 0.086 },
-      "unicode_heavy": { "p50_ms": 3.3, "p95_ms": 3.703, "p99_ms": 3.992 },
-      "dirty_secret_match": { "p50_ms": 3.159, "p95_ms": 3.667, "p99_ms": 4.512 }
+      "empty": {
+        "p50_ms": 1.247,
+        "p95_ms": 1.436,
+        "p99_ms": 1.547
+      },
+      "small_1KiB": {
+        "p50_ms": 1.298,
+        "p95_ms": 1.514,
+        "p99_ms": 1.596
+      },
+      "medium_64KiB": {
+        "p50_ms": 3.15,
+        "p95_ms": 3.55,
+        "p99_ms": 3.818
+      },
+      "near_cap_1MiB_minus_1KiB": {
+        "p50_ms": 30.982,
+        "p95_ms": 36.42,
+        "p99_ms": 44.446
+      },
+      "binary_short_circuit": {
+        "p50_ms": 0.056,
+        "p95_ms": 0.072,
+        "p99_ms": 0.086
+      },
+      "unicode_heavy": {
+        "p50_ms": 3.3,
+        "p95_ms": 3.703,
+        "p99_ms": 3.992
+      },
+      "dirty_secret_match": {
+        "p50_ms": 3.159,
+        "p95_ms": 3.667,
+        "p99_ms": 4.512
+      }
     }
   }
 }

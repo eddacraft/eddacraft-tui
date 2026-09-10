@@ -189,14 +189,19 @@ while IFS= read -r line; do
       # ADR-031: validation.roundtrip is the primary SLO / CI hard-fail
       # boundary. validation.service is attribution — soft-warn only so a
       # runner-class service near_cap (~55 ms vs 50) does not false-fail the
-      # nightly when roundtrip is still under 80 ms.
+      # nightly when roundtrip is still under 80 ms. Soft-warn is explicit for
+      # validation.service only; any future/unknown boundary stays hard-fail.
       if [[ "$boundary" == "validation.roundtrip" ]]; then
         status="FAIL"
         hard_fail+=1
-      else
+      elif [[ "$boundary" == "validation.service" ]]; then
         status="WARN"
         soft_warn+=1
         attr_note="service SLO breach (attribution only; CI hard-fail is validation.roundtrip)"
+      else
+        status="FAIL"
+        hard_fail+=1
+        attr_note="unknown boundary SLO breach (hard-fail; only validation.service is soft-warn)"
       fi
     elif (( over_drift )); then
       status="WARN"
