@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JREL | Josh | high | In Progress | 12/13 |
+| JREL | Josh | high | Done | 13/13 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-intercept, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -354,12 +354,18 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
 
 ### JREL-013: Scope pre-write protection evidence to one worktree
 
-- **Status:** In Progress
+- **Status:** Merged — PR #4568 (claim #4554) at `a25e11a79` (code
+  `83956716b`). Optional `query_status` `{worktree}` scopes the daemon
+  snapshot for pre-write attestation; production uses
+  `sessions_for_worktree` then filters sessions, worktrees and fences
+  against the canonical key so a symlink spelling cannot empty a
+  successful lookup. Unscoped `anvil status` is unchanged. CIB-405
+  remains Proposed.
 - **Priority:** P2
 - **Intent:** Reading protection evidence on the pre-write path costs one worktree's worth of work, not the whole daemon's.
 - **Expected Outcome:** A caller that needs one worktree's attestation can ask for exactly that. The pre-write MCP path no longer materialises every registered session to answer a single-worktree question, so evidence cost stops scaling with unrelated sessions on the host. Existing full-snapshot consumers (`anvil status`, `anvil workspace list`, activation diagnostics) keep their current answers; freshness, attribution and fail-closed behaviour are unchanged by the narrowing.
 - **Dependencies:** JREL-002
 - **Coordinates with:** ADR-141 names this as follow-up; CIB-405 separately owns caller migration to connection reuse. MLP2-051f/-051h freshness and anchor semantics are reused, not restated.
-- **Files:** `crates/anvil-intercept-proto/src/lib.rs`, `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-intercept/src/status.rs`, `crates/anvil-cli/src/mcp/validation.rs`, `crates/anvil-cli/src/commands/intercept.rs`
+- **Files:** `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-intercept/src/status.rs`, `crates/anvil-cli/src/mcp/validation.rs`, `crates/anvil-cli/src/commands/intercept.rs`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast`; `cargo test -p eddacraft-anvil-intercept --no-fail-fast`; a scoped query and a full snapshot must agree on the same worktree's claim across attested, unattested, stale and fenced fixtures, and a pre-write request must not read sessions belonging to other worktrees.
 - **Confidence:** medium — ADR-141 records the measured motivation (95 concurrent `anvil mcp serve` processes on one host; `QueryStatus` is unscoped and `mcp/validation.rs` fetches the full snapshot on the pre-write path). Confirm the cost against a real snapshot before choosing between a new verb and a filter parameter.

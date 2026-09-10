@@ -1059,3 +1059,20 @@ never with feature work.
   Proposed, not reimplemented.
 - Next: exclusive APS reconcile of JREL-011 → Merged (this branch), then
   JREL-013.
+
+## Cycle — 2026-09-10 (JREL-013 integrated)
+
+- Target: JREL-013. Harness: Grok (`GROK_AGENT=1`). Mode: autonomous
+  complete plus rebase-merge on green (no admin merge).
+- Isolation: `/home/aneki/.grok/worktrees/src-anvil-001/jrel-013-scoped`
+  on `feat/jrel-013-scoped-attestation`. Claim #4554 (closed by #4568).
+- JREL-013 (scoped query_status):
+  `LANDING(e855d4475f6d267cf707be3028331a18907b38fd)` then
+  `MERGED(code 83956716b / tip a25e11a79f23b72750335d1798adcba79e638088, 2026-09-10T00:13:24Z)`
+  via PR #4568 (rebase-merge). Merge commit is an ancestor of
+  `origin/main`. Council path-identity repair plus oxfmt freshness landed
+  before protected rebase-merge. Verify-loop pass-with-advisories on
+  `96f82432` (F2/F3 advisory coverage gaps, not must_fix).
+- GATT left untouched. CIB-405 remains Proposed.
+- Next: exclusive APS reconcile of JREL-013 → Merged 13/13 / module Done
+  (this branch), then JOURNEY-014 if still Ready.
