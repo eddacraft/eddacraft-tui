@@ -11,7 +11,7 @@
     "driverProtocol": "json-rpc-2.0",
     "samplesPerCase": 500,
     "runner": "developer-machine-linux-x86_64",
-    "runner_note": "Baseline captured on a developer Ubuntu 24.04 / x86_64 box (2026-04-30). GitHub Actions ubuntu-24.04 / ubuntu-latest produce different numbers -- nightlies were false-failing when the gate hard-failed on validation.service near_cap (~55 ms vs 50) while validation.roundtrip stayed under 80 ms. CI now hard-fails only on roundtrip SLO (ADR-031 primary boundary); service SLO breaches are soft-warn attribution. A GHA rebaseline on the dedicated LINUX_RUNNER class is still owed once a full midedit_roundtrip capture is recorded and committed; until then, drift WARNs after runner-class changes remain advisory. Do not pretend this file is a GHA-captured baseline."
+    "runner_note": "Baseline captured on a developer Ubuntu 24.04 / x86_64 box (2026-04-30), not on GitHub Actions. GHA ubuntu-24.04 / ubuntu-latest numbers differ -- nightlies previously false-failed when the gate hard-failed on validation.service near_cap (~55 ms vs 50) while validation.roundtrip stayed under 80 ms. CI hard-fails only on roundtrip SLO (ADR-031 primary boundary); service SLO breaches and baseline-drift rows are soft-warn / advisory. Do not treat this file as a GHA-captured baseline. Tracked in #4576."
   },
   "tolerance": {
     "drift_pct": 15,

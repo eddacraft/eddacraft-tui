@@ -32,9 +32,9 @@
 #
 # CI vs product SLO: product ADR-031 numbers are unchanged. This script's
 # hard-fail scope is the CI gate alignment with ADR-031's primary boundary
-# (roundtrip). A GHA rebaseline on LINUX_RUNNER is still owed — the committed
-# baseline remains developer-machine (2026-04-30); do not treat drift WARNs
-# as a substitute for that capture.
+# (roundtrip). The committed baseline is developer-machine provenance
+# (2026-04-30); GHA numbers differ, so drift WARNs are advisory. Tracked
+# in #4576.
 #
 # Usage:
 #   scripts/check-midedit-baseline.sh <bench-output-log> <baseline.json>
