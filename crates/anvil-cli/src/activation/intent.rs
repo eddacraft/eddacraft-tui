@@ -70,6 +70,7 @@ impl IntegrationIntent {
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn has_selected_mcp(&self) -> bool {
         self.clients
             .iter()
