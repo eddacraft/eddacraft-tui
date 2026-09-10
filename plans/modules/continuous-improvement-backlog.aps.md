@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 323/410  |
+| CIB | —     | In Progress | 323/414  |
 
 ## Purpose
 
@@ -13861,3 +13861,160 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   PSCAF-006 owns start dependency integration, and PSCAF-008 owns status,
   doctor, guidance, and the integrated L4 journey. CIB-267 independently owns
   Git's pre-push argv acceptance and hook-time PATH troubleshooting.
+
+### CIB-416: Make the Neon workflow contract structural
+
+- **Status:** Ready
+- **Priority:** P2 — security-sensitive CI contract; live workflow is currently
+  safe. The lock is fail-open around a credentials boundary
+- **Intent:** The credentialed Neon integration workflow cannot lose its
+  internal-PR guard, least-privilege permissions, pinned checkout, credential
+  settings, test command, or `always()` cleanup while the contract still
+  passes because those strings survive only in comments or unrelated jobs.
+- **Expected Outcome:** The contract parses the workflow or otherwise inspects
+  its structure. The internal-PR condition, permissions, runner, checkout SHA
+  and `persist-credentials: false` are bound to the credentialed job/step that
+  consumes Neon credentials. The test command and `always()` cleanup are bound
+  to that same job. Negative fixtures where a required value exists only in a
+  comment or unrelated job fail.
+- **Non-scope / do not:** do not reopen CLAWOPEN-011's hosted Neon proof. Do
+  not treat whole-file `grep` of the live workflow as sufficient once the
+  structural lock exists. Do not extend the exclusive CLAWOPEN 2026-08-28
+  wave; that module's out-of-scope excludes later Clawpatch queue residuals.
+- **Files:** `scripts/ci/neon-integration-workflow.test.sh`,
+  `.github/workflows/neon-integration.yml`
+- **Validation:** negative workflow fixtures with the guard and
+  `persist-credentials: false` parked outside the credentialed job;
+  `bash scripts/ci/neon-integration-workflow.test.sh`
+- **Identified From:** GH [#4586](https://github.com/eddacraft/anvil-001/issues/4586);
+  Clawpatch run `20260907T153611-a03de0` finding
+  `fnd_sig-feat-config-50fe8c3846-90e26_b73d08d724`. Re-verified on `main`
+  (`aff72823a`) 2026-09-10: `scripts/ci/neon-integration-workflow.test.sh:17-72`
+  still uses unrestricted whole-file `grep`. Numbered **CIB-416** because
+  **CIB-415** on main is taken; not CLAWOPEN-013 because CLAWOPEN is the
+  exclusive 24-finding 2026-08-28 wave.
+- **Coordinates with:** CLAWOPEN-011 (original hosted Neon proof; Complete)
+- **Confidence:** high — the file-wide helpers and unbound assertions were
+  read on `main` today; the live workflow remaining safe does not make the
+  lock structural.
+
+### CIB-417: Stop test teardown from signalling recycled PIDs
+
+- **Status:** Ready
+- **Priority:** P2 — test-only, but teardown can SIGKILL an unrelated host
+  process or process group if a numeric identity is reused between stop and
+  cleanup
+- **Intent:** The `save_time_driver_recovery` harness reaps the owned daemon
+  child and driver identities without signalling a stale numeric PID or
+  process group that may have been recycled.
+- **Expected Outcome:** Teardown retains and reaps the owned daemon child
+  without signalling a stale numeric process identity. Driver cleanup uses the
+  supervisor-owned shutdown path and a bounded wait. Any essential fallback
+  verifies process identity with a PID-reuse-safe discriminator before
+  signalling. A seam simulating a stale PID record proves no signal is sent to
+  that identity.
+- **Non-scope / do not:** do not change production save-time lifecycle
+  semantics from this fixture. JREL-003 and JREL-005 already own production
+  recovery and typed readiness; this item is harness teardown only. Do not
+  reopen the Done JREL module as JREL-014.
+- **Files:** `crates/anvil-cli/tests/save_time_driver_recovery.rs`
+- **Validation:** focused teardown-identity regression;
+  `cargo test -p eddacraft-anvil --test save_time_driver_recovery --no-fail-fast`
+- **Identified From:** GH [#4587](https://github.com/eddacraft/anvil-001/issues/4587);
+  Clawpatch run `20260907T153611-a03de0` finding
+  `fnd_sig-feat-test-suite-c13376b237-1_344f209cdf`. Re-verified on `main`
+  (`aff72823a`) 2026-09-10: `Drop for Harness` still stops the daemon, then
+  SIGKILLs numeric PIDs from `*.pid` files, then SIGKILLs the child's numeric
+  process group. Numbered **CIB-417** because **CIB-416** is the Neon
+  contract; not JREL-014 because JREL is Done 13/13 and this is test-harness
+  teardown, not production journey reliability.
+- **Coordinates with:** JREL-003 (production save-time driver recovery),
+  JREL-005 (typed readiness presentation)
+- **Confidence:** high — the teardown order is a direct source path; medium
+  on how often PID reuse hits in CI, which does not change the lock.
+
+### CIB-418: Harden or retire the exported TypeScript file cache
+
+- **Status:** Ready
+- **Priority:** P2 — scanner high severity reduced by reachability: no
+  in-repository production caller of `createCacheProvider`. The package README
+  and exports still advertise the cache API; EMBERRS-001 deliberately
+  preserved it
+- **Intent:** The exported `FileCacheProvider` cannot unlink a path outside
+  `entries/`, lose concurrent index updates, or treat `ttl: 0` as omission.
+  One coherent disposition covers the advertised surface: retire it, or retain
+  it with path confinement, serialised index updates, and defined zero-TTL
+  semantics.
+- **Expected Outcome:** Choose exactly one disposition and implement it:
+  1. Retire the unused exported cache surface and its advertised support; or
+  2. Retain it and: derive/validate entry filenames before every filesystem
+     access and never unlink outside `entriesDir`; serialise index
+     read-modify-write across provider instances/processes, reloading under
+     the lock; define and implement zero-TTL semantics consistently (`??`,
+     with immediate expiry if zero is supported).
+  Both providers (file and memory) share the pinned zero-TTL contract if the
+  retain path is chosen.
+- **Non-scope / do not:** do not treat path escape, lost updates, and zero-TTL
+  as three independent small fixes. Do not claim EMBERRS-001 already closed
+  this: it preserved the cache as a supported entry point. CIB-402's residual
+  note that removal belongs to JS/TS retirement is provenance, not a retire
+  decision.
+- **Files:** `packages/anvil/runtime/src/cache/providers/file-cache.ts`,
+  `packages/anvil/runtime/src/cache/providers/memory-cache.ts`,
+  `packages/anvil/runtime/src/cache/index.ts`,
+  `packages/anvil/runtime/README.md`
+- **Validation:** traversal index pointing at an external sentinel is rejected
+  and the sentinel is preserved (retain path) or the export/README no longer
+  advertise the cache (retire path); two coordinated providers write distinct
+  keys and a fresh provider reads both (retain path); both providers have a
+  pinned zero-TTL contract (retain path);
+  `pnpm --filter @eddacraft/anvil-runtime test`;
+  `pnpm --filter @eddacraft/anvil-runtime build`
+- **Identified From:** GH [#4588](https://github.com/eddacraft/anvil-001/issues/4588);
+  Clawpatch run `20260907T153611-a03de0` findings
+  `fnd_sig-feat-library-a869fc8ba2-474d_02860954b4`,
+  `fnd_sig-feat-library-a869fc8ba2-24b0_1647aeb9d9`,
+  `fnd_sig-feat-library-a869fc8ba2-732f_8f6a9faad0`. Re-verified on `main`
+  (`aff72823a`) 2026-09-10: index `file` is any string; `invalidate` joins it
+  and unlinks; `saveIndex` atomically replaces an unlocked snapshot; both
+  providers use truthiness for TTL. Numbered **CIB-418** because **CIB-417**
+  is the PID teardown item.
+- **Coordinates with:** EMBERRS-001 (preserved live cache exports), CIB-402
+  residual (unused TS cache noted, not dispositioned)
+- **Confidence:** high on the three defects and the missing production
+  caller; the retire-versus-retain fork is an execution decision with both
+  paths specified, not a blocker on Ready.
+
+### CIB-419: Fail the midedit gate when required benchmark input is absent
+
+- **Status:** Ready
+- **Priority:** P2 — the missing row can be the sole hard-gated
+  `validation.roundtrip` boundary; scanner low severity is not the delivery
+  priority
+- **Intent:** The ADR-031 midedit comparator fails closed when required
+  baseline boundaries/cases — especially the hard-gated
+  `validation.roundtrip` row — are absent from otherwise parseable benchmark
+  output.
+- **Expected Outcome:** Required benchmark boundaries/cases are defined from
+  the baseline contract. Malformed baseline data, unparsable percentile rows,
+  and missing required roundtrip measurements fail closed with an actionable
+  input error. Optional/advisory rows remain explicitly distinguished from
+  mandatory hard-gate input. Negative fixtures cover malformed baseline JSON,
+  missing SLO/case data, malformed p95, and a service-only sampler.
+- **Non-scope / do not:** do not reopen closed issue #4576 (runner baseline
+  and service-versus-roundtrip policy). Do not turn absent optional/advisory
+  rows into hard failures.
+- **Files:** `scripts/check-midedit-baseline.sh`,
+  `scripts/check-midedit-baseline.test.sh`
+- **Validation:** `bash scripts/check-midedit-baseline.test.sh`; run the
+  comparator against a service-only sampler and assert non-zero.
+- **Identified From:** GH [#4590](https://github.com/eddacraft/anvil-001/issues/4590);
+  Clawpatch run `20260910T044023-de5813` finding
+  `fnd_sig-feat-config-534353bbc1-28c35_b4c619228e`. Re-verified on `main`
+  (`aff72823a`) 2026-09-10: produced rows without a baseline fail, but baseline
+  rows absent from output are warnings and the command can still exit 0; the
+  fixture suite has no missing-roundtrip case. Numbered **CIB-419** because
+  **CIB-418** is the file-cache item.
+- **Coordinates with:** ADR-031 (midedit budget), RTAI-003 (gate origin)
+- **Confidence:** high — the orphan-as-warning path and the all-valid fixture
+  suite were read on `main` today.
