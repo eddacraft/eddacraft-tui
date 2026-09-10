@@ -952,13 +952,13 @@ fn read_handle(handle: HANDLE, max_bytes: Option<u64>) -> io::Result<Vec<u8>> {
         if read == 0 {
             break;
         }
-        if let Some(max) = max_bytes {
-            if buf.len() as u64 + u64::from(read) > max {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidData,
-                    "file exceeds 8 MiB mutation limit",
-                ));
-            }
+        if let Some(max) = max_bytes
+            && buf.len() as u64 + u64::from(read) > max
+        {
+            return Err(io::Error::new(
+                ErrorKind::InvalidData,
+                "file exceeds 8 MiB mutation limit",
+            ));
         }
         buf.extend_from_slice(&chunk[..read as usize]);
     }
