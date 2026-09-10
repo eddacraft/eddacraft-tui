@@ -12,12 +12,15 @@ delivery changes behind each release. For end-user feature summaries, see the
 > **Draft.** Technical work landed on `main` since `v0.9.7-beta`. Version and
 > date land at the next cut.
 
-Technical work on `main` since `v0.9.7-beta`. Dominant themes: secret-detection
-honesty and catalogue breadth (SDT), gate-time AST on always-on surfaces (GTAO),
-settings and product-catalogue truth contracts (SETCON / FLAGCAT), and
-intent-conformance foundations (CONF). Windows park-and-swap and several honesty
-fixes also land as field freight. Not a release claim until a cut record says
-so.
+Technical work on `main` since `v0.9.7-beta`. Dominant themes: journey
+reliability and continuous-command simplification (JREL / JSIMP), graph answer
+attestation (GATT), journey evidence gates (JOURNEY), context-compiler spike
+(CCTX), project-scaffold reconciliation (PSCAF), activation and MCP honesty,
+plus earlier secret-detection honesty and catalogue breadth (SDT), gate-time AST
+on always-on surfaces (GTAO), settings and product-catalogue truth contracts
+(SETCON / FLAGCAT), and intent-conformance foundations (CONF). Windows
+park-and-swap and several honesty fixes also land as field freight. Not a
+release claim until a cut record says so.
 
 ### Secret-detection truth (SDT, ADR-136)
 
@@ -144,6 +147,140 @@ so.
   replay without live OAuth, flag inventory freeze, boundary validation. (#4216
   / #4219)
 - **Intercept pattern compile at construction, not per request.** (perf)
+
+### Journey reliability (JREL)
+
+- **Client-attributed live MCP session evidence for protection claims.**
+  `anvil mcp serve` registers and heartbeats with the intercept daemon from the
+  editor handshake; live pre-write status requires fresh attributed evidence,
+  not durable spine membership alone. (JREL-002, #4416)
+- **Save-time driver recovery and daemon identity convergence.** Durable
+  membership refresh restores a dead save-time driver; `ensure` probes canonical
+  then sibling endpoints under the rendezvous coordinator so XDG-set and
+  XDG-unset shells converge on one daemon. (JREL-003 / JREL-004, #4428;
+  state-home coordinator residual, #4437)
+- **Activation preserves explicit MCP launch choices.** Ensure/repair migrates
+  only obsolete managed command paths; ExplicitOverride / UnsafeDrift stay
+  untouched. (JREL-009, #4556)
+- **MCP tools pin to admitted worktree identity.** Package-subdirectory, linked
+  worktree, and symlink launches share one canonical project with activation,
+  status, graph, and validation; outside-repo launches refuse with reconnection
+  guidance. (JREL-010, #4562)
+- **Daemon ensure bounded to one lifecycle budget.** Coordinator lock, start
+  lock, discovery, spawn, and bind-wait share a monotonic deadline; stuck locks
+  fail closed instead of hanging. (JREL-011, #4566)
+- **Pre-write protection evidence scoped to one worktree.** `query_status`
+  accepts an optional worktree filter so claim fetch cost does not scale with
+  unrelated sessions. (JREL-013, #4568)
+- **Welcome guided setup stays on the selected project; learning progress is
+  global.** Completion markers, discovery, and tutorial state follow the wizard
+  selection; learning paths survive across projects and record completion at the
+  final-step transition. (JREL-007, #4527; #4512–#4514)
+- **Welcome restores the terminal on every exit.** RAII `TuiSession` restores
+  raw mode, mouse capture, and the alternate screen across success, cancel,
+  error, and panic. (#4533)
+
+### Continuous journey (JSIMP, ADR-145)
+
+- **ADR-145: one continuous command journey.** First-use unsigned bare routes
+  via the not-activated report before the licence wall; welcome stays optional
+  ungated learning; daily ensure stays entitled. No public `intercept ensure` /
+  `restart`. (JSIMP-001, #4580)
+- **Action versus output mode on `anvil start`.** Unattended start no longer
+  treats missing MCP as consent; new installs need `--mcp-client` and/or
+  `--all-mcp-clients`. `--no-tui` on a real TTY is interactive plain consent;
+  `--json` / `--verify` stay read-only. (JSIMP-002, #4585)
+- **Never-activated bare skips the licence wall.** `ConfigStatus::Absent` reuses
+  the existing not-activated ensure report (exit 1); welcome may seed project
+  config only. (JSIMP-003, #4599)
+- **Remembered integration intent and quiet daily recovery.** Client, scope,
+  executable, and optional protection choices are inferred from owned artefacts;
+  healthy bare restore avoids pickers; unresolved faults after ensure escalate
+  to `anvil doctor`. (JSIMP-004, #4604)
+- **First-value closing receipt.** Selected MCP and save-time coverage are
+  proven from observed validation and a real saved fixture; the receipt names
+  project, coverage, client, policy mode, last proof, and one next step.
+  `anvil status` and `anvil doctor` consume the same facts. (JSIMP-005, #4607)
+- **Public guidance aligned to the continuous journey.** Installer, root help,
+  quickstart, and activation-state docs match ADR-145. (JSIMP-006, #4611)
+
+### Graph answer attestation (GATT, ADR-142)
+
+- **ADR-142 accepted: graph answers attest their own bounds.** GATT promoted
+  Ready; self-attestation contract frozen. (#4430 / #4431; GATT-001, #4520)
+- **Shared `Attestation` on every GCTX projection DTO.** Tagged Exact / AtLeast
+  totals; observer harness forces a bound and proves it is visible. (GATT-002,
+  #4525)
+- **Per-edge call-resolution fidelity.** Caller results carry per-edge Exact /
+  Heuristic fidelity so mixed frontiers keep Exact edges visible. (GATT-003,
+  #4532)
+- **Cap disclosure parity across the six charged tools.** Every capped section
+  reports the binding budget, returned count, and Exact / AtLeast total.
+  (GATT-004, #4555)
+- **Estimated cost on every envelope.** `est_tokens` and `estimator_version`
+  from `gctx-simple-v1`; cost is reported, not enforced. (GATT-005, #4558)
+- **Consumers taught to read attestation.** AI-context guide and
+  `anvil-developer-functions` skill route on page limits, heuristic edges, and
+  bound totals. (GATT-006, #4561)
+
+### Journey evidence (JOURNEY)
+
+- **JOURNEY-014 reliability evidence gate closed.** Linux journey verify
+  identity against pinned main; JREL Done 13/13 linked. (#4571)
+- **JOURNEY-015 pinned-main rehearsal handoff closed.** Local and CI
+  `journey:verify` green; release claim freeze not authorised; JSIMP / JOURNEY
+  simplification permitted. (#4574)
+- **JOURNEY-013 activation navigation closed as fixed.** First-run consent
+  navigation re-test against contextual help bar; no splash. (#4578)
+- **Fail-closed journey verification harness.** E2E proves journey outcomes stay
+  honest under failure. (#4523)
+
+### Context compiler (CCTX)
+
+- **Context Compiler spec and draft APS module.** Operator-supplied high-level
+  spec adapted to Anvil APS conventions. (#4454)
+- **Eval protocol and Decision Brief contract frozen.** CCTX-001 / CCTX-002
+  protocol freezes; briefs are advisory only and never allow / warn / block.
+  (#4456 / #4459)
+- **Baseline comparison and live V1 eval batches.** Fixture scoring vs
+  unmeasured live sessions recorded; V1 batches T01–T20 captured.
+  (CCTX-003..005, #4463 / #4470 / #4503–#4505 / #4518)
+
+### Project scaffold (PSCAF)
+
+- **Project-scaffold reconciliation contract.** APS defines typed catalogue and
+  reconciliation slices for foundation and acceptance policy. (#4495)
+- **Reconciliation kernel.** Deterministic profile/dependency resolution, Git
+  common-dir mutation lock, no-follow mutation primitives; `anvil init` routes
+  through foundation and acceptance-policy reconciliation so fresh projects get
+  the L4 prerequisite policy. (PSCAF-001, #4583)
+
+### Activation / MCP / L4 honesty
+
+- **L4 status honest only with hook plus parseable policy.** File-mode hook
+  without `anvil/policy.*` is `partial`. Fresh `anvil init` seeds default
+  `anvil/policy.yml`. (#4464)
+- **L4 checks use Git's effective hook path.** Installation, removal, and status
+  honour `core.hooksPath` (including linked worktrees). (#4500)
+- **Readiness reports selected activation coverage.** Status no longer
+  over-claims coverage the operator did not select. (#4509)
+- **Established MCP sessions survive updates.** Skewed process finishes accepted
+  work on the current image, then asks for a targeted reconnect. (#4497)
+- **Ember default-off; JavaScript Ember retired.** Historical reader only under
+  explicit `ANVIL_EMBER=1`; generation unavailable. (#4399)
+
+### CI / reliability freight
+
+- **Mid-edit service SLO soft-warn; roundtrip hard-fail.** CI stops flaking on
+  mid-edit service noise while keeping roundtrip fail-closed. (#4575)
+- **Runtime I/O bounds on daemon exchanges and Git object reads.** Shared
+  deadlines, output caps, and aggregate blob budgets (RIO-001 / RIO-002, #4397).
+- **Secret false-positive inline ignore for entropy / generic shapes.**
+  High-confidence provider rules remain non-ignorable. (#4592)
+- **Command-safety hot-path cleanup.** Redundant matching and wrapper work
+  removed. (#4593)
+- **Toast icon display-width measurement; web error/warning colour split.**
+  (#4482 / #4383)
 
 ## [0.9.7-beta] — 2026-08-21 — First-session honesty
 

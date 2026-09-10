@@ -22,6 +22,33 @@ engineering maintenance are recorded in the
   stays visible as an info diagnostic and a local `report-fp` record so the
   scanner can be tightened.
 
+- **`anvil welcome` restores the terminal on every exit.** Success, cancel,
+  ordinary errors, partial setup failures, and panics all leave raw mode, mouse
+  capture, and the alternate screen cleaned up.
+
+- **Guided setup stays on the repository you selected.** Discovery, preview,
+  apply, tutorial state, and completion markers follow the wizard selection,
+  including nested directories and linked worktrees.
+
+- **Learning-path progress is kept across projects.** Completing a path records
+  progress when the final step finishes — quitting the completion screen no
+  longer looks like an early Back. A repository without a local first-run marker
+  still loads your global progress.
+
+- **L4 activation uses Git's effective hook path.** Installation, removal, and
+  status honour `core.hooksPath` (relative, absolute, or tilde) and linked
+  worktrees, instead of assuming `.git/hooks`.
+
+- **Daily ensure preserves explicit MCP launch choices.** Your chosen
+  executable, environment, and per-entry options survive repair. Only obsolete
+  managed command paths are migrated; entries you overrode stay as you left
+  them.
+
+- **MCP serve pins to the admitted Git worktree.** Starting from a package
+  subdirectory, linked worktree, or symlink shares one canonical project with
+  activation, status, graph, and validation. Launches outside a repository are
+  refused with reconnection guidance.
+
 ### Changed
 
 - **`anvil status` reports L4 `on` only when a pre-push hook and a parseable
@@ -49,6 +76,29 @@ engineering maintenance are recorded in the
   unavailable. Existing databases are preserved. The unused JavaScript Ember,
   runtime watch and concurrency entry points have been retired.
 
+- **First-use bare `anvil` skips the licence wall when nothing is activated
+  yet.** A never-activated checkout gets the existing not-activated report
+  (exit 1) instead of the licence prompt. Once project config exists, daily
+  ensure stays entitled as before. `anvil welcome` remains optional ungated
+  learning and does not run start MCP, hook, daemon, or workflow mutations while
+  unsigned.
+
+- **Unattended `anvil start` no longer treats missing MCP as consent.** New MCP
+  installs need `--mcp-client` and/or `--all-mcp-clients`. `--no-tui` on a real
+  TTY is interactive plain consent with pickers; `--json` and `--verify` stay
+  read-only.
+
+- **Healthy bare `anvil` restores remembered integration coverage quietly.**
+  Client, scope, executable, and optional protection choices are inferred from
+  owned artefacts. Unresolved faults after ensure has already tried restore name
+  `anvil doctor`. `anvil start` remains the deliberate reconsider path.
+
+- **Graph-context answers attest their own bounds.** MCP graph envelopes report
+  which budget bound each section, per-edge call-resolution fidelity (Exact vs
+  Heuristic), and an estimated token cost. Oversized envelopes omit cost rather
+  than truncating the estimate. Skills and the AI-context guide say how to route
+  on those disclosures.
+
 ### Added
 
 - **Fresh `anvil init` writes `anvil/policy.yml`.** The file matches the default
@@ -56,6 +106,13 @@ engineering maintenance are recorded in the
   `l4_only`). Existing `anvil/policy.{yaml,yml,json,toml}` files are left
   unchanged, including under `--force`. `anvil start` does not create a policy
   on a repo that already has project config.
+
+- **First-value closing receipt after setup.** When selected MCP and save-time
+  coverage are proven, the receipt names the project, selected coverage,
+  connected or pending client, policy mode, last proof, and one next step.
+  Incomplete setup names one owner instead of claiming success. `anvil status`
+  and `anvil doctor` consume the same receipt facts (status JSON adds an
+  additive `receipt` object).
 
 - **`anvil start` installs managed skills for chosen MCP clients.** Ticking a
   client (or passing `--mcp-client`) now writes the bundled skills at that
