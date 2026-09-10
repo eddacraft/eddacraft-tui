@@ -1173,3 +1173,18 @@ never with feature work.
 - Next: exclusive APS reconcile of JSIMP-005 → Merged (this branch),
   then `/dev-loop complete` JSIMP-006.
 
+## Cycle — 2026-09-10 (JSIMP-006 integrated)
+
+- Target: JSIMP-006. Harness: Grok (`GROK_AGENT=1`). Mode: autonomous
+  complete plus rebase-merge on green (no admin merge).
+- Feature PR #4611 (`feat/jsimp-006-public-guidance`) rebase-merged;
+  tip on `origin/main` (`ea24cb83f`).
+- Claim #4610 closed by #4611. Public installer/help/quickstart copy
+  matches ADR-145; intercept has no ensure/restart verbs; unsigned
+  never-activated exit 1 is documented. No splash/always-on/dashboard.
+- Exclusive APS reconcile marks JSIMP-006 Merged, stored N/M 6/6,
+  module Done. JOURNEY-016 owns simplification acceptance.
+- Avoided: splash/always-on/dashboard; GATT/JREL/CCTX/RTAI/PSCAF.
+- Next: exclusive APS reconcile of JSIMP-006 → Merged (this branch),
+  then `/dev-loop complete` JOURNEY-016.
+

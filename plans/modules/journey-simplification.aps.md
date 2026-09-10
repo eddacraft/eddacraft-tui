@@ -2,7 +2,7 @@
 
 | ID | Owner | Priority | Status | Progress |
 | -- | ----- | -------- | ------ | -------- |
-| JSIMP | Josh | high | Ready | 5/6 |
+| JSIMP | Josh | high | Done | 6/6 |
 
 **Packages:** eddacraft-anvil, eddacraft-anvil-tui, @eddacraft/anvil-e2e
 
@@ -90,12 +90,12 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-006: Align public guidance and verify the simplified journey
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-10 via PR #4611
 - **Priority:** P1
 - **Intent:** Installation help and everyday command guidance describe the same verified product behaviour.
 - **Expected Outcome:** Installer copy, root help, quickstart, activation-state reference and troubleshooting reflect the accepted contract and identify release availability accurately. Platform/client journeys and new-user observation show completion without hidden developer switches. Navigation/accessibility regressions, terminal restoration, output compatibility and reliability fault tests remain covered. Record residual editorial feedback under its existing owner.
 - **Dependencies:** JSIMP-002, JSIMP-003, JSIMP-004, JSIMP-005
 - **Coordinates with:** JOURNEY-016 owns cross-module acceptance; JOURNEY-013 and CIB-353 retain observation/editorial scopes.
-- **Files:** `install.sh`, `crates/anvil-cli/src/main.rs`, `docs/public/anvil/quickstart.md`, `docs/public/anvil/guides/start-output-contracts.md`, `docs/public/anvil/operations/troubleshooting.md`, `apps/e2e/`
+- **Files:** `install.sh`, `scripts/install.test.sh`, `crates/anvil-cli/src/main.rs`, `crates/anvil-cli/tests/air_gapped.rs`, `docs/public/anvil/quickstart.md`, `docs/public/anvil/guides/start-output-contracts.md`, `docs/public/anvil/operations/troubleshooting.md`, `docs/runbooks/anvil-air-gapped.md`, `docs/architecture/docs-delivery.md`, `apps/e2e/`
 - **Validation:** `pnpm docs:check`; `pnpm --filter @eddacraft/anvil-e2e test:cli`; `pnpm --filter @eddacraft/anvil-e2e test:smoke`; JREL-012's no-skip command and recorded current-build user observation.
 - **Confidence:** medium — contract details are gated by JSIMP-001 and user observation.
