@@ -1,5 +1,10 @@
 version = 1
-targets = ["claude-code", "codex", "opencode", "grok"]
+# Grok and OpenCode also discover `.claude/skills` and `.agents/skills`
+# (CAP-006). Emitting the same shared skills into `.grok/skills` and
+# `.opencode/skills` triples each name in those pickers. Keep Claude and
+# Codex as the vend targets; leave the native Grok/OpenCode adapters on
+# disk unmanaged until the catalogue emitter skips overlapping roots.
+targets = ["claude-code", "codex"]
 bundles = []
 skills = [
   "eddacraft/agentic-loop",
@@ -25,8 +30,6 @@ skills = [
   "eddacraft/dev-loop-router",
   "eddacraft/dev-loop-adapter-claude",
   "eddacraft/dev-loop-adapter-codex",
-  "eddacraft/dev-loop-adapter-opencode",
-  "eddacraft/dev-loop-adapter-grok",
   "eddacraft/council",
   "eddacraft/agent-messaging",
   "eddacraft/agent-vault",

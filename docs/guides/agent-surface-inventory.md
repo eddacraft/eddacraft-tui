@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                                                                                                   |
 | ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | AICON | Live   | Last reviewed 2026-09-08 against `eddaskills.toml` / `eddaskills.lock.json` and tracked harness skill trees |
+| Guide | Authoritative | AICON | Live   | Last reviewed 2026-09-10 against `eddaskills.toml` / `eddaskills.lock.json` and tracked harness skill trees |
 
 | Upstream                                                                                                                                               | Downstream                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
@@ -39,15 +39,15 @@ describes the manual cross-check.
 
 ## Canonical Sources
 
-| Source                             | Role                                                                   | Path                                                                                                                  |
-| ---------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Repo-local Claude Code**         | Anvil-specific agents and commands                                     | `.claude/agents/`, `.claude/commands/`                                                                                |
-| **Repo-local OpenCode**            | Anvil-specific agent adapter                                           | `.opencode/agents/`                                                                                                   |
-| **Repo-local Codex**               | Codex-facing project configuration                                     | `.codex/config.toml`, `.codex/agents/`                                                                                |
-| **Repo-local Grok Build**          | Native skill emission only; no documented `.grok/agents/` contract     | `.grok/skills/`                                                                                                       |
-| **Catalogue (`eddacraft/skills`)** | Locked project vend via `eddaskills sync`                              | `eddaskills.toml`, `eddaskills.lock.json`, `.claude/skills/`, `.agents/skills/`, `.opencode/skills/`, `.grok/skills/` |
-| **anvil-managed Claude skill**     | `anvil-developer-functions` follows the anvil binary                   | `anvil skill install --client claude-code`                                                                            |
-| **Runtime-provided surfaces**      | Skills and built-ins installed or supplied by the active agent runtime | The runtime's discovered skill catalogue; no source file in this repository                                           |
+| Source                             | Role                                                                      | Path                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Repo-local Claude Code**         | Anvil-specific agents and commands                                        | `.claude/agents/`, `.claude/commands/`                                          |
+| **Repo-local OpenCode**            | Anvil-specific agent adapter                                              | `.opencode/agents/`                                                             |
+| **Repo-local Codex**               | Codex-facing project configuration                                        | `.codex/config.toml`, `.codex/agents/`                                          |
+| **Repo-local Grok Build**          | Native adapter only; shared skills are discovered from Claude/Codex roots | `.grok/skills/dev-loop-adapter-grok/`                                           |
+| **Catalogue (`eddacraft/skills`)** | Locked project vend via `eddaskills sync`                                 | `eddaskills.toml`, `eddaskills.lock.json`, `.claude/skills/`, `.agents/skills/` |
+| **anvil-managed Claude skill**     | `anvil-developer-functions` follows the anvil binary                      | `anvil skill install --client claude-code`                                      |
+| **Runtime-provided surfaces**      | Skills and built-ins installed or supplied by the active agent runtime    | The runtime's discovered skill catalogue; no source file in this repository     |
 
 When a name exists in both repo-local and global, the repo-local entry
 **overrides** the global. The override pattern is intentional: anvil tunes the
@@ -68,8 +68,15 @@ Not vendored: `dev-loop-executor` (deprecated shim), `dev-loop-differential`
 (optional drain audit), `anvil-developer-functions` (anvil-managed via
 `anvil skill install`).
 
-Each harness root gets only its own adapter (`dev-loop-adapter-claude` under
-`.claude/skills`, and so on).
+Shared skills vend only into `.claude/skills` and `.agents/skills`. Grok and
+OpenCode already read those roots (CAP-006), so a third copy under
+`.grok/skills` or `.opencode/skills` shows up as a duplicate name in the picker
+and is unsafe once any copy drifts. Native adapters stay in their own root:
+`dev-loop-adapter-claude` under `.claude/skills`, `dev-loop-adapter-codex` under
+`.agents/skills`, `dev-loop-adapter-grok` under `.grok/skills`,
+`dev-loop-adapter-opencode` under `.opencode/skills`. The Grok and OpenCode
+adapters are repo-local unmanaged files until the catalogue emitter can skip
+overlapping discovery roots.
 
 | Workflow job        | Skill                                                             |
 | ------------------- | ----------------------------------------------------------------- |
