@@ -236,7 +236,12 @@ fn spawn_start_in_pty(
     workdir: &Path,
     home: &Path,
     extra_args: &[&str],
-) -> (std::process::Child, std::fs::File, std::fs::File, nix::sys::termios::Termios) {
+) -> (
+    std::process::Child,
+    std::fs::File,
+    std::fs::File,
+    nix::sys::termios::Termios,
+) {
     let size = nix::pty::Winsize {
         ws_row: 30,
         ws_col: 120,
@@ -290,7 +295,7 @@ fn drive_start_pty_interaction(
     interaction: PtyInteraction,
 ) -> (std::process::ExitStatus, Vec<u8>) {
     nix::fcntl::fcntl(
-        master,
+        &mut *master,
         nix::fcntl::FcntlArg::F_SETFL(nix::fcntl::OFlag::O_NONBLOCK),
     )
     .expect("set PTY master non-blocking");
