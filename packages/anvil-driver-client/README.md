@@ -2,7 +2,7 @@
 
 | Type   | Authority     | Owner | Status | Freshness                                                                                                                                                      |
 | ------ | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Authoritative | DRVR  | Live   | Last reviewed 2026-08-20 against `packages/anvil-driver-client/src`, its tests, and the Rust protocol mirror at `crates/anvil-intercept-proto/src/protocol.rs` |
+| README | Authoritative | DRVR  | Live   | Last reviewed 2026-09-11 against `packages/anvil-driver-client/src`, its tests, and the Rust protocol mirror at `crates/anvil-intercept-proto/src/protocol.rs` |
 
 | Upstream                                                                                                                          | Downstream                                                                   |
 | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -98,6 +98,10 @@ All rejection paths surface a `DriverClientError` with stable `code` +
 
 `err.toJSON()` returns the wire-stable
 `{ error, retriable, message, data?, timeout_ms? }` shape.
+
+Calling `close()` while `connect()` is pending destroys the provisional socket,
+rejects the connection with `anvil-driver-closed`, and emits the local-close
+notification once.
 
 ## Wrong-owner refusal
 

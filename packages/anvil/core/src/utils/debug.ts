@@ -13,6 +13,8 @@
  *   DEBUG=anvil:* anvil gate plan.md
  */
 
+import { redactCredentialShapedText } from './credential-redaction.js';
+
 type DebugNamespace =
   | 'provenance'
   | 'cache'
@@ -100,19 +102,118 @@ export function sanitizeForLog(value: string): string {
   // eslint-disable-next-line no-control-regex -- intentional ESC match for ANSI stripping
   sanitized = sanitized.replace(/\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '');
 
-  // Redact strings starting with common secret prefixes
-  sanitized = sanitized.replace(/\b(sk-|ghp_|ghu_)[A-Za-z0-9_-]+/g, '[REDACTED]');
+  sanitized = redactCredentialShapedText(sanitized);
 
-  // Redact "Bearer <token>" patterns
-  sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9_.+/=-]+/g, 'Bearer [REDACTED]');
-
-  // Redact hex tokens (40+ hex chars, typical of SHA1/SHA256 tokens)
-  sanitized = sanitized.replace(/\b[0-9a-fA-F]{40,}\b/g, '[REDACTED]');
-
-  // Redact base64 tokens (20+ chars of base64 alphabet, ending with optional padding)
-  sanitized = sanitized.replace(/\b[A-Za-z0-9+/]{20,}={0,3}\b/g, '[REDACTED]');
+  // Redact base64 tokens while preserving exact Git SHA-1/SHA-256 object ids.
+  sanitized = sanitized.replace(/\b[A-Za-z0-9+/]{20,}={0,3}\b/g, (candidate) =>
+    /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(candidate) ? candidate : '[REDACTED]'
+  );
 
   return sanitized;
+}
+
+const MAX_STRUCTURED_DEPTH = 8;
+const CREDENTIAL_WORDS = new Set([
+  'token',
+  'tokens',
+  'secret',
+  'secrets',
+  'password',
+  'passwords',
+  'passwd',
+  'credential',
+  'credentials',
+  'authorization',
+  'cookie',
+  'bearer',
+]);
+function isCredentialField(key: string, value: unknown): boolean {
+  if (
+    value === null ||
+    value === undefined ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return false;
+  }
+  const words = key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  const last = words.at(-1);
+  if (last !== undefined && CREDENTIAL_WORDS.has(last)) return true;
+  for (let index = 0; index < words.length - 1; index += 1) {
+    const isKeyPair =
+      (words[index] === 'api' || words[index] === 'private') && words[index + 1] === 'key';
+    if (isKeyPair) return true;
+  }
+  const credentialIndex = words.findIndex((word) => CREDENTIAL_WORDS.has(word));
+  if (credentialIndex >= 0 && words[credentialIndex] !== 'cookie') return true;
+  if (credentialIndex >= 0 && words[credentialIndex] === 'cookie') {
+    return words.length !== credentialIndex + 2 || words[credentialIndex + 1] !== 'policy';
+  }
+  return false;
+}
+
+function sanitizeStructuredData(value: unknown, seen: Set<object> = new Set(), depth = 0): unknown {
+  try {
+    if (typeof value === 'string') return sanitizeForLog(value);
+    if (typeof value === 'function') return '[Function]';
+    if (value === null || typeof value !== 'object') return value;
+    if (seen.has(value)) return '[CIRCULAR]';
+    if (depth >= MAX_STRUCTURED_DEPTH) return '[TRUNCATED]';
+
+    seen.add(value);
+    if (Array.isArray(value)) {
+      const result = value.map((item) => sanitizeStructuredData(item, seen, depth + 1));
+      seen.delete(value);
+      return result;
+    }
+    if (value instanceof Date) {
+      seen.delete(value);
+      return Number.isNaN(value.getTime()) ? 'Invalid Date' : value.toISOString();
+    }
+    if (value instanceof Map) {
+      const result = [...value].map(([key, item]) => {
+        const keyText = typeof key === 'string' ? key : null;
+        return [
+          sanitizeStructuredData(key, seen, depth + 1),
+          keyText !== null && isCredentialField(keyText, item)
+            ? '[redacted]'
+            : sanitizeStructuredData(item, seen, depth + 1),
+        ];
+      });
+      seen.delete(value);
+      return result;
+    }
+    if (value instanceof Set) {
+      const result = [...value].map((item) => sanitizeStructuredData(item, seen, depth + 1));
+      seen.delete(value);
+      return result;
+    }
+
+    const result: Record<string, unknown> = {};
+    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+      if (!descriptor.enumerable) continue;
+      Object.defineProperty(result, sanitizeForLog(key), {
+        value:
+          'value' in descriptor
+            ? isCredentialField(key, descriptor.value)
+              ? '[redacted]'
+              : sanitizeStructuredData(descriptor.value, seen, depth + 1)
+            : '[GETTER]',
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    seen.delete(value);
+    return result;
+  } catch {
+    if (value !== null && typeof value === 'object') seen.delete(value);
+    return '[UNREADABLE]';
+  }
 }
 
 export function debug(namespace: DebugNamespace, message: string, data?: unknown): void {
@@ -134,7 +235,7 @@ export function debug(namespace: DebugNamespace, message: string, data?: unknown
     } else if (typeof data === 'string') {
       console.debug('%s %s: %s', prefix, sanitizedMessage, sanitizeForLog(data));
     } else {
-      console.debug('%s %s:', prefix, sanitizedMessage, data);
+      console.debug('%s %s:', prefix, sanitizedMessage, sanitizeStructuredData(data));
     }
   } else {
     console.debug('%s %s', prefix, sanitizedMessage);

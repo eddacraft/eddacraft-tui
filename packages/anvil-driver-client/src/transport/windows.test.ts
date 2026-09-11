@@ -258,6 +258,54 @@ describe('assertWindowsServerSid', () => {
 describe('WindowsNamedPipeTransport server-identity gate', () => {
   const handlers = { onData: (): void => {}, onClose: (): void => {} };
 
+  it('close cancels an in-flight connection exactly once', async () => {
+    const pendingSocket = new net.Socket();
+    const closes: string[] = [];
+    const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {
+      currentUserSid: () => CURRENT_SID,
+      createConnection: () => pendingSocket,
+      authenticateServer: () => undefined,
+    });
+
+    const connecting = transport.connect({
+      onData: () => undefined,
+      onClose: (cause) => closes.push(cause),
+    });
+    await transport.close();
+
+    await expect(connecting).rejects.toMatchObject({ code: 'anvil-driver-closed' });
+    expect(pendingSocket.destroyed).toBe(true);
+    expect(closes).toEqual(['local']);
+    await transport.close();
+    expect(closes).toEqual(['local']);
+  });
+
+  it('close wins after socket connect and before authentication', async () => {
+    const pendingSocket = new net.Socket();
+    let authCalls = 0;
+    const closes: string[] = [];
+    const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {
+      currentUserSid: () => CURRENT_SID,
+      createConnection: () => pendingSocket,
+      authenticateServer: () => {
+        authCalls += 1;
+        throw new Error('authentication should not run after close');
+      },
+    });
+
+    const connecting = transport.connect({
+      onData: () => undefined,
+      onClose: (cause) => closes.push(cause),
+    });
+    pendingSocket.emit('connect');
+    await transport.close();
+
+    await expect(connecting).rejects.toMatchObject({ code: 'anvil-driver-closed' });
+    expect(authCalls).toBe(0);
+    expect(pendingSocket.destroyed).toBe(true);
+    expect(closes).toEqual(['local']);
+  });
+
   it('rejects a correctly named squatted peer via the authenticator seam', async () => {
     let authCalls = 0;
     const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {

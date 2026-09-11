@@ -1,8 +1,8 @@
 # anvil driver client architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                             |
-| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DRVR  | Live   | Last reviewed 2026-09-11 against `packages/anvil-driver-client/src/transport/windows.ts` CIB-211 named-pipe server SID authentication |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                           |
+| ------------ | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DRVR  | Live   | Last reviewed 2026-09-11 against `packages/anvil-driver-client/src/transport/{unix,windows}.ts` CLAWREL-001 connection cancellation |
 
 | Upstream                                                             | Downstream                                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -70,6 +70,13 @@ Identification SQOS via optional `koffi` FFI and fails closed if that native
 path cannot run. Tests inject `authenticateServer` (and optionally
 `createConnection`) so squat-reject coverage runs off Windows. A failure on
 either platform is non-retriable `anvil-daemon-wrong-owner`.
+
+Explicit close is terminal even while a connection is opening. Both transports
+destroy a provisional socket, reject the pending `connect()` with
+`anvil-driver-closed`, and emit one local-close notification. On Windows that
+closure outcome takes precedence if the pipe connected but server authentication
+has not yet run, so no authentication or application traffic continues on a
+closed transport.
 
 ## Reconnection and reliability
 

@@ -33,6 +33,11 @@ import os from 'node:os';
 import { driverError, DriverClientError } from '../errors.js';
 import type { Transport, TransportCloseCause, TransportHandlers } from './types.js';
 
+export interface UnixTransportOptions {
+  /** Test seam for deterministically controlling the connect lifecycle. */
+  createConnection?: (socketPath: string) => net.Socket;
+}
+
 /**
  * Perform the pre-connect path validation. Returns void on success,
  * throws a {@link DriverClientError} on failure.
@@ -139,7 +144,9 @@ export function validateUnixSocketOwnership(socketPath: string): void {
  */
 export class UnixSocketTransport implements Transport {
   private readonly socketPath: string;
+  private readonly createConnection: (socketPath: string) => net.Socket;
   private socket: net.Socket | null = null;
+  private pendingConnect: { cancel: () => void } | null = null;
   private handlers: TransportHandlers | null = null;
   private closed = false;
   private closeFired = false;
@@ -148,8 +155,9 @@ export class UnixSocketTransport implements Transport {
    *  on a slow daemon. */
   private writePromises: Array<() => void> = [];
 
-  public constructor(socketPath: string) {
+  public constructor(socketPath: string, options: UnixTransportOptions = {}) {
     this.socketPath = socketPath;
+    this.createConnection = options.createConnection ?? ((name) => net.createConnection(name));
   }
 
   public async connect(handlers: TransportHandlers): Promise<void> {
@@ -167,14 +175,29 @@ export class UnixSocketTransport implements Transport {
     this.handlers = handlers;
 
     await new Promise<void>((resolve, reject) => {
-      const sock = net.createConnection(this.socketPath);
+      const sock = this.createConnection(this.socketPath);
       let settled = false;
+
+      const cancel = (): void => {
+        if (settled) return;
+        settled = true;
+        this.pendingConnect = null;
+        sock.destroy();
+        reject(driverError('anvil-driver-closed', 'transport closed while connecting'));
+      };
+      this.pendingConnect = { cancel };
 
       sock.once('connect', () => {
         if (settled) {
           return;
         }
         settled = true;
+        this.pendingConnect = null;
+        if (this.closed) {
+          sock.destroy();
+          reject(driverError('anvil-driver-closed', 'transport closed while connecting'));
+          return;
+        }
         this.socket = sock;
         this.attachStreamHandlers(sock);
         resolve();
@@ -187,6 +210,7 @@ export class UnixSocketTransport implements Transport {
           return;
         }
         settled = true;
+        this.pendingConnect = null;
         this.handlers = null;
         const code = (err as NodeJS.ErrnoException).code;
         if (code === 'ENOENT' || code === 'ECONNREFUSED') {
@@ -246,6 +270,7 @@ export class UnixSocketTransport implements Transport {
       return;
     }
     this.closed = true;
+    this.pendingConnect?.cancel();
     if (this.socket === null) {
       this.fireClose('local');
       return;

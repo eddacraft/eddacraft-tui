@@ -17,6 +17,18 @@ const HEX_TOKEN = /^[0-9a-fA-F]{40,}$/;
 const BEARER = /^Bearer\s+\S+/i;
 const SK_PREFIX = /^sk-[A-Za-z0-9_-]{16,}$/;
 
+const EMBEDDED_CREDENTIAL_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\b(?:ghp_|ghu_|ghs_|gho_|ghr_|github_pat_)[A-Za-z0-9_-]+/gi, REDACTED],
+  [/\b(?:glpat-|gloas-|glrt-)[A-Za-z0-9_-]+/gi, REDACTED],
+  [/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, REDACTED],
+  [/\bBearer\s+\S+/gi, `Bearer ${REDACTED}`],
+  [/\bsk-[A-Za-z0-9_-]{16,}\b/gi, REDACTED],
+  [
+    /\b((?:[a-z0-9]+[ _-]+)*(?:api[ _-]*(?:key|token)|access[ _-]*token|private[ _-]*key|token|secret|password|passwd|credential|pat)(?:[ _-]+[a-z0-9]+)*(?:["'])?\s*[:=]\s*(?:["'])?)[0-9a-fA-F]{40,}\b/gi,
+    `$1${REDACTED}`,
+  ],
+];
+
 /**
  * True when an environment variable name is a credential, not a session id.
  */
@@ -48,6 +60,20 @@ export function redactCredentialShapedValue(value: string): string {
 }
 
 /**
+ * Redact recognised credentials embedded in otherwise ordinary text.
+ *
+ * Unlike {@link redactCredentialShapedValue}, this preserves the non-secret
+ * context around a credential so prompts and diagnostics remain useful.
+ */
+export function redactCredentialShapedText(value: string): string {
+  let redacted = value;
+  for (const [pattern, replacement] of EMBEDDED_CREDENTIAL_PATTERNS) {
+    redacted = redacted.replace(pattern, replacement);
+  }
+  return redacted;
+}
+
+/**
  * Strip URL userinfo from Git remotes before persistence or display.
  *
  * HTTPS remotes always drop userinfo (passwords and token usernames).
@@ -57,6 +83,15 @@ export function redactCredentialShapedValue(value: string): string {
 export function stripGitRemoteUserinfo(url: string): string {
   const trimmed = url.trim();
   if (!trimmed) return trimmed;
+
+  const scpStyle = trimmed.match(/^([^@\s/]+)@([^:\s]+):(.+)$/);
+  if (scpStyle) {
+    const [, username, host, path] = scpStyle;
+    if (username && host && path && isCredentialShapedValue(username)) {
+      return `${REDACTED}@${host}:${path}`;
+    }
+    return trimmed;
+  }
 
   try {
     const parsed = new URL(trimmed);

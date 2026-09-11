@@ -154,14 +154,38 @@ describe('loadSnapshot', () => {
     const snapshot = createSnapshot(validManifest());
     const obj = JSON.parse(JSON.stringify(snapshot));
     obj.flags = [null];
-    expect(() => loadSnapshot(JSON.stringify(obj))).toThrow('not an object');
+    expect(() => loadSnapshot(JSON.stringify(obj))).toThrow('canonical feature-flag schema');
   });
 
   it('throws for flag missing required fields', () => {
     const snapshot = createSnapshot(validManifest());
     const obj = JSON.parse(JSON.stringify(snapshot));
     obj.flags = [{ key: 'test' }];
-    expect(() => loadSnapshot(JSON.stringify(obj))).toThrow('missing required fields');
+    expect(() => loadSnapshot(JSON.stringify(obj))).toThrow('canonical feature-flag schema');
+  });
+
+  it('rejects variant values that do not match the declared value type', () => {
+    const snapshot = createSnapshot(validManifest());
+    const obj = JSON.parse(JSON.stringify(snapshot));
+    obj.flags[0].variants[0].value = 'true';
+
+    expect(() => loadSnapshot(JSON.stringify(obj))).toThrow('canonical feature-flag schema');
+  });
+
+  it('rejects a default variant that is not defined', () => {
+    const snapshot = createSnapshot(validManifest());
+    const obj = JSON.parse(JSON.stringify(snapshot));
+    obj.flags[0].defaultVariant = 'missing';
+
+    expect(() => loadSnapshot(JSON.stringify(obj))).toThrow('canonical feature-flag schema');
+  });
+
+  it('rejects duplicate flag keys', () => {
+    const snapshot = createSnapshot(validManifest());
+    const obj = JSON.parse(JSON.stringify(snapshot));
+    obj.flags.push(structuredClone(obj.flags[0]));
+
+    expect(() => loadSnapshot(JSON.stringify(obj))).toThrow('canonical feature-flag schema');
   });
 });
 

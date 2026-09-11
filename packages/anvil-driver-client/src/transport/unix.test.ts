@@ -190,4 +190,31 @@ describe('UnixSocketTransport happy path', () => {
       expect((err as DriverClientError).code).toBe('anvil-daemon-unavailable');
     }
   );
+
+  it.skipIf(!isUnix)('close cancels an in-flight connection exactly once', async () => {
+    const dir = makeTmpDir();
+    const sockPath = path.join(dir, 'intercept.sock');
+    const server = await bindServer(sockPath);
+    const pendingSocket = new net.Socket();
+    const closes: string[] = [];
+    const transport = new UnixSocketTransport(sockPath, {
+      createConnection: () => pendingSocket,
+    });
+
+    try {
+      const connecting = transport.connect({
+        onData: () => undefined,
+        onClose: (cause) => closes.push(cause),
+      });
+      await transport.close();
+
+      await expect(connecting).rejects.toMatchObject({ code: 'anvil-driver-closed' });
+      expect(pendingSocket.destroyed).toBe(true);
+      expect(closes).toEqual(['local']);
+      await transport.close();
+      expect(closes).toEqual(['local']);
+    } finally {
+      server.close();
+    }
+  });
 });

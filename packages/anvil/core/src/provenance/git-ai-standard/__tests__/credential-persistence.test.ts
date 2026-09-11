@@ -74,6 +74,16 @@ describe('authorship serialisation credential redaction', () => {
     expect(output).toContain('"copilot"');
   });
 
+  it('does not serialise credentials embedded in prompt messages', () => {
+    const log = makeLog('copilot-session-42');
+    log.metadata.prompts.a1b2c3d4e5f67890.messages[0]!.text = `Use ${FAKE_COPILOT_TOKEN} for the request`;
+
+    const output = serializeAuthorshipLog(log);
+
+    expect(output).not.toContain(FAKE_COPILOT_TOKEN);
+    expect(output).toContain('Use [redacted] for the request');
+  });
+
   it('keeps legitimate non-secret agent ids', () => {
     const output = serializeAuthorshipLog(makeLog('copilot-session-42'));
 
@@ -138,6 +148,7 @@ describe('git notes credential redaction', { timeout: 30_000 }, () => {
           base_commit_sha: commitSha,
         },
       };
+      log.metadata.prompts.a1b2c3d4e5f67890.messages[0]!.text = `Use ${FAKE_COPILOT_TOKEN} for the request`;
 
       await writeAuthorshipNote(commitSha, log, tempDir);
       const raw = execSync(`git notes --ref=refs/notes/ai show ${commitSha}`, {
@@ -150,6 +161,9 @@ describe('git notes credential redaction', { timeout: 30_000 }, () => {
       const parsed = await readAuthorshipNote(commitSha, tempDir);
       expect(JSON.stringify(parsed)).not.toContain(FAKE_COPILOT_TOKEN);
       expect(parsed?.metadata.prompts['a1b2c3d4e5f67890'].agent_id.id).toBe('[redacted]');
+      expect(parsed?.metadata.prompts['a1b2c3d4e5f67890'].messages[0]?.text).toBe(
+        'Use [redacted] for the request'
+      );
     } finally {
       await safeCleanup(tempDir);
     }

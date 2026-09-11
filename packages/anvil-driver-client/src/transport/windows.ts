@@ -268,7 +268,9 @@ export class WindowsNamedPipeTransport implements Transport {
   private readonly authenticateServer: ((socket: net.Socket) => void) | undefined;
   private readonly createConnection: ((pipeName: string) => net.Socket) | undefined;
   private socket: net.Socket | null = null;
+  private connectingSocket: net.Socket | null = null;
   private handlers: TransportHandlers | null = null;
+  private pendingConnect: { cancel: () => void } | null = null;
   private connecting = false;
   private closed = false;
   private closeFired = false;
@@ -293,13 +295,24 @@ export class WindowsNamedPipeTransport implements Transport {
     const currentSid = this.resolveSidFailClosed();
     validateWindowsPipeOwnership(this.pipeName, currentSid);
 
+    this.handlers = handlers;
     this.connecting = true;
     try {
       const sock = await this.openAndAuthenticate(currentSid);
+      if (this.closed) {
+        sock.destroy();
+        this.connectingSocket = null;
+        throw driverError('anvil-driver-closed', 'transport closed while connecting');
+      }
+      this.connectingSocket = null;
       this.socket = sock;
-      this.handlers = handlers;
       this.attachStreamHandlers(sock);
       sock.resume();
+    } catch (err) {
+      if (!this.closed) {
+        this.handlers = null;
+      }
+      throw err;
     } finally {
       this.connecting = false;
     }
@@ -329,6 +342,8 @@ export class WindowsNamedPipeTransport implements Transport {
       return;
     }
     this.closed = true;
+    this.pendingConnect?.cancel();
+    this.connectingSocket?.destroy();
     if (this.socket === null) {
       this.fireClose('local');
       return;
@@ -341,10 +356,18 @@ export class WindowsNamedPipeTransport implements Transport {
       const sock = await this.connectViaFactory(
         this.createConnection ?? ((name) => net.createConnection(name))
       );
+      if (this.closed) {
+        sock.destroy();
+        throw driverError('anvil-driver-closed', 'transport closed while connecting');
+      }
       try {
         this.runAuthenticator(sock, currentSid);
       } catch (err) {
         sock.destroy();
+        this.connectingSocket = null;
+        if (this.closed) {
+          throw driverError('anvil-driver-closed', 'transport closed while connecting');
+        }
         throw this.mapAuthError(err);
       }
       return sock;
@@ -368,12 +391,23 @@ export class WindowsNamedPipeTransport implements Transport {
   private connectViaFactory(create: (name: string) => net.Socket): Promise<net.Socket> {
     return new Promise<net.Socket>((resolve, reject) => {
       const sock = create(this.pipeName);
+      this.connectingSocket = sock;
       let settled = false;
+      const cancel = (): void => {
+        if (settled) return;
+        settled = true;
+        this.pendingConnect = null;
+        this.connectingSocket = null;
+        sock.destroy();
+        reject(driverError('anvil-driver-closed', 'transport closed while connecting'));
+      };
+      this.pendingConnect = { cancel };
       sock.once('connect', () => {
         if (settled) {
           return;
         }
         settled = true;
+        this.pendingConnect = null;
         sock.pause();
         resolve(sock);
       });
@@ -382,6 +416,7 @@ export class WindowsNamedPipeTransport implements Transport {
           return;
         }
         settled = true;
+        this.pendingConnect = null;
         sock.destroy();
         reject(mapConnectError(this.pipeName, err));
       });

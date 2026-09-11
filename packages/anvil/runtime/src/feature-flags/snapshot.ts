@@ -1,5 +1,5 @@
 import type { FeatureFlagDefinition, FeatureFlagManifest } from '@eddacraft/anvil-contracts';
-import { FEATURE_FLAG_SCHEMA_VERSION } from '@eddacraft/anvil-contracts';
+import { FEATURE_FLAG_SCHEMA_VERSION, FeatureFlagManifestSchema } from '@eddacraft/anvil-contracts';
 
 // =============================================================================
 // Snapshot Shape
@@ -101,38 +101,24 @@ export function loadSnapshot(json: string): FeatureFlagSnapshot {
     throw new SnapshotLoadError('issuedAt is not a valid timestamp');
   }
 
-  // C-004: validate flag array elements have required fields
-  const KNOWN_VALUE_TYPES = ['boolean', 'string', 'number', 'object'] as const;
-  for (let i = 0; i < flags.length; i++) {
-    const flag = flags[i];
-    if (typeof flag !== 'object' || flag === null) {
-      throw new SnapshotLoadError(`flags[${i}] is not an object`);
-    }
-    const f = flag as Record<string, unknown>;
-    if (
-      typeof f.key !== 'string' ||
-      typeof f.owner !== 'string' ||
-      typeof f.defaultVariant !== 'string' ||
-      typeof f.status !== 'string' ||
-      typeof f.class !== 'string'
-    ) {
-      throw new SnapshotLoadError(`flags[${i}] is missing required fields`);
-    }
-    // C-017: validate valueType is a known string
-    if (!(KNOWN_VALUE_TYPES as readonly string[]).includes(f.valueType as string)) {
-      throw new SnapshotLoadError(`flags[${i}] has invalid valueType: ${String(f.valueType)}`);
-    }
-    // C-017: validate variants array exists and is non-empty
-    if (!Array.isArray(f.variants) || f.variants.length === 0) {
-      throw new SnapshotLoadError(`flags[${i}] must have a non-empty variants array`);
-    }
+  // C-004/C-017: the canonical manifest schema is the sole validator for flag definitions.
+  const manifestResult = FeatureFlagManifestSchema.safeParse({
+    schemaVersion: FEATURE_FLAG_SCHEMA_VERSION,
+    flags,
+  });
+  if (!manifestResult.success) {
+    throw new SnapshotLoadError(
+      `Snapshot does not satisfy the canonical feature-flag schema: ${manifestResult.error.issues
+        .map((issue) => `${issue.path.join('.') || 'manifest'}: ${issue.message}`)
+        .join('; ')}`
+    );
   }
 
   return {
     schemaVersion: FEATURE_FLAG_SCHEMA_VERSION,
     snapshotVersion,
     issuedAt,
-    flags: flags as FeatureFlagDefinition[],
+    flags: manifestResult.data.flags,
   };
 }
 

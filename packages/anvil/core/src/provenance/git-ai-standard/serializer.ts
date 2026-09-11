@@ -1,7 +1,10 @@
 import type { AuthorshipLog, FileAttestation } from './types.js';
 import { AuthorshipLogSchema, SCHEMA_VERSION } from './types.js';
 import { createDebugger } from '../../utils/debug.js';
-import { redactCredentialShapedValue } from '../../utils/credential-redaction.js';
+import {
+  redactCredentialShapedText,
+  redactCredentialShapedValue,
+} from '../../utils/credential-redaction.js';
 
 const debug = createDebugger('provenance');
 
@@ -61,6 +64,15 @@ function redactAuthorshipMetadata(metadata: AuthorshipLog['metadata']): Authorsh
         ...prompt.agent_id,
         id: redactCredentialShapedValue(prompt.agent_id.id),
       },
+      messages: prompt.messages.map((message) =>
+        message.timestamp === undefined
+          ? { type: message.type, text: redactCredentialShapedText(message.text) }
+          : {
+              type: message.type,
+              text: redactCredentialShapedText(message.text),
+              timestamp: message.timestamp,
+            }
+      ),
     };
   }
   return { ...metadata, prompts };

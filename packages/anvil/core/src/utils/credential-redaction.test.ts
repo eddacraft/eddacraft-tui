@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isCredentialEnvVarName,
   isCredentialShapedValue,
+  redactCredentialShapedText,
   redactCredentialShapedValue,
   stripGitRemoteUserinfo,
 } from './credential-redaction.js';
@@ -54,6 +55,53 @@ describe('redactCredentialShapedValue', () => {
   });
 });
 
+describe('redactCredentialShapedText', () => {
+  it('redacts embedded credentials without dropping ordinary surrounding text', () => {
+    expect(redactCredentialShapedText(`use ${FAKE_COPILOT_TOKEN} for the request`)).toBe(
+      'use [redacted] for the request'
+    );
+    expect(redactCredentialShapedText('Implement feature')).toBe('Implement feature');
+  });
+
+  it('preserves Git object ids embedded in ordinary text', () => {
+    const sha1 = '50c40cf374b927ae2b6ba4dd12618ac7754950ec';
+    const sha256 = 'a'.repeat(64);
+
+    expect(redactCredentialShapedText(`Inspect commit ${sha1} before release`)).toBe(
+      `Inspect commit ${sha1} before release`
+    );
+    expect(redactCredentialShapedText(`Inspect commit ${sha256} before release`)).toBe(
+      `Inspect commit ${sha256} before release`
+    );
+  });
+
+  it('redacts hexadecimal credentials when their text labels the value', () => {
+    expect(redactCredentialShapedText(`API_TOKEN=${FAKE_CLASSIC_HEX}`)).toBe(
+      'API_TOKEN=[redacted]'
+    );
+    expect(redactCredentialShapedText(`GITHUB_TOKEN=${FAKE_CLASSIC_HEX}`)).toBe(
+      'GITHUB_TOKEN=[redacted]'
+    );
+    expect(redactCredentialShapedText(`MY_API_KEY=${FAKE_CLASSIC_HEX}`)).toBe(
+      'MY_API_KEY=[redacted]'
+    );
+    expect(redactCredentialShapedText(`GITHUB_TOKEN="${FAKE_CLASSIC_HEX}"`)).toBe(
+      'GITHUB_TOKEN="[redacted]"'
+    );
+    expect(redactCredentialShapedText(`{"MY_API_KEY":"${FAKE_CLASSIC_HEX}"}`)).toBe(
+      '{"MY_API_KEY":"[redacted]"}'
+    );
+    expect(redactCredentialShapedText(`PRIVATE_KEY='${FAKE_CLASSIC_HEX}'`)).toBe(
+      "PRIVATE_KEY='[redacted]'"
+    );
+    expect(redactCredentialShapedText(`API key: ${FAKE_CLASSIC_HEX}`)).toBe('API key: [redacted]');
+    expect(redactCredentialShapedText(`private key = ${FAKE_CLASSIC_HEX}`)).toBe(
+      'private key = [redacted]'
+    );
+    expect(redactCredentialShapedText(`secret: ${FAKE_CLASSIC_HEX}`)).toBe('secret: [redacted]');
+  });
+});
+
 describe('stripGitRemoteUserinfo', () => {
   it('strips user:password and token userinfo from HTTPS remotes', () => {
     expect(stripGitRemoteUserinfo('https://user:pass@github.com/org/repo.git')).toBe(
@@ -76,6 +124,12 @@ describe('stripGitRemoteUserinfo', () => {
     );
     expect(stripGitRemoteUserinfo('ssh://git@github.com/org/repo.git')).toBe(
       'ssh://git@github.com/org/repo.git'
+    );
+  });
+
+  it('redacts credential-shaped usernames in scp-style SSH remotes', () => {
+    expect(stripGitRemoteUserinfo(`${FAKE_COPILOT_TOKEN}@github.com:org/repo.git`)).toBe(
+      '[redacted]@github.com:org/repo.git'
     );
   });
 });
