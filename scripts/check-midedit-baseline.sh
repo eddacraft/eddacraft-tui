@@ -77,7 +77,8 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-if ! jq -e . "$baseline" >/dev/null 2>&1; then
+if ! jq -ne --slurpfile b "$baseline" \
+  '($b | length) == 1 and ($b[0] | type) == "object"' >/dev/null 2>&1; then
   echo "error: malformed baseline JSON: $baseline" >&2
   exit 2
 fi
@@ -95,10 +96,10 @@ fi
 if ! jq -e '
   (.slos | type == "object") and
   (.cases | type == "object") and
-  all(.slos[]; type == "object" and (.p95_ms | type == "number")) and
-  all(.cases[]; type == "object" and all(.[]; type == "object" and (.p95_ms | type == "number")))
+  all(.slos[]; type == "object" and (.p95_ms | type == "number" and . >= 0)) and
+  all(.cases[]; type == "object" and all(.[]; type == "object" and (.p95_ms | type == "number" and . >= 0)))
 ' "$baseline" >/dev/null 2>&1; then
-  echo "error: malformed baseline data: every SLO and case requires a numeric p95_ms" >&2
+  echo "error: malformed baseline data: every SLO and case requires a non-negative numeric p95_ms" >&2
   exit 2
 fi
 
@@ -142,6 +143,12 @@ declare -i hard_fail=0
 declare -i soft_warn=0
 declare -i rows=0
 declare -A parsed_rows=()
+declare -a staged_boundary=()
+declare -a staged_case=()
+declare -a staged_p50=()
+declare -a staged_p95=()
+declare -a staged_p99=()
+declare -a staged_dim=()
 current_dim=""
 percentile_row_re='^(validation\.[a-z]+)[[:space:]]+([A-Za-z0-9_]+):[[:space:]]+samples=([0-9]+)[[:space:]]+p50=([0-9]+|[0-9]+[.][0-9]+)ms[[:space:]]+p95=([0-9]+|[0-9]+[.][0-9]+)ms[[:space:]]+p99=([0-9]+|[0-9]+[.][0-9]+)ms$'
 
@@ -149,9 +156,8 @@ echo "midedit baseline gate (drift tolerance: ±${drift_pct}%)"
 echo "baseline: $baseline"
 echo
 
-# Pair each `dimensions:` line with the `<boundary> <case>: ...` row that
-# follows it. ADR-031 requires both for each measurement; the percentile
-# sampler emits them as adjacent lines.
+# Pass 1: parse and stage rows only. Required-coverage preflight must run before
+# threshold evaluation so a partial sampler cannot emit misleading FAIL/WARN.
 while IFS= read -r line; do
   if [[ "$line" == dimensions:* ]]; then
     current_dim="$line"
@@ -166,106 +172,24 @@ while IFS= read -r line; do
       exit 2
     fi
     rows+=1
-    p50_now="${BASH_REMATCH[4]}"
-    p95_now="${BASH_REMATCH[5]}"
-    p99_now="${BASH_REMATCH[6]}"
+    staged_boundary+=("$boundary")
+    staged_case+=("$case_label")
+    staged_p50+=("${BASH_REMATCH[4]}")
+    staged_p95+=("${BASH_REMATCH[5]}")
+    staged_p99+=("${BASH_REMATCH[6]}")
+    staged_dim+=("$current_dim")
     parsed_rows["$boundary $case_label"]=1
-
-    base_p95=$(jq -r --arg b "$boundary" --arg c "$case_label" \
-      '.cases[$b][$c].p95_ms // empty' "$baseline")
-    slo_p95=$(jq -r --arg b "$boundary" '.slos[$b].p95_ms // empty' "$baseline")
-
-    if [[ -z "$base_p95" ]]; then
-      echo "FAIL  $boundary $case_label: no baseline entry" >&2
-      echo "       $current_dim" >&2
-      echo "       hint: a new bench case has been added without a baseline." >&2
-      echo "       Re-record the baseline (see midedit_roundtrip.rs § Re-baselining)" >&2
-      echo "       and commit the updated baselines/midedit_roundtrip.json." >&2
-      hard_fail+=1
-      continue
-    fi
-    if [[ -z "$slo_p95" ]]; then
-      echo "FAIL  $boundary: no SLO entry in baseline" >&2
-      hard_fail+=1
-      continue
-    fi
-
-    # Drift = (now - baseline) / baseline * 100. The drift gate is symmetric
-    # (|drift| > drift_pct triggers a warn) so a sudden p95 *improvement* also
-    # surfaces — usually a sign that the bench environment changed or the
-    # baseline is stale and should be re-recorded. When baseline_p95 is 0
-    # (sub-resolution case, e.g. binary_short_circuit on validation.service)
-    # we fall back to a fixed absolute floor so a regression past the floor
-    # still trips the drift warn even though no percentage is meaningful.
-    read -r drift over_drift drift_mode < <(awk \
-        -v now="$p95_now" -v base="$base_p95" \
-        -v floor="$zero_baseline_floor_ms" -v t="$drift_pct" '
-      BEGIN {
-        n = now + 0
-        b = base + 0
-        if (b == 0) {
-          # Absolute mode: warn iff observed exceeds floor.
-          drift = 0.0
-          warn = (n > floor + 0) ? 1 : 0
-          mode = "abs"
-        } else {
-          drift = (n - b) / b * 100
-          abs_drift = (drift < 0) ? -drift : drift
-          warn = (abs_drift > t + 0) ? 1 : 0
-          mode = "pct"
-        }
-        printf "%.1f %d %s\n", drift, warn, mode
-      }')
-
-    over_slo=$(awk -v now="$p95_now" -v slo="$slo_p95" \
-      'BEGIN { print (now+0 > slo+0) ? "1" : "0" }')
-
-    status="OK"
-    attr_note=""
-    if (( over_slo )); then
-      # ADR-031: validation.roundtrip is the primary SLO / CI hard-fail
-      # boundary. validation.service is attribution — soft-warn only so a
-      # runner-class service near_cap (~55 ms vs 50) does not false-fail the
-      # nightly when roundtrip is still under 80 ms. Soft-warn is explicit for
-      # validation.service only; any future/unknown boundary stays hard-fail.
-      if [[ "$boundary" == "validation.roundtrip" ]]; then
-        status="FAIL"
-        hard_fail+=1
-      elif [[ "$boundary" == "validation.service" ]]; then
-        status="WARN"
-        soft_warn+=1
-        attr_note="service SLO breach (attribution only; CI hard-fail is validation.roundtrip)"
-      else
-        status="FAIL"
-        hard_fail+=1
-        attr_note="unknown boundary SLO breach (hard-fail; only validation.service is soft-warn)"
-      fi
-    elif (( over_drift )); then
-      status="WARN"
-      soft_warn+=1
-    fi
-
-    if [[ "$drift_mode" == "abs" ]]; then
-      drift_display="abs(floor=${zero_baseline_floor_ms}ms)"
-    else
-      drift_display="${drift}%"
-    fi
-
-    printf '%-4s %s %s: p50=%sms p95=%sms p99=%sms  baseline_p95=%sms drift=%s  slo_p95=%sms\n' \
-      "$status" "$boundary" "$case_label" "$p50_now" "$p95_now" "$p99_now" \
-      "$base_p95" "$drift_display" "$slo_p95"
-    if [[ "$status" != "OK" ]]; then
-      printf '     %s\n' "$current_dim"
-      if [[ -n "$attr_note" ]]; then
-        printf '     %s\n' "$attr_note"
-      fi
-    fi
   elif [[ "$line" == validation.* ]]; then
     echo "error: malformed percentile row: $line" >&2
     echo "       expected: <boundary> <case>: samples=N p50=Nms p95=Nms p99=Nms" >&2
     exit 2
   fi
 done <<< "$sampler"
+
+if [[ $rows -eq 0 ]]; then
+  echo "error: percentile sampler block contained no measurement rows" >&2
+  exit 2
+fi
 
 # The primary hard-gate boundary is required input. Its mandatory case set is
 # owned by the baseline contract so adding or removing a roundtrip case cannot
@@ -285,6 +209,106 @@ if [[ -n "$missing_required" ]]; then
   exit 2
 fi
 
+# Pass 2: evaluate staged rows only after required coverage succeeds.
+for i in "${!staged_boundary[@]}"; do
+  boundary="${staged_boundary[$i]}"
+  case_label="${staged_case[$i]}"
+  p50_now="${staged_p50[$i]}"
+  p95_now="${staged_p95[$i]}"
+  p99_now="${staged_p99[$i]}"
+  current_dim="${staged_dim[$i]}"
+
+  base_p95=$(jq -r --arg b "$boundary" --arg c "$case_label" \
+    '.cases[$b][$c].p95_ms // empty' "$baseline")
+  slo_p95=$(jq -r --arg b "$boundary" '.slos[$b].p95_ms // empty' "$baseline")
+
+  if [[ -z "$base_p95" ]]; then
+    echo "FAIL  $boundary $case_label: no baseline entry" >&2
+    echo "       $current_dim" >&2
+    echo "       hint: a new bench case has been added without a baseline." >&2
+    echo "       Re-record the baseline (see midedit_roundtrip.rs § Re-baselining)" >&2
+    echo "       and commit the updated baselines/midedit_roundtrip.json." >&2
+    hard_fail+=1
+    continue
+  fi
+  if [[ -z "$slo_p95" ]]; then
+    echo "FAIL  $boundary: no SLO entry in baseline" >&2
+    hard_fail+=1
+    continue
+  fi
+
+  # Drift = (now - baseline) / baseline * 100. The drift gate is symmetric
+  # (|drift| > drift_pct triggers a warn) so a sudden p95 *improvement* also
+  # surfaces — usually a sign that the bench environment changed or the
+  # baseline is stale and should be re-recorded. When baseline_p95 is 0
+  # (sub-resolution case, e.g. binary_short_circuit on validation.service)
+  # we fall back to a fixed absolute floor so a regression past the floor
+  # still trips the drift warn even though no percentage is meaningful.
+  read -r drift over_drift drift_mode < <(awk \
+      -v now="$p95_now" -v base="$base_p95" \
+      -v floor="$zero_baseline_floor_ms" -v t="$drift_pct" '
+    BEGIN {
+      n = now + 0
+      b = base + 0
+      if (b == 0) {
+        # Absolute mode: warn iff observed exceeds floor.
+        drift = 0.0
+        warn = (n > floor + 0) ? 1 : 0
+        mode = "abs"
+      } else {
+        drift = (n - b) / b * 100
+        abs_drift = (drift < 0) ? -drift : drift
+        warn = (abs_drift > t + 0) ? 1 : 0
+        mode = "pct"
+      }
+      printf "%.1f %d %s\n", drift, warn, mode
+    }')
+
+  over_slo=$(awk -v now="$p95_now" -v slo="$slo_p95" \
+    'BEGIN { print (now+0 > slo+0) ? "1" : "0" }')
+
+  status="OK"
+  attr_note=""
+  if (( over_slo )); then
+    # ADR-031: validation.roundtrip is the primary SLO / CI hard-fail
+    # boundary. validation.service is attribution — soft-warn only so a
+    # runner-class service near_cap (~55 ms vs 50) does not false-fail the
+    # nightly when roundtrip is still under 80 ms. Soft-warn is explicit for
+    # validation.service only; any future/unknown boundary stays hard-fail.
+    if [[ "$boundary" == "validation.roundtrip" ]]; then
+      status="FAIL"
+      hard_fail+=1
+    elif [[ "$boundary" == "validation.service" ]]; then
+      status="WARN"
+      soft_warn+=1
+      attr_note="service SLO breach (attribution only; CI hard-fail is validation.roundtrip)"
+    else
+      status="FAIL"
+      hard_fail+=1
+      attr_note="unknown boundary SLO breach (hard-fail; only validation.service is soft-warn)"
+    fi
+  elif (( over_drift )); then
+    status="WARN"
+    soft_warn+=1
+  fi
+
+  if [[ "$drift_mode" == "abs" ]]; then
+    drift_display="abs(floor=${zero_baseline_floor_ms}ms)"
+  else
+    drift_display="${drift}%"
+  fi
+
+  printf '%-4s %s %s: p50=%sms p95=%sms p99=%sms  baseline_p95=%sms drift=%s  slo_p95=%sms\n' \
+    "$status" "$boundary" "$case_label" "$p50_now" "$p95_now" "$p99_now" \
+    "$base_p95" "$drift_display" "$slo_p95"
+  if [[ "$status" != "OK" ]]; then
+    printf '     %s\n' "$current_dim"
+    if [[ -n "$attr_note" ]]; then
+      printf '     %s\n' "$attr_note"
+    fi
+  fi
+done
+
 # Coverage check: warn if the baseline JSON contains entries that the bench
 # did not produce. Catches the case where a bench case is removed but the
 # baseline isn't pruned — without this the orphan rows are silently ignored.
@@ -302,11 +326,6 @@ if [[ -n "$orphans" ]]; then
   echo "warning: baseline contains entries with no matching bench output:" >&2
   echo "$orphans" | sed 's/^/  - /' >&2
   echo "       (prune them from baselines/midedit_roundtrip.json or restore the bench case)" >&2
-fi
-
-if [[ $rows -eq 0 ]]; then
-  echo "error: percentile sampler block contained no measurement rows" >&2
-  exit 2
 fi
 
 echo

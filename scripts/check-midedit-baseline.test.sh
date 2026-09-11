@@ -295,4 +295,68 @@ run_gate
 grep -q 'warning: baseline contains entries with no matching bench output' "$tmp/err" || fail "expected advisory orphan warning"
 grep -q 'validation.service near_cap_1MiB_minus_1KiB' "$tmp/err" || fail "expected missing advisory row in orphan warning"
 
+
+# 18. Negative baseline/SLO p95 values are malformed input, not comparable numbers.
+write_log 24.0 36.0
+cat >"$tmp/baseline.json" <<'JSON'
+{
+  "schema_version": 1,
+  "tolerance": { "drift_pct": 15 },
+  "slos": {
+    "validation.service": { "p95_ms": 50.0 },
+    "validation.roundtrip": { "p95_ms": -1.0 }
+  },
+  "cases": {
+    "validation.service": {
+      "near_cap_1MiB_minus_1KiB": { "p95_ms": 24.0 }
+    },
+    "validation.roundtrip": {
+      "near_cap_1MiB_minus_1KiB": { "p95_ms": 36.0 }
+    }
+  }
+}
+JSON
+run_gate
+[[ "$code" -eq 2 ]] || fail "negative p95 SLO should exit 2, got $code"
+grep -q 'error: malformed baseline data: every SLO and case requires a non-negative numeric p95_ms' "$tmp/err" || fail "expected non-negative p95 input error"
+
+# 19. Concatenated top-level JSON values are not a single baseline document.
+write_log 24.0 36.0
+printf '%s\n%s\n' '{"schema_version":1,"tolerance":{"drift_pct":15},"slos":{"validation.roundtrip":{"p95_ms":80}},"cases":{"validation.roundtrip":{"near_cap_1MiB_minus_1KiB":{"p95_ms":36}}}}' '{"extra":true}' >"$tmp/baseline.json"
+run_gate
+[[ "$code" -eq 2 ]] || fail "concatenated baseline JSON should exit 2, got $code"
+grep -q 'error: malformed baseline JSON' "$tmp/err" || fail "expected malformed JSON for concatenated values"
+
+# 20. Missing required coverage fails closed before any threshold FAIL/WARN lines.
+cat >"$tmp/baseline.json" <<'JSON'
+{
+  "schema_version": 1,
+  "tolerance": { "drift_pct": 15, "zero_baseline_floor_ms": 1.0 },
+  "slos": {
+    "validation.service": { "p95_ms": 50.0 },
+    "validation.roundtrip": { "p95_ms": 80.0 }
+  },
+  "cases": {
+    "validation.service": {
+      "near_cap_1MiB_minus_1KiB": { "p50_ms": 23.0, "p95_ms": 24.0, "p99_ms": 25.0 }
+    },
+    "validation.roundtrip": {
+      "near_cap_1MiB_minus_1KiB": { "p50_ms": 31.0, "p95_ms": 36.0, "p99_ms": 44.0 }
+    }
+  }
+}
+JSON
+cat >"$tmp/bench.log" <<'LOG'
+--- ADR-031 mid-edit warm percentile sampler ---
+dimensions: mode=midEdit boundary=validation.service case=near_cap
+validation.service near_cap_1MiB_minus_1KiB: samples=10 p50=23.0ms p95=99.0ms p99=100.0ms
+--- end ADR-031 sampler ---
+LOG
+run_gate
+[[ "$code" -eq 2 ]] || fail "partial sampler should exit 2 before threshold eval, got $code"
+grep -q 'error: missing required benchmark row: validation.roundtrip near_cap_1MiB_minus_1KiB' "$tmp/err" || fail "expected missing required row before evaluation"
+if grep -qE '^(FAIL|WARN|OK) ' "$tmp/out"; then
+  fail "partial sampler must not emit threshold evaluation lines"
+fi
+
 printf 'check-midedit-baseline.test.sh: ok\n'
