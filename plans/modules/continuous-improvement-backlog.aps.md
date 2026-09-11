@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 325/414  |
+| CIB | —     | In Progress | 326/414  |
 
 ## Purpose
 
@@ -6931,7 +6931,7 @@ was held free after collision closeout, then **claimed by pack-03 CIB-250**
 | GATE-2 | needs internals; same family | **CIB-255** Merged (observation closed with domain disclosure) |
 | TUI-1 | elevated (pack-03 safety chain) | **Absorbed** into **CIB-250** (former CIB-265 Done) |
 | JSON-1 | net-new | **CIB-262** Merged via #3626 · coords CIB-240 |
-| PUSH-1 | needs reproduction (plausible only) | **CIB-267** Proposed |
+| PUSH-1 | needs reproduction (plausible only) | **CIB-267** Merged via #4462 |
 | INIT-1 | net-new polish | **CIB-263** Ready P3 |
 | INIT-3 | net-new polish | **CIB-257** Merged via #3638 (with INIT-2) |
 | WELCOME-1 | net-new polish | **CIB-260** Ready P3 |
@@ -7515,8 +7515,10 @@ scanned — with expansion deferred to `v0.9.4`.
 
 ### CIB-267: Pre-push silent pass leftovers — hook PATH and git argv (PUSH-1 rescoped)
 
-- **Status:** Ready — promoted 2026-09-07 by operator instruction to repair the
-  retained L4 advisory; scope is hook-time PATH guidance plus argv acceptance
+- **Status:** Merged 2026-09-08 via PR
+  [#4462](https://github.com/eddacraft/anvil-001/pull/4462) (`986e70cb2`);
+  was Ready — promoted 2026-09-07 by operator instruction to repair the
+  retained L4 advisory; scope was hook-time PATH guidance plus argv acceptance
 - **Priority:** P1 field-journey gate — PSCAF-008 depends on its PATH guidance
   and argv acceptance before the beta-reported L4 path is considered repaired
 - **Intent:** After CIB-252 shipped, Dave pack-02 PUSH-1 (silent pre-push
