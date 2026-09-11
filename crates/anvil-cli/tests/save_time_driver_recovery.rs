@@ -23,7 +23,7 @@ use std::process::{Child, Command, Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use nix::sys::signal::{Signal, kill, killpg};
+use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
 use serde_json::Value;
 
@@ -73,8 +73,9 @@ fn driver_dir(home: &Path) -> PathBuf {
 }
 
 /// Owns the private daemon for the test and tears it down deliberately:
-/// `anvil intercept stop` first (so the supervisor terminates its children),
-/// then any driver PID still recorded on disk, then the daemon process group.
+/// `anvil intercept stop` first (supervisor-owned child shutdown), then a
+/// bounded wait that reaps the owned daemon `Child`. Leftover `*.pid` records
+/// are signalled only when their starttime still matches the live process.
 struct Harness {
     home: PathBuf,
     child: Option<Child>,
@@ -348,24 +349,165 @@ fn bare_anvil_fails_when_daemon_rejects_worktree_registration() {
 impl Drop for Harness {
     fn drop(&mut self) {
         let _ = self.anvil(&self.home, &["intercept", "stop"]);
-        if let Ok(entries) = fs::read_dir(driver_dir(&self.home)) {
-            for path in entries.flatten().map(|entry| entry.path()) {
-                if path.extension().is_some_and(|ext| ext == "pid")
-                    && let Ok(record) = fs::read_to_string(&path)
-                    && let Some(pid) = record.lines().next().and_then(|l| l.trim().parse().ok())
-                {
-                    let _ = kill(Pid::from_raw(pid), Signal::SIGKILL);
-                }
-            }
-        }
         if let Some(mut child) = self.child.take() {
-            if let Ok(pgid) = i32::try_from(child.id()) {
-                let _ = killpg(Pid::from_raw(pgid), Signal::SIGKILL);
+            reap_owned_daemon(&mut child, Duration::from_secs(2));
+        }
+        reap_leftover_driver_records(&driver_dir(&self.home));
+    }
+}
+
+/// Wait for the owned daemon to exit after supervisor stop, then SIGKILL
+/// through the unreaped `Child` handle. The PID cannot have been recycled
+/// while this process still holds the child.
+fn reap_owned_daemon(child: &mut Child, budget: Duration) {
+    let deadline = Instant::now() + budget;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) if Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(50));
             }
-            let _ = child.kill();
-            let _ = child.wait();
+            Ok(None) | Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return;
+            }
         }
     }
+}
+
+/// `pid\n[start_time\n]` — the record the supervisor persists.
+fn read_pid_record(path: &Path) -> Option<(u32, Option<u64>)> {
+    let content = fs::read_to_string(path).ok()?;
+    let mut lines = content.lines();
+    let pid = lines.next()?.trim().parse().ok()?;
+    let start_time = lines.next().and_then(|line| line.trim().parse().ok());
+    Some((pid, start_time))
+}
+
+/// Signal `pid` only when the recorded start time is present and still
+/// matches `/proc`. A missing discriminator is never signalled: the numeric
+/// PID may already belong to someone else.
+fn signal_recorded_pid_if_same_process(
+    pid: u32,
+    recorded_start_time: Option<u64>,
+    signal: &mut impl FnMut(u32),
+) -> bool {
+    let Some(recorded) = recorded_start_time else {
+        return false;
+    };
+    if proc_start_time(pid) == Some(recorded) {
+        signal(pid);
+        true
+    } else {
+        false
+    }
+}
+
+fn kill_pid(pid: u32) {
+    if let Ok(raw) = i32::try_from(pid) {
+        let _ = kill(Pid::from_raw(raw), Signal::SIGKILL);
+    }
+}
+
+fn reap_leftover_driver_records(dir: &Path) {
+    reap_leftover_driver_records_with(dir, kill_pid);
+}
+
+fn reap_leftover_driver_records_with(dir: &Path, mut signal: impl FnMut(u32)) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for path in entries.flatten().map(|entry| entry.path()) {
+        if !path.extension().is_some_and(|ext| ext == "pid") {
+            continue;
+        }
+        let Some((pid, start_time)) = read_pid_record(&path) else {
+            continue;
+        };
+        let _ = signal_recorded_pid_if_same_process(pid, start_time, &mut signal);
+    }
+}
+
+#[test]
+fn harness_drop_does_not_signal_a_recycled_driver_pid() {
+    let home = tempfile::tempdir().expect("private ANVIL_HOME");
+    let harness = Harness::spawn_without_driver(home.path());
+
+    let mut sentinel = Command::new("sleep")
+        .arg("60")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn unrelated sentinel");
+    let pid = sentinel.id();
+    let start = proc_start_time(pid).expect("sentinel starttime");
+    let dir = driver_dir(home.path());
+    fs::create_dir_all(&dir).expect("driver dir");
+    fs::write(
+        dir.join("recycled.pid"),
+        format!("{pid}\n{}\n", start.wrapping_add(1)),
+    )
+    .expect("stale pid record");
+
+    drop(harness);
+
+    let still_running = sentinel.try_wait().expect("poll sentinel").is_none();
+    let _ = sentinel.kill();
+    let _ = sentinel.wait();
+    assert!(
+        still_running,
+        "teardown must not SIGKILL a live process whose numeric PID was reused in a driver record"
+    );
+}
+
+#[test]
+fn leftover_pid_record_without_start_time_is_never_signalled() {
+    let mut sent = Vec::new();
+    let signalled =
+        signal_recorded_pid_if_same_process(std::process::id(), None, &mut |pid| sent.push(pid));
+    assert!(!signalled);
+    assert!(sent.is_empty());
+}
+
+#[test]
+fn leftover_pid_record_with_mismatched_start_time_is_not_signalled() {
+    let pid = std::process::id();
+    let start = proc_start_time(pid).expect("self starttime");
+    let mut sent = Vec::new();
+    let signalled =
+        signal_recorded_pid_if_same_process(pid, Some(start.wrapping_add(1)), &mut |p| {
+            sent.push(p)
+        });
+    assert!(!signalled);
+    assert!(sent.is_empty());
+}
+
+#[test]
+fn leftover_driver_record_signals_only_verified_identity() {
+    let dir = tempfile::tempdir().expect("pid dir");
+    let self_pid = std::process::id();
+    let start = proc_start_time(self_pid).expect("self starttime");
+    fs::write(
+        dir.path().join("match.pid"),
+        format!("{self_pid}\n{start}\n"),
+    )
+    .expect("matching record");
+    fs::write(
+        dir.path().join("stale.pid"),
+        format!("{self_pid}\n{}\n", start.wrapping_add(1)),
+    )
+    .expect("stale record");
+    fs::write(dir.path().join("bare.pid"), format!("{self_pid}\n")).expect("bare record");
+    fs::write(dir.path().join("junk.pid"), "not a pid\n").expect("malformed record");
+    let mut sent = Vec::new();
+    reap_leftover_driver_records_with(dir.path(), |pid| sent.push(pid));
+    assert_eq!(
+        sent,
+        vec![self_pid],
+        "only the starttime-verified leftover may be signalled"
+    );
 }
 
 fn wait_until<T>(what: &str, mut probe: impl FnMut() -> Option<T>) -> T {
@@ -386,6 +528,13 @@ fn wait_until<T>(what: &str, mut probe: impl FnMut() -> Option<T>) -> T {
 fn proc_state(pid: u32) -> Option<char> {
     let stat = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     stat.rsplit_once(") ")?.1.chars().next()
+}
+
+/// `/proc/<pid>/stat` field 22 (`starttime` in clock ticks since boot).
+fn proc_start_time(pid: u32) -> Option<u64> {
+    let stat = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let after_command = stat.rsplit_once(") ")?.1;
+    after_command.split_whitespace().nth(19)?.parse().ok()
 }
 
 /// Every live (non-zombie) process whose argv is the save-time driver for
