@@ -21,6 +21,9 @@ not re-describe them in adapters.
 - Prefer links to authoritative docs over restating procedure details here.
 - Validate at system boundaries; trust internal code.
 - Do not add secrets to code, docs, plans, config, examples, or logs.
+- Before the final response on non-trivial work, run `pnpm ci-log:append`
+  (pending by default). `Improvement: none` is valid. Do not skip it because the
+  note looks unrelated to the feature PR — pending is PR-independent (CIB-191).
 - Never revert or overwrite another person's uncommitted work unless explicitly
   asked.
 - Treat administrator and policy-bypass operations as a separate authority
@@ -100,17 +103,13 @@ Include a short `Docs Closeout` note in the final response.
 
 ## Continuous-improvement closeout
 
-Before the final response on non-trivial work, run `pnpm ci-log:append` (pending
-by default). `Improvement: none` is a valid note. Do **not** skip it because the
-note is unrelated to the feature PR — the pending queue is PR-independent by
-design (CIB-191).
+The MUST is in Operating Rules so harnesses that truncate this file still see
+it. `agentic-loop` names docs-workflow closeout, not this step; the repo
+contract still requires `pnpm ci-log:append`.
 
-This rule already lived in `plans/project-context.md`, which nothing loads
-automatically; the pointer above it was not enough to make the closeout happen.
-Pending notes are written under the git common dir, so they are invisible in
-diffs and PRs until someone runs `pnpm ci-log:harvest` on a bookkeeping branch —
-check `pnpm ci-log:status` rather than the tracked log to see whether the
-practice is alive.
+Pending notes live under the git common dir and are invisible in feature-PR
+diffs until `pnpm ci-log:harvest` on a bookkeeping branch. Check
+`pnpm ci-log:status`, not the tracked log, to see whether the practice is alive.
 
 Full procedure, including harvest and triage:
 `docs/guides/continuous-improvement-log.md`.

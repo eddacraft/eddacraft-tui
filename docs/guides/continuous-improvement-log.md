@@ -44,11 +44,15 @@ weekly triage    → pnpm ci-log:since -- --watermark → promote/absorb/leave
 
 ## Agent closeout (every non-trivial session)
 
+The MUST is in `AGENTS.md` Operating Rules (and `CLAUDE.md` plus
+`.claude/rules/ci-log-closeout.md` for Claude). It is not a named `agentic-loop`
+step; the repo contract still requires it.
+
 1. Prefer:
 
    ```bash
    pnpm ci-log:append -- \
-     --agent opencode|claude|codex \
+     --agent opencode|claude|codex|grok|cursor \
      --task "..." \
      --outcome "..." \
      --worked "..." \

@@ -6,10 +6,17 @@
 
 This file is the **Claude Code adapter only**. Do not restate shared workflow,
 validation commands, architecture, or skill procedures here — those live in
-`AGENTS.md`, `CONTEXT.md`, and the inventory.
+`AGENTS.md`, `CONTEXT.md`, and the inventory. The CI-log closeout bullet below
+is the exception: Claude sessions skip the shared rule when it only sits late in
+`AGENTS.md`.
 
 ## Claude-only
 
+- **CI-log closeout:** before the final response on non-trivial work, run
+  `pnpm ci-log:append` (pending). Claude sessions skip this more often than
+  Codex/Grok — the shared rule sat late in `AGENTS.md` and is not a named
+  `agentic-loop` step. `Improvement: none` is valid. Do not skip because the
+  note looks unrelated to the feature PR.
 - **Hooks and event wiring** live in **user** settings
   (`~/.claude/settings.json`). Scripts under `.claude/hooks/` (some via
   `code-env`). Do not treat this file as a hook inventory — inspect settings and
