@@ -489,8 +489,7 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
                     return unresponsive_outcome(&endpoint);
                 }
                 EndpointLiveness::None => {
-                    if Instant::now() >= deadline || !serialisation_wait_is_retryable(&outcome)
-                    {
+                    if Instant::now() >= deadline || !serialisation_wait_is_retryable(&outcome) {
                         return outcome;
                     }
                     std::thread::sleep(params.poll_interval.min(Duration::from_millis(50)));
