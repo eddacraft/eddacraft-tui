@@ -7,14 +7,14 @@
 This file is the **Claude Code adapter only**. Do not restate shared workflow,
 validation commands, architecture, or skill procedures here — those live in
 `AGENTS.md`, `CONTEXT.md`, and the inventory. The CI-log closeout bullet below
-is the exception: Claude sessions skip the shared rule when it only sits late in
-`AGENTS.md`.
+is an intentional Claude-adapter reminder of the Operating Rules MUST (so Claude
+sessions still see it when the shared file is truncated).
 
 ## Claude-only
 
 - **CI-log closeout:** before the final response on non-trivial work, run
-  `pnpm ci-log:append` (pending). Claude sessions skip this more often than
-  Codex/Grok — the shared rule sat late in `AGENTS.md` and is not a named
+  `pnpm ci-log:append -- --agent claude --task "<summary>"` (pending). Claude
+  sessions skip this more often than Codex/Grok — it is not a named
   `agentic-loop` step. `Improvement: none` is valid. Do not skip because the
   note looks unrelated to the feature PR.
 - **Hooks and event wiring** live in **user** settings

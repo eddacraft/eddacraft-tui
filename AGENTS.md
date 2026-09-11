@@ -21,9 +21,11 @@ not re-describe them in adapters.
 - Prefer links to authoritative docs over restating procedure details here.
 - Validate at system boundaries; trust internal code.
 - Do not add secrets to code, docs, plans, config, examples, or logs.
-- Before the final response on non-trivial work, run `pnpm ci-log:append`
-  (pending by default). `Improvement: none` is valid. Do not skip it because the
-  note looks unrelated to the feature PR — pending is PR-independent (CIB-191).
+- Before the final response on non-trivial work, run
+  `pnpm ci-log:append -- --task "<summary>"` (pending by default).
+  `Improvement: none` is valid. Do not skip it because the note looks unrelated
+  to the feature PR — pending is PR-independent (CIB-191). Full form:
+  `docs/guides/continuous-improvement-log.md`.
 - Never revert or overwrite another person's uncommitted work unless explicitly
   asked.
 - Treat administrator and policy-bypass operations as a separate authority
@@ -105,7 +107,7 @@ Include a short `Docs Closeout` note in the final response.
 
 The MUST is in Operating Rules so harnesses that truncate this file still see
 it. `agentic-loop` names docs-workflow closeout, not this step; the repo
-contract still requires `pnpm ci-log:append`.
+contract still requires `pnpm ci-log:append -- --task "<summary>"`.
 
 Pending notes live under the git common dir and are invisible in feature-PR
 diffs until `pnpm ci-log:harvest` on a bookkeeping branch. Check

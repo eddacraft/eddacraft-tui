@@ -4,9 +4,9 @@
 | ----- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Guide | Authoritative | CIB   | Live   | Last reviewed 2026-09-11 for the Operating Rules, `CLAUDE.md`, and Claude-rule closeout placement; harvest and watermark procedure unchanged. Prior review 2026-09-11 against the 2026-09-11 harvest of 60 pending notes (6b924c4ae): log content only; the queue, harvest, and watermark procedure described here is unchanged. Prior review 2026-09-03 against the 2026-09-03 harvest of 27 pending notes (dbc6c0117): log content only; the queue, harvest, and watermark procedure described here is unchanged. Prior review 2026-09-02 against CIB-375 `set-watermark` pending and origin/main guards |
 
-| Upstream                                                                                                                    | Downstream                                                      |
-| --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `plans/reviews/continuous-improvement-log.md`, `plans/modules/continuous-improvement-backlog.aps.md`, `dev-workflow` skills | Agents closing sessions, bookkeeping harvest PRs, weekly triage |
+| Upstream                                                                                                                                                                                  | Downstream                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `plans/reviews/continuous-improvement-log.md`, `plans/modules/continuous-improvement-backlog.aps.md`, `dev-workflow` skills, `AGENTS.md`, `CLAUDE.md`, `.claude/rules/ci-log-closeout.md` | Agents closing sessions, bookkeeping harvest PRs, weekly triage |
 
 ## Purpose
 
@@ -48,18 +48,20 @@ The MUST is in `AGENTS.md` Operating Rules (and `CLAUDE.md` plus
 `.claude/rules/ci-log-closeout.md` for Claude). It is not a named `agentic-loop`
 step; the repo contract still requires it.
 
-1. Prefer:
+1. Prefer one executable invocation (pick an `--agent` value in prose:
+   `opencode`, `claude`, `codex`, or `other`; `Improvement` / `follow-up`
+   alternatives are listed in the guide fields, not as shell pipes):
 
    ```bash
    pnpm ci-log:append -- \
-     --agent opencode|claude|codex|grok|cursor \
+     --agent claude \
      --task "..." \
      --outcome "..." \
      --worked "..." \
      --failed "none" \
      --friction "..." \
-     --improvement "none|..." \
-     --follow-up "none|session:...|promote: CIB|theme:...|owned: ID"
+     --improvement "none" \
+     --follow-up "none"
    ```
 
 2. Or pass a full entry:
