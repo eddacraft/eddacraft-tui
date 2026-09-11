@@ -74,10 +74,11 @@ themselves publication authority. Use the existing release process; an internal
 release channel is not a prerequisite.
 
 **JOURNEY-015 disposition (2026-09-10):** pinned-main rehearsal **pass** on
-`3f8890e15` (claim #4572; evidence under
-`plans/audits/2026-09-10-journey-015-*`). Claim freeze and publication were
-**not** granted by that gate alone; simplification was permitted and later
-landed.
+`3f8890e15` for the required non-upgrade legs (claim #4572; evidence under
+`plans/audits/2026-09-10-journey-015-*`). The recorded `--require-upgrade` pass
+is **not** previous-public-build proof — the previous binary was not invoked
+(#4591). Claim freeze and publication were **not** granted by that gate alone;
+simplification was permitted and later landed.
 
 **JOURNEY-016 disposition (2026-09-10):** simplification acceptance **pass** on
 `5489c6112` (claim #4613; evidence under

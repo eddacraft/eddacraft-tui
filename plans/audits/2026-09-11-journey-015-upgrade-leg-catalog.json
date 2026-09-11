@@ -1,0 +1,9 @@
+{
+  "description": "JOURNEY-015 / #4591 upgrade-leg correction catalog. Not the default JREL-012 matrix.",
+  "scenarios": [
+    {
+      "id": "upgrade-previous-public",
+      "kind": "upgrade"
+    }
+  ]
+}

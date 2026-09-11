@@ -11,6 +11,13 @@
  *
  * Optional previous-public-build upgrade:
  *   ANVIL_PREVIOUS_PUBLIC_BIN=/path/to/anvil pnpm journey:verify --require-upgrade
+ *
+ * The upgrade leg invokes the previous public binary, checks that it identifies
+ * as anvil, and requires a cross-version hand-off: previous
+ * `mcp-config --json --write` materialises a project MCP config, then the
+ * current binary must `mcp-config --verify` it. --require-upgrade fails if the
+ * previous executable is not invoked, the hand-off is absent, or compatibility
+ * fails.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -20,11 +27,15 @@ import {
   constants as fsConstants,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
+  realpathSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -163,6 +174,50 @@ function binaryVersion(bin) {
   return text.split('\n')[0] || 'unknown';
 }
 
+function resolveMaybeRelative(raw, root) {
+  if (!raw) return '';
+  return isAbsolute(raw) ? raw : resolve(root, raw);
+}
+
+function isAnvilIdentity(versionText) {
+  return /^anvil\s+\S+/i.test(String(versionText || '').trim());
+}
+
+function sameBinary(left, right) {
+  try {
+    return realpathSync(left) === realpathSync(right);
+  } catch {
+    return resolve(left) === resolve(right);
+  }
+}
+
+function isInsideRoot(root, target) {
+  const rel = relative(resolve(root), resolve(target));
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
+function resolvePreviousBinary(options) {
+  const raw = process.env.ANVIL_PREVIOUS_PUBLIC_BIN || '';
+  return resolveMaybeRelative(raw, options.root);
+}
+
+function parseJsonDocument(text) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start < 0 || end <= start) return null;
+    try {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
 function currentPlatform() {
   if (process.platform === 'win32') return 'windows';
   if (process.platform === 'darwin') return 'macos';
@@ -198,6 +253,97 @@ function record(id, result, detail = '') {
   return { id, result, detail };
 }
 
+function executeUpgrade(scenario, options, bin) {
+  const previousRaw = process.env.ANVIL_PREVIOUS_PUBLIC_BIN || scenario.bin || '';
+  const previous = resolveMaybeRelative(previousRaw, options.root);
+  if (!previous || !isUsableBinary(previous)) {
+    if (options.requireUpgrade) {
+      fail('previous public binary is required for the upgrade scenario');
+    }
+    return record(scenario.id, 'not-supplied', 'ANVIL_PREVIOUS_PUBLIC_BIN unset');
+  }
+
+  if (sameBinary(previous, bin)) {
+    fail('previous public binary must be distinct from the current binary');
+  }
+
+  const previousVersion = binaryVersion(previous);
+  if (!isAnvilIdentity(previousVersion)) {
+    fail('previous public binary did not identify as anvil', previousVersion);
+  }
+
+  const upgradeRoot = mkdtempSync(join(tmpdir(), 'anvil-journey-upgrade-'));
+  try {
+    // Keep host HOME / ANVIL_HOME so a licensed previous public binary can
+    // run. The MCP-config write is confined with --workspace / --scope project.
+    const produce = runCommand(
+      [
+        previous,
+        'mcp-config',
+        '--json',
+        '--target',
+        'grok',
+        '--scope',
+        'project',
+        '--workspace',
+        upgradeRoot,
+        '--write',
+        '--yes',
+      ],
+      upgradeRoot
+    );
+    if (produce.status !== 0) {
+      fail(
+        'previous public binary was not invoked for the upgrade hand-off',
+        `${produce.stdout ?? ''}${produce.stderr ?? ''}`
+      );
+    }
+
+    const payload = parseJsonDocument(produce.stdout);
+    const handoffPath = payload?.path;
+    if (!payload || typeof handoffPath !== 'string' || !handoffPath || payload.wrote !== true) {
+      fail(
+        'upgrade hand-off is absent: previous binary did not produce MCP config',
+        `${produce.stdout ?? ''}${produce.stderr ?? ''}`
+      );
+    }
+    if (!isInsideRoot(upgradeRoot, handoffPath)) {
+      fail('upgrade hand-off path escapes the isolated workspace', handoffPath);
+    }
+    if (!existsSync(handoffPath) || !readFileSync(handoffPath, 'utf8').trim()) {
+      fail('upgrade hand-off is absent');
+    }
+
+    const consume = runCommand(
+      [
+        bin,
+        'mcp-config',
+        '--json',
+        '--target',
+        'grok',
+        '--scope',
+        'project',
+        '--workspace',
+        upgradeRoot,
+        '--verify',
+        '--yes',
+      ],
+      upgradeRoot
+    );
+    const consumePayload = parseJsonDocument(consume.stdout);
+    if (consume.status !== 0 || consumePayload?.ok !== true) {
+      fail(
+        'current binary did not consume the previous-public hand-off',
+        `${consume.stdout ?? ''}${consume.stderr ?? ''}`
+      );
+    }
+
+    return record(scenario.id, 'pass', `${previous} (${previousVersion}) → ${handoffPath}`);
+  } finally {
+    rmSync(upgradeRoot, { recursive: true, force: true });
+  }
+}
+
 function executeScenario(scenario, options, bin) {
   if (!platformAllowed(scenario)) {
     return record(scenario.id, 'not-on-platform', currentPlatform());
@@ -205,20 +351,7 @@ function executeScenario(scenario, options, bin) {
 
   switch (scenario.kind) {
     case 'upgrade': {
-      const previous = process.env.ANVIL_PREVIOUS_PUBLIC_BIN || scenario.bin || '';
-      if (!previous || !isUsableBinary(previous)) {
-        if (options.requireUpgrade) {
-          fail('previous public binary is required for the upgrade scenario');
-        }
-        return record(scenario.id, 'not-supplied', 'ANVIL_PREVIOUS_PUBLIC_BIN unset');
-      }
-      const result = runCommand([bin, 'mcp', 'serve', '--help'], options.root, {
-        ANVIL_PREVIOUS_PUBLIC_BIN: previous,
-      });
-      if (result.status !== 0) {
-        fail(`upgrade scenario failed`, `${result.stdout}${result.stderr}`);
-      }
-      return record(scenario.id, 'pass', previous);
+      return executeUpgrade(scenario, options, bin);
     }
     case 'cargo-test': {
       const path = cargoTestPath(options.root, scenario);
@@ -320,6 +453,8 @@ function main() {
     scenarioResults.push(executeScenario(scenario, options, bin));
   }
 
+  const previousPath = resolvePreviousBinary(options);
+  const previousUsable = previousPath && isUsableBinary(previousPath);
   const identity = {
     sourceSha: gitSha(options.root),
     binary: {
@@ -335,7 +470,19 @@ function main() {
     executedAt: new Date().toISOString(),
     catalog: catalog.path,
     scenarios: scenarioResults,
-    previousPublicBinary: process.env.ANVIL_PREVIOUS_PUBLIC_BIN || null,
+    previousPublicBinary: previousUsable
+      ? previousPath
+      : process.env.ANVIL_PREVIOUS_PUBLIC_BIN || null,
+    previousPublic: previousUsable
+      ? {
+          path: previousPath,
+          sha256: sha256File(previousPath),
+          version: binaryVersion(previousPath),
+          invoked: scenarioResults.some(
+            (scenario) => scenario.id === 'upgrade-previous-public' && scenario.result === 'pass'
+          ),
+        }
+      : null,
   };
 
   const identityOut = options.identityOut

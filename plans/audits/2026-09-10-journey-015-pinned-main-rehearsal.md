@@ -1,5 +1,15 @@
 # JOURNEY-015 — Pinned-main journey rehearsal and existing release handoff
 
+> **Upgrade-leg correction (2026-09-11, #4591):** the local
+> `upgrade-previous-public` **pass** recorded below is **not** upgrade proof.
+> The gate checked that `ANVIL_PREVIOUS_PUBLIC_BIN` named an executable, then
+> invoked only the current binary (`mcp serve --help`). The previous public
+> Homebrew `0.9.7-beta` binary was never executed, its identity/version was not
+> verified, and it created no artefact consumed by the current build. No
+> publication was authorised from this record. Residual acceptance is #4591
+> (JREL-012 / JOURNEY-015). Correction:
+> [2026-09-11-journey-015-upgrade-leg-correction.md](./2026-09-11-journey-015-upgrade-leg-correction.md).
+
 **Date:** 2026-09-10 (AWST)
 **Pinned source:** `3f8890e15cc498b60b681ff67d1b4254c39f0adf` (`origin/main` at evidence collection)
 **Platform (local):** Linux x86_64 (deus)
@@ -39,10 +49,11 @@ publication.
 | mcp-stdio | pass | pass |
 | e2e-cli | pass | pass |
 | e2e-smoke | pass | pass |
-| upgrade-previous-public | **pass** (`--require-upgrade`) | not-supplied (optional in CI) |
+| upgrade-previous-public | **false pass** (`--require-upgrade`; previous binary not invoked — #4591) | not-supplied (optional in CI) |
 
-Local conductor: **pass (7 scenarios)** including the upgrade leg against the
-previous public Homebrew binary.
+Local conductor: **pass (6 required scenarios)**. The seventh row,
+`upgrade-previous-public`, was recorded as pass but did not exercise an upgrade
+interaction; do not treat it as previous-public-build proof.
 
 ## Interactive / client-call coverage
 
@@ -79,7 +90,7 @@ Recorded against [RELEASE-PLAN.md](../../RELEASE-PLAN.md) active window
 
 | Gate | State after JOURNEY-015 |
 | ---- | ----------------------- |
-| Pinned-main rehearsal | **Pass** (this record) |
+| Pinned-main rehearsal | **Pass** for required non-upgrade legs; upgrade-previous-public **retracted** (#4591) |
 | Claim freeze | **Not started** — theme/IDs still TBD |
 | Changelog curation | **Not started** |
 | Standing release gates | **Not claimed** by this gate |
@@ -103,5 +114,8 @@ push on the pinned SHA plus the conductor gate above is the recorded substitute.
 
 ## Decision
 
-**JOURNEY-015 passes** under the operator platform waiver above. JSIMP remains
-unstarted in this lane. JOURNEY-016 stays gated on JSIMP delivery.
+**JOURNEY-015 passes** under the operator platform waiver above for the
+required non-upgrade legs and the recorded release disposition (no publication).
+The upgrade-from-previous-public leg does **not** pass on this evidence; see the
+correction banner and #4591. JSIMP remains unstarted in this lane. JOURNEY-016
+stays gated on JSIMP delivery.

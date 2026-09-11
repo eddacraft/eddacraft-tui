@@ -23,7 +23,12 @@ function run(args, { env = {}, inputFiles = {} } = {}) {
       const path = join(dir, relative);
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, contents);
-      if (relative.includes('fake-anvil')) {
+      if (
+        relative.includes('fake-anvil') ||
+        relative.includes('fake-previous') ||
+        relative.includes('fake-current') ||
+        contents.startsWith('#!')
+      ) {
         chmodSync(path, 0o755);
       }
     }
@@ -39,6 +44,78 @@ function run(args, { env = {}, inputFiles = {} } = {}) {
 
 function catalog(scenarios) {
   return JSON.stringify({ scenarios }, null, 2);
+}
+
+function upgradeCatalog() {
+  return catalog([{ id: 'upgrade-previous-public', kind: 'upgrade' }]);
+}
+
+/**
+ * Distinguishable fake CLI: previous --write must materialise a marker the
+ * current binary --verify consumes. Current writing its own marker must fail.
+ */
+function fakeAnvilSource({ version, role }) {
+  const versionLiteral = JSON.stringify(version);
+  const roleLiteral = JSON.stringify(role);
+  return `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const args = process.argv.slice(2);
+if (args[0] === '--version' || args.includes('--version')) {
+  process.stdout.write(${versionLiteral} + '\\n');
+  process.exit(0);
+}
+const json = args.includes('--json');
+const verify = args.includes('--verify');
+const write = args.includes('--write');
+const wsIdx = args.indexOf('--workspace');
+const workspace = wsIdx >= 0 && args[wsIdx + 1] ? args[wsIdx + 1] : process.cwd();
+const handoffPath = path.join(workspace, '.grok', 'config.toml');
+const previousMarker = 'PREVIOUS_HANDOFF_MARKER';
+const role = ${roleLiteral};
+if (verify) {
+  try {
+    const text = fs.readFileSync(handoffPath, 'utf8');
+    if (!text.includes(previousMarker)) process.exit(1);
+    if (json) {
+      process.stdout.write(JSON.stringify({
+        target: 'grok',
+        path: handoffPath,
+        wrote: false,
+        ok: true,
+      }) + '\\n');
+    } else {
+      process.stdout.write('Status   : ok\\n');
+    }
+    process.exit(0);
+  } catch {
+    process.exit(1);
+  }
+}
+if (args.includes('mcp-config') && (json || write)) {
+  const marker = role === 'previous' ? previousMarker : 'CURRENT_HANDOFF_MARKER';
+  const config =
+    '[mcp_servers.anvil]\\ncommand = ' + JSON.stringify(role) + '\\n# ' + marker + '\\n';
+  if (write) {
+    fs.mkdirSync(path.dirname(handoffPath), { recursive: true });
+    fs.writeFileSync(handoffPath, config);
+    process.stdout.write(JSON.stringify({
+      target: 'grok',
+      path: handoffPath,
+      wrote: true,
+      ok: true,
+      entry: { command: role },
+    }) + '\\n');
+    process.exit(0);
+  }
+  process.stdout.write(
+    JSON.stringify({ target: 'grok', path: handoffPath, format: 'toml', config }) + '\\n'
+  );
+  process.exit(0);
+}
+process.stderr.write('unexpected argv: ' + args.join(' ') + '\\n');
+process.exit(1);
+`;
 }
 
 test('missing binary fails closed and is not reported as a skip', () => {
@@ -207,4 +284,113 @@ test('--list does not require a binary', () => {
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /probe-only/);
   assert.match(r.stdout, /upgrade-previous-public/);
+});
+
+test('upgrade requires the previous binary to produce a hand-off the current binary consumes', () => {
+  const r = run(
+    [
+      '--catalog',
+      'catalog.json',
+      '--bin',
+      'bin/fake-current',
+      '--require-upgrade',
+      '--identity-out',
+      'id.json',
+    ],
+    {
+      env: { ANVIL_PREVIOUS_PUBLIC_BIN: 'bin/fake-previous' },
+      inputFiles: {
+        'bin/fake-previous': fakeAnvilSource({
+          version: 'anvil 0.9.7-previous',
+          role: 'previous',
+        }),
+        'bin/fake-current': fakeAnvilSource({
+          version: 'anvil 0.9.8-current',
+          role: 'current',
+        }),
+        'catalog.json': upgradeCatalog(),
+      },
+    }
+  );
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(`${r.stdout}${r.stderr}`, /upgrade-previous-public: pass/i);
+  assert.match(`${r.stdout}${r.stderr}`, /0\.9\.7-previous/);
+});
+
+test('--require-upgrade fails when the previous binary does not identify as anvil', () => {
+  const r = run(['--catalog', 'catalog.json', '--bin', 'bin/fake-current', '--require-upgrade'], {
+    env: { ANVIL_PREVIOUS_PUBLIC_BIN: 'bin/fake-previous' },
+    inputFiles: {
+      'bin/fake-previous': '#!/bin/sh\necho not-anvil\n',
+      'bin/fake-current': fakeAnvilSource({
+        version: 'anvil 0.9.8-current',
+        role: 'current',
+      }),
+      'catalog.json': upgradeCatalog(),
+    },
+  });
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(`${r.stdout}${r.stderr}`, /did not identify as anvil|identity/i);
+});
+
+test('--require-upgrade fails when the previous binary is not invoked for the hand-off', () => {
+  const r = run(['--catalog', 'catalog.json', '--bin', 'bin/fake-current', '--require-upgrade'], {
+    env: { ANVIL_PREVIOUS_PUBLIC_BIN: 'bin/fake-previous' },
+    inputFiles: {
+      'bin/fake-previous': `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "anvil 0.9.7-previous"
+  exit 0
+fi
+echo "previous ignored the upgrade hand-off"
+exit 0
+`,
+      'bin/fake-current': fakeAnvilSource({
+        version: 'anvil 0.9.8-current',
+        role: 'current',
+      }),
+      'catalog.json': upgradeCatalog(),
+    },
+  });
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(`${r.stdout}${r.stderr}`, /hand-off is absent|not invoked/i);
+});
+
+test('--require-upgrade fails when the current binary cannot consume the hand-off', () => {
+  const r = run(['--catalog', 'catalog.json', '--bin', 'bin/fake-current', '--require-upgrade'], {
+    env: { ANVIL_PREVIOUS_PUBLIC_BIN: 'bin/fake-previous' },
+    inputFiles: {
+      'bin/fake-previous': fakeAnvilSource({
+        version: 'anvil 0.9.7-previous',
+        role: 'previous',
+      }),
+      'bin/fake-current': `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === '--version' || args.includes('--version')) {
+  process.stdout.write('anvil 0.9.8-current\\n');
+  process.exit(0);
+}
+process.stderr.write('current refused the upgrade hand-off\\n');
+process.exit(1);
+`,
+      'catalog.json': upgradeCatalog(),
+    },
+  });
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(`${r.stdout}${r.stderr}`, /did not consume|compatibility/i);
+});
+
+test('--require-upgrade fails when previous and current are the same binary', () => {
+  const r = run(['--catalog', 'catalog.json', '--bin', 'bin/fake-current', '--require-upgrade'], {
+    env: { ANVIL_PREVIOUS_PUBLIC_BIN: 'bin/fake-current' },
+    inputFiles: {
+      'bin/fake-current': fakeAnvilSource({
+        version: 'anvil 0.9.8-current',
+        role: 'current',
+      }),
+      'catalog.json': upgradeCatalog(),
+    },
+  });
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.match(`${r.stdout}${r.stderr}`, /distinct from the current binary/i);
 });

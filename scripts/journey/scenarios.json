@@ -1,5 +1,5 @@
 {
-  "description": "JREL-012 product-journey scenarios. Required legs fail the gate when missing or skipped; upgrade-previous-public is optional unless --require-upgrade is set.",
+  "description": "JREL-012 product-journey scenarios. Required legs fail the gate when missing or skipped; upgrade-previous-public is optional unless --require-upgrade is set. The upgrade leg invokes the previous public binary, verifies its anvil identity, writes MCP config with mcp-config --json --write, and requires the current binary to mcp-config --verify that hand-off.",
   "scenarios": [
     {
       "id": "daemon-identity",

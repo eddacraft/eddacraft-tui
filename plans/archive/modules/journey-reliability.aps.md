@@ -347,7 +347,10 @@ acceptance through this intake. Open-item spec prose is unchanged; item statuses
   when MCP is wired and daemon evidence is absent; `--json` still
   fail-closes when selected save-time coverage is unavailable. Hosted
   Journey verification and required checks were green before protected
-  rebase-merge.
+  rebase-merge. Residual: the upgrade leg must invoke the previous public
+  binary, verify identity/version, and require a consumed MCP-config
+  hand-off (#4591); the 10 September JOURNEY-015 `--require-upgrade` pass
+  was not that proof.
 - **Priority:** P1
 - **Intent:** A green journey job proves the actual anvil binary and required scenarios ran.
 - **Expected Outcome:** Existing CI/test tooling can build or consume a binary from a pinned main commit and fails when a required binary, scenario or expected test is missing/skipped. It exercises normal activation and real daemon/MCP transport, not only dev/no-daemon/no-MCP shortcuts. The reusable gate records source/binary/platform/client identity, supports previous-public-build upgrade testing, and provides a documented command for conductor rehearsals without an internal release service.
