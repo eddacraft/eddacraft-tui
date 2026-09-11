@@ -66,8 +66,8 @@ const file = process.argv[2];
 const NEON_SECRET = 'secrets.NEON_TEST_API_KEY';
 const NEON_SECRET_REFERENCE =
   /\bsecrets\s*(?:\.\s*NEON_TEST_API_KEY|\[\s*(['"])NEON_TEST_API_KEY\1\s*\])/i;
-const POSSIBLE_SECRET_INDEX = /\bsecrets\s*\[/;
-const POSSIBLE_WHOLE_SECRETS_CONTEXT = /\bsecrets\b(?!\s*(?:\.|\[))/;
+const POSSIBLE_SECRET_INDEX = /\bsecrets\s*\[/i;
+const POSSIBLE_WHOLE_SECRETS_CONTEXT = /\bsecrets\b(?!\s*(?:\.|\[))/i;
 const TEST_COMMAND = 'pnpm --dir apps/anvil-api test:neon';
 const CREATE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs';
 const DELETE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs --delete';
@@ -166,6 +166,16 @@ for (const [jobId, job] of Object.entries(doc.jobs)) {
   }
   if (job && containsNeonSecret(job.env)) {
     fail(`jobs.${jobId} job-level env must not expose Neon credentials`);
+  }
+  if (job && typeof job === 'object' && !Array.isArray(job)) {
+    const jobScope = { ...job };
+    delete jobScope.steps;
+    delete jobScope.env;
+    if (containsNeonSecret(jobScope)) {
+      fail(
+        `jobs.${jobId} job-scope fields outside steps must not expose Neon credentials`,
+      );
+    }
   }
 }
 
@@ -1199,6 +1209,24 @@ assert_fails_with \
   'jobs.computed-secret-consumer.if is missing the internal-PR guard' \
   computed-secret-consumer
 
+# Negative: GitHub's secrets context name is case-insensitive, so
+# Secrets[format(...)] is equivalent to secrets[format(...)].
+computed_secret_context_case="${tmp_dir}/computed-secret-context-case.yml"
+cp "${workflow}" "${computed_secret_context_case}"
+cat >>"${computed_secret_context_case}" <<'YAML'
+  computed-secret-context-case:
+    runs-on: self-hosted
+    steps:
+      - env:
+          NEON_API_KEY: ${{ Secrets[format('NEON_{0}', 'TEST_API_KEY')] }}
+        run: echo computed-secret-context-case
+YAML
+
+assert_fails_with \
+  "${computed_secret_context_case}" \
+  'jobs.computed-secret-context-case.if is missing the internal-PR guard' \
+  computed-secret-context-case
+
 # Negative: reusable-workflow secret inheritance can forward the Neon key
 # without naming it in this document and therefore must fail closed too.
 inherited_secret_consumer="${tmp_dir}/inherited-secret-consumer.yml"
@@ -1267,6 +1295,28 @@ assert_fails_with \
   "${job_env_consumer}" \
   'job-level env must not expose Neon credentials' \
   job-env-consumer
+
+# Negative: job-scope credential fields other than env (container or service
+# credentials) still classify the job as credentialed via jobConsumesNeon,
+# skip the job.env rejection, and never reach the step-local exposure loop.
+job_container_credentials="${tmp_dir}/job-container-credentials.yml"
+awk '
+  /    timeout-minutes: 15/ {
+    print
+    print "    container:"
+    print "      image: example/image:latest"
+    print "      credentials:"
+    print "        username: neon"
+    print "        password: ${{ secrets.NEON_TEST_API_KEY }}"
+    next
+  }
+  { print }
+' "${workflow}" >"${job_container_credentials}"
+
+assert_fails_with \
+  "${job_container_credentials}" \
+  'jobs.otp-attempt-cap job-scope fields outside steps must not expose Neon credentials' \
+  job-container-credentials
 
 # Negative: command ownership is workflow-global, not merely unique inside the
 # credentialed job.
@@ -1429,6 +1479,24 @@ assert_fails_with \
   "${whole_secrets_consumer}" \
   'jobs.whole-secrets-consumer.if is missing the internal-PR guard' \
   whole-secrets-consumer
+
+# Negative: toJSON(Secrets) is the same whole-context leak with GitHub's
+# case-insensitive context name.
+whole_secrets_context_case="${tmp_dir}/whole-secrets-context-case.yml"
+cp "${workflow}" "${whole_secrets_context_case}"
+cat >>"${whole_secrets_context_case}" <<'YAML'
+  whole-secrets-context-case:
+    runs-on: self-hosted
+    steps:
+      - env:
+          ALL_SECRETS: ${{ toJSON(Secrets) }}
+        run: echo whole-secrets-context-case
+YAML
+
+assert_fails_with \
+  "${whole_secrets_context_case}" \
+  'jobs.whole-secrets-context-case.if is missing the internal-PR guard' \
+  whole-secrets-context-case
 
 # Negative: workflow defaults can replace the command interpreter. This valid
 # custom template only prints the generated script path and never executes it.
