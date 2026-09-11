@@ -157,6 +157,7 @@ function isCredentialField(key: string, value: unknown): boolean {
 }
 
 function sanitizeStructuredData(value: unknown, seen: Set<object> = new Set(), depth = 0): unknown {
+  let trackedObject: object | undefined;
   try {
     if (typeof value === 'string') return sanitizeForLog(value);
     if (typeof value === 'function') return '[Function]';
@@ -164,6 +165,7 @@ function sanitizeStructuredData(value: unknown, seen: Set<object> = new Set(), d
     if (seen.has(value)) return '[CIRCULAR]';
     if (depth >= MAX_STRUCTURED_DEPTH) return '[TRUNCATED]';
 
+    trackedObject = value;
     seen.add(value);
     if (Array.isArray(value)) {
       const result = value.map((item) => sanitizeStructuredData(item, seen, depth + 1));
@@ -211,7 +213,7 @@ function sanitizeStructuredData(value: unknown, seen: Set<object> = new Set(), d
     seen.delete(value);
     return result;
   } catch {
-    if (value !== null && typeof value === 'object') seen.delete(value);
+    if (trackedObject) seen.delete(trackedObject);
     return '[UNREADABLE]';
   }
 }

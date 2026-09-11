@@ -54,6 +54,25 @@ describe('debug structured-data redaction', () => {
     expect(() => debug('provenance', 'context', data)).not.toThrow();
   });
 
+  it('cleans up unreadable objects before sanitising sibling references', () => {
+    vi.stubEnv('ANVIL_DEBUG', '1');
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+    const unreadable = new Proxy(
+      {},
+      {
+        ownKeys: () => {
+          throw new Error('unreadable fixture');
+        },
+      }
+    );
+
+    debug('provenance', 'context', { first: unreadable, second: unreadable });
+
+    const rendered = JSON.stringify(consoleDebug.mock.calls[0]);
+    expect(rendered.match(/\[UNREADABLE\]/g)).toHaveLength(2);
+    expect(rendered).not.toContain('[CIRCULAR]');
+  });
+
   it('preserves ordinary keys that merely contain credential words', () => {
     vi.stubEnv('ANVIL_DEBUG', '1');
     const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
