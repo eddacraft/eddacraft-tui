@@ -64,11 +64,15 @@ const yaml = require('yaml');
 
 const file = process.argv[2];
 const NEON_SECRET = 'secrets.NEON_TEST_API_KEY';
-const INTERNAL_PR_HEAD = 'github.event.pull_request.head.repo.full_name';
-const PR_HEAD_SHA = 'github.event.pull_request.head.sha';
 const TEST_COMMAND = 'pnpm --dir apps/anvil-api test:neon';
-const CREATE_SCRIPT = 'create-neon-test-branch.mjs';
-const WRITE_SCOPES = ['contents', 'actions', 'id-token', 'pull-requests'];
+const CREATE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs';
+const DELETE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs --delete';
+const EXPECTED_GUARD =
+  "${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}";
+const EXPECTED_REF =
+  "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}";
+const EXPECTED_CLEANUP_IF =
+  "${{ always() && steps.create-branch.outputs.branch_name != '' }}";
 
 const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
 const fail = (m) => {
@@ -76,17 +80,21 @@ const fail = (m) => {
   process.exit(1);
 };
 
-const hasNeonSecret = (value) => String(value).includes(NEON_SECRET);
+const containsNeonSecret = (value) => {
+  if (typeof value === 'string') return value.includes(NEON_SECRET);
+  if (Array.isArray(value)) return value.some(containsNeonSecret);
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(containsNeonSecret);
+  }
+  return false;
+};
 
 const envConsumesNeon = (env) => {
   if (!env || typeof env !== 'object' || Array.isArray(env)) return false;
-  return Object.values(env).some(hasNeonSecret);
+  return Object.values(env).some(containsNeonSecret);
 };
 
-const jobConsumesNeon = (job) => {
-  if (envConsumesNeon(job.env)) return true;
-  return (job.steps || []).some((step) => step && envConsumesNeon(step.env));
-};
+const jobConsumesNeon = (job) => containsNeonSecret(job);
 
 const effectivePermissions = (doc, job) => {
   if (Object.prototype.hasOwnProperty.call(job, 'permissions')) {
@@ -99,19 +107,30 @@ const isLeastPrivilegeContentsRead = (perms) => {
   if (!perms || typeof perms !== 'object' || Array.isArray(perms)) return false;
   if (perms.contents !== 'read') return false;
   for (const [key, value] of Object.entries(perms)) {
-    if (value === 'write' || value === 'write-all') return false;
-    if (WRITE_SCOPES.includes(key) && key !== 'contents' && value !== 'read' && value !== 'none') {
-      return false;
-    }
+    if (key === 'contents') continue;
+    if (value !== 'none') return false;
   }
   return true;
 };
 
 const isCheckout = (step) =>
-  typeof step.uses === 'string' && /(^|\/)actions\/checkout@/.test(step.uses);
+  typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@');
+
+const impersonatesCheckout = (step) =>
+  typeof step.uses === 'string' &&
+  /(?:^|\/)actions\/checkout@/.test(step.uses) &&
+  !step.uses.startsWith('actions/checkout@');
 
 const stepRun = (step) => (typeof step.run === 'string' ? step.run : '');
 const stepIf = (step) => (step && step.if != null ? String(step.if) : '');
+
+const commandLines = (run) =>
+  String(run)
+    .split('\n')
+    .map((line) => line.replace(/\r$/, '').trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+
+const hasCommandLine = (run, command) => commandLines(run).includes(command);
 
 const doc = yaml.parse(fs.readFileSync(file, 'utf8'));
 if (!doc || typeof doc !== 'object' || !doc.jobs || typeof doc.jobs !== 'object') {
@@ -125,7 +144,7 @@ if (credentialed.length === 0) {
 
 for (const [jobId, job] of credentialed) {
   const cond = norm(job.if == null ? '' : String(job.if));
-  if (!cond.includes(INTERNAL_PR_HEAD) || !/==\s*github\.repository/.test(cond)) {
+  if (cond !== EXPECTED_GUARD) {
     fail(`jobs.${jobId}.if is missing the internal-PR guard`);
   }
 
@@ -142,40 +161,41 @@ for (const [jobId, job] of credentialed) {
   }
 
   const steps = Array.isArray(job.steps) ? job.steps : [];
-  const checkout = steps.find(isCheckout);
-  if (!checkout) {
+  if (steps.some(impersonatesCheckout)) {
+    fail(`jobs.${jobId} has a non-canonical actions/checkout step`);
+  }
+  const checkouts = steps.filter(isCheckout);
+  if (checkouts.length === 0) {
     fail(`jobs.${jobId} has no actions/checkout step`);
   }
-  const checkoutWith = checkout.with && typeof checkout.with === 'object' ? checkout.with : {};
-  if (checkoutWith['persist-credentials'] !== false) {
-    fail(`jobs.${jobId} checkout step is missing persist-credentials: false`);
-  }
-  const ref = norm(checkoutWith.ref == null ? '' : String(checkoutWith.ref));
-  if (!ref.includes(PR_HEAD_SHA) || !ref.includes('github.sha')) {
-    fail(`jobs.${jobId} checkout step is missing the PR-head SHA ref`);
+  for (const checkout of checkouts) {
+    const checkoutWith = checkout.with && typeof checkout.with === 'object' ? checkout.with : {};
+    if (checkoutWith['persist-credentials'] !== false) {
+      fail(`jobs.${jobId} checkout step is missing persist-credentials: false`);
+    }
+    const ref = norm(checkoutWith.ref == null ? '' : String(checkoutWith.ref));
+    if (ref !== EXPECTED_REF) {
+      fail(`jobs.${jobId} checkout step is missing the PR-head SHA ref`);
+    }
   }
 
-  const hasCreate = steps.some((step) => {
-    const run = stepRun(step);
-    return run.includes(CREATE_SCRIPT) && !run.includes('--delete') && envConsumesNeon(step.env);
-  });
+  const hasCreate = steps.some(
+    (step) => hasCommandLine(stepRun(step), CREATE_COMMAND) && envConsumesNeon(step.env),
+  );
   if (!hasCreate) {
     fail(`jobs.${jobId} is missing the credentialed Neon create step`);
   }
 
-  if (!steps.some((step) => stepRun(step).includes(TEST_COMMAND))) {
+  if (!steps.some((step) => hasCommandLine(stepRun(step), TEST_COMMAND))) {
     fail(`jobs.${jobId} is missing ${TEST_COMMAND}`);
   }
 
-  const hasCleanup = steps.some((step) => {
-    const run = stepRun(step);
-    return (
-      stepIf(step).includes('always()') &&
-      run.includes(CREATE_SCRIPT) &&
-      run.includes('--delete') &&
-      envConsumesNeon(step.env)
-    );
-  });
+  const hasCleanup = steps.some(
+    (step) =>
+      norm(stepIf(step)) === EXPECTED_CLEANUP_IF &&
+      hasCommandLine(stepRun(step), DELETE_COMMAND) &&
+      envConsumesNeon(step.env),
+  );
   if (!hasCleanup) {
     fail(`jobs.${jobId} is missing always() cleanup that deletes the Neon branch`);
   }
@@ -242,24 +262,24 @@ permissions:
   contents: read
 jobs:
   otp-attempt-cap:
-    # if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    # if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
-      - if: ${{ always() }}
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
         env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs --delete
   decoy:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - run: echo dead
@@ -288,13 +308,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           # persist-credentials: false
       - env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
-      - if: ${{ always() }}
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
         env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs --delete
@@ -325,25 +345,25 @@ permissions:
   contents: read
 jobs:
   otp-attempt-cap:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       # run: pnpm --dir apps/anvil-api test:neon
-      # if: ${{ always() }}
+      # if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
       # run: node scripts/ci/create-neon-test-branch.mjs --delete
   decoy:
     runs-on: ubuntu-latest
     steps:
       - run: pnpm --dir apps/anvil-api test:neon
-      - if: ${{ always() }}
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
         run: node scripts/ci/create-neon-test-branch.mjs --delete
 YAML
 
@@ -368,24 +388,24 @@ permissions:
   contents: read
 jobs:
   otp-attempt-cap:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
-      # if: ${{ always() }}
+      # if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
       # run: node scripts/ci/create-neon-test-branch.mjs --delete
   decoy:
     runs-on: ubuntu-latest
     steps:
-      - if: ${{ always() }}
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
         run: node scripts/ci/create-neon-test-branch.mjs --delete
 YAML
 
@@ -395,6 +415,371 @@ assert_fails_with \
   "${parked_cleanup}" \
   'jobs.otp-attempt-cap is missing always() cleanup that deletes the Neon branch' \
   parked-cleanup
+
+# Negative: the secret is only in `with` on a hidden job. A fully valid decoy
+# still consumes it via `env`. Env-only scanning would validate the decoy and
+# skip the hidden job.
+secret_in_with="${tmp_dir}/secret-in-with.yml"
+cat >"${secret_in_with}" <<'YAML'
+name: secret-in-with
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  hidden-with:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: example/upload@v1
+        with:
+          token: ${{ secrets.NEON_TEST_API_KEY }}
+  decoy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${secret_in_with}" \
+  'jobs.hidden-with has no actions/checkout step' \
+  secret-in-with
+
+# Negative: an OR-escape still contains the internal-repository comparison but
+# also runs on every pull_request, including forks.
+or_escape="${tmp_dir}/or-escape-guard.yml"
+cat >"${or_escape}" <<'YAML'
+name: or-escape-guard
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${or_escape}" \
+  'jobs.otp-attempt-cap.if is missing the internal-PR guard' \
+  or-escape-guard
+
+# Negative: contents: read plus another write scope is not least privilege.
+extra_permission="${tmp_dir}/extra-permission.yml"
+cat >"${extra_permission}" <<'YAML'
+name: extra-permission
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${extra_permission}" \
+  'jobs.otp-attempt-cap effective permissions are not least-privilege contents: read' \
+  extra-permission
+
+# Negative: both SHA expressions appear, but the operator selects the merge
+# SHA on pull requests.
+malformed_ref="${tmp_dir}/malformed-ref.yml"
+cat >"${malformed_ref}" <<'YAML'
+name: malformed-ref
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha && github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${malformed_ref}" \
+  'jobs.otp-attempt-cap checkout step is missing the PR-head SHA ref' \
+  malformed-ref
+
+# Negative: a later checkout omits persist-credentials and uses a different ref.
+extra_checkout="${tmp_dir}/extra-checkout.yml"
+cat >"${extra_checkout}" <<'YAML'
+name: extra-checkout
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${extra_checkout}" \
+  'jobs.otp-attempt-cap checkout step is missing persist-credentials: false' \
+  extra-checkout
+
+# Negative: a non-canonical checkout action would satisfy a path-substring
+# match and receive this job's credentials context.
+impersonation_checkout="${tmp_dir}/impersonation-checkout.yml"
+cat >"${impersonation_checkout}" <<'YAML'
+name: impersonation-checkout
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: evil/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${impersonation_checkout}" \
+  'jobs.otp-attempt-cap has a non-canonical actions/checkout step' \
+  impersonation-checkout
+
+# Negative: the create command exists only as a shell comment (or echo).
+comment_create="${tmp_dir}/comment-create.yml"
+cat >"${comment_create}" <<'YAML'
+name: comment-create
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: |
+          # node scripts/ci/create-neon-test-branch.mjs
+          echo node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${comment_create}" \
+  'jobs.otp-attempt-cap is missing the credentialed Neon create step' \
+  comment-create
+
+# Negative: the test command exists only as a shell comment.
+comment_test="${tmp_dir}/comment-test.yml"
+cat >"${comment_test}" <<'YAML'
+name: comment-test
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: |
+          # pnpm --dir apps/anvil-api test:neon
+          echo pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${comment_test}" \
+  'jobs.otp-attempt-cap is missing pnpm --dir apps/anvil-api test:neon' \
+  comment-test
+
+# Negative: cleanup --delete exists only as a shell comment.
+comment_cleanup="${tmp_dir}/comment-cleanup.yml"
+cat >"${comment_cleanup}" <<'YAML'
+name: comment-cleanup
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: |
+          # node scripts/ci/create-neon-test-branch.mjs --delete
+          echo node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${comment_cleanup}" \
+  'jobs.otp-attempt-cap is missing always() cleanup that deletes the Neon branch' \
+  comment-cleanup
+
+# Negative: always() is present but negated / AND-false, so cleanup never runs.
+always_false_cleanup="${tmp_dir}/always-false-cleanup.yml"
+cat >"${always_false_cleanup}" <<'YAML'
+name: always-false-cleanup
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && false }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${always_false_cleanup}" \
+  'jobs.otp-attempt-cap is missing always() cleanup that deletes the Neon branch' \
+  always-false-cleanup
 
 # Hosted-proof wiring retained from CLAWOPEN-011. These strings still appear
 # in the live workflow; the structural lock above is what stops them satisfying
