@@ -108,6 +108,7 @@ export class DriverClient {
   private transport: Transport | null = null;
   private openingTransport: Transport | null = null;
   private openingPromise: Promise<void> | null = null;
+  private openingEpoch = 0;
   private framer: NdjsonFramer | null = null;
   private nextRequestId = 1;
   private pending = new Map<string, PendingRequest>();
@@ -529,12 +530,14 @@ export class DriverClient {
       return;
     }
 
-    const attempt = this.openTransport();
-    this.openingPromise = attempt;
+    // Own the shared slot with an epoch token so we clear only our attempt
+    // without comparing Promise identities (CodeQL js/missing-await).
+    const epoch = ++this.openingEpoch;
+    this.openingPromise = this.openTransport();
     try {
-      await attempt;
+      await this.openingPromise;
     } finally {
-      if (this.openingPromise === attempt) {
+      if (epoch === this.openingEpoch) {
         this.openingPromise = null;
       }
     }
