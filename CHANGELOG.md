@@ -8,30 +8,11 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft.** Customer-facing changes on `main` since the last tagged release.
-> Version and date land at the next cut.
+> **Draft for `v0.9.8-beta`.** Customer-facing changes on `main` since
+> `v0.9.7-beta`. Theme locked: continuous journey honesty. Version and date land
+> at the cut.
 
 ### Fixed
-
-- **Concurrent daemon ensure no longer fails on a short lock wait.** When
-  another `ensure` already holds the rendezvous or start lock, the waiter
-  retries until the lifecycle budget is spent, re-probes for a live peer-started
-  daemon, and reuses it when one answers. A genuinely stuck holder still fails
-  closed when the budget expires.
-
-- **Windows doctor and config paths share one identity.** Delegated
-  `architecture.source` and leftover checks no longer mix `\\?\` canonical forms
-  with ordinary drive paths, so a healthy migrated config is not reported as
-  dual-truth shadowing (Warn vs Pass plus a leftover offer).
-
-- **False-positive secrets can be marked without silencing real keys.** Codex's
-  `anvil_suppress` comments (`@anvil-ignore-until DATE ID: reason`) are now
-  parsed. Entropy, generic-secret, API-key, and credit-card matches honour
-  `@anvil-ignore` / `SECRET-DETECTION` on the previous line. High-confidence
-  shapes (AWS keys, GitHub PATs, Stripe live keys, private keys, vendored
-  provider rules) still cannot be ignored inline. A withheld false positive
-  stays visible as an info diagnostic and a local `report-fp` record so the
-  scanner can be tightened.
 
 - **`anvil welcome` restores the terminal on every exit.** Success, cancel,
   ordinary errors, partial setup failures, and panics all leave raw mode, mouse
@@ -60,164 +41,25 @@ engineering maintenance are recorded in the
   activation, status, graph, and validation. Launches outside a repository are
   refused with reconnection guidance.
 
-### Changed
+- **Concurrent daemon ensure no longer fails on a short lock wait.** When
+  another `ensure` already holds the rendezvous or start lock, the waiter
+  retries until the lifecycle budget is spent, re-probes for a live peer-started
+  daemon, and reuses it when one answers. A genuinely stuck holder still fails
+  closed when the budget expires.
 
-- **`anvil status` reports L4 `on` only when a pre-push hook and a parseable
-  acceptance policy are both present.** A file-mode hook without
-  `anvil/policy.*` is `partial`, matching the silent no-op both L4 entry points
-  take when no policy exists.
+- **Windows doctor and config paths share one identity.** Delegated
+  `architecture.source` and leftover checks no longer mix `\\?\` canonical forms
+  with ordinary drive paths, so a healthy migrated config is not reported as
+  dual-truth shadowing (Warn vs Pass plus a leftover offer).
 
-- **MCP updates no longer discard an accepted request.** A skewed MCP process
-  may replace itself before its first stdin read. Once a session is established,
-  it completes accepted and pipelined requests on the current image and asks for
-  a targeted MCP reconnect to use the preferred binary.
-
-- **Protection status now proves a client is actually attached.**
-  `anvil mcp serve` registers a live session with the intercept daemon,
-  identified from the editor's own MCP handshake. Live pre-write status is
-  reported only for a client with fresh, independently attributed evidence, so
-  an editor that is configured but closed no longer appears to be protecting
-  your writes, and one client's activity can no longer make another look live. A
-  registered worktree with no attached editor still reports the daemon as
-  enforcing.
-
-- **Ember is inactive pending its Rust migration.** The historical
-  `anvil ember list` reader is hidden and default-off behind `ember.enabled`.
-  Explicit `ANVIL_EMBER=1` allows historical reads only; generation remains
-  unavailable. Existing databases are preserved. The unused JavaScript Ember,
-  runtime watch and concurrency entry points have been retired.
-
-- **First-use bare `anvil` skips the licence wall when nothing is activated
-  yet.** A never-activated checkout gets the existing not-activated report
-  (exit 1) instead of the licence prompt. Once project config exists, daily
-  ensure stays entitled as before. `anvil welcome` remains optional ungated
-  learning and does not start MCP, hook, daemon, or workflow mutations while
-  unsigned.
-
-- **Unattended `anvil start` no longer treats missing MCP as consent.** New MCP
-  installs need `--mcp-client` and/or `--all-mcp-clients`. `--no-tui` on a real
-  TTY is interactive plain consent with pickers; `--json` and `--verify` stay
-  read-only.
-
-- **Healthy bare `anvil` restores remembered integration coverage quietly.**
-  Client, scope, executable, and optional protection choices are inferred from
-  owned artefacts. Unresolved faults after ensure has already tried restore name
-  `anvil doctor`. `anvil start` remains the deliberate reconsider path.
-
-- **Graph-context answers attest their own bounds.** MCP graph envelopes report
-  which budget bound each section, per-edge call-resolution fidelity (Exact vs
-  Heuristic), and an estimated token cost. Oversized envelopes omit cost rather
-  than truncating the estimate. Skills and the AI-context guide say how to route
-  on those disclosures.
-
-### Added
-
-- **Fresh `anvil init` writes `anvil/policy.yml`.** The file matches the default
-  L4 branch posture (main and `*` require `l4_or_l3`; `dependabot/*` requires
-  `l4_only`). Existing `anvil/policy.{yaml,yml,json,toml}` files are left
-  unchanged, including under `--force`. `anvil start` does not create a policy
-  on a repo that already has project config.
-
-- **First-value closing receipt after setup.** When selected MCP and save-time
-  coverage are proven, the receipt names the project, selected coverage,
-  connected or pending client, policy mode, last proof, and one next step.
-  Incomplete setup names one owner instead of claiming success. `anvil status`
-  and `anvil doctor` consume the same receipt facts (status JSON adds an
-  additive `receipt` object).
-
-- **`anvil start` installs managed skills for chosen MCP clients.** Ticking a
-  client (or passing `--mcp-client`) now writes the bundled skills at that
-  client's skill root, not only the MCP config. Clients with no skill location
-  (for example Grok) are skipped without failing activation.
-
-- **`anvil skill install` also writes `using-anvil`.** The managed installer
-  already shipped `anvil-developer-functions`. The companion setup/CLI skill was
-  vendored in the binary but never installed, so agents could not load the
-  hand-off it names. Repeat install now writes both skills to each selected
-  client root, with the same provenance and refuse-unmanaged rules.
-
-- **`anvil check` writes last-run reports under `.anvil/`.** Every run that
-  produces a result overwrites `.anvil/last-check.txt` (the same human report as
-  plain stdout) and `.anvil/last-check.json` (the existing check JSON schema).
-  Open the text file in an editor, then hand the JSON to an agent without
-  re-running the scan. `--format` still selects stdout only; a write failure
-  warns and does not change the check result.
-
-- **`anvil impact` maps the current repository in the terminal.** The read-only
-  view starts from the crate-level used-import graph, drills into a crate's
-  neighbourhood or internal modules, and restores the prior view when you back
-  out. Keyboard and mouse navigation are supported; `--json` and `--no-tui`
-  provide non-interactive output. It needs a warm graph snapshot and names cold
-  or unrenderable states instead of showing an empty canvas. The command is
-  default-off and hidden from `--help` until that experience is hardened; opt in
-  with `ANVIL_IMPACT=1` or `ANVIL_DEV=1`.
-
-- **Gate-time Python scans catch multiline swallowed exceptions.** The new
-  `PY-010` rule flags a named `except` handler whose body is only `pass`. MCP
-  `anvil_check` and target-file `anvil_gate` calls now include AST findings,
-  matching the CLI check path. The latency-sensitive interactive pre-write path
-  remains regex-only.
-
-- **`anvil conformance check` evaluates a PR declaration against an exact Git
-  range.** Advisory only: missing, malformed, or incomplete evidence is never
-  treated as conformant. The command is licence-gated like `anvil check` and
-  accepts `--format json|sarif`.
-
-- **`anvil-control-examples` is a second bundled policy pack.** Install it with
-  `anvil policy install anvil-control-examples`. `anvil policy members` lists
-  and toggles members; the overlay survives `install --force`.
-  `crypto-human-signoff` hard-stops MCP writes until a human records a grant.
-  This is an engineering-control template, not a compliance certification.
-
-- **`anvil drift snapshot --no-save` computes a snapshot without writing it.**
-  Isolated `ANVIL_HOME` no longer needs `--touch-project-state` just to print
-  the JSON.
-
-- **Secret detection includes vendored gitleaks tier-1 provider rules.**
-  Prefix-anchored credentials (GitLab, Slack, Stripe, and similar) now match on
-  the built-in path. Anvil still compiles the rules itself; no third-party
-  scanner enters the product.
-
-### Changed
-
-- **Docs and shipped skills say when AST actually runs.** Pre-write and
-  save-time stay regex plus secrets. `anvil check` / MCP `anvil_check` add AST.
-  Watch may print a non-blocking AST follow-up after allow. `anvil gate` is the
-  merge judgement; default watch is not. The save-time guide and the
-  checks/gates page now say the same split.
-
-- **`anvil watch` reports background AST findings in one line.** After a
-  save-time allow, the cheap-catalogue follow-up still does not block the write.
-  When it finds something, stderr prints a single `AST follow-up` warning so a
-  green save is not read as fully clean. Empty results stay silent.
-
-- **`--help` no longer advertises unfinished opt-in commands.** `anvil impact`,
-  `anvil plan`, and `anvil dashboard --web` stay in the binary and stay
-  default-off; they leave the visible list until they can be default-on. Known
-  names plus `ANVIL_IMPACT=1`, `ANVIL_DASHBOARD_WEB=1`, or `ANVIL_DEV=1` still
-  invoke them. MCP `anvil_impact_of_change` is unchanged.
-
-- **`anvil start` help bar leads with arrows and hides dead Enter.** Consent and
-  the result screen advertise `↑/↓` and, when there is more than one consent
-  step, `←/→ next section`. `h`/`j`/`k`/`l` still work as aliases. Enter is
-  listed only when it does something on the focused row (unsafe-drift confirm,
-  or toggle a verdict section).
-
-- **Custom anti-pattern registries are explicit-only.** The catalogue embedded
-  in the binary remains the default even when a checkout contains
-  `patterns/compiled/registry.json`. Set `ANVIL_REGISTRY_PATH` (or provide an
-  explicit API path) to replace it; a cloned repository no longer changes what
-  anvil flags merely because that file is present.
-
-- **`anvil insights --json` now defaults to `anvil.insights.v3`.** Six of the
-  seven weekly metrics are not instrumented and were emitted as `0`,
-  indistinguishable from a measured zero, so any consumer of the default
-  document recorded six fabricated results. v3 emits those fields as `null`
-  instead. Pass `--schema v1` for the previous document if you are pinned to
-  that shape. The human-readable output is unchanged — it has always said "not
-  yet measured".
-
-### Fixed
+- **False-positive secrets can be marked without silencing real keys.** Codex's
+  `anvil_suppress` comments (`@anvil-ignore-until DATE ID: reason`) are now
+  parsed. Entropy, generic-secret, API-key, and credit-card matches honour
+  `@anvil-ignore` / `SECRET-DETECTION` on the previous line. High-confidence
+  shapes (AWS keys, GitHub PATs, Stripe live keys, private keys, vendored
+  provider rules) still cannot be ignored inline. A withheld false positive
+  stays visible as an info diagnostic and a local `report-fp` record so the
+  scanner can be tightened.
 
 - **Graph-context MCP tools no longer accept a nested directory as the workspace
   root.** `anvil_search_symbols`, `anvil_find_callers`, `anvil_find_dependents`,
@@ -319,6 +161,161 @@ engineering maintenance are recorded in the
   copies (`anvil.exe.old-<pid>`) are cleaned up by a later `anvil update` once
   their holders exit. If the rename itself fails, the manual recipe (PowerShell
   installer after `anvil intercept stop`) is printed as before.
+
+### Changed
+
+- **`anvil status` reports L4 `on` only when a pre-push hook and a parseable
+  acceptance policy are both present.** A file-mode hook without
+  `anvil/policy.*` is `partial`, matching the silent no-op both L4 entry points
+  take when no policy exists.
+
+- **Protection status now proves a client is actually attached.**
+  `anvil mcp serve` registers a live session with the intercept daemon,
+  identified from the editor's own MCP handshake. Live pre-write status is
+  reported only for a client with fresh, independently attributed evidence, so
+  an editor that is configured but closed no longer appears to be protecting
+  your writes, and one client's activity can no longer make another look live. A
+  registered worktree with no attached editor still reports the daemon as
+  enforcing.
+
+- **First-use bare `anvil` skips the licence wall when nothing is activated
+  yet.** A never-activated checkout gets the existing not-activated report
+  (exit 1) instead of the licence prompt. Once project config exists, daily
+  ensure stays entitled as before. `anvil welcome` remains optional ungated
+  learning and does not start MCP, hook, daemon, or workflow mutations while
+  unsigned.
+
+- **Unattended `anvil start` no longer treats missing MCP as consent.** New MCP
+  installs need `--mcp-client` and/or `--all-mcp-clients`. `--no-tui` on a real
+  TTY is interactive plain consent with pickers; `--json` and `--verify` stay
+  read-only.
+
+- **Healthy bare `anvil` restores remembered integration coverage quietly.**
+  Client, scope, executable, and optional protection choices are inferred from
+  owned artefacts. Unresolved faults after ensure has already tried restore name
+  `anvil doctor`. `anvil start` remains the deliberate reconsider path.
+
+- **Graph-context answers attest their own bounds.** MCP graph envelopes report
+  which budget bound each section, per-edge call-resolution fidelity (Exact vs
+  Heuristic), and an estimated token cost. Oversized envelopes omit cost rather
+  than truncating the estimate. Skills and the AI-context guide say how to route
+  on those disclosures.
+
+- **MCP updates no longer discard an accepted request.** A skewed MCP process
+  may replace itself before its first stdin read. Once a session is established,
+  it completes accepted and pipelined requests on the current image and asks for
+  a targeted MCP reconnect to use the preferred binary.
+
+- **Ember is inactive pending its Rust migration.** The historical
+  `anvil ember list` reader is hidden and default-off behind `ember.enabled`.
+  Explicit `ANVIL_EMBER=1` allows historical reads only; generation remains
+  unavailable. Existing databases are preserved. The unused JavaScript Ember,
+  runtime watch and concurrency entry points have been retired.
+
+- **Docs and shipped skills say when AST actually runs.** Pre-write and
+  save-time stay regex plus secrets. `anvil check` / MCP `anvil_check` add AST.
+  Watch may print a non-blocking AST follow-up after allow. `anvil gate` is the
+  merge judgement; default watch is not. The save-time guide and the
+  checks/gates page now say the same split.
+
+- **`anvil watch` reports background AST findings in one line.** After a
+  save-time allow, the cheap-catalogue follow-up still does not block the write.
+  When it finds something, stderr prints a single `AST follow-up` warning so a
+  green save is not read as fully clean. Empty results stay silent.
+
+- **`--help` no longer advertises unfinished opt-in commands.** `anvil impact`,
+  `anvil plan`, and `anvil dashboard --web` stay in the binary and stay
+  default-off; they leave the visible list until they can be default-on. Known
+  names plus `ANVIL_IMPACT=1`, `ANVIL_DASHBOARD_WEB=1`, or `ANVIL_DEV=1` still
+  invoke them. MCP `anvil_impact_of_change` is unchanged.
+
+- **`anvil start` help bar leads with arrows and hides dead Enter.** Consent and
+  the result screen advertise `↑/↓` and, when there is more than one consent
+  step, `←/→ next section`. `h`/`j`/`k`/`l` still work as aliases. Enter is
+  listed only when it does something on the focused row (unsafe-drift confirm,
+  or toggle a verdict section).
+
+- **Custom anti-pattern registries are explicit-only.** The catalogue embedded
+  in the binary remains the default even when a checkout contains
+  `patterns/compiled/registry.json`. Set `ANVIL_REGISTRY_PATH` (or provide an
+  explicit API path) to replace it; a cloned repository no longer changes what
+  anvil flags merely because that file is present.
+
+- **`anvil insights --json` now defaults to `anvil.insights.v3`.** Six of the
+  seven weekly metrics are not instrumented and were emitted as `0`,
+  indistinguishable from a measured zero, so any consumer of the default
+  document recorded six fabricated results. v3 emits those fields as `null`
+  instead. Pass `--schema v1` for the previous document if you are pinned to
+  that shape. The human-readable output is unchanged — it has always said "not
+  yet measured".
+
+### Added
+
+- **Fresh `anvil init` writes `anvil/policy.yml`.** The file matches the default
+  L4 branch posture (main and `*` require `l4_or_l3`; `dependabot/*` requires
+  `l4_only`). Existing `anvil/policy.{yaml,yml,json,toml}` files are left
+  unchanged, including under `--force`. `anvil start` does not create a policy
+  on a repo that already has project config.
+
+- **First-value closing receipt after setup.** When selected MCP and save-time
+  coverage are proven, the receipt names the project, selected coverage,
+  connected or pending client, policy mode, last proof, and one next step.
+  Incomplete setup names one owner instead of claiming success. `anvil status`
+  and `anvil doctor` consume the same receipt facts (status JSON adds an
+  additive `receipt` object).
+
+- **`anvil start` installs managed skills for chosen MCP clients.** Ticking a
+  client (or passing `--mcp-client`) now writes the bundled skills at that
+  client's skill root, not only the MCP config. Clients with no skill location
+  (for example Grok) are skipped without failing activation.
+
+- **`anvil skill install` also writes `using-anvil`.** The managed installer
+  already shipped `anvil-developer-functions`. The companion setup/CLI skill was
+  vendored in the binary but never installed, so agents could not load the
+  hand-off it names. Repeat install now writes both skills to each selected
+  client root, with the same provenance and refuse-unmanaged rules.
+
+- **`anvil check` writes last-run reports under `.anvil/`.** Every run that
+  produces a result overwrites `.anvil/last-check.txt` (the same human report as
+  plain stdout) and `.anvil/last-check.json` (the existing check JSON schema).
+  Open the text file in an editor, then hand the JSON to an agent without
+  re-running the scan. `--format` still selects stdout only; a write failure
+  warns and does not change the check result.
+
+- **`anvil impact` maps the current repository in the terminal.** The read-only
+  view starts from the crate-level used-import graph, drills into a crate's
+  neighbourhood or internal modules, and restores the prior view when you back
+  out. Keyboard and mouse navigation are supported; `--json` and `--no-tui`
+  provide non-interactive output. It needs a warm graph snapshot and names cold
+  or unrenderable states instead of showing an empty canvas. The command is
+  default-off and hidden from `--help` until that experience is hardened; opt in
+  with `ANVIL_IMPACT=1` or `ANVIL_DEV=1`.
+
+- **Gate-time Python scans catch multiline swallowed exceptions.** The new
+  `PY-010` rule flags a named `except` handler whose body is only `pass`. MCP
+  `anvil_check` and target-file `anvil_gate` calls now include AST findings,
+  matching the CLI check path. The latency-sensitive interactive pre-write path
+  remains regex-only.
+
+- **`anvil conformance check` evaluates a PR declaration against an exact Git
+  range.** Advisory only: missing, malformed, or incomplete evidence is never
+  treated as conformant. The command is licence-gated like `anvil check` and
+  accepts `--format json|sarif`.
+
+- **`anvil-control-examples` is a second bundled policy pack.** Install it with
+  `anvil policy install anvil-control-examples`. `anvil policy members` lists
+  and toggles members; the overlay survives `install --force`.
+  `crypto-human-signoff` hard-stops MCP writes until a human records a grant.
+  This is an engineering-control template, not a compliance certification.
+
+- **`anvil drift snapshot --no-save` computes a snapshot without writing it.**
+  Isolated `ANVIL_HOME` no longer needs `--touch-project-state` just to print
+  the JSON.
+
+- **Secret detection includes vendored gitleaks tier-1 provider rules.**
+  Prefix-anchored credentials (GitLab, Slack, Stripe, and similar) now match on
+  the built-in path. Anvil still compiles the rules itself; no third-party
+  scanner enters the product.
 
 ## [0.9.7-beta] — 2026-08-21 — First-session honesty
 

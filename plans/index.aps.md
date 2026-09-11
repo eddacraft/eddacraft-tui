@@ -10,10 +10,11 @@
 > + config. Dashboard remains flag-gated. Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is provisional **`v0.9.8-beta`** (field intake;
-> claim not frozen). Highest-value **programme** track remains Graph Trust
-> Surfaces Wave 0 (**CGBDG**; **CONF-001** merged via #4174). See
-> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
+> The active release window is **`v0.9.8-beta`** (claim locked 2026-09-11 —
+> continuous journey honesty after `v0.9.7-beta`). Patch on the v0.9 line. Not
+> cut-ready until standing bar + preflight. Highest-value **programme** track
+> remains Graph Trust Surfaces Wave 0 (**CGBDG**; **CONF-001** merged via
+> #4174). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
 
 ## Contents
 
@@ -104,7 +105,7 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | JOURNEY-016 accepted; claim freeze / publication open | Ready | [JOURNEY](./modules/release-user-journeys.aps.md), [JREL](./archive/modules/journey-reliability.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | Operator-authorised 2026-09-05 programme; provisional v0.9.8-beta claim remains unfrozen. | JOURNEY-016 acceptance passed (claim #4613, no splash); JSIMP-001..006 Merged; claim freeze / publication still open. |
+| 1 | v0.9.8-beta — continuous journey honesty | Ready (claim locked) | [RELEASE-PLAN](../RELEASE-PLAN.md), [CHANGELOG](../CHANGELOG.md), [JSIMP](./modules/journey-simplification.aps.md), [JREL](./archive/modules/journey-reliability.aps.md) | Locked 2026-09-11; JSIMP-001..006 + JREL-002/-009/-010 Merged on `main`. JOURNEY-015/-016 gates only. Patch on the v0.9 line. | Standing bar; preflight → prepare → cut. |
 | 2 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
 | 3 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block the next cut. |
 | 4 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
@@ -121,9 +122,10 @@ Windows through `v0.7.4-beta` have their per-window tables and slice records in
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is provisional **`v0.9.8-beta`** (field intake after `v0.9.7-beta`),
-declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above
-and the NBI table. Shipped windows through `v0.9.7-beta` are promoted headlines.
+window is **`v0.9.8-beta`** (claim locked — continuous journey honesty after
+`v0.9.7-beta`), declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also
+the header above and the NBI table. Shipped windows through `v0.9.7-beta` are
+promoted headlines.
 
 **Module tables below** mix archived Complete modules (Graph Substrate GV2/GCTX/…
 Released/Shipped via v0.9.0-beta and archived 2026-07-13), work landed around
@@ -794,10 +796,10 @@ Side programme (operator-approved shortlist, 2026-07-28): five tracks that turn
 the shipped graph into agent- and team-lead trust answers. Framing and clearance
 checklist:
 [`plans/specs/2026-07-28-graph-trust-surfaces.md`](./specs/2026-07-28-graph-trust-surfaces.md).
-**Not** a second `RELEASE-PLAN.md` window. While the active provisional window
-is `v0.9.8-beta` field intake, module rows below remain owned by their home
-sections where they already live; this band is the programme hub, not a release
-claim.
+**Not** a second `RELEASE-PLAN.md` window. While the active window is
+`v0.9.8-beta` (claim locked — continuous journey honesty), module rows below
+remain owned by their home sections where they already live; this band is the
+programme hub, not a release claim.
 
 | Track | Module | Scope | Status | Programme next |
 | ----- | ------ | ----- | ------ | -------------- |

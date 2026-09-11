@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                      |
-| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| Release plan | Derived   | APS modules | Live   | 2026-09-05: JOURNEY reliability-first intake linked. `v0.9.7-beta` remains latest; provisional `v0.9.8-beta` claim not frozen. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                 |
+| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-09-11: **`v0.9.8-beta` claim locked** — continuous journey honesty (JSIMP + JREL attach/worktree/overrides; JOURNEY-015/-016 as gates only). Implementation already on `main`. Remaining cut work is standing bar + preflight → tag. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -40,82 +40,97 @@ nothing else.
   config unification; `v0.9.4-beta` install advice + quieter FPs.
 - **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** provisional **`v0.9.8-beta`** — field intake after
-  `v0.9.7-beta`. Theme and claim IDs are **not frozen**.
+- **Active window:** **`v0.9.8-beta`** — claim locked: continuous journey
+  honesty. Primary items are Merged on `main`. Not cut-ready until standing
+  bar + preflight.
 
 ---
 
-## Active window — `v0.9.8-beta` (provisional)
+## Active window — `v0.9.8-beta` (claim locked)
 
-**Theme:** TBD from field intake after `v0.9.7-beta` (first-session honesty
-ship).
+**Theme:** Continuous journey honesty — first use through daily ensure tells the
+truth about activation, coverage, and protection.
 
-**Status:** **Provisional; claim not locked.** Do not cut until claim freeze +
-changelog + standing bar.
+**Status:** **Claim locked; not cut-ready.** Primary items are Merged on `main`.
+Remaining cut work is the standing bar and preflight → prepare → readiness →
+tag. Changelog `[Unreleased]` is curated theme-led in this lock.
 
-**Customer one-liner:** TBD.
+**Customer one-liner:** From a never-activated checkout through quiet daily
+recovery, anvil names what is proven (closing receipt, live protection attach,
+worktree-pinned MCP) and does not treat silence, missing MCP, or a
+configured-but-closed editor as success.
 
-**Authority:** Field signal + APS Ready/Accepted items after intake. Programme
-work (Graph Trust Surfaces Wave 0, `/settings` SETCON+, live-heal soak) may run
-**beside** this window and is not automatically the cut claim.
+**Authority:** Operator-approved claim (2026-09-11) from the Librarian release
+prep draft after JOURNEY-015/-016 evidence and JSIMP/JREL landings on `main`.
+JOURNEY passes are gates only — they did **not** grant publication authority.
 
 ### Journey reliability readiness
 
-The operator-authorised
-[JOURNEY programme](./plans/modules/release-user-journeys.aps.md) repairs
-[JREL reliability](./plans/archive/modules/journey-reliability.aps.md), verifies
-a pinned main build, then executes
-[JSIMP simplification](./plans/modules/journey-simplification.aps.md). This is
-readiness work, not a frozen version claim. JOURNEY-014/-015 gate any
-reliable-journey claim; JOURNEY-016 additionally gates a simplification claim.
-Use local/CI builds and the existing release process; an internal release
-channel is not a prerequisite. Publication remains a separate authorised cut.
-Simplification may start once JOURNEY-015 passes without waiting for
-publication.
+The [JOURNEY programme](./plans/modules/release-user-journeys.aps.md) verified
+[JREL reliability](./plans/archive/modules/journey-reliability.aps.md) and
+[JSIMP simplification](./plans/modules/journey-simplification.aps.md) on pinned
+main builds. Those gates are **Merged** and inform this claim; they are not
+themselves publication authority. Use the existing release process; an internal
+release channel is not a prerequisite.
 
 **JOURNEY-015 disposition (2026-09-10):** pinned-main rehearsal **pass** on
 `3f8890e15` (claim #4572; evidence under
-`plans/audits/2026-09-10-journey-015-*`). Claim freeze, changelog, standing
-release gates, and publication authority remain **not** granted. JSIMP may
-start; not started by that gate.
+`plans/audits/2026-09-10-journey-015-*`). Claim freeze and publication were
+**not** granted by that gate alone; simplification was permitted and later
+landed.
 
 **JOURNEY-016 disposition (2026-09-10):** simplification acceptance **pass** on
 `5489c6112` (claim #4613; evidence under
 `plans/audits/2026-09-10-journey-016-*`). No splash / always-on / dashboard.
-Claim freeze, changelog, standing release gates, and publication authority
-remain **not** granted.
+Claim freeze, changelog lock for cut, standing gates, and publication authority
+were **not** granted by that gate alone — this lock supplies the claim freeze.
 
-### Primary claim
+### Primary claim (continuous journey honesty)
 
-_Not selected._ Promote only after operator intake names the theme and freezes
-IDs.
+| ID                 | Item                                                 | Pri   | State                                           | Notes                                                                         |
+| ------------------ | ---------------------------------------------------- | ----- | ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| JSIMP-001…006      | Continuous journey (ADR-145) through public guidance | P0–P1 | Merged #4580, #4585, #4599, #4604, #4607, #4611 | Never-activated bare, start consent, quiet restore, closing receipt, guidance |
+| JREL-002           | Live MCP attach evidence for protection claims       | P0    | Merged #4416                                    | Handshake-attributed session; configured-but-closed is not live               |
+| JREL-009           | Preserve explicit MCP launch choices during repair   | P1    | Merged #4556                                    | Daily ensure keeps overrides; only obsolete managed paths migrate             |
+| JREL-010           | MCP worktree identity pin                            | P1    | Merged #4562                                    | Package subdirs / linked worktrees / symlinks share one project               |
+| JOURNEY-015 / -016 | Reliability rehearsal + simplification acceptance    | —     | Merged #4574 / #4614                            | Gates only — not publication authority                                        |
 
 ### Not a claim of this window (default)
 
+- **Ember** — inactive; generation unavailable; historical read only under
+  `ANVIL_EMBER=1`
+- **`anvil impact` / `anvil plan` / `anvil dashboard --web`** — present but
+  default-off / hidden from `--help`
+- Full **`/settings`** UI (SETCON foundations only)
+- Intent conformance as a **product gate** — advisory `anvil conformance check`
+  / CONF foundations; CEG remains Proposed
 - Live-heal supervisor/proxy soak (residual restart remains honest)
-- Full **`/settings`** programme (SETCON / SETINS / SETPREF / …)
 - Graph Trust Surfaces / council-gate bridge discovery
-- Intent-conformance product ADR
 - Browser dashboard default-on
+- CCTX as shipped product (spike/advisory only)
 - Standing CIB drain unless elevated to claim
 - Unquoted-variable shell follow-ups
-- Secret-detection truth (SDT) unless elevated
+- Secret-detection truth (SDT) as the cut theme (ships as tip freight)
 - CIB-353 tutorial depth (Draft editorial)
 - First-run / docs prominence of telemetry disclosure (Elliot). Existing
   disclosed opt-out notice and `docs/public/anvil/operations/telemetry.md` stay
 - Docs definition layer / DOCRB public-site programme
 - Website decision-integrity redesign
+- **"JOURNEY published"** — JOURNEY-015/-016 explicitly did **not** grant
+  publication authority
+- Graph attestation (GATT) as the headline — optional secondary freight on the
+  same tip
 
 ### Phase plan
 
-| Phase              | Scope                                          | State         |
-| ------------------ | ---------------------------------------------- | ------------- |
-| **0.9.7 closeout** | Record + APS advance + prune                   | This change   |
-| **Field intake**   | Post-`v0.9.7-beta` signal → theme selection    | Next          |
-| **Claim lock**     | Freeze primary/secondary IDs for `v0.9.8-beta` | Not started   |
-| **Implement**      | Claim items                                    | Not started   |
-| **Changelog**      | Curate `[Unreleased]`                          | Not started   |
-| **Cut**            | Preflight → prepare → readiness → tag          | Not scheduled |
+| Phase              | Scope                                       | State                                                                      |
+| ------------------ | ------------------------------------------- | -------------------------------------------------------------------------- |
+| **0.9.7 closeout** | Record + APS advance + prune                | Done 2026-08-21                                                            |
+| **Field intake**   | Post-`v0.9.7-beta` signal → theme selection | Done 2026-09-10 (JOURNEY-015/-016) + 2026-09-11 claim wording              |
+| **Claim lock**     | Freeze primary IDs for `v0.9.8-beta`        | This change                                                                |
+| **Implement**      | Claim items                                 | Done on `main` (JSIMP #4580–#4611; JREL-002/#4416, -009/#4556, -010/#4562) |
+| **Changelog**      | Curate `[Unreleased]` theme-led             | This change (builds on #4615 / #4631)                                      |
+| **Cut**            | Preflight → prepare → readiness → tag       | Next                                                                       |
 
 ### Cut criteria
 
@@ -124,14 +139,15 @@ IDs.
 - Claim locked with Merged primary items (and secondaries Merged or waived).
 - Changelog leads with the locked theme only — not programme freight.
 - Strategy: **direct** unless readiness forces stabilisation.
-- Version stays `v0.9.8-beta` until intake names a different line.
+- Version stays `v0.9.8-beta` (patch on the v0.9 line).
 
 ### Risks
 
-| Risk                                  | Mitigation                                                          |
-| ------------------------------------- | ------------------------------------------------------------------- |
-| Cutting without claim freeze          | Preflight/prepare blocked until RELEASE-PLAN status is claim-locked |
-| Programme work mistaken for cut claim | Keep NBI / Not a claim list current at claim lock                   |
+| Risk                                      | Mitigation                                                          |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| Cutting without claim freeze              | Preflight/prepare blocked until RELEASE-PLAN status is claim-locked |
+| Programme work mistaken for cut claim     | Keep NBI / Not a claim list current at claim lock                   |
+| JOURNEY pass misread as publish authority | JOURNEY-015/-016 dispositions stay explicit: gates only             |
 
 ---
 

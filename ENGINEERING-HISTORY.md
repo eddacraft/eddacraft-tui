@@ -7,20 +7,20 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased]
+## [Unreleased] — Draft — Continuous journey honesty
 
-> **Draft.** Technical work landed on `main` since `v0.9.7-beta`. Version and
-> date land at the next cut.
+> **Draft for `v0.9.8-beta`.** Technical work landed on `main` since
+> `v0.9.7-beta`. Theme locked: continuous journey honesty. Version and date land
+> at the cut.
 
-Technical work on `main` since `v0.9.7-beta`. Dominant themes: journey
-reliability and continuous-command simplification (JREL / JSIMP), graph answer
-attestation (GATT), journey evidence gates (JOURNEY), context-compiler spike
-(CCTX), project-scaffold reconciliation (PSCAF), activation and MCP honesty,
-plus earlier secret-detection honesty and catalogue breadth (SDT), gate-time AST
-on always-on surfaces (GTAO), settings and product-catalogue truth contracts
-(SETCON / FLAGCAT), and intent-conformance foundations (CONF). Windows
-park-and-swap and several honesty fixes also land as field freight. Not a
-release claim until a cut record says so.
+Technical work on `main` since `v0.9.7-beta`. The locked `v0.9.8-beta` claim is
+**continuous journey honesty**: first use through daily ensure tells the truth
+about activation, coverage, and protection (JSIMP-001…006; JREL-002 live MCP
+attach; JREL-009 explicit launch overrides; JREL-010 worktree-pinned MCP).
+JOURNEY-015/-016 are Merged evidence gates only — not publication authority.
+Adjacent tip freight (GATT attestation, SDT/GTAO/CONF/SETCON/FLAGCAT, CCTX
+spike, PSCAF, Windows park-and-swap, ensure lock re-probe) ships on the same tip
+but is not the cut headline.
 
 ### Secret-detection truth (SDT, ADR-136)
 
