@@ -1,6 +1,6 @@
 /**
- * Remaining TypeScript cache utilities. API/docs flag consumers use the
- * explicit /feature-flags subpath. Watch and agent/lock/queue orchestration
- * were retired under EMBERRS-001; the Rust CLI owns engine execution.
+ * Compatibility root for @eddacraft/anvil-runtime.
+ *
+ * Runtime services are not exported here. Feature-flag consumers use the
+ * explicit @eddacraft/anvil-runtime/feature-flags entry point.
  */
-export * from './cache/index.js';

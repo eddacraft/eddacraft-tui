@@ -195,22 +195,14 @@ describe('Smoke › @eddacraft/anvil-runtime', () => {
   // → anvil-archive/anvil-ts-scanner/runtime-gate/, runtime-export/.
   // The Rust CLI / RMCP shim are the gate-evaluation path now.
 
-  it('exports cache providers', async () => {
-    const mod = await import('@eddacraft/anvil-runtime/cache');
-    expect(mod).toBeDefined();
+  it('exports feature-flag utilities from the explicit subpath', async () => {
+    const mod = await import('@eddacraft/anvil-runtime/feature-flags');
+    expect(typeof mod.resolveFlag).toBe('function');
   });
 
-  it('does not export retired watch or coordination services', async () => {
+  it('keeps the compatibility root free of runtime service exports', async () => {
     const mod = await import('@eddacraft/anvil-runtime');
-    for (const name of [
-      'getChangedFiles',
-      'GitStatusChecker',
-      'QueueManager',
-      'LockManager',
-      'createConcurrencyContext',
-    ]) {
-      expect(Object.keys(mod)).not.toContain(name);
-    }
+    expect(Object.keys(mod)).toEqual([]);
   });
 });
 

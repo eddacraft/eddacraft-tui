@@ -1,7 +1,7 @@
 {
   "name": "@eddacraft/anvil-runtime",
   "version": "0.6.2-beta",
-  "description": "TypeScript cache utilities and feature-flag resolution for Anvil services",
+  "description": "Feature-flag resolution for anvil API and documentation services",
   "keywords": [
     "anvil",
     "orchestration",
@@ -19,10 +19,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./cache": {
-      "types": "./dist/cache/index.d.ts",
-      "import": "./dist/cache/index.js"
     },
     "./feature-flags": {
       "types": "./dist/feature-flags/index.d.ts",
