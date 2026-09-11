@@ -1,5 +1,5 @@
 {
-  "sourceSha": "3e120e6c0a96075092f1ee7bf85108d90ca011da",
+  "sourceSha": "3b3be15b4f7e88329564b3b7839abe8a58e17425",
   "binary": {
     "path": "/home/aneki/.cache/anvil-targets/fix-4591-upgrade-journey-retry.fix-4591-upgrade-previous-bin/debug/anvil",
     "sha256": "a7b17f21b371964a5f0cc71f23bd0163c29313ab5e019cca0d0b5dcb9186ce06",
@@ -10,13 +10,13 @@
     "arch": "x64",
     "name": "linux"
   },
-  "executedAt": "2026-09-11T06:00:16.521Z",
+  "executedAt": "2026-09-11T06:11:04.028Z",
   "catalog": "/home/aneki/.grok/worktrees/src-anvil-001/fix-4591-upgrade-journey-retry.fix-4591-upgrade-previous-bin/plans/audits/2026-09-11-journey-015-upgrade-leg-catalog.json",
   "scenarios": [
     {
       "id": "upgrade-previous-public",
       "result": "pass",
-      "detail": "/home/linuxbrew/.linuxbrew/bin/anvil (anvil 0.9.7-beta) → /tmp/anvil-journey-upgrade-M4XoAF/.grok/config.toml"
+      "detail": "/home/linuxbrew/.linuxbrew/bin/anvil (anvil 0.9.7-beta) → /tmp/anvil-journey-upgrade-YBlEqx/.grok/config.toml"
     }
   ],
   "previousPublicBinary": "/home/linuxbrew/.linuxbrew/bin/anvil",

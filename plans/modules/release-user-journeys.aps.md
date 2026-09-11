@@ -450,7 +450,7 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 - **Coordinates with:** JREL-012, JOURNEY-013
 - **Files:** `scripts/journey/verify.mjs`, `scripts/journey/verify.test.mjs`, `plans/audits/2026-09-10-journey-015-pinned-main-rehearsal.md`, `plans/audits/2026-09-11-journey-015-upgrade-leg-correction.md`
 - **Validation:** `pnpm validate:full`; `pnpm release-plan:check`; JREL-012's recorded end-to-end command; Linux/macOS/Windows matrix and interactive evidence on the same pinned source. Any platform waiver must be explicitly recorded by the operator, never inferred from a different platform's pass.
-- **Confidence:** high on the non-upgrade rehearsal and release disposition; upgrade-from-previous-public is residual #4591 until the previous binary is actually invoked.
+- **Confidence:** high on the non-upgrade rehearsal and release disposition; upgrade-from-previous-public is corrected by #4591 (previous binary invoked; MCP-config hand-off consumed).
 
 ### JOURNEY-016: Simplified journey acceptance and documentation closeout
 
