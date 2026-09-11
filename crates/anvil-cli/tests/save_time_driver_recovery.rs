@@ -419,7 +419,7 @@ fn reap_leftover_driver_records_with(dir: &Path, mut signal: impl FnMut(u32)) {
         return;
     };
     for path in entries.flatten().map(|entry| entry.path()) {
-        if !path.extension().is_some_and(|ext| ext == "pid") {
+        if path.extension().is_none_or(|ext| ext != "pid") {
             continue;
         }
         let Some((pid, start_time)) = read_pid_record(&path) else {
@@ -478,7 +478,7 @@ fn leftover_pid_record_with_mismatched_start_time_is_not_signalled() {
     let mut sent = Vec::new();
     let signalled =
         signal_recorded_pid_if_same_process(pid, Some(start.wrapping_add(1)), &mut |p| {
-            sent.push(p)
+            sent.push(p);
         });
     assert!(!signalled);
     assert!(sent.is_empty());

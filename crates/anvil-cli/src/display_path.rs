@@ -257,6 +257,22 @@ pub fn canonicalise(path: &Path) -> std::io::Result<PathBuf> {
     dunce::canonicalize(path)
 }
 
+/// True when `left` and `right` name the same filesystem location for identity
+/// checks (doctor/leftover/watch provenance), even if one side carries a
+/// Windows `\\?\` verbatim prefix and the other does not.
+///
+/// Prefer this over raw `Path` equality after mixed `dunce::canonicalize` /
+/// [`std::fs::canonicalize`] calls: on Windows those two APIs disagree on the
+/// prefix for the same file, which previously made a migrated
+/// `architecture.source` look like dual-truth shadowing.
+#[must_use]
+pub fn same_path(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    relative_to(left, right) == Some(String::new())
+}
+
 /// Strip `root` from `path` when `path` lies inside it.
 ///
 /// Both sides are normalised (verbatim prefix, separators, Windows ASCII
@@ -290,6 +306,19 @@ pub fn format_location(file: &str, line: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn same_path_equates_plain_and_verbatim_windows_forms() {
+        let plain = Path::new(r"C:\Users\runner\AppData\Local\Temp\proj\.anvil\architecture.yaml");
+        let verbatim =
+            Path::new(r"\\?\C:\Users\runner\AppData\Local\Temp\proj\.anvil\architecture.yaml");
+        assert!(same_path(plain, verbatim));
+        assert!(same_path(verbatim, plain));
+        assert!(!same_path(
+            plain,
+            Path::new(r"C:\Users\runner\AppData\Local\Temp\proj\.anvil\other.yaml"),
+        ));
+    }
 
     #[test]
     fn strips_windows_verbatim_prefix() {

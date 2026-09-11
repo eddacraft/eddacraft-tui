@@ -321,9 +321,8 @@ fn architecture_delegates_to_legacy(root: &Path) -> bool {
             crate::architecture_source::ArchitectureOrigin::Section(
                 anvil_config::SectionProvenance::Delegated { path, .. },
             ),
-        ))) => legacy_path
-            .canonicalize()
-            .is_ok_and(|canonical_legacy| canonical_legacy == path),
+        ))) => crate::display_path::canonicalise(&legacy_path)
+            .is_ok_and(|canonical_legacy| crate::display_path::same_path(&canonical_legacy, &path)),
         _ => false,
     }
 }

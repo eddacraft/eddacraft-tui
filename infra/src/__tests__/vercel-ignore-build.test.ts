@@ -68,9 +68,9 @@ function runIgnore(
 }
 
 // `git init` + a commit + a `bash` subprocess can exceed the 5s vitest default
-// on the Windows runner under load; 30s leaves headroom without masking
-// regressions.
-const FIXTURE_TEST_TIMEOUT_MS = 30_000;
+// on the Windows runner under load; 60s covers CI Nightly contention without
+// masking a hung script (still fails if bash never returns).
+const FIXTURE_TEST_TIMEOUT_MS = 60_000;
 
 describe('vercel-ignore-build.sh', () => {
   it(

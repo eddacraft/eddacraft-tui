@@ -290,8 +290,11 @@ export async function writeStateFile(projectRoot: string, state: StateFile): Pro
 // State file write fencing (CIB-117)
 // ----------------------------------------------------------------------------
 
-/** How long to keep retrying for the state-file lock before failing. */
-const STATE_LOCK_TIMEOUT_MS = 5_000;
+/** How long to keep retrying for the state-file lock before failing.
+ *  Windows runners serialise ~25 concurrent Vitest writers slowly enough
+ *  that a 5s waiter timed out under CI Nightly load; 15s covers that
+ *  contention without delaying crash-reap (still gated by STALE_MS). */
+const STATE_LOCK_TIMEOUT_MS = 15_000;
 
 /** Delay between state-file lock retries. */
 const STATE_LOCK_RETRY_MS = 5;

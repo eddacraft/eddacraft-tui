@@ -274,13 +274,10 @@ mod tests {
         )
         .unwrap();
         let path = watch_architecture_source_path(tmp.path()).unwrap().unwrap();
-        assert_eq!(
-            path,
-            tmp.path()
-                .join(".anvil/architecture.yaml")
-                .canonicalize()
-                .unwrap()
-        );
+        let expected =
+            crate::display_path::canonicalise(&tmp.path().join(".anvil/architecture.yaml"))
+                .unwrap();
+        assert_eq!(path, expected);
     }
 
     #[test]

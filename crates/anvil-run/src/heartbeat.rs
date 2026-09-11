@@ -119,14 +119,21 @@ mod tests {
                 *calls_clone.lock().unwrap() += 1;
             },
         );
-        // Wait long enough for several ticks but stop before the
-        // test times out.
-        thread::sleep(Duration::from_millis(200));
+        // The thread waits one full interval before the first tick, then
+        // again before each later tick. A fixed 200ms sleep was enough on
+        // quiet hosts but CI (especially aarch64-apple-darwin under load)
+        // sometimes scheduled only one fire in that window. Poll until we
+        // see two ticks, with a generous deadline that still fails fast
+        // if the thread is wedged.
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while *calls.lock().unwrap() < 2 && std::time::Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
         handle.stop();
         let observed = *calls.lock().unwrap();
         assert!(
             observed >= 2,
-            "expected the heartbeat thread to fire multiple times within 200ms; got {observed}",
+            "expected the heartbeat thread to fire multiple times within 2s; got {observed}",
         );
     }
 
