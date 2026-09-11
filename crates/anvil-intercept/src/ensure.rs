@@ -478,10 +478,11 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
         match hold_spawn_serialisation(params, deadline) {
             Ok(locks) => break locks,
             Err(outcome) => match live_endpoints(params) {
-                EndpointLiveness::One => {
-                    publish_observed_live_endpoint(params);
-                    return EnsureOutcome::Reused;
-                }
+                // Peer finished binding while we timed out waiting for the
+                // locks. Reuse without publishing: any coordinator guard from
+                // the failed acquire has been dropped, and the live-endpoint
+                // record must only be written while holding that lock.
+                EndpointLiveness::One => return EnsureOutcome::Reused,
                 EndpointLiveness::Conflict { live, endpoints } => {
                     return conflict_outcome(live, &endpoints);
                 }
