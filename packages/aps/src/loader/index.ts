@@ -3,8 +3,8 @@
  * Loads and resolves APS planning documents into a graph structure
  */
 
-import { promises as fs } from 'node:fs';
-import { dirname, resolve, isAbsolute, sep } from 'node:path';
+import { promises as fs, realpathSync } from 'node:fs';
+import { dirname, resolve, isAbsolute, sep, posix, win32 } from 'node:path';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { visit } from 'unist-util-visit';
@@ -313,25 +313,134 @@ async function loadMultiModulePlan(
   };
 }
 
+function isAbsoluteModulePath(relativePath: string): boolean {
+  return (
+    isAbsolute(relativePath) ||
+    posix.isAbsolute(relativePath) ||
+    win32.isAbsolute(relativePath) ||
+    /^[A-Za-z]:/.test(relativePath)
+  );
+}
+
+function containsDotDotSegment(relativePath: string): boolean {
+  return relativePath.split(/[\\/]/).some((segment) => segment === '..');
+}
+
+function isContained(candidate: string, root: string): boolean {
+  const left = process.platform === 'win32' ? candidate.toLowerCase() : candidate;
+  const right = process.platform === 'win32' ? root.toLowerCase() : root;
+  if (left === right) {
+    return true;
+  }
+  const prefix = right.endsWith(sep) ? right : right + sep;
+  return left.startsWith(prefix);
+}
+
+function tryRealpath(target: string): string | undefined {
+  try {
+    return realpathSync.native(target);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOSYS') {
+      try {
+        return realpathSync(target);
+      } catch (fallbackErr) {
+        if ((fallbackErr as NodeJS.ErrnoException).code === 'ENOENT') {
+          return undefined;
+        }
+        throw fallbackErr;
+      }
+    }
+    if (code === 'ENOENT') {
+      return undefined;
+    }
+    throw err;
+  }
+}
+
+function wrapResolveError(relativePath: string, err: unknown): never {
+  if (err instanceof ParseError) {
+    throw err;
+  }
+  throw new ParseError(
+    `Failed to resolve module path "${relativePath}": ${
+      err instanceof Error ? err.message : String(err)
+    }`,
+    relativePath
+  );
+}
+
+function assertResolvedInsideBase(
+  resolved: string,
+  resolvedBase: string,
+  relativePath: string
+): void {
+  if (!isContained(resolved, resolvedBase)) {
+    throw new ParseError(`Module path escapes base directory: ${relativePath}`, relativePath);
+  }
+
+  let realBase: string | undefined;
+  try {
+    realBase = tryRealpath(resolvedBase);
+  } catch (err) {
+    wrapResolveError(relativePath, err);
+  }
+  if (realBase === undefined) {
+    return;
+  }
+
+  try {
+    const realTarget = tryRealpath(resolved);
+    if (realTarget !== undefined) {
+      if (!isContained(realTarget, realBase)) {
+        throw new ParseError(`Module path escapes base directory: ${relativePath}`, relativePath);
+      }
+      return;
+    }
+
+    let parent = dirname(resolved);
+    while (parent !== resolved) {
+      const realParent = tryRealpath(parent);
+      if (realParent !== undefined) {
+        if (!isContained(realParent, realBase)) {
+          throw new ParseError(`Module path escapes base directory: ${relativePath}`, relativePath);
+        }
+        return;
+      }
+      const next = dirname(parent);
+      if (next === parent) {
+        return;
+      }
+      parent = next;
+    }
+  } catch (err) {
+    wrapResolveError(relativePath, err);
+  }
+}
+
 /**
  * Resolve a relative path against a base directory.
- * Rejects absolute paths and paths that escape the base directory.
+ * Rejects absolute paths and paths that escape the base directory after
+ * separator normalisation and symlink resolution.
  */
 export function resolvePath(relativePath: string, baseDir: string): string {
-  // Reject absolute paths — module paths must be relative to baseDir
-  if (isAbsolute(relativePath)) {
+  if (relativePath.includes('\0')) {
+    throw new ParseError(`Module path contains a null byte: ${relativePath}`, relativePath);
+  }
+
+  if (isAbsoluteModulePath(relativePath)) {
     throw new ParseError(`Absolute module paths are not allowed: ${relativePath}`, relativePath);
   }
 
-  // Remove leading ./ if present
-  const cleanPath = relativePath.replace(/^\.\//, '');
-  const resolved = resolve(baseDir, cleanPath);
-  const resolvedBase = resolve(baseDir);
-
-  // Validate the resolved path stays within baseDir
-  if (resolved !== resolvedBase && !resolved.startsWith(resolvedBase + sep)) {
+  if (containsDotDotSegment(relativePath)) {
     throw new ParseError(`Module path escapes base directory: ${relativePath}`, relativePath);
   }
+
+  const cleanPath = relativePath.replace(/^\.[\\/]/, '');
+  const resolvedBase = resolve(baseDir);
+  const resolved = resolve(resolvedBase, cleanPath);
+
+  assertResolvedInsideBase(resolved, resolvedBase, relativePath);
 
   return resolved;
 }

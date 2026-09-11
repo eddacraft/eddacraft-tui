@@ -2,9 +2,11 @@
  * Tests for plan loader module
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import {
   loadPlan,
   resolvePath,
@@ -14,6 +16,7 @@ import {
   detectCycles,
 } from './index.js';
 import { ParseError } from '../types/index.js';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const EXAMPLES_DIR = join(__dirname, '../../examples');
@@ -178,23 +181,135 @@ describe('loadPlan', () => {
 describe('resolvePath', () => {
   // On Windows, path.resolve('/project/plan', ...) prepends the drive letter (e.g. 'D:')
   const toFwd = (p: string): string => p.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+  const lexicalBase = '/project/plan';
 
   it('should resolve relative paths', () => {
-    expect(toFwd(resolvePath('./modules/auth.aps.md', '/project/plan'))).toBe(
+    expect(toFwd(resolvePath('./modules/auth.aps.md', lexicalBase))).toBe(
       '/project/plan/modules/auth.aps.md'
     );
   });
 
   it('should handle paths without ./', () => {
-    expect(toFwd(resolvePath('modules/auth.aps.md', '/project/plan'))).toBe(
+    expect(toFwd(resolvePath('modules/auth.aps.md', lexicalBase))).toBe(
       '/project/plan/modules/auth.aps.md'
     );
   });
 
-  it('should reject absolute paths', () => {
-    expect(() => resolvePath('/absolute/path.md', '/project')).toThrow(
+  it('should accept nested relative module paths under the base', () => {
+    expect(toFwd(resolvePath('modules/nested/cart.aps.md', lexicalBase))).toBe(
+      '/project/plan/modules/nested/cart.aps.md'
+    );
+  });
+
+  it('should reject absolute POSIX paths', () => {
+    expect(() => resolvePath('/absolute/path.md', lexicalBase)).toThrow(
       'Absolute module paths are not allowed'
     );
+  });
+
+  it('should reject Windows drive-letter absolute paths', () => {
+    expect(() => resolvePath('C:\\Windows\\file.md', lexicalBase)).toThrow(
+      'Absolute module paths are not allowed'
+    );
+  });
+
+  it('should reject Windows UNC absolute paths', () => {
+    expect(() => resolvePath('\\\\server\\share\\file.md', lexicalBase)).toThrow(
+      'Absolute module paths are not allowed'
+    );
+  });
+
+  it('should reject ../ escapes', () => {
+    expect(() => resolvePath('../secret.md', lexicalBase)).toThrow(
+      'Module path escapes base directory'
+    );
+  });
+
+  it('should reject nested .. escapes', () => {
+    expect(() => resolvePath('modules/../../secret.md', lexicalBase)).toThrow(
+      'Module path escapes base directory'
+    );
+  });
+
+  it('should reject .. segments even when they remain under the base after normalisation', () => {
+    expect(() => resolvePath('modules/../modules/auth.aps.md', lexicalBase)).toThrow(
+      'Module path escapes base directory'
+    );
+  });
+
+  it('should reject Windows-shaped backslash parent escapes', () => {
+    expect(() => resolvePath('..\\secret.md', lexicalBase)).toThrow(
+      'Module path escapes base directory'
+    );
+    expect(() => resolvePath('modules\\..\\..\\secret.md', lexicalBase)).toThrow(
+      'Module path escapes base directory'
+    );
+  });
+
+  it('should reject mixed-separator escapes', () => {
+    expect(() => resolvePath('modules/..\\..\\secret.md', lexicalBase)).toThrow(
+      'Module path escapes base directory'
+    );
+  });
+
+  describe.skipIf(process.platform === 'win32')('symlink escape prevention', () => {
+    const temps: string[] = [];
+
+    afterEach(async () => {
+      await Promise.all(temps.splice(0).map((dir) => safeCleanup(dir)));
+    });
+
+    function makeDirs(): { planDir: string; outsideDir: string } {
+      const planDir = mkdtempSync(join(tmpdir(), 'aps-loader-plan-'));
+      const outsideDir = mkdtempSync(join(tmpdir(), 'aps-loader-outside-'));
+      temps.push(planDir, outsideDir);
+      mkdirSync(join(planDir, 'modules'));
+      writeFileSync(join(planDir, 'modules', 'auth.aps.md'), '# Auth\n');
+      writeFileSync(join(outsideDir, 'secret.md'), 'sensitive\n');
+      return { planDir, outsideDir };
+    }
+
+    it('should accept a normal relative module path that exists under the base', () => {
+      const { planDir } = makeDirs();
+      expect(resolvePath('modules/auth.aps.md', planDir)).toBe(
+        join(planDir, 'modules', 'auth.aps.md')
+      );
+    });
+
+    it('should reject a symlink file pointing outside the plan base', () => {
+      const { planDir, outsideDir } = makeDirs();
+      symlinkSync(join(outsideDir, 'secret.md'), join(planDir, 'modules', 'escape.aps.md'));
+      expect(() => resolvePath('modules/escape.aps.md', planDir)).toThrow(
+        'Module path escapes base directory'
+      );
+    });
+
+    it('should reject a symlink directory pointing outside the plan base', () => {
+      const { planDir, outsideDir } = makeDirs();
+      symlinkSync(outsideDir, join(planDir, 'modules', 'out'));
+      expect(() => resolvePath('modules/out/secret.md', planDir)).toThrow(
+        'Module path escapes base directory'
+      );
+    });
+
+    it('should reject a committed-style symlink whose target is outside the base', () => {
+      const { planDir, outsideDir } = makeDirs();
+      symlinkSync(join(outsideDir, 'secret.md'), join(planDir, 'escape-link.aps.md'));
+      expect(() => resolvePath('escape-link.aps.md', planDir)).toThrow(
+        'Module path escapes base directory'
+      );
+    });
+
+    it('should allow a symlink that stays inside the plan base', () => {
+      const { planDir } = makeDirs();
+      symlinkSync(
+        join(planDir, 'modules', 'auth.aps.md'),
+        join(planDir, 'modules', 'alias.aps.md')
+      );
+      expect(resolvePath('modules/alias.aps.md', planDir)).toBe(
+        join(planDir, 'modules', 'alias.aps.md')
+      );
+    });
   });
 });
 
