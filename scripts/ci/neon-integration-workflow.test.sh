@@ -65,7 +65,7 @@ const yaml = require('yaml');
 const file = process.argv[2];
 const NEON_SECRET = 'secrets.NEON_TEST_API_KEY';
 const NEON_SECRET_REFERENCE =
-  /\bsecrets\s*(?:\.\s*NEON_TEST_API_KEY|\[\s*(['"])NEON_TEST_API_KEY\1\s*\])/;
+  /\bsecrets\s*(?:\.\s*NEON_TEST_API_KEY|\[\s*(['"])NEON_TEST_API_KEY\1\s*\])/i;
 const POSSIBLE_SECRET_INDEX = /\bsecrets\s*\[/;
 const TEST_COMMAND = 'pnpm --dir apps/anvil-api test:neon';
 const CREATE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs';
@@ -76,6 +76,7 @@ const EXPECTED_REF =
   "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}";
 const EXPECTED_CLEANUP_IF =
   "${{ always() && steps.create-branch.outputs.branch_name != '' }}";
+const EXPECTED_SECRET_BINDING = '${{ secrets.NEON_TEST_API_KEY }}';
 
 const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
 const fail = (m) => {
@@ -141,6 +142,21 @@ const doc = yaml.parse(fs.readFileSync(file, 'utf8'));
 if (!doc || typeof doc !== 'object' || !doc.jobs || typeof doc.jobs !== 'object') {
   fail('workflow jobs mapping not found');
 }
+if (containsNeonSecret(doc.env)) {
+  fail('workflow-level env must not expose Neon credentials');
+}
+for (const [jobId, job] of Object.entries(doc.jobs)) {
+  if (
+    job &&
+    typeof job.uses === 'string' &&
+    Object.prototype.hasOwnProperty.call(job, 'secrets')
+  ) {
+    fail(`jobs.${jobId} reusable workflow jobs must not forward secrets`);
+  }
+  if (job && containsNeonSecret(job.env)) {
+    fail(`jobs.${jobId} job-level env must not expose Neon credentials`);
+  }
+}
 
 const credentialed = Object.entries(doc.jobs).filter(([, job]) => job && jobConsumesNeon(job));
 if (credentialed.length === 0) {
@@ -163,6 +179,9 @@ for (const [jobId, job] of credentialed) {
   }
   if (job['timeout-minutes'] !== 15) {
     fail(`jobs.${jobId}.timeout-minutes is not 15`);
+  }
+  if (!isFailClosed(job)) {
+    fail(`jobs.${jobId} credentialed job is not fail-closed`);
   }
 
   const steps = Array.isArray(job.steps) ? job.steps : [];
@@ -198,19 +217,21 @@ for (const [jobId, job] of credentialed) {
     }
   }
 
-  const createSteps = steps.filter(
-    (step) => hasExactCommand(step, CREATE_COMMAND) && envConsumesNeon(step.env),
-  );
+  const createSteps = steps.filter((step) => hasExactCommand(step, CREATE_COMMAND));
   if (createSteps.length === 0) {
     fail(`jobs.${jobId} is missing the credentialed Neon create step`);
   }
-  if (createSteps.length > 1) {
-    fail(`jobs.${jobId} has multiple credentialed Neon create steps`);
+  if (createSteps.length !== 1) {
+    fail(`jobs.${jobId} expected exactly one Neon create command`);
   }
-  if (createSteps[0].id !== 'create-branch') {
+  if (!envConsumesNeon(createSteps[0].env)) {
+    fail(`jobs.${jobId} Neon create step is missing step-local credentials`);
+  }
+  const createStep = createSteps[0];
+  if (createStep.id !== 'create-branch') {
     fail(`jobs.${jobId} credentialed create step must use id: create-branch`);
   }
-  if (!isUnconditional(createSteps[0]) || !isFailClosed(createSteps[0])) {
+  if (!isUnconditional(createStep) || !isFailClosed(createStep)) {
     fail(`jobs.${jobId} credentialed create step is not unconditional and fail-closed`);
   }
 
@@ -224,16 +245,81 @@ for (const [jobId, job] of credentialed) {
     fail(`jobs.${jobId} is missing a fail-closed ${TEST_COMMAND} step`);
   }
 
-  const hasCleanup = steps.some(
+  const deleteSteps = steps.filter((step) => hasExactCommand(step, DELETE_COMMAND));
+  const cleanupStep = deleteSteps.find(
     (step) =>
       norm(stepIf(step)) === EXPECTED_CLEANUP_IF &&
-      hasExactCommand(step, DELETE_COMMAND) &&
       envConsumesNeon(step.env) &&
       isFailClosed(step),
   );
-  if (!hasCleanup) {
+  if (!cleanupStep) {
     fail(`jobs.${jobId} is missing always() cleanup that deletes the Neon branch`);
   }
+
+  const allowedSecretSteps = new Set([createStep, cleanupStep]);
+  for (const step of steps) {
+    if (!containsNeonSecret(step)) continue;
+    const env = step.env && typeof step.env === 'object' ? step.env : {};
+    const stepWithoutEnv = { ...step };
+    delete stepWithoutEnv.env;
+    const hasUnexpectedExposure =
+      !allowedSecretSteps.has(step) ||
+      norm(env.NEON_API_KEY == null ? '' : env.NEON_API_KEY) !== EXPECTED_SECRET_BINDING ||
+      Object.entries(env).some(
+        ([name, value]) => name !== 'NEON_API_KEY' && containsNeonSecret(value),
+      ) ||
+      containsNeonSecret(stepWithoutEnv);
+    if (hasUnexpectedExposure) {
+      fail(`jobs.${jobId} Neon credentials may only be exposed to the create and cleanup steps`);
+    }
+  }
+}
+
+const workflowCommandOwners = (command) => Object.entries(doc.jobs).flatMap(([jobId, job]) => {
+  const steps = Array.isArray(job?.steps) ? job.steps : [];
+  return steps
+    .map((step, stepIndex) => ({ jobId, stepIndex, step }))
+    .filter(({ step }) => hasExactCommand(step, command));
+});
+const commandOwners = Object.fromEntries([
+  ['create', CREATE_COMMAND],
+  ['test', TEST_COMMAND],
+  ['delete', DELETE_COMMAND],
+].map(([label, command]) => [label, workflowCommandOwners(command)]));
+for (const [label, owners] of Object.entries(commandOwners)) {
+  if (owners.length !== 1) {
+    fail(`expected exactly one workflow-wide Neon ${label} command, found ${owners.length}`);
+  }
+}
+for (const [jobId, job] of Object.entries(doc.jobs)) {
+  const steps = Array.isArray(job?.steps) ? job.steps : [];
+  for (const [stepIndex, step] of steps.entries()) {
+    const run = stepRun(step);
+    if (
+      run.includes('scripts/ci/create-neon-test-branch.mjs') &&
+      !hasExactCommand(step, CREATE_COMMAND) &&
+      !hasExactCommand(step, DELETE_COMMAND)
+    ) {
+      fail(`jobs.${jobId}.steps[${stepIndex}] has an unsupported wrapped Neon command`);
+    }
+  }
+}
+const [createOwner] = commandOwners.create;
+const [testOwner] = commandOwners.test;
+const [deleteOwner] = commandOwners.delete;
+if (createOwner.jobId !== testOwner.jobId || createOwner.jobId !== deleteOwner.jobId) {
+  fail('the Neon create, test, and delete commands must belong to one job');
+}
+const ownerSteps = doc.jobs[createOwner.jobId].steps;
+const checkoutIndexes = ownerSteps
+  .map((step, stepIndex) => ({ step, stepIndex }))
+  .filter(({ step }) => isCheckout(step))
+  .map(({ stepIndex }) => stepIndex);
+if (
+  checkoutIndexes.some((stepIndex) => stepIndex >= createOwner.stepIndex) ||
+  !(createOwner.stepIndex < testOwner.stepIndex && testOwner.stepIndex < deleteOwner.stepIndex)
+) {
+  fail('required command order is checkout, create, test, delete');
 }
 
 console.log(
@@ -1103,8 +1189,206 @@ YAML
 
 assert_fails_with \
   "${inherited_secret_consumer}" \
-  'jobs.inherited-secret-consumer.if is missing the internal-PR guard' \
+  'jobs.inherited-secret-consumer reusable workflow jobs must not forward secrets' \
   inherited-secret-consumer
+
+# Negative: workflow-level env reaches every ordinary job. A valid decoy job
+# must not hide an unguarded self-hosted sibling that inherits the Neon key.
+workflow_env_consumer="${tmp_dir}/workflow-env-consumer.yml"
+sed '/^jobs:/i\
+env:\
+  NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}\
+' "${workflow}" >"${workflow_env_consumer}"
+cat >>"${workflow_env_consumer}" <<'YAML'
+  workflow-env-consumer:
+    runs-on: self-hosted
+    steps:
+      - run: echo workflow-env-consumer
+YAML
+
+assert_fails_with \
+  "${workflow_env_consumer}" \
+  'workflow-level env must not expose Neon credentials' \
+  workflow-env-consumer
+
+# Negative: command ownership is independent of where credentials are bound.
+# A second exact create command without step-local env is still ambiguous.
+duplicate_create_command="${tmp_dir}/duplicate-create-command.yml"
+awk '
+  /      - name: Prove the OTP attempt cap against Neon/ {
+    print "      - name: Duplicate Neon create command"
+    print "        run: node scripts/ci/create-neon-test-branch.mjs"
+    print ""
+  }
+  { print }
+' "${workflow}" >"${duplicate_create_command}"
+
+assert_fails_with \
+  "${duplicate_create_command}" \
+  'expected exactly one Neon create command' \
+  duplicate-create-command
+
+# Negative: job-level env exposes the Neon key to every step and therefore
+# cannot establish unique credential ownership for create and cleanup.
+job_env_consumer="${tmp_dir}/job-env-consumer.yml"
+awk '
+  /    timeout-minutes: 15/ {
+    print
+    print "    env:"
+    print "      GLOBAL_NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}"
+    next
+  }
+  { print }
+' "${workflow}" >"${job_env_consumer}"
+
+assert_fails_with \
+  "${job_env_consumer}" \
+  'job-level env must not expose Neon credentials' \
+  job-env-consumer
+
+# Negative: command ownership is workflow-global, not merely unique inside the
+# credentialed job.
+cross_job_create_command="${tmp_dir}/cross-job-create-command.yml"
+cp "${workflow}" "${cross_job_create_command}"
+cat >>"${cross_job_create_command}" <<'YAML'
+  cross-job-create-command:
+    runs-on: ubuntu-latest
+    steps:
+      - run: node scripts/ci/create-neon-test-branch.mjs
+YAML
+
+assert_fails_with \
+  "${cross_job_create_command}" \
+  'expected exactly one workflow-wide Neon create command' \
+  cross-job-create-command
+
+# Negative: the test proof also has one workflow-wide owner.
+duplicate_test_command="${tmp_dir}/duplicate-test-command.yml"
+awk '
+  /      - name: Delete ephemeral Neon test branch/ {
+    print "      - name: Duplicate Neon test command"
+    print "        run: pnpm --dir apps/anvil-api test:neon"
+    print ""
+  }
+  { print }
+' "${workflow}" >"${duplicate_test_command}"
+
+assert_fails_with \
+  "${duplicate_test_command}" \
+  'expected exactly one workflow-wide Neon test command' \
+  duplicate-test-command
+
+# Negative: a structurally valid owner job must not expose the Neon key to an
+# unrelated step. Only the exact create and cleanup owners may receive it.
+extra_secret_step="${tmp_dir}/extra-secret-step.yml"
+awk '
+  /      - name: Delete ephemeral Neon test branch/ {
+    print "      - name: Leak Neon key to another action"
+    print "        uses: example/upload@0123456789abcdef0123456789abcdef01234567"
+    print "        with:"
+    print "          token: ${{ secrets.NEON_TEST_API_KEY }}"
+    print ""
+  }
+  { print }
+' "${workflow}" >"${extra_secret_step}"
+
+assert_fails_with \
+  "${extra_secret_step}" \
+  'Neon credentials may only be exposed to the create and cleanup steps' \
+  extra-secret-step
+
+# Negative: this workflow cannot prove the internals of a called workflow, so
+# reusable-workflow secret forwarding is an explicit fail-closed boundary.
+reusable_secret_mapping="${tmp_dir}/reusable-secret-mapping.yml"
+cp "${workflow}" "${reusable_secret_mapping}"
+cat >>"${reusable_secret_mapping}" <<'YAML'
+  reusable-secret-mapping:
+    uses: example/repository/.github/workflows/reusable.yml@0123456789abcdef0123456789abcdef01234567
+    secrets:
+      neon_api_key: ${{ secrets.NEON_TEST_API_KEY }}
+YAML
+
+assert_fails_with \
+  "${reusable_secret_mapping}" \
+  'reusable workflow jobs must not forward secrets' \
+  reusable-secret-mapping
+
+# Negative: step-level checks are not a gate when the whole credentialed job
+# is allowed to fail without failing the workflow.
+continued_job="${tmp_dir}/continued-job.yml"
+awk '
+  /    timeout-minutes: 15/ {
+    print
+    print "    continue-on-error: true"
+    next
+  }
+  { print }
+' "${workflow}" >"${continued_job}"
+
+assert_fails_with \
+  "${continued_job}" \
+  'credentialed job is not fail-closed' \
+  continued-job
+
+# Negative: cleanup must follow the test it protects; mere co-location in one
+# job does not establish the pipeline dependency.
+wrong_command_order="${tmp_dir}/wrong-command-order.yml"
+NODE_PATH="${repo_root}/node_modules" node - "${workflow}" "${wrong_command_order}" <<'NODE'
+const fs = require('node:fs');
+const yaml = require('yaml');
+const source = process.argv[2];
+const target = process.argv[3];
+const doc = yaml.parse(fs.readFileSync(source, 'utf8'));
+const steps = doc.jobs['otp-attempt-cap'].steps;
+const testIndex = steps.findIndex((step) => step.run === 'pnpm --dir apps/anvil-api test:neon');
+const deleteIndex = steps.findIndex(
+  (step) => step.run === 'node scripts/ci/create-neon-test-branch.mjs --delete',
+);
+[steps[testIndex], steps[deleteIndex]] = [steps[deleteIndex], steps[testIndex]];
+fs.writeFileSync(target, yaml.stringify(doc));
+NODE
+
+assert_fails_with \
+  "${wrong_command_order}" \
+  'required command order is checkout, create, test, delete' \
+  wrong-command-order
+
+# Negative: the contract supports a closed command grammar. A second shell
+# wrapper around the provisioner must not evade exact-command ownership.
+wrapped_duplicate_create="${tmp_dir}/wrapped-duplicate-create.yml"
+awk '
+  /      - name: Prove the OTP attempt cap against Neon/ {
+    print "      - name: Wrapped duplicate Neon create"
+    print "        run: |"
+    print "          set -e"
+    print "          node scripts/ci/create-neon-test-branch.mjs"
+    print ""
+  }
+  { print }
+' "${workflow}" >"${wrapped_duplicate_create}"
+
+assert_fails_with \
+  "${wrapped_duplicate_create}" \
+  'unsupported wrapped Neon command' \
+  wrapped-duplicate-create
+
+# Negative: GitHub normalises secret names, so case variation cannot hide a
+# second consumer from the structural inventory.
+lowercase_secret_consumer="${tmp_dir}/lowercase-secret-consumer.yml"
+cp "${workflow}" "${lowercase_secret_consumer}"
+cat >>"${lowercase_secret_consumer}" <<'YAML'
+  lowercase-secret-consumer:
+    runs-on: self-hosted
+    steps:
+      - env:
+          NEON_API_KEY: ${{ secrets.neon_test_api_key }}
+        run: echo lowercase-secret-consumer
+YAML
+
+assert_fails_with \
+  "${lowercase_secret_consumer}" \
+  'jobs.lowercase-secret-consumer.if is missing the internal-PR guard' \
+  lowercase-secret-consumer
 
 # Hosted-proof wiring retained from CLAWOPEN-011. These strings still appear
 # in the live workflow; the structural lock above is what stops them satisfying
