@@ -52,6 +52,12 @@ function commitChange(
   return { previous, current: git(repo, ['rev-parse', 'HEAD']) };
 }
 
+// `git init` + a commit + a `bash` subprocess can exceed the 5s vitest default
+// on the Windows runner under load. 60s covers CI Nightly contention. The same
+// bound is passed to spawnSync so a wedged bash cannot hang the worker; Vitest
+// cannot interrupt spawnSync on its own.
+const FIXTURE_TEST_TIMEOUT_MS = 60_000;
+
 function runIgnore(
   repo: string,
   args: string[],
@@ -64,13 +70,9 @@ function runIgnore(
       ...env,
     },
     encoding: 'utf8',
+    timeout: FIXTURE_TEST_TIMEOUT_MS,
   });
 }
-
-// `git init` + a commit + a `bash` subprocess can exceed the 5s vitest default
-// on the Windows runner under load; 60s covers CI Nightly contention without
-// masking a hung script (still fails if bash never returns).
-const FIXTURE_TEST_TIMEOUT_MS = 60_000;
 
 describe('vercel-ignore-build.sh', () => {
   it(
