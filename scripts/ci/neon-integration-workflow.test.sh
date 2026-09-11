@@ -67,6 +67,7 @@ const NEON_SECRET = 'secrets.NEON_TEST_API_KEY';
 const NEON_SECRET_REFERENCE =
   /\bsecrets\s*(?:\.\s*NEON_TEST_API_KEY|\[\s*(['"])NEON_TEST_API_KEY\1\s*\])/i;
 const POSSIBLE_SECRET_INDEX = /\bsecrets\s*\[/;
+const POSSIBLE_WHOLE_SECRETS_CONTEXT = /\bsecrets\b(?!\s*(?:\.|\[))/;
 const TEST_COMMAND = 'pnpm --dir apps/anvil-api test:neon';
 const CREATE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs';
 const DELETE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs --delete';
@@ -86,7 +87,11 @@ const fail = (m) => {
 
 const containsNeonSecret = (value) => {
   if (typeof value === 'string') {
-    return NEON_SECRET_REFERENCE.test(value) || POSSIBLE_SECRET_INDEX.test(value);
+    return (
+      NEON_SECRET_REFERENCE.test(value) ||
+      POSSIBLE_SECRET_INDEX.test(value) ||
+      POSSIBLE_WHOLE_SECRETS_CONTEXT.test(value)
+    );
   }
   if (Array.isArray(value)) return value.some(containsNeonSecret);
   if (value && typeof value === 'object') {
@@ -1406,6 +1411,24 @@ assert_fails_with \
   "${lowercase_secret_consumer}" \
   'jobs.lowercase-secret-consumer.if is missing the internal-PR guard' \
   lowercase-secret-consumer
+
+# Negative: serialising the whole secrets context includes the Neon key without
+# naming it, so this job must be treated as a potential credential consumer.
+whole_secrets_consumer="${tmp_dir}/whole-secrets-consumer.yml"
+cp "${workflow}" "${whole_secrets_consumer}"
+cat >>"${whole_secrets_consumer}" <<'YAML'
+  whole-secrets-consumer:
+    runs-on: self-hosted
+    steps:
+      - env:
+          ALL_SECRETS: ${{ toJSON(secrets) }}
+        run: echo whole-secrets-consumer
+YAML
+
+assert_fails_with \
+  "${whole_secrets_consumer}" \
+  'jobs.whole-secrets-consumer.if is missing the internal-PR guard' \
+  whole-secrets-consumer
 
 # Negative: workflow defaults can replace the command interpreter. This valid
 # custom template only prints the generated script path and never executes it.
