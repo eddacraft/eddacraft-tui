@@ -64,6 +64,8 @@ const yaml = require('yaml');
 
 const file = process.argv[2];
 const NEON_SECRET = 'secrets.NEON_TEST_API_KEY';
+const NEON_SECRET_REFERENCE =
+  /\bsecrets\s*(?:\.\s*NEON_TEST_API_KEY|\[\s*(['"])NEON_TEST_API_KEY\1\s*\])/;
 const TEST_COMMAND = 'pnpm --dir apps/anvil-api test:neon';
 const CREATE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs';
 const DELETE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs --delete';
@@ -81,7 +83,7 @@ const fail = (m) => {
 };
 
 const containsNeonSecret = (value) => {
-  if (typeof value === 'string') return value.includes(NEON_SECRET);
+  if (typeof value === 'string') return NEON_SECRET_REFERENCE.test(value);
   if (Array.isArray(value)) return value.some(containsNeonSecret);
   if (value && typeof value === 'object') {
     return Object.values(value).some(containsNeonSecret);
@@ -161,6 +163,14 @@ for (const [jobId, job] of credentialed) {
   }
 
   const steps = Array.isArray(job.steps) ? job.steps : [];
+  const stepIds = new Set();
+  for (const step of steps) {
+    if (typeof step.id !== 'string' || step.id.length === 0) continue;
+    if (stepIds.has(step.id)) {
+      fail(`jobs.${jobId} has duplicate step id: ${step.id}`);
+    }
+    stepIds.add(step.id);
+  }
   if (steps.some(impersonatesCheckout)) {
     fail(`jobs.${jobId} has a non-canonical actions/checkout step`);
   }
@@ -780,6 +790,63 @@ assert_fails_with \
   "${always_false_cleanup}" \
   'jobs.otp-attempt-cap is missing always() cleanup that deletes the Neon branch' \
   always-false-cleanup
+
+# Negative: duplicate step ids make steps.create-branch.outputs ambiguous. The
+# credentialed create step must be the unique owner of that identity.
+duplicate_step_id="${tmp_dir}/duplicate-step-id.yml"
+cat >"${duplicate_step_id}" <<'YAML'
+name: duplicate-step-id
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - id: create-branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - id: create-branch
+        run: echo duplicate-step-id
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${duplicate_step_id}" \
+  'jobs.otp-attempt-cap has duplicate step id: create-branch' \
+  duplicate-step-id
+
+# Negative: bracket notation is equivalent GitHub expression syntax. Every job
+# that consumes the Neon secret must be discovered and checked, even when it
+# does not use the dot spelling present in the primary job.
+bracket_secret_consumer="${tmp_dir}/bracket-secret-consumer.yml"
+cp "${workflow}" "${bracket_secret_consumer}"
+cat >>"${bracket_secret_consumer}" <<'YAML'
+  bracket-secret-consumer:
+    runs-on: self-hosted
+    steps:
+      - env:
+          NEON_API_KEY: ${{ secrets['NEON_TEST_API_KEY'] }}
+        run: echo bracket-secret-consumer
+YAML
+
+assert_fails_with \
+  "${bracket_secret_consumer}" \
+  'jobs.bracket-secret-consumer.if is missing the internal-PR guard' \
+  bracket-secret-consumer
 
 # Hosted-proof wiring retained from CLAWOPEN-011. These strings still appear
 # in the live workflow; the structural lock above is what stops them satisfying
