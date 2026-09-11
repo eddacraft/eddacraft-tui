@@ -48,23 +48,23 @@ the single implementation PR is the rollback.
   - Closing either transport while connection or authentication is pending
     destroys the late socket, rejects `connect()` with
     `anvil-driver-closed`, and fires the close callback once.
-- **Files:**
-  - `packages/anvil/core/src/utils/credential-redaction.ts`
-  - `packages/anvil/core/src/utils/credential-redaction.test.ts`
-  - `packages/anvil/core/src/utils/debug.ts`
-  - `packages/anvil/core/src/utils/debug.test.ts`
-  - `packages/anvil/core/src/provenance/git-ai-standard/serializer.ts`
-  - `packages/anvil/core/src/provenance/git-ai-standard/__tests__/credential-persistence.test.ts`
-  - `packages/anvil/runtime/src/feature-flags/snapshot.ts`
-  - `packages/anvil/runtime/src/feature-flags/snapshot.test.ts`
-  - `packages/anvil-driver-client/src/transport/unix.ts`
-  - `packages/anvil-driver-client/src/transport/unix.test.ts`
-  - `packages/anvil-driver-client/src/transport/windows.ts`
-  - `packages/anvil-driver-client/src/transport/windows.test.ts`
-  - `packages/anvil-driver-client/README.md`
-  - `packages/anvil-driver-client/ARCHITECTURE.md`
-  - `plans/modules/clawpatch-release-hardening.aps.md`
-  - `plans/index.aps.md`
+- **Files:** `packages/anvil/core/src/utils/credential-redaction.ts`,
+  `packages/anvil/core/src/utils/credential-redaction.test.ts`,
+  `packages/anvil/core/src/utils/debug.ts`,
+  `packages/anvil/core/src/utils/debug.test.ts`,
+  `packages/anvil/core/src/provenance/git-ai-standard/serializer.ts`,
+  `packages/anvil/core/src/provenance/git-ai-standard/__tests__/credential-persistence.test.ts`,
+  `packages/anvil/runtime/src/feature-flags/snapshot.ts`,
+  `packages/anvil/runtime/src/feature-flags/snapshot.test.ts`,
+  `packages/anvil-driver-client/src/transport/unix.ts`,
+  `packages/anvil-driver-client/src/transport/unix.test.ts`,
+  `packages/anvil-driver-client/src/transport/windows.ts`,
+  `packages/anvil-driver-client/src/transport/windows.test.ts`,
+  `packages/anvil-driver-client/src/client/driver-client.ts`,
+  `packages/anvil-driver-client/src/client/driver-client.test.ts`,
+  `packages/anvil-driver-client/README.md`,
+  `packages/anvil-driver-client/ARCHITECTURE.md`,
+  `plans/modules/clawpatch-release-hardening.aps.md`, `plans/index.aps.md`
 - **Validation:**
   - `pnpm --filter @eddacraft/anvil-core test`
   - `pnpm --filter @eddacraft/anvil-core typecheck`
