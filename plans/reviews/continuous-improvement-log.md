@@ -6603,3 +6603,603 @@ merge itself failed.
 - **Improvement:** Put the fix PR number in the CIB item at land time (the dev-loop closeout already knows it) so reconciliation does not depend on the CI-log entry surviving triage.
 - **Follow-up:** none
 
+### 2026-09-03 — codex
+
+- **Task:** SEC-015 Dependabot remediation sweep
+- **Outcome:** Seven retained PRs are exact-head green; one unsupported PR was closed; one external merge was recorded; draft closeout PR #4380 opened.
+- **Worked:** CI-first triage, ordinary main merges, exact-head GraphQL review closure, and red-then-green generator regression isolated dependency failures without bypassing policy.
+- **Failed:** cargo-about alternated between equivalent miniz_oxide licence files that differed by one blank line; the L4 one-second wall-clock assertion also failed twice under hosted load before a normal rerun passed.
+- **Friction:** Single-capacity required Rust Test jobs serialised closeout, and inherited Nx sync drift made validate:changed misleading on some branches.
+- **Improvement:** Keep licence output canonical across equivalent upstream files; replace hard wall-clock benchmark assertions with load-tolerant evidence; distinguish inherited Nx sync drift from branch regressions.
+- **Follow-up:** promote: CIB
+
+### 2026-09-03 — grok
+
+- **Task:** File CIB-409 for the Rust 1.98.1 toolchain pin
+- **Outcome:** Filed CIB-409 Ready P3 on bookkeeping PR #4382
+- **Worked:** Skipped 404-408 after finding them claimed on open intake PRs #4378 and #4379; left stored N/M for ADR-053
+- **Failed:** none
+- **Friction:** CIB-404 is claimed twice on open intake PRs (#4378 pr-required-status vs #4379 daemon socket probe); next free id was 409
+- **Improvement:** none
+- **Follow-up:** owned: CIB-409
+
+### 2026-09-04 — grok
+
+- **Task:** address-reviews PR 4333 tree-sitter 0.27.0
+- **Outcome:** merged main twice to clear CONFLICTING/DIRTY; kept tree-sitter 0.27; Copilot captures thread already resolved
+- **Worked:** reuse existing worktree; merge main rather than rebase; keep 0.27 attribution hunks; combine overview freshness notes; cargo check+test ast crate
+- **Failed:** none
+- **Friction:** main moved after the first merge (cc8eebd), requiring a second merge before evidence
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-04 — grok
+
+- **Task:** address-reviews 4333; stack 4335
+- **Outcome:** 4333 mergeable vs main; 4335 stacked on 4333 to share ACKNOWLEDGEMENTS/Cargo/overview conflicts
+- **Worked:** merge main into 4333; docs:redate gating owed; retarget 4335 base; keep tree-sitter 0.27 + animate-core 0.5
+- **Failed:** none
+- **Friction:** main moved twice during the run; docs corpus failed until redate used 2026-09-04
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-04 — codex
+
+- **Task:** Trace converged app and allomorph status
+- **Outcome:** Located the two-track UI strategy, confirmed allomorph as the private incubation repository, and reconciled both tracks against live GitHub and source state.
+- **Worked:** Source-pinned spec cross-references plus live repository, PR, issue, and build checks made the split and current stopping point explicit.
+- **Failed:** none
+- **Friction:** The user recollection blended the converged app, Ultimate UI/allomorph, and the disposable desktop-framework spike; the two-track strategy resolved the distinction.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-04 — grok
+
+- **Task:** Audit dangling unfinished work before v0.9.8-beta pre-release
+- **Outcome:** Produced a release-gate inventory: claim not locked; 6 open PRs (4 conflicting); nightly red; APS status drift on SKPKG/CPACKS; CLAWOPEN-007/011 in-flight; CIB has 21 Ready and 0 In Progress.
+- **Worked:** Read RELEASE-PLAN, index NBI, CIB statuses, gh PRs/issues, worktrees, changelog Unreleased, nightly run.
+- **Failed:** none
+- **Friction:** GitHub notifications 403; private-issue JSON field missing; MLP2 heading parser missed leftover Draft/Blocked items.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-04 — other
+
+- **Task:** Triage and file the latest Clawpatch run (CLAW04)
+- **Outcome:** Eight 4 September records calibrated; five GitHub issues filed; CLAW04 receipt published without implementing repairs
+- **Worked:** Complete-store inventory before selecting the latest run, so the report action clusters were not mistaken for the whole queue
+- **Failed:** none
+- **Friction:** ci-log:append --note is not a flag; the closeout contract uses --task/--improvement
+- **Improvement:** Keep the complete-store inventory step explicit in latest-run clawpatch intakes
+- **Follow-up:** owned: CLAW04-001
+
+### 2026-09-04 — other
+
+- **Task:** address-reviews cycle: earliest open PRs rebase/merge or repair
+- **Outcome:** merged 4333, 4335, 4373, 4382; 4361 blocked on Neon secrets; 4380 remains draft
+- **Worked:** merge-commit land after GitHub rebase-merge refused merge-commit histories; docs:redate cascade; CIB-409 retargeted to CIB-410
+- **Failed:** 4361 OTP job: NEON_API_KEY and NEON_PROJECT_ID are not in repo secrets/vars
+- **Friction:** rebase-merge cannot land branches that already merged main; CIB ID 410 now collides with later intake PRs 4392/4394
+- **Improvement:** none
+- **Follow-up:** session: add NEON_API_KEY and NEON_PROJECT_ID before CLAWOPEN-011 can prove; later CIB-410 intake PRs need renumber
+
+### 2026-09-04 — grok
+
+- **Task:** Diagnose why pre-write validate appears not to work on this host
+- **Outcome:** MCP anvil_validate_write is live; activation status is false because installed 0.9.7-beta still has CIB-384
+- **Worked:** Live MCP validate_write returned allow from the daemon; intercept status and dual-socket inspection named the stale-heartbeat mechanism
+- **Failed:** none
+- **Friction:** anvil start --verify stays ready_restart_required on 0.9.7-beta after 45s because activation-spine membership never heartbeats; repair copy tells the operator to restart the daemon, which only buys another 45s. Two intercept daemons are also running (XDG runtime vs ~/.local/state).
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-04 — other
+
+- **Task:** cycle new PRs 4392 4393 4394
+- **Outcome:** merged all three; CIB-410 collision resolved by numbering 411-413 and 414
+- **Worked:** merge main then retitle; Copilot threads on 4393 replied and resolved
+- **Failed:** none
+- **Friction:** CIB ID collisions when parallel intake PRs all claimed 410
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-06 — codex
+
+- **Task:** Investigate and plan L4 advisory repair
+- **Outcome:** Confirmed engine works; default path can be a silent no-op without acceptance policy; APS write blocked pending explicit shared-CIB authority
+- **Worked:** Source trace plus focused L4OrL3, production-engine, and warn-only tests; current origin/main and hosted work state checked
+- **Failed:** Worktrunk copied dependencies incompletely before no-optional repair; pre-write gate refused shared CIB edit
+- **Friction:** CIB-267 excludes activation bootstrap while the retained CI-log advisory also needs a new activation-honesty item
+- **Improvement:** Require L4 On to include a discoverable policy and give fresh init a non-overwriting ADR-037 default; document l4_only exercise and hex-SHA range
+- **Follow-up:** promote: CIB-267 plus CIB-415 after explicit shared-CIB approval
+
+### 2026-09-06 — grok
+
+- **Task:** DPO-007
+- **Outcome:** implemented
+- **Worked:** —
+- **Failed:** none
+- **Friction:** Watch Queue showed truncated warnings with no Enter-expand; MCP pre-write never emitted Kindling facts
+- **Improvement:** Ship live Queue expand plus pre-write gate_evaluated producer on the existing DPO sidecar until KFIT-010
+- **Follow-up:** none
+
+### 2026-09-07 — codex
+
+- **Task:** Implement JREL-001 lossless MCP continuity from PR #4396
+- **Outcome:** Implementation and Council converged; landing paused for explicit approval to remove an accidental shared APS status diff after the pre-write gate blocked the corrective restoration.
+- **Worked:** Era-sensitive pipeline tests, closed and saturated stderr regressions, Council re-review, and independent immutable verification exposed real edge cases before PR publication.
+- **Failed:** The pre-write policy gate treats restoring a shared APS module to origin/main as a forbidden feature-PR edit, so the safe removal requires an operator override.
+- **Friction:** Context-insensitive shared-module enforcement blocks removal of an existing branch-local status change as well as additions.
+- **Improvement:** Teach anvil write validation to allow a patch that exactly restores a protected shared APS path to the current base tree.
+- **Follow-up:** promote: CIB
+
+### 2026-09-07 — other — JREL recovery naming
+
+- **Task:** Record JREL/JSIMP ownership of headless daemon recovery naming
+- **Outcome:** Opened PR #4441 with plan notes only
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-07 — codex
+
+- **Task:** CIB-415/CIB-267
+- **Outcome:** Council paused the L4 activation repair with five approved major findings before publication.
+- **Worked:** Frozen-diff review caught start-path scope leakage, false-On identity state, misleading recovery guidance, incomplete hook diagnostics, and a policy-write race.
+- **Failed:** Initial implementation reused a shared init path and a path-based exclusive writer without covering every silent no-op precondition.
+- **Friction:** Council session state and Worktrunk files require writes outside the primary checkout sandbox root.
+- **Improvement:** Add boundary tests for every caller of shared initialisation helpers and prefer handle-relative no-follow creation for security-sensitive repository files.
+- **Follow-up:** owned: CIB-415
+
+### 2026-09-08 — grok
+
+- **Task:** Vend eddacraft skills into anvil-001
+- **Outcome:** eddaskills sync applied; 542 files; executor omitted; inventory now points at eddaskills.toml
+- **Worked:** gitignore tracks all vendored skills; replaced APS-managed aps-planning/plan-doctor; kept anvil-tuned council agents
+- **Failed:** none
+- **Friction:** anvil MCP write gate is catalogue-root only; prettier not on PATH without pnpm install
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-09 — grok
+
+- **Task:** Cleanup stale branches and worktrees
+- **Outcome:** Removed merged TUI worktree, 42 stale local branches, 42 leftover Grok clones. Kept main, two open-PR branches, two peer-exe clones for PR 4481.
+- **Worked:** wt remove --force for merged #4482; git branch -D for gone remotes; rm leftover ~/.grok/worktrees clones.
+- **Failed:** none
+- **Friction:** Official sweep skipped the TUI worktree because husky ignored files; used wt remove --force --no-hooks.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-09 — other — security-and-quality dependabot sweep
+
+- **Task:** Dependabot-only security-and-quality sweep of 28 open alerts
+- **Outcome:** Opened 8 draft PRs; reused #4480 (js-yaml) and #4474 (tools/dev vitest); next bump also cleared baseline-browser-mapping 2.10.42
+- **Worked:** Parallel worktree agents (4 then 2 then 2) from origin/main; complete override+lockfile PRs instead of red Dependabot branches
+- **Failed:** none
+- **Friction:** Every override PR is CONFLICTING vs current main (main moved during the sweep; all touch pnpm-workspace.yaml and pnpm-lock.yaml). They must land sequentially with rebases. Baseline pnpm test failed on daemon_identity because intercept.sock is live.
+- **Improvement:** Serialize or stack groups that edit pnpm-workspace.yaml/pnpm-lock.yaml; parallel worktrees speed implementation but produce unmergeable lockfile PRs.
+- **Follow-up:** session: rebase draft dependabot/fix/* PRs onto current main in merge order next, astro, then remaining overrides
+
+### 2026-09-09 — codex
+
+- **Task:** L4 repair / init scaffold redesign
+- **Outcome:** Design converged on an idempotent additive scaffold engine shared by init and start, with a mandatory foundation and selectable protections.
+- **Worked:** One-question design grilling separated scaffold, derived state, and activation overlays; traced the orphaned architecture and acceptance-policy writers.
+- **Failed:** The existing init/start boundary mixes configuration scaffolding with activation-time scanning and lacks a complete component inventory.
+- **Friction:** Retired first-user journeys left supported configuration surfaces without a practical writer.
+- **Improvement:** Generate CLI configuration choices and the public configuration-options page from one scaffold component catalogue.
+- **Follow-up:** owned: CIB-415
+
+### 2026-09-09 — codex
+
+- **Task:** PSCAF-001 scaffold reconciliation kernel
+- **Outcome:** Independent verification found four blocking contract gaps; implementation remains in progress and was not published.
+- **Worked:** TDD plus an independent verifier exposed incomplete writer migration and health semantics before PR publication.
+- **Failed:** The first implementation slice treated a narrow lock and happy-path foundation writer as sufficient for the full PSCAF-001 contract.
+- **Friction:** Cross-worktree Cargo and Nx caches required sandbox escalation; a live daemon endpoint prevented two hermetic daemon_identity fixtures.
+- **Improvement:** Add an executable writer inventory and adversarial CAS/failure-injection matrix to PSCAF kernel readiness before implementation.
+- **Follow-up:** owned: PSCAF-001
+
+### 2026-09-09 — codex
+
+- **Task:** CIB-415 L4 activation repair
+- **Outcome:** Opened PR #4500 with exact-head independent verification and Council PASS; exact-head hosted CI reached the final editor-coexistence gate after all other checks passed.
+- **Worked:** User-facing trigger-path probes across standard checkout, linked worktree, core.hooksPath variants, invalid or missing policy, and explicit uninstall exposed and closed activation-honesty defects.
+- **Failed:** The initial implementation assumed partial hook locations; Council later found explicit status and uninstall asymmetry, non-regular hook false positives, and destructive path trimming.
+- **Friction:** Fast-moving main repeatedly advanced and an unrelated MCP continuity timing test failed once before passing locally and on the exact-head hosted rerun.
+- **Improvement:** Trigger-path verification must use Git's effective hook path for install, status, execution, and uninstall in standard, linked-worktree, and core.hooksPath variants.
+- **Follow-up:** Track the unrelated MCP kill-switch timing flake separately if it recurs.
+
+### 2026-09-09 — other — grok
+
+- **Task:** Rebase-merge remaining Dependabot sweep PRs in critical-first order without admin override
+- **Outcome:** Landed vitest #4489 and @swc/html #4492 onto main after required CI; Dependabot open alerts now 0. Earlier in the sweep: next #4485, hono #4486, colord #4490, joi #4493.
+- **Worked:** Rebuild incremental overrides on current main instead of rebasing stale reapply commits; wait for required CI.yml (queued behind post-merge main runs) then rebase-merge; force-with-lease=branch:<expected-sha> after explicit rebase authority.
+- **Failed:** none
+- **Friction:** CI.yml stayed pending while a main run occupied the workflow; mergeStateStatus BLOCKED until those required checks appeared. Stale reapply rebases conflicted in pnpm-lock.yaml and once left conflict markers in a worktree.
+- **Improvement:** When a Dependabot override PR falls behind, reset the branch to origin/main and re-apply the override plus pnpm install rather than rebasing old lockfile commits. Do not treat BLOCKED as an admin-merge case while required checks are still missing.
+- **Follow-up:** none
+
+### 2026-09-09 — other — ack-4498 regen
+
+- **Task:** Regenerate acknowledgements for issue 4498
+- **Outcome:** ACKNOWLEDGEMENTS.md regenerated from local tools/dev lockfile
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-09 — codex
+
+- **Task:** JREL-005 typed readiness
+- **Outcome:** Implemented and locally verified typed daily activation readiness on the current main base.
+- **Worked:** Real-process bare/start refusal coverage exposed invalid legacy fixtures and kept component recovery honest.
+- **Failed:** Two daemon-identity fixtures intentionally refused to run while the operator daemon occupied the implicit runtime endpoint.
+- **Friction:** The sibling worktree needed package-cache write escalation, and anvil developer functions were unavailable in this harness.
+- **Improvement:** Provide a hermetic way to redirect the implicit runtime endpoint for daemon-identity tests without stopping an operator daemon.
+- **Follow-up:** theme:hermetic-daemon-test-runtime
+
+### 2026-09-09 — codex
+
+- **Task:** JREL-006
+- **Outcome:** implemented-and-verified
+- **Worked:** focused-PTY-and-state-fixtures
+- **Failed:** validate-changed-hit-inherited-Nx-workspace-sync-drift
+- **Friction:** shared-Nx-state-reused-absolute-paths-from-a-sibling-worktree
+- **Improvement:** isolate-or-invalidate-Nx-worktree-state-before-changed-surface-validation
+- **Follow-up:** promote:CIB
+
+### 2026-09-09 — codex
+
+- **Task:** JREL-007 guided setup routing and cancellation
+- **Outcome:** Implemented selected-project routing, typed Back/Quit/write-failure outcomes, and public terminal regression coverage
+- **Worked:** Public A-to-B, nested-directory, linked-worktree, cancellation, and write-failure journeys exposed and verified the boundary
+- **Failed:** Full CLI suite could not execute two daemon-identity cases while the shared intercept daemon remained live; all other targets and focused JREL-007 tests passed
+- **Friction:** daemon_identity requires the developer's shared intercept daemon to be stopped even though the changed path is unrelated
+- **Improvement:** Make daemon-identity integration fixtures isolate their rendezvous from a developer's live intercept daemon
+- **Follow-up:** promote: CIB
+
+### 2026-09-09 — codex
+
+- **Task:** JREL-008 restore terminal on all welcome exits
+- **Outcome:** Implemented RAII terminal ownership with PTY coverage for cancel, ordinary error, partial setup failure, and panic.
+- **Worked:** Existing TerminalGuard and TuiSession abstractions made the repair small and preserved a single restoration contract.
+- **Failed:** Full CLI validation could not run two daemon-identity isolation fixtures while the live developer socket was active; the affected welcome and TUI suites passed.
+- **Friction:** Debug-only process fault injection is needed to reproduce post-entry failure and panic through the public CLI boundary.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-09 — grok
+
+- **Task:** dev-loop resume JREL-012 / PR #4523 journey gate recovery
+- **Outcome:** integrated: rebase-merged PR #4523 on green; APS reconcile opened as #4550
+- **Worked:** rebase onto origin/main; scope --verify readiness so --json still fail-closes; Clippy rustdoc backticks; hermetic ANVIL_DEV for MCP smoke once the binary was required
+- **Failed:** none
+- **Friction:** journey:verify unmasked smoke validate_write gateUnavailable in unauthenticated CI; Clippy doc_markdown on ReuseOnly
+- **Improvement:** none
+- **Follow-up:** session: APS reconcile PR #4550
+
+### 2026-09-09 — codex
+
+- **Task:** JREL-009 preserve explicit MCP launch choices
+- **Outcome:** Implemented fail-closed client-schema validation, structural managed-path recognition, and composite unsafe reporting; exact-head verification is green except the inherited TypeScript project-reference drift.
+- **Worked:** Boundary-first regression fixtures and Council counterexamples exposed unsafe rewrite paths before landing.
+- **Failed:** The first broad validation attempt could not write the Nx workspace cache inside the restricted sandbox.
+- **Friction:** The repository-wide TypeScript sync gate remains out of sync on main and is unrelated to this Rust and documentation change.
+- **Improvement:** none
+- **Follow-up:** owned: JSIMP-004
+
+### 2026-09-09 — grok
+
+- **Task:** address-reviews PR 4556 Copilot non-object MCP env classification
+- **Outcome:** classified non-object env as UnsafeDrift; committed 86feea443; replied and resolved the thread
+- **Worked:** GraphQL thread fetch, classify_drift_by_args guard, regression test, cargo unit tests, clippy, reply+resolve
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-09 — grok
+
+- **Task:** address-reviews PR 4558 GATT-005
+- **Outcome:** replied and resolved Copilot omit-cost thread; added near-cap regression; docs diagram-impact was in-scope graph-cache src change already settled by freshness commit
+- **Worked:** classifyDiagramImpact vs origin/main empty after owning-doc redate; cargo test cost_self_report_omits_when_attestation_pushes_over_estimator_max
+- **Failed:** none
+- **Friction:** local mmdc missing so mermaid render not re-run; Docs corpus CI still in flight on new head
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-10 — grok
+
+- **Task:** Triage beta report: Codex could not mark secret-detection false positives as ignored
+- **Outcome:** Confirmed real. Codex ignore path is a dead end: anvil_suppress writes @anvil-ignore-until comments the parser never matches; secret scanner never consults parse_suppression; SECRET-* multi-hyphen ids would not parse even with the correct form; custom_allowlist config is a stub.
+- **Worked:** Traced MCP anvil_suppress, ADR-004/029 parser, secret scanner skip path, validate_write remediation, and secret_check_config extension point.
+- **Failed:** none
+- **Friction:** anvil graph tools unavailable (daemon-absent); had to read files directly.
+- **Improvement:** Honor ADR-004 -until in parse_suppression, or make anvil_suppress emit the ADR-029 form the scanner already reads.
+- **Follow-up:** session: decide whether pre-write secret findings may be inline-suppressed, then file CIB/issue
+
+### 2026-09-10 — codex
+
+- **Task:** Publish PSCAF-001 implementation draft PR
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** owned: PSCAF-001
+
+### 2026-09-10 — codex
+
+- **Task:** Triage and file Clawpatch findings added after the 2026-09-04 intake
+- **Outcome:** Triaged 18 persisted findings across the 4, 7 and 10 September runs; filed six coherent issues, recorded two false positives and one fixed item.
+- **Worked:** Full-store delta, current-source and ownership reconciliation prevented duplicate issues and calibrated scanner severity by reachability.
+- **Failed:** The isolated Cargo target exhausted /tmp after compilation; it was removed immediately. An initial fetch was blocked by the read-only sandbox and was retried through the authorised Git boundary.
+- **Friction:** Clawpatch status identifies the latest run but does not identify findings added since the last durable intake receipt; the operator must reconstruct the delta from run records and historical review evidence.
+- **Improvement:** Add a source-backed since-intake or untriaged-receipt view that lists newly created finding IDs without treating the latest report as the complete queue.
+- **Follow-up:** promote: CIB
+
+### 2026-09-10 — grok
+
+- **Task:** Implement option-3 secret FP ignore for Codex (#4584)
+- **Outcome:** Shipped on fix/secret-fp-inline-ignore as PR #4592. Parser honours -until and SECRET-* ids; ignorable secrets can be marked; high-confidence keys still block; FPs stay visible as info + local report-fp.
+- **Worked:** TDD on parser, scanner, intercept, anvil_suppress, validate_write; clippy -D warnings on the three crates.
+- **Failed:** none
+- **Friction:** anvil graph tools unavailable (daemon-absent); cargo test -p filters do not accept multiple names.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-10 — codex
+
+- **Task:** PSCAF-001 scaffold reconciliation kernel
+- **Outcome:** Draft PR opened; final exact-head verification remains repair-required after the bounded repair budget.
+- **Worked:** Layered Council and independent verification exposed concurrency and authority-boundary defects before merge.
+- **Failed:** Council findings were marked fixed from focused tests before the final verifier exercised the deeper mid-read, named-leaf, and synthetic-Git-metadata adversarial cases.
+- **Friction:** Local full validation also carries an inherited CLIC-010 failure, live-daemon fixture refusals, and Nx workspace-sync drift.
+- **Improvement:** Require mutation-boundary tests to model growth during reads, name swaps during publish/delete, and actual repository authority rather than reciprocal metadata shape alone.
+- **Follow-up:** owned: PSCAF-001
+
+### 2026-09-10 — grok
+
+- **Task:** address-reviews on PR 4592
+- **Outcome:** Copilot threads resolved (already fixed on f2d8c8895). CI repaired: clippy doc backticks, merge main, oxfmt generator, diagram-impact redate. Head 45d2d806c MERGEABLE/CLEAN, required checks green.
+- **Worked:** GraphQL resolve after REST replies; merged origin/main twice; docs:redate --write.
+- **Failed:** none
+- **Friction:** Docs corpus then diagram-impact after format-only generator change; main moved during CI.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-10 — grok
+
+- **Task:** land-branch PR 4592
+- **Outcome:** Merged #4592 to origin/main as b2fd37294. Ancestor check passed. Claim #4584 closes via Fixes. CIB module left to bookkeeping (shared multi-writer).
+- **Worked:** Pre-merge probe CLEAN; gh pr merge --merge --delete-branch; merge-base --is-ancestor.
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-10 — codex
+
+- **Task:** Repair PR #4583 CI failure
+- **Outcome:** Scoped the Unix-only FileStamp helper, pushed 388cc5f4a, and obtained green exact-head CI
+- **Worked:** CI-first log inspection isolated the Windows dead-code regression; the Nx SIGSEGV was confirmed transient by local reproduction and a green rerun
+- **Failed:** Local Linux could not execute the full MSVC build because Visual Studio lib.exe is unavailable
+- **Friction:** A transient Nx SIGSEGV required one failed-job rerun
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-10 — grok
+
+- **Task:** address-reviews on eddacraft/anvil-001 PR #4583 (PSCAF-001 Copilot threads)
+- **Outcome:** three unresolved Copilot threads fixed, replied, and resolved; branch rebased onto current main
+- **Worked:** GraphQL thread fetch; anvil_apply_patch before writes; focused cargo tests after rebase
+- **Failed:** none
+- **Friction:** `cargo test -p eddacraft-anvil --lib` is wrong (bin crate); regex filters with `|` matched nothing
+- **Improvement:** Copilot's three mutation nits were cheap and correct: gitfile worktree layout, in-loop 8 MiB cap, inode re-validate before unlinkat
+- **Follow-up:** none
+
+### 2026-09-10 — grok — JOURNEY-016 simplified acceptance
+
+- **Task:** Complete JOURNEY-016 observation + journey:verify closeout
+- **Outcome:** Feature PR #4614 rebase-merged on origin/main (a28033a5c). Exclusive APS reconcile PR #4616 opened for N/M 14/16.
+- **Worked:** Pinned SHA 5489c6112; journey:verify 7/7 with previous-public upgrade; first-time/returning/second-repo CLI observation; no splash; verify-loop pass; rebase auto-merge.
+- **Failed:** none
+- **Friction:** Host intercept daemon blocked daemon_identity fixtures; isolated ANVIL_HOME without --touch-project-state is read-only (not a first-timer path).
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-10 — codex
+
+- **Task:** Triage and revalidate the latest Clawpatch items
+- **Outcome:** Latest run added zero findings; revalidated six repeated clusters and moved five stale-open findings to fixed
+- **Worked:** Fetched exact origin/main, checked merged issue and PR ownership, inspected current source, and ran 66 focused passing regression tests
+- **Failed:** Initial ci-log status check could not write pnpm's user cache under the filesystem sandbox; rerun with the required cache authority
+- **Friction:** The latest report repeats historical clusters without reflecting merged fixes until persisted findings are manually retriaged
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-10 — grok
+
+- **Task:** Fix CI Nightly Windows/macOS path and termios failures
+- **Outcome:** PR #4617 opened with rebase auto-merge; path identity via dunce/display_path, PENDIN ignored in restore asserts, PTY script waits for new output
+- **Worked:** Worktree from origin/main; product path helpers; targeted cargo tests + clippy
+- **Failed:** none
+- **Friction:** anvil-cli is bin-only so cargo test --lib does not apply
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-11 — codex
+
+- **Task:** CIB-416 structural Neon workflow contract BUILD
+- **Outcome:** Implemented two RED-to-GREEN structural contract slices in the isolated worktree
+- **Worked:** Embedded YAML parsing identifies the credential-consuming job and negative fixtures prove parked strings do not satisfy job or step boundaries
+- **Failed:** none
+- **Friction:** Anvil developer functions unavailable; used content-mode apply_patch
+- **Improvement:** none
+- **Follow-up:** owned: CIB-416
+
+### 2026-09-11 — codex
+
+- **Task:** Execute dev-loop BUILD for CIB-417 test teardown
+- **Outcome:** Implemented PID-reuse-safe test harness teardown with two regression tests
+- **Worked:** Deterministic after-stop seam reproduced stale PID and numeric process-group signalling before the minimal fix
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** owned: CIB-417
+
+### 2026-09-11 — codex
+
+- **Task:** Execute dev-loop BUILD for CIB-419 midedit required input
+- **Outcome:** Implemented fail-closed baseline and mandatory roundtrip sampler validation
+- **Worked:** Baseline-derived required case coverage kept validation.service omissions advisory while closing silent roundtrip gaps
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** owned: CIB-419
+
+### 2026-09-11 — codex
+
+- **Task:** Repair CIB-419 verifier parser findings
+- **Outcome:** Anchored percentile grammar and parsed-key required coverage implemented
+- **Worked:** Verifier counterexamples became exact malformed-decimal, trailing-content, and spoofed-text fixtures
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** owned: CIB-419
+
+### 2026-09-11 — grok
+
+- **Task:** Unblock eddacraft/anvil-001 PR #4619 (spawnSync timeout + rebase)
+- **Outcome:** Rebase was already on origin/main; added spawnSync timeout; pushed 29d06d1e6; Copilot thread resolved; auto-merge (rebase) still armed
+- **Worked:** Existing named worktree; anvil_apply_patch allow; vitest 12/12; clippy -p eddacraft-anvil --test save_time_driver_recovery -D warnings
+- **Failed:** none
+- **Friction:** Local origin/main was already current (classification said 1 behind); clippy on save_time_driver_recovery is clean locally
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-11 — codex
+
+- **Task:** Repair CIB-417 failed-stop teardown
+- **Outcome:** Added identity-verified detached-driver fallback and bounded real-driver regression
+- **Worked:** Pre-stop role plus Linux start-time capture preserves PID-reuse safety while no-op supervisor shutdown is recovered
+- **Failed:** Initial Clippy run found one collapsible-if; repaired and reran green
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** owned: CIB-417
+
+### 2026-09-11 — other — CIB-416 Copilot threads
+
+- **Task:** Address Copilot review threads on PR #4620 (CIB-416 neon workflow contract)
+- **Outcome:** Hardened scripts/ci/neon-integration-workflow.test.sh, pushed 8a8a028f0, replied and resolved 7 threads, re-armed rebase auto-merge
+- **Worked:** Worktree from origin/fix/cib-416-neon-workflow-contract; fail-closed structural checker plus negative fixtures
+- **Failed:** none
+- **Friction:** Existing .worktrees/fix-cib-416-neon-workflow-structure tracked a different branch name than the PR
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-11 — codex
+
+- **Task:** Fix revalidated Clawpatch items CIB-416 through CIB-419 via dev-loop
+- **Outcome:** Opened review-ready PR #4622 for CIB-418 retirement and PR #4621 for CIB-419 fail-closed input validation; revalidated merged CIB-417; reopened CIB-416 after post-merge bypass proof
+- **Worked:** Current-base exact-head verification, adversarial mutation tests, Council convergence, and live issue/PR refresh prevented duplicate or incomplete filing
+- **Failed:** CIB-416 exhausted three repair passes and the subsequently merged contract still accepted duplicate create-branch IDs plus bracket-syntax secret consumption in an unguarded self-hosted job
+- **Friction:** Concurrent merges changed issue state and base; pnpm metadata writes required sandbox escalation; validate:changed exposed unrelated Nx sync debt on CIB-418
+- **Improvement:** Refresh hosted issue closure and origin/main immediately before landing, then rerun adversarial fixtures against the merged head
+- **Follow-up:** ready to reconcile: CIB-418 -> Merged via PR #4622; CIB-419 -> Merged via PR #4621; owned: CIB-416 reopened for bounded follow-up; later item: mid-edit missing end marker still exits success
+
+### 2026-09-11 — codex
+
+- **Task:** Revalidate CIB-416 through CIB-419 on current main
+- **Outcome:** CIB-417, CIB-418, and CIB-419 are merged and focused validations pass; CIB-416 still fails open under two adversarial mutations
+- **Worked:** Refreshed live GitHub state, proved merge ancestry, reran focused contracts, and bracketed the CIB-416 mutation in a disposable worktree
+- **Failed:** CIB-416 accepted duplicate create-branch step identity plus bracket-syntax secret consumer with exit 0
+- **Friction:** Disposable worktree lacked Node dependencies and pnpm store registration was sandbox-read-only; reran exact-main checks through the installed primary checkout
+- **Improvement:** none
+- **Follow-up:** owned: CIB-416
+
+### 2026-09-11 — grok
+
+- **Task:** CIB-212 land resume from main after worktree path vanished
+- **Outcome:** PR #4630 rebase-merged; origin/main is ca2c8c2d (tree/patch-id match of 13bb5039); CIB-212 worktree and branch already gone
+- **Worked:** Confirmed missing worktree path; queried live PR 4630 MERGED; ancestor/content probe after rebase rewrite; no CIB-212 worktree/branch leftovers; did not touch sibling CIB 211/213/215/267/416 worktrees
+- **Failed:** none
+- **Friction:** Landing session lost worktree path /home/aneki/Projects/src/anvil-001.fix-cib-212-aps-loader-path-containment; shell cwd vanished after merge-or-cleanup race; resume had to continue from main checkout
+- **Improvement:** worktree disappeared mid-land / shell cwd vanished after merge-or-cleanup race
+- **Follow-up:** none
+
+### 2026-09-11 — other — CIB-215
+
+- **Task:** CIB-215 provenance credential redaction
+- **Outcome:** Merged PR #4632 (391f05421); claim #4625 closed; worktree cleaned
+- **Worked:** Implemented credential-redaction helper; stopped GITHUB_COPILOT_TOKEN as session id; redacted token-shaped agent ids in session/serializer; stripped git remote userinfo; regression tests 77/77; /dev-loop verifier pass-with-advisories; rebase auto-merge
+- **Failed:** none
+- **Friction:** First grok ship turn cancelled after commit; pane stuck in yazi after accidental keypress; relaunched for land. Local validate:changed tripped unrelated daemon_identity socket fixture.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-11 — other
+
+- **Task:** Finish CIB-215 ship — PR + auto-merge + CI babysit
+- **Outcome:** Merged PR #4632 onto main as 391f05421; issue #4625 closed
+- **Worked:** Focused vitest 60/60; independent verify-loop pass-with-advisories (77/77); pushed branch; opened PR #4632 with Fixes #4625; armed gh pr merge --rebase --auto; CI 20 success / 13 skipped / 1 neutral; integration-ancestor proved
+- **Failed:** none
+- **Friction:** validate:changed cargo daemon_identity panicked on live intercept.sock (inherited environment); named worktree vanished after merge so shell cwd broke until recovered from main checkout
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-215 → Merged via PR #4632
+
+### 2026-09-11 — grok
+
+- **Task:** CIB-211 Windows pipe server auth + trusted config DACL
+- **Outcome:** Opened PR #4635; rebase auto-merge armed; verify-loop pass-with-advisories
+- **Worked:** Design council PASS; koffi CreateFileW+SQOS+GetNamedPipeServerProcessId authenticator; ForeignWritable DACL walk; 30/30 vitest; windows-gnu check
+- **Failed:** none
+- **Friction:** Grok exited after verify before land; executor finished push/PR
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-11 — codex
+
+- **Task:** Blind independent re-verification of CIB-416 follow-up at 09e465b365b916a9512d303debbbe817690bf3d5
+- **Outcome:** Binding structural workflow contract passed required and adversarial verification
+- **Worked:** Immutable base/head diff inspection, live workflow inspection, required regression suite, and novel job-level spaced bracket secret probe
+- **Failed:** Supplemental prettier and oxfmt file checks were unavailable or excluded for shell files; neither is a required gate
+- **Friction:** Durable state report adapter was not exposed to the verifier harness
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-11 — codex
+
+- **Task:** Resume CIB-416 via dev-loop
+- **Outcome:** Repair budget exhausted after three test-first cycles; final verifier found two remaining structural fail-open paths and no PR was opened
+- **Worked:** Closed seven previously reproduced evasion classes, ran changed-path and formatting evidence, and used fresh verification plus security/adversarial Council
+- **Failed:** The checker still misses workflow-level secret inheritance and accepts a second exact create command without step-local credentials
+- **Friction:** Repeated novel evasions show the inline checker needs effective-context and command-ownership rework rather than additional narrow matching
+- **Improvement:** Model workflow, job, and step effective context explicitly before asserting credential-bound controls
+- **Follow-up:** owned: CIB-416
+
+### 2026-09-11 — codex
+
+- **Task:** Review newest Clawpatch run 20260911T093427-fc4b6f
+- **Outcome:** Reviewed all 12 run findings against current main; 11 actionable and 1 residual library risk grouping, with severity and reachability recalibrated
+- **Worked:** Pinned run head to current main, reproduced seven deterministic claims, checked supported exports and package tests
+- **Failed:** Initial pnpm harness runs hit sandbox EROFS; newline-filename reproduction wording was inaccurate although the API contract defect is real
+- **Friction:** Clawpatch reports aggregate historical and new findings, and Git default quoting changes the observable newline-filename failure mode
+- **Improvement:** Clawpatch reproduction validation should execute Git edge-case repros before persisting exact output claims
+- **Follow-up:** theme:clawpatch-repro-calibration
+
+### 2026-09-11 — codex
+
+- **Task:** CLAWREL-001 release hardening and PR repair
+- **Outcome:** Release-relevant Clawpatch findings fixed; exact-head verification and CI completed through review repairs
+- **Worked:** Public-boundary race tests, shared credential redaction, independent exact-tree verification, and hosted review feedback
+- **Failed:** Initial transport-only coverage missed overlapping DriverClient.connect calls
+- **Friction:** Review-triggered commits restarted the exact-head CI matrix several times
+- **Improvement:** Require public wrapper concurrency probes whenever concrete transport cancellation contracts change
+- **Follow-up:** theme:boundary-race-coverage
+
