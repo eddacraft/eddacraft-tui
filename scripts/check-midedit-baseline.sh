@@ -23,9 +23,8 @@
 #     case) the drift gate switches to an absolute floor of
 #     `tolerance.zero_baseline_floor_ms` so silent regressions past the
 #     floor still surface.
-#   * Surface a warning when the baseline JSON contains entries with no
-#     matching bench output (orphaned baseline rows after a case is
-#     removed from the bench).
+#   * Fail closed when a required validation.roundtrip baseline case has no
+#     matching bench output. Missing optional/advisory rows remain warnings.
 #   * Always print the ADR-031 dimension line preceding each FAIL/WARN
 #     row so an on-call reader can attribute a regression without
 #     digging through the workflow log.
@@ -51,10 +50,9 @@
 #          baseline JSON re-recorded,
 #        * the baseline JSON is missing the SLO entry for a boundary the
 #          bench produced.
-#   2  unrecoverable input error: missing/unreadable bench log or
-#      baseline JSON, missing jq, missing tolerance.drift_pct, or the
-#      bench log contains no ADR-031 percentile sampler block (the bench
-#      did not run to completion).
+#   2  unrecoverable input error: missing/unreadable/malformed inputs,
+#      incomplete required validation.roundtrip contract or sampler rows,
+#      missing jq or tolerance, or no complete ADR-031 sampler block.
 
 set -euo pipefail
 
@@ -79,8 +77,33 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-drift_pct=$(jq -r '.tolerance.drift_pct' "$baseline")
-if [[ -z "$drift_pct" || "$drift_pct" == "null" ]]; then
+if ! jq -e . "$baseline" >/dev/null 2>&1; then
+  echo "error: malformed baseline JSON: $baseline" >&2
+  exit 2
+fi
+if ! jq -e '.slos["validation.roundtrip"].p95_ms | type == "number"' "$baseline" >/dev/null 2>&1; then
+  echo "error: baseline missing required validation.roundtrip p95 SLO" >&2
+  exit 2
+fi
+if ! jq -e '
+  .cases["validation.roundtrip"]
+  | type == "object" and length > 0
+' "$baseline" >/dev/null 2>&1; then
+  echo "error: baseline missing required validation.roundtrip cases" >&2
+  exit 2
+fi
+if ! jq -e '
+  (.slos | type == "object") and
+  (.cases | type == "object") and
+  all(.slos[]; type == "object" and (.p95_ms | type == "number")) and
+  all(.cases[]; type == "object" and all(.[]; type == "object" and (.p95_ms | type == "number")))
+' "$baseline" >/dev/null 2>&1; then
+  echo "error: malformed baseline data: every SLO and case requires a numeric p95_ms" >&2
+  exit 2
+fi
+
+drift_pct=$(jq -r '.tolerance.drift_pct | numbers' "$baseline")
+if [[ -z "$drift_pct" ]]; then
   echo "error: baseline missing .tolerance.drift_pct" >&2
   exit 2
 fi
@@ -91,7 +114,13 @@ fi
 # runs — but the SLO gap (50 ms / 80 ms) is wide enough that a real
 # regression on the binary short-circuit case (expected sub-microsecond)
 # would slip through silently. Defaulting to 1 ms keeps that gate alive.
-zero_baseline_floor_ms=$(jq -r '.tolerance.zero_baseline_floor_ms // 1.0' "$baseline")
+if ! zero_baseline_floor_ms=$(jq -er '
+  .tolerance.zero_baseline_floor_ms // 1.0
+  | select(type == "number")
+' "$baseline"); then
+  echo "error: baseline .tolerance.zero_baseline_floor_ms must be numeric when present" >&2
+  exit 2
+fi
 
 # Extract the percentile sampler block. Its bracketing markers are emitted by
 # `bench_percentile_sampler` in midedit_roundtrip.rs; if either marker is
@@ -112,7 +141,9 @@ fi
 declare -i hard_fail=0
 declare -i soft_warn=0
 declare -i rows=0
+declare -A parsed_rows=()
 current_dim=""
+percentile_row_re='^(validation\.[a-z]+)[[:space:]]+([A-Za-z0-9_]+):[[:space:]]+samples=([0-9]+)[[:space:]]+p50=([0-9]+|[0-9]+[.][0-9]+)ms[[:space:]]+p95=([0-9]+|[0-9]+[.][0-9]+)ms[[:space:]]+p99=([0-9]+|[0-9]+[.][0-9]+)ms$'
 
 echo "midedit baseline gate (drift tolerance: ±${drift_pct}%)"
 echo "baseline: $baseline"
@@ -126,13 +157,19 @@ while IFS= read -r line; do
     current_dim="$line"
     continue
   fi
-  if [[ "$line" =~ ^(validation\.[a-z]+)[[:space:]]+([A-Za-z0-9_]+):[[:space:]]+samples=[0-9]+[[:space:]]+p50=([0-9.]+)ms[[:space:]]+p95=([0-9.]+)ms[[:space:]]+p99=([0-9.]+)ms ]]; then
-    rows+=1
+  if [[ "$line" =~ $percentile_row_re ]]; then
     boundary="${BASH_REMATCH[1]}"
     case_label="${BASH_REMATCH[2]}"
-    p50_now="${BASH_REMATCH[3]}"
-    p95_now="${BASH_REMATCH[4]}"
-    p99_now="${BASH_REMATCH[5]}"
+    samples_now="${BASH_REMATCH[3]}"
+    if ((10#$samples_now < 1)); then
+      echo "error: percentile row samples must be at least 1: $line" >&2
+      exit 2
+    fi
+    rows+=1
+    p50_now="${BASH_REMATCH[4]}"
+    p95_now="${BASH_REMATCH[5]}"
+    p99_now="${BASH_REMATCH[6]}"
+    parsed_rows["$boundary $case_label"]=1
 
     base_p95=$(jq -r --arg b "$boundary" --arg c "$case_label" \
       '.cases[$b][$c].p95_ms // empty' "$baseline")
@@ -223,8 +260,30 @@ while IFS= read -r line; do
         printf '     %s\n' "$attr_note"
       fi
     fi
+  elif [[ "$line" == validation.* ]]; then
+    echo "error: malformed percentile row: $line" >&2
+    echo "       expected: <boundary> <case>: samples=N p50=Nms p95=Nms p99=Nms" >&2
+    exit 2
   fi
 done <<< "$sampler"
+
+# The primary hard-gate boundary is required input. Its mandatory case set is
+# owned by the baseline contract so adding or removing a roundtrip case cannot
+# silently change what CI measures.
+missing_required=$(jq -r '
+  .cases["validation.roundtrip"] | keys[]
+' "$baseline" | while IFS= read -r case_label; do
+  if [[ -z "${parsed_rows["validation.roundtrip $case_label"]+present}" ]]; then
+    echo "validation.roundtrip $case_label"
+  fi
+done)
+if [[ -n "$missing_required" ]]; then
+  while IFS= read -r required_row; do
+    echo "error: missing required benchmark row: $required_row" >&2
+  done <<< "$missing_required"
+  echo "       rerun the complete ADR-031 percentile sampler; validation.roundtrip cases are mandatory" >&2
+  exit 2
+fi
 
 # Coverage check: warn if the baseline JSON contains entries that the bench
 # did not produce. Catches the case where a bench case is removed but the
@@ -234,7 +293,7 @@ orphans=$(jq -r '
   | $b.value | keys[] as $c
   | "\($b.key) \($c)"
 ' "$baseline" | while read -r boundary case_label; do
-  if ! grep -qF "${boundary} ${case_label}:" <<< "$sampler"; then
+  if [[ -z "${parsed_rows["$boundary $case_label"]+present}" ]]; then
     echo "$boundary $case_label"
   fi
 done)
