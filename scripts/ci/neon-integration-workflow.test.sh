@@ -145,6 +145,12 @@ if (!doc || typeof doc !== 'object' || !doc.jobs || typeof doc.jobs !== 'object'
 if (containsNeonSecret(doc.env)) {
   fail('workflow-level env must not expose Neon credentials');
 }
+if (
+  doc.defaults?.run &&
+  Object.prototype.hasOwnProperty.call(doc.defaults.run, 'shell')
+) {
+  fail('workflow defaults.run.shell must not override critical command execution');
+}
 for (const [jobId, job] of Object.entries(doc.jobs)) {
   if (
     job &&
@@ -179,6 +185,12 @@ for (const [jobId, job] of credentialed) {
   }
   if (job['timeout-minutes'] !== 15) {
     fail(`jobs.${jobId}.timeout-minutes is not 15`);
+  }
+  if (
+    job.defaults?.run &&
+    Object.prototype.hasOwnProperty.call(job.defaults.run, 'shell')
+  ) {
+    fail(`jobs.${jobId} job defaults.run.shell must not override critical command execution`);
   }
   if (!isFailClosed(job)) {
     fail(`jobs.${jobId} credentialed job is not fail-closed`);
@@ -307,6 +319,11 @@ for (const [jobId, job] of Object.entries(doc.jobs)) {
 const [createOwner] = commandOwners.create;
 const [testOwner] = commandOwners.test;
 const [deleteOwner] = commandOwners.delete;
+for (const owner of [createOwner, testOwner, deleteOwner]) {
+  if (Object.prototype.hasOwnProperty.call(owner.step, 'shell')) {
+    fail('critical Neon command steps must not override shell');
+  }
+}
 if (createOwner.jobId !== testOwner.jobId || createOwner.jobId !== deleteOwner.jobId) {
   fail('the Neon create, test, and delete commands must belong to one job');
 }
@@ -1389,6 +1406,55 @@ assert_fails_with \
   "${lowercase_secret_consumer}" \
   'jobs.lowercase-secret-consumer.if is missing the internal-PR guard' \
   lowercase-secret-consumer
+
+# Negative: workflow defaults can replace the command interpreter. This valid
+# custom template only prints the generated script path and never executes it.
+workflow_noop_shell="${tmp_dir}/workflow-noop-shell.yml"
+sed '/^jobs:/i\
+defaults:\
+  run:\
+    shell: echo {0}\
+' "${workflow}" >"${workflow_noop_shell}"
+
+assert_fails_with \
+  "${workflow_noop_shell}" \
+  'workflow defaults.run.shell must not override critical command execution' \
+  workflow-noop-shell
+
+# Negative: job defaults have the same inherited effect on all run steps.
+job_noop_shell="${tmp_dir}/job-noop-shell.yml"
+awk '
+  /    timeout-minutes: 15/ {
+    print
+    print "    defaults:"
+    print "      run:"
+    print "        shell: echo {0}"
+    next
+  }
+  { print }
+' "${workflow}" >"${job_noop_shell}"
+
+assert_fails_with \
+  "${job_noop_shell}" \
+  'job defaults.run.shell must not override critical command execution' \
+  job-noop-shell
+
+# Negative: a critical step can override otherwise-safe defaults with the same
+# non-executing custom shell template.
+step_noop_shell="${tmp_dir}/step-noop-shell.yml"
+awk '
+  /      - name: Prove the OTP attempt cap against Neon/ {
+    print
+    print "        shell: echo {0}"
+    next
+  }
+  { print }
+' "${workflow}" >"${step_noop_shell}"
+
+assert_fails_with \
+  "${step_noop_shell}" \
+  'critical Neon command steps must not override shell' \
+  step-noop-shell
 
 # Hosted-proof wiring retained from CLAWOPEN-011. These strings still appear
 # in the live workflow; the structural lock above is what stops them satisfying
