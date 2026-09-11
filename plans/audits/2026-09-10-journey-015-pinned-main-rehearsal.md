@@ -1,5 +1,13 @@
 # JOURNEY-015 — Pinned-main journey rehearsal and existing release handoff
 
+| Type  | Authority     | Owner | Status | Freshness |
+| ----- | ------------- | ----- | ------ | --------- |
+| Audit | Authoritative | JREL  | Live   | Last reviewed 2026-09-11: upgrade-leg correction banner for #4591; original 2026-09-10 pinned-main rehearsal evidence retained below. |
+
+| Upstream | Downstream |
+| -------- | ---------- |
+| JOURNEY-015 / JREL-012, `scripts/journey/verify.mjs` | #4591, [2026-09-11-journey-015-upgrade-leg-correction.md](./2026-09-11-journey-015-upgrade-leg-correction.md) |
+
 > **Upgrade-leg correction (2026-09-11, #4591):** the local
 > `upgrade-previous-public` **pass** recorded below is **not** upgrade proof.
 > The gate checked that `ANVIL_PREVIOUS_PUBLIC_BIN` named an executable, then

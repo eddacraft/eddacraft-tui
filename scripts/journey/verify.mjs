@@ -35,7 +35,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -92,9 +92,10 @@ function parseArgs(argv) {
 }
 
 function fail(message, extra = '') {
-  process.stderr.write(`journey:verify: ${message}\n`);
-  if (extra) process.stderr.write(`${extra}\n`);
-  process.exit(1);
+  const err = new Error(message);
+  err.code = 'JOURNEY_VERIFY_FAIL';
+  err.extra = extra;
+  throw err;
 }
 
 function loadCatalog(options) {
@@ -168,10 +169,14 @@ function gitSha(root) {
   return result.status === 0 ? result.stdout.trim() : 'unknown';
 }
 
-function binaryVersion(bin) {
+function binaryVersion(bin, { requireSuccess = false } = {}) {
   const result = spawnSync(bin, ['--version'], { encoding: 'utf8' });
-  const text = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
-  return text.split('\n')[0] || 'unknown';
+  const combined = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
+  const line = combined.split('\n')[0] || 'unknown';
+  if (requireSuccess && result.status !== 0) {
+    fail(`binary --version failed (status ${result.status})`, combined);
+  }
+  return line;
 }
 
 function resolveMaybeRelative(raw, root) {
@@ -191,14 +196,45 @@ function sameBinary(left, right) {
   }
 }
 
+function resolveExistingAncestor(target) {
+  let cur = resolve(target);
+  const missing = [];
+  while (!existsSync(cur)) {
+    const parent = dirname(cur);
+    if (parent === cur) break;
+    missing.unshift(basename(cur));
+    cur = parent;
+  }
+  const realBase = realpathSync(cur);
+  return missing.length === 0 ? realBase : join(realBase, ...missing);
+}
+
 function isInsideRoot(root, target) {
-  const rel = relative(resolve(root), resolve(target));
+  let realRoot;
+  try {
+    realRoot = realpathSync(root);
+  } catch {
+    realRoot = resolve(root);
+  }
+  let realTarget;
+  try {
+    realTarget = existsSync(target) ? realpathSync(target) : resolveExistingAncestor(target);
+  } catch {
+    realTarget = resolve(target);
+  }
+  const rel = relative(realRoot, realTarget);
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
-function resolvePreviousBinary(options) {
-  const raw = process.env.ANVIL_PREVIOUS_PUBLIC_BIN || '';
-  return resolveMaybeRelative(raw, options.root);
+function resolvePreviousBinary(options, scenarios = []) {
+  const fromEnv = process.env.ANVIL_PREVIOUS_PUBLIC_BIN || '';
+  if (fromEnv) {
+    return resolveMaybeRelative(fromEnv, options.root);
+  }
+  const upgrade = scenarios.find(
+    (scenario) => scenario && scenario.kind === 'upgrade' && scenario.bin
+  );
+  return upgrade ? resolveMaybeRelative(upgrade.bin, options.root) : '';
 }
 
 function parseJsonDocument(text) {
@@ -267,7 +303,7 @@ function executeUpgrade(scenario, options, bin) {
     fail('previous public binary must be distinct from the current binary');
   }
 
-  const previousVersion = binaryVersion(previous);
+  const previousVersion = binaryVersion(previous, { requireSuccess: true });
   if (!isAnvilIdentity(previousVersion)) {
     fail('previous public binary did not identify as anvil', previousVersion);
   }
@@ -310,7 +346,21 @@ function executeUpgrade(scenario, options, bin) {
     if (!isInsideRoot(upgradeRoot, handoffPath)) {
       fail('upgrade hand-off path escapes the isolated workspace', handoffPath);
     }
-    if (!existsSync(handoffPath) || !readFileSync(handoffPath, 'utf8').trim()) {
+    if (!existsSync(handoffPath)) {
+      fail('upgrade hand-off is absent');
+    }
+    // Re-check after existence: a lexical in-root path may still be a symlink
+    // whose real target sits outside the isolated workspace.
+    if (!isInsideRoot(upgradeRoot, handoffPath)) {
+      fail('upgrade hand-off path escapes the isolated workspace', handoffPath);
+    }
+    let handoffBody;
+    try {
+      handoffBody = readFileSync(handoffPath, 'utf8');
+    } catch (err) {
+      fail('upgrade hand-off is absent', String(err));
+    }
+    if (!handoffBody.trim()) {
       fail('upgrade hand-off is absent');
     }
 
@@ -424,7 +474,7 @@ function executeScenario(scenario, options, bin) {
   }
 }
 
-function main() {
+function run() {
   const options = parseArgs(process.argv.slice(2));
   const catalog = loadCatalog(options);
 
@@ -453,14 +503,23 @@ function main() {
     scenarioResults.push(executeScenario(scenario, options, bin));
   }
 
-  const previousPath = resolvePreviousBinary(options);
+  if (options.requireUpgrade) {
+    const upgradePass = scenarioResults.some(
+      (scenario) => scenario.id === 'upgrade-previous-public' && scenario.result === 'pass'
+    );
+    if (!upgradePass) {
+      fail('--require-upgrade requires a passing upgrade-previous-public scenario');
+    }
+  }
+
+  const previousPath = resolvePreviousBinary(options, catalog.scenarios);
   const previousUsable = previousPath && isUsableBinary(previousPath);
   const identity = {
     sourceSha: gitSha(options.root),
     binary: {
       path: bin,
       sha256: sha256File(bin),
-      version: binaryVersion(bin),
+      version: binaryVersion(bin, { requireSuccess: true }),
     },
     platform: {
       os: process.platform,
@@ -477,7 +536,7 @@ function main() {
       ? {
           path: previousPath,
           sha256: sha256File(previousPath),
-          version: binaryVersion(previousPath),
+          version: binaryVersion(previousPath, { requireSuccess: true }),
           invoked: scenarioResults.some(
             (scenario) => scenario.id === 'upgrade-previous-public' && scenario.result === 'pass'
           ),
@@ -499,6 +558,19 @@ function main() {
     process.stdout.write(
       `  ${scenario.id}: ${scenario.result}${scenario.detail ? ` (${scenario.detail})` : ''}\n`
     );
+  }
+}
+
+function main() {
+  try {
+    run();
+  } catch (err) {
+    if (err && err.code === 'JOURNEY_VERIFY_FAIL') {
+      process.stderr.write(`journey:verify: ${err.message}\n`);
+      if (err.extra) process.stderr.write(`${err.extra}\n`);
+      process.exit(1);
+    }
+    throw err;
   }
 }
 

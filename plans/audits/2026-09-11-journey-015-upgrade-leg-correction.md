@@ -1,5 +1,13 @@
 # JOURNEY-015 — Upgrade-leg correction (#4591)
 
+| Type  | Authority     | Owner | Status | Freshness |
+| ----- | ------------- | ----- | ------ | --------- |
+| Audit | Authoritative | JREL  | Live   | Last reviewed 2026-09-11 for #4591 upgrade-leg gate correction (previous-public invoke + hand-off verify). |
+
+| Upstream | Downstream |
+| -------- | ---------- |
+| `scripts/journey/verify.mjs`, `plans/modules/release-user-journeys.aps.md`, JOURNEY-015 / JREL-012 | #4591 |
+
 **Date:** 2026-09-11 (AWST)
 **Authority:** JREL-012 / JOURNEY-015 residual; GitHub #4591
 **Pinned current source:** recorded in
