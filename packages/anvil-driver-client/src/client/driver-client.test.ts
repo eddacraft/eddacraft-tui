@@ -79,7 +79,7 @@ function manualScheduler(): ManualScheduler {
 }
 
 describe('DriverClient — happy path', () => {
-  it('closes a transport while the initial connection is still pending', async () => {
+  it('shares and closes the transport while overlapping initial connections are pending', async () => {
     let handlers: TransportHandlers | undefined;
     let rejectConnect: ((reason: DriverClientError) => void) | undefined;
     const close = vi.fn(async () => {
@@ -102,13 +102,17 @@ describe('DriverClient — happy path', () => {
       async send() {},
       close,
     };
-    const client = new DriverClient({ transportFactory: () => transport });
+    const transportFactory = vi.fn(() => transport);
+    const client = new DriverClient({ transportFactory });
 
-    const connecting = client.connect();
+    const firstConnection = client.connect();
+    const secondConnection = client.connect();
     await Promise.resolve();
     await client.close();
 
-    await expect(connecting).rejects.toMatchObject({ code: 'anvil-driver-closed' });
+    await expect(firstConnection).rejects.toMatchObject({ code: 'anvil-driver-closed' });
+    await expect(secondConnection).rejects.toMatchObject({ code: 'anvil-driver-closed' });
+    expect(transportFactory).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
     await expect(client.connect()).rejects.toMatchObject({ code: 'anvil-driver-closed' });
   });

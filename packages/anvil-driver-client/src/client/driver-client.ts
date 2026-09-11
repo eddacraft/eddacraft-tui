@@ -107,6 +107,7 @@ export class DriverClient {
 
   private transport: Transport | null = null;
   private openingTransport: Transport | null = null;
+  private openingPromise: Promise<void> | null = null;
   private framer: NdjsonFramer | null = null;
   private nextRequestId = 1;
   private pending = new Map<string, PendingRequest>();
@@ -185,7 +186,7 @@ export class DriverClient {
     // local stop wants a fresh attempt counter — otherwise the very
     // next peer drop would skip backoff entirely.
     this.connectAttempt = 0;
-    await this.openTransport();
+    await this.openTransportOnce();
   }
 
   /**
@@ -522,6 +523,23 @@ export class DriverClient {
     this.emit('connected', undefined);
   }
 
+  private async openTransportOnce(): Promise<void> {
+    if (this.openingPromise !== null) {
+      await this.openingPromise;
+      return;
+    }
+
+    const attempt = this.openTransport();
+    this.openingPromise = attempt;
+    try {
+      await attempt;
+    } finally {
+      if (this.openingPromise === attempt) {
+        this.openingPromise = null;
+      }
+    }
+  }
+
   private handleIncomingFrame(value: unknown): void {
     const classified = classifyIncoming(value);
     switch (classified.kind) {
@@ -644,7 +662,7 @@ export class DriverClient {
     if (this.state !== 'reconnecting') {
       return;
     }
-    this.openTransport().catch((err: unknown) => {
+    this.openTransportOnce().catch((err: unknown) => {
       if (this.state === 'closed') {
         return;
       }
