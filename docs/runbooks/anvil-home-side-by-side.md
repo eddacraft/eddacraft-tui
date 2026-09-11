@@ -1,7 +1,7 @@
 # Side-by-Side Candidate Install (`ANVIL_HOME`) — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                        |
-| ------- | ------------- | ------ | ------ | ------------------------------------------------ |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                                     |
+| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-11 after docs-owed upstream touch on distribution-and-update.aps.md (link retarget only; ANVIL_HOME side-by-side procedure unchanged). First filed 2026-05-31 for DISTRIB-006 (ADR-060) |
 
 | Upstream                                                                                                                                                                                                                                                                                    | Downstream                                                                                            |
