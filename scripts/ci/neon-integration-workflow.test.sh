@@ -118,6 +118,9 @@ const isLeastPrivilegeContentsRead = (perms) => {
 const isCheckout = (step) =>
   typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@');
 
+const isPinnedCheckout = (step) =>
+  typeof step.uses === 'string' && /^actions\/checkout@[0-9a-f]{40}$/i.test(step.uses);
+
 const impersonatesCheckout = (step) =>
   typeof step.uses === 'string' &&
   /(?:^|\/)actions\/checkout@/.test(step.uses) &&
@@ -179,6 +182,9 @@ for (const [jobId, job] of credentialed) {
     fail(`jobs.${jobId} has no actions/checkout step`);
   }
   for (const checkout of checkouts) {
+    if (!isPinnedCheckout(checkout)) {
+      fail(`jobs.${jobId} checkout action is not pinned to a commit SHA`);
+    }
     const checkoutWith = checkout.with && typeof checkout.with === 'object' ? checkout.with : {};
     if (checkoutWith['persist-credentials'] !== false) {
       fail(`jobs.${jobId} checkout step is missing persist-credentials: false`);
@@ -648,6 +654,42 @@ assert_fails_with \
   "${impersonation_checkout}" \
   'jobs.otp-attempt-cap has a non-canonical actions/checkout step' \
   impersonation-checkout
+
+# Negative: the canonical checkout repository is still unsafe when its action
+# revision is a mutable branch or tag instead of an immutable commit SHA.
+mutable_checkout_ref="${tmp_dir}/mutable-checkout-ref.yml"
+cat >"${mutable_checkout_ref}" <<'YAML'
+name: mutable-checkout-ref
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@main
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - id: create-branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${mutable_checkout_ref}" \
+  'jobs.otp-attempt-cap checkout action is not pinned to a commit SHA' \
+  mutable-checkout-ref
 
 # Negative: the create command exists only as a shell comment (or echo).
 comment_create="${tmp_dir}/comment-create.yml"
