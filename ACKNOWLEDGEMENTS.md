@@ -100,9 +100,22 @@ Special thanks to the projects we rely on every day.
 ### Developer environment
 
 - [Claude Code][claude-code] — AI pair programmer used daily on Anvil
+- [Cursor][cursor] — AI pair programmer used daily on Anvil
+- [Codex][codex] — OpenAI coding agent used daily on Anvil
+- [Grok][grok] — xAI coding agent used daily on Anvil
+- [GitHub Copilot][copilot] — AI pair programmer and pull-request reviewer
+- [OpenCode][opencode] — open-source coding agent used on Anvil
+- [Sakana AI][sakana] — Tokyo research lab (AI Scientist, Darwin Gödel Machine)
+  whose work informs Anvil's agent practice
 - [Node.js][nodejs] — JavaScript runtime
 
 [claude-code]: https://claude.com/claude-code
+[cursor]: https://cursor.com
+[codex]: https://github.com/openai/codex
+[grok]: https://x.ai
+[copilot]: https://github.com/features/copilot
+[opencode]: https://opencode.ai
+[sakana]: https://sakana.ai
 [nodejs]: https://nodejs.org/
 
 ### Code adapted into Anvil
