@@ -66,6 +66,7 @@ const file = process.argv[2];
 const NEON_SECRET = 'secrets.NEON_TEST_API_KEY';
 const NEON_SECRET_REFERENCE =
   /\bsecrets\s*(?:\.\s*NEON_TEST_API_KEY|\[\s*(['"])NEON_TEST_API_KEY\1\s*\])/;
+const POSSIBLE_SECRET_INDEX = /\bsecrets\s*\[/;
 const TEST_COMMAND = 'pnpm --dir apps/anvil-api test:neon';
 const CREATE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs';
 const DELETE_COMMAND = 'node scripts/ci/create-neon-test-branch.mjs --delete';
@@ -83,7 +84,9 @@ const fail = (m) => {
 };
 
 const containsNeonSecret = (value) => {
-  if (typeof value === 'string') return NEON_SECRET_REFERENCE.test(value);
+  if (typeof value === 'string') {
+    return NEON_SECRET_REFERENCE.test(value) || POSSIBLE_SECRET_INDEX.test(value);
+  }
   if (Array.isArray(value)) return value.some(containsNeonSecret);
   if (value && typeof value === 'object') {
     return Object.values(value).some(containsNeonSecret);
@@ -96,7 +99,7 @@ const envConsumesNeon = (env) => {
   return Object.values(env).some(containsNeonSecret);
 };
 
-const jobConsumesNeon = (job) => containsNeonSecret(job);
+const jobConsumesNeon = (job) => job?.secrets === 'inherit' || containsNeonSecret(job);
 
 const effectivePermissions = (doc, job) => {
   if (Object.prototype.hasOwnProperty.call(job, 'permissions')) {
@@ -128,14 +131,11 @@ const impersonatesCheckout = (step) =>
 
 const stepRun = (step) => (typeof step.run === 'string' ? step.run : '');
 const stepIf = (step) => (step && step.if != null ? String(step.if) : '');
+const isUnconditional = (step) => step && step.if == null;
+const isFailClosed = (step) =>
+  step && (step['continue-on-error'] == null || step['continue-on-error'] === false);
 
-const commandLines = (run) =>
-  String(run)
-    .split('\n')
-    .map((line) => line.replace(/\r$/, '').trim())
-    .filter((line) => line.length > 0 && !line.startsWith('#'));
-
-const hasCommandLine = (run, command) => commandLines(run).includes(command);
+const hasExactCommand = (step, command) => stepRun(step).trim() === command;
 
 const doc = yaml.parse(fs.readFileSync(file, 'utf8'));
 if (!doc || typeof doc !== 'object' || !doc.jobs || typeof doc.jobs !== 'object') {
@@ -185,6 +185,9 @@ for (const [jobId, job] of credentialed) {
     if (!isPinnedCheckout(checkout)) {
       fail(`jobs.${jobId} checkout action is not pinned to a commit SHA`);
     }
+    if (!isUnconditional(checkout) || !isFailClosed(checkout)) {
+      fail(`jobs.${jobId} checkout step is not unconditional and fail-closed`);
+    }
     const checkoutWith = checkout.with && typeof checkout.with === 'object' ? checkout.with : {};
     if (checkoutWith['persist-credentials'] !== false) {
       fail(`jobs.${jobId} checkout step is missing persist-credentials: false`);
@@ -195,22 +198,38 @@ for (const [jobId, job] of credentialed) {
     }
   }
 
-  const hasCreate = steps.some(
-    (step) => hasCommandLine(stepRun(step), CREATE_COMMAND) && envConsumesNeon(step.env),
+  const createSteps = steps.filter(
+    (step) => hasExactCommand(step, CREATE_COMMAND) && envConsumesNeon(step.env),
   );
-  if (!hasCreate) {
+  if (createSteps.length === 0) {
     fail(`jobs.${jobId} is missing the credentialed Neon create step`);
   }
+  if (createSteps.length > 1) {
+    fail(`jobs.${jobId} has multiple credentialed Neon create steps`);
+  }
+  if (createSteps[0].id !== 'create-branch') {
+    fail(`jobs.${jobId} credentialed create step must use id: create-branch`);
+  }
+  if (!isUnconditional(createSteps[0]) || !isFailClosed(createSteps[0])) {
+    fail(`jobs.${jobId} credentialed create step is not unconditional and fail-closed`);
+  }
 
-  if (!steps.some((step) => hasCommandLine(stepRun(step), TEST_COMMAND))) {
-    fail(`jobs.${jobId} is missing ${TEST_COMMAND}`);
+  const testSteps = steps.filter(
+    (step) => isUnconditional(step) && hasExactCommand(step, TEST_COMMAND),
+  );
+  if (testSteps.length === 0) {
+    fail(`jobs.${jobId} is missing an unconditional ${TEST_COMMAND} step`);
+  }
+  if (!testSteps.some(isFailClosed)) {
+    fail(`jobs.${jobId} is missing a fail-closed ${TEST_COMMAND} step`);
   }
 
   const hasCleanup = steps.some(
     (step) =>
       norm(stepIf(step)) === EXPECTED_CLEANUP_IF &&
-      hasCommandLine(stepRun(step), DELETE_COMMAND) &&
-      envConsumesNeon(step.env),
+      hasExactCommand(step, DELETE_COMMAND) &&
+      envConsumesNeon(step.env) &&
+      isFailClosed(step),
   );
   if (!hasCleanup) {
     fail(`jobs.${jobId} is missing always() cleanup that deletes the Neon branch`);
@@ -286,7 +305,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -326,7 +346,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           # persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -369,7 +390,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       # run: pnpm --dir apps/anvil-api test:neon
@@ -389,7 +411,7 @@ grep -Fq 'always()' "${parked_test_cleanup}" ||
   fail 'parked-test-cleanup fixture must contain always() so whole-file grep would pass'
 assert_fails_with \
   "${parked_test_cleanup}" \
-  'jobs.otp-attempt-cap is missing pnpm --dir apps/anvil-api test:neon' \
+  'jobs.otp-attempt-cap is missing an unconditional pnpm --dir apps/anvil-api test:neon step' \
   parked-test-cleanup
 
 # Negative: always() cleanup is parked on an unrelated job while the
@@ -412,7 +434,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -461,7 +484,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -496,7 +520,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -533,7 +558,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -568,7 +594,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha && github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -605,7 +632,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -640,7 +668,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -746,7 +775,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: |
@@ -760,8 +790,81 @@ YAML
 
 assert_fails_with \
   "${comment_test}" \
-  'jobs.otp-attempt-cap is missing pnpm --dir apps/anvil-api test:neon' \
+  'jobs.otp-attempt-cap is missing an unconditional pnpm --dir apps/anvil-api test:neon step' \
   comment-test
+
+# Negative: a test command guarded by a constant false condition is present in
+# the workflow but can never prove the credentialed boundary.
+disabled_test="${tmp_dir}/disabled-test.yml"
+cat >"${disabled_test}" <<'YAML'
+name: disabled-test
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - id: create-branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - if: false
+        run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${disabled_test}" \
+  'jobs.otp-attempt-cap is missing an unconditional pnpm --dir apps/anvil-api test:neon step' \
+  disabled-test
+
+# Negative: the proof command must fail the job when it fails.
+continued_test="${tmp_dir}/continued-test.yml"
+cat >"${continued_test}" <<'YAML'
+name: continued-test
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - id: create-branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - continue-on-error: true
+        run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${continued_test}" \
+  'jobs.otp-attempt-cap is missing a fail-closed pnpm --dir apps/anvil-api test:neon step' \
+  continued-test
 
 # Negative: cleanup --delete exists only as a shell comment.
 comment_cleanup="${tmp_dir}/comment-cleanup.yml"
@@ -782,7 +885,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -798,6 +902,45 @@ assert_fails_with \
   "${comment_cleanup}" \
   'jobs.otp-attempt-cap is missing always() cleanup that deletes the Neon branch' \
   comment-cleanup
+
+# Negative: finding the delete command on one line is insufficient when shell
+# control flow guarantees that line never executes.
+wrapped_cleanup="${tmp_dir}/wrapped-cleanup.yml"
+cat >"${wrapped_cleanup}" <<'YAML'
+name: wrapped-cleanup
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - id: create-branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: |
+          if false; then
+            node scripts/ci/create-neon-test-branch.mjs --delete
+          fi
+YAML
+
+assert_fails_with \
+  "${wrapped_cleanup}" \
+  'jobs.otp-attempt-cap is missing always() cleanup that deletes the Neon branch' \
+  wrapped-cleanup
 
 # Negative: always() is present but negated / AND-false, so cleanup never runs.
 always_false_cleanup="${tmp_dir}/always-false-cleanup.yml"
@@ -818,7 +961,8 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - env:
+      - id: create-branch
+        env:
           NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
         run: node scripts/ci/create-neon-test-branch.mjs
       - run: pnpm --dir apps/anvil-api test:neon
@@ -871,6 +1015,44 @@ assert_fails_with \
   'jobs.otp-attempt-cap has duplicate step id: create-branch' \
   duplicate-step-id
 
+# Negative: the unique create-branch identity must belong to the credentialed
+# provisioner step, not to a harmless decoy whose outputs are then consumed.
+displaced_create_id="${tmp_dir}/displaced-create-id.yml"
+cat >"${displaced_create_id}" <<'YAML'
+name: displaced-create-id
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  otp-attempt-cap:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - id: actual-create
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs
+      - id: create-branch
+        run: echo decoy-create-branch
+      - run: pnpm --dir apps/anvil-api test:neon
+      - if: ${{ always() && steps.create-branch.outputs.branch_name != '' }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_TEST_API_KEY }}
+        run: node scripts/ci/create-neon-test-branch.mjs --delete
+YAML
+
+assert_fails_with \
+  "${displaced_create_id}" \
+  'jobs.otp-attempt-cap credentialed create step must use id: create-branch' \
+  displaced-create-id
+
 # Negative: bracket notation is equivalent GitHub expression syntax. Every job
 # that consumes the Neon secret must be discovered and checked, even when it
 # does not use the dot spelling present in the primary job.
@@ -889,6 +1071,40 @@ assert_fails_with \
   "${bracket_secret_consumer}" \
   'jobs.bracket-secret-consumer.if is missing the internal-PR guard' \
   bracket-secret-consumer
+
+# Negative: a dynamic bracket lookup may resolve to the Neon key at runtime.
+# The contract must treat unresolved indexing as credential consumption rather
+# than guess that a different secret is intended.
+computed_secret_consumer="${tmp_dir}/computed-secret-consumer.yml"
+cp "${workflow}" "${computed_secret_consumer}"
+cat >>"${computed_secret_consumer}" <<'YAML'
+  computed-secret-consumer:
+    runs-on: self-hosted
+    steps:
+      - env:
+          NEON_API_KEY: ${{ secrets[format('NEON_{0}', 'TEST_API_KEY')] }}
+        run: echo computed-secret-consumer
+YAML
+
+assert_fails_with \
+  "${computed_secret_consumer}" \
+  'jobs.computed-secret-consumer.if is missing the internal-PR guard' \
+  computed-secret-consumer
+
+# Negative: reusable-workflow secret inheritance can forward the Neon key
+# without naming it in this document and therefore must fail closed too.
+inherited_secret_consumer="${tmp_dir}/inherited-secret-consumer.yml"
+cp "${workflow}" "${inherited_secret_consumer}"
+cat >>"${inherited_secret_consumer}" <<'YAML'
+  inherited-secret-consumer:
+    uses: example/repository/.github/workflows/reusable.yml@0123456789abcdef0123456789abcdef01234567
+    secrets: inherit
+YAML
+
+assert_fails_with \
+  "${inherited_secret_consumer}" \
+  'jobs.inherited-secret-consumer.if is missing the internal-PR guard' \
+  inherited-secret-consumer
 
 # Hosted-proof wiring retained from CLAWOPEN-011. These strings still appear
 # in the live workflow; the structural lock above is what stops them satisfying
