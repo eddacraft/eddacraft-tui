@@ -1239,7 +1239,7 @@ requirement). Architecture decided by
   conflict). Worktree canonicalised before the log id is derived. 10 new
   `watch_save_time_driver*` tests; live-daemon E2E deferred to DSV-051 (local
   smoke blocked by the beta licence wall, exit 3). Post-merge plan:
-  [`reviews/post-merge/feat-dsv-048-save-time-driver.md`](../../reviews/post-merge/feat-dsv-048-save-time-driver.md).
+  [`reviews/post-merge/feat-dsv-048-save-time-driver.md`](../reviews/post-merge/feat-dsv-048-save-time-driver.md).
 - **Source:** [ADR-101](../../decisions/101-headless-save-time-driver.md) decision 2;
   design spec §Spawn shape.
 - **Intent:** Provide a stable, headless entrypoint the supervisor can spawn without

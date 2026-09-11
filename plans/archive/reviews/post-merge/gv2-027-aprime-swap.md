@@ -24,7 +24,7 @@ Verified: <!-- filled by cleanup agent -->
       default 1 hop) with ADR-063 (bounded hot reads). Currently
       verdict-preserving (unbounded `impact_closure` retained). (human required)
       **Resolved 2026-06-09:** owner chose path A — adopt the depth cap. Captured
-      in [ADR-077](../../decisions/077-cert-closure-depth-cap.md) (Proposed,
+      in [ADR-077](../../../decisions/077-cert-closure-depth-cap.md) (Proposed,
       awaiting ratification); implemented by GV2-024. The relabel is between two
       `Partial` reasons, so the swap stays coverage-verdict-preserving.
 

@@ -25,15 +25,15 @@ formula auto-bump extracted from the inline `release.yml` step into a tested
 `scripts/release/bump-homebrew.sh`, plus a `workflow_dispatch` recovery
 workflow, smoke install on macOS arm64/x64, and publish runbook; operator
 follow-up tracked in
-[`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
+[`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
 DISTRIB-004 **Done** — release cadence and beta
 support-window policy now lives at `docs/policies/release-cadence.md` and is
 cross-linked from README + CONTRIBUTING. DISTRIB-002 **Merged** via PR #1569 —
 `anvil version --check` + advisory surface + watch/status hint; remaining operator
 follow-up tracked in
-[`plans/reviews/post-merge/feat-distrib-002-version-check.md`](../../reviews/post-merge/feat-distrib-002-version-check.md).
+[`plans/reviews/post-merge/feat-distrib-002-version-check.md`](../reviews/post-merge/feat-distrib-002-version-check.md).
 DISTRIB-001 **Merged** via PR #1562; operator follow-up tracked in
-[`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../../reviews/post-merge/feat-distrib-001-signature-verification.md).
+[`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../reviews/post-merge/feat-distrib-001-signature-verification.md).
 Promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Current state: every item is Released/Shipped — DISTRIB-001..-004 via
@@ -189,7 +189,7 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   `b36988a2`). Cleanup agent will advance to Released/Shipped once the
   next release tag ships and the macOS arm64/x64 smoke matrix in
   `Homebrew — bump and smoke` is green; operator follow-up tracked in
-  [`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
+  [`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
 - **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor

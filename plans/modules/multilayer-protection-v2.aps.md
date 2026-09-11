@@ -4720,7 +4720,7 @@ experiences.
   (`RecognisedRulesRegistry`, `evaluate_rules_sha`) is
   **intentionally deferred-wired** with no production caller, per the
   MLP2-019 post-merge note at
-  [`plans/reviews/post-merge/feat-mlp2-018-019-031-l4-policy-pinning.md`](../reviews/post-merge/feat-mlp2-018-019-031-l4-policy-pinning.md)
+  [`plans/reviews/post-merge/feat-mlp2-018-019-031-l4-policy-pinning.md`](../archive/reviews/post-merge/feat-mlp2-018-019-031-l4-policy-pinning.md)
   ("wiring belongs to MLP2-032 … and a follow-up L4 validate engine
   integration"). The dropped branch carried an earlier
   `RecognisedRules`/`check_recognised_rules` draft that is superseded

@@ -44,7 +44,7 @@ first-wave suite and report-only CI wiring (EVALCI-005/006) merged 2026-07-04
 via PR #3170. Remaining Proposed work is the support-crate topology closeout
 (EVALCI-009) and phased promotion (EVALCI-007/008), pending EXCEPT-012, a
 burn-in, and the CI-blocking-posture ADR as applicable. See the post-merge note
-[`../reviews/post-merge/feat-eval-harness-integration.md`](../reviews/post-merge/feat-eval-harness-integration.md)
+[`../archive/reviews/post-merge/feat-eval-harness-integration.md`](../archive/reviews/post-merge/feat-eval-harness-integration.md)
 for the deferred wiring step this module picks up.
 
 ## In Scope

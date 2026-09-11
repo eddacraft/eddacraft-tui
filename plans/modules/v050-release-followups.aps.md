@@ -383,7 +383,7 @@ require a coordinated bundle — pick them off in any order.
   reuse Drizzle Kit (already in the workspace), `node-pg-migrate`, or
   ship a minimal first-party runner. Per-migration transaction +
   `_migrations` tracking are the non-negotiable parts.
-- **Action plan:** [`plans/execution/V050F-014.steps.md`](../execution/V050F-014.steps.md)
+- **Action plan:** [`plans/execution/V050F-014.steps.md`](../archive/execution/V050F-014.steps.md)
 - **Resolution:** First-party runner shipped in PR #1099. Lib at
   `apps/anvil-api/src/db/migrate.ts`, CLI at
   `apps/anvil-api/scripts/migrate.mjs`, runbook at
