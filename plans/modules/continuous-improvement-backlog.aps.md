@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 323/414  |
+| CIB | —     | In Progress | 325/414  |
 
 ## Purpose
 
@@ -5798,7 +5798,10 @@ archive.
 
 ### CIB-213: Contain runtime cache index paths before read or deletion
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-11 via PR [#4622](https://github.com/eddacraft/anvil-001/pull/4622)
+  (`16723adda` / integrate `0c85f4a17`) — satisfied by CIB-418 retirement of
+  the exported TypeScript file-cache surface; no remaining index-driven
+  read/`unlinkSync` path to harden.
 - **Intent:** Prevent a repository or restored cache index from steering the
   exported file-cache provider outside its cache directory.
 - **Expected Outcome:** Every index filename is validated as a safe cache-local
@@ -5809,8 +5812,15 @@ archive.
 - **Validation:** A malicious expired index entry such as
   `../../../../target` cannot read or delete outside the cache root; valid
   expiry cleanup and HMAC-protected entries remain stable.
+- **As Built:** CIB-418 chose authorised retirement rather than retain+harden.
+  On `main`, `packages/anvil/runtime/src/cache/` is absent, `./cache` is not
+  exported from `@eddacraft/anvil-runtime`, and
+  `scripts/ci/legacy-runtime-retirement.test.mjs` locks that absence. The
+  CIB-213 attack surface (malicious index filenames steering reads/deletes)
+  therefore cannot execute; no duplicate containment patch was applied.
 - **Identified From:** supported-surface split from CIB-115 during PR #3464
   Council review (`council-891d78ba`).
+- **Coordinates with:** CIB-418 (delivery vehicle).
 - **Confidence:** high — the cleanup-to-invalidate path and containment
   invariant are local and deterministic.
 
@@ -13935,7 +13945,9 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-418: Harden or retire the exported TypeScript file cache
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-11 via PR [#4622](https://github.com/eddacraft/anvil-001/pull/4622)
+  (`16723adda` / integrate `0c85f4a17`) — retired the unused exported cache
+  surface (authorised disposition 1).
 - **Priority:** P2 — scanner high severity reduced by reachability: no
   in-repository production caller of `createCacheProvider`. The package README
   and exports still advertise the cache API; EMBERRS-001 deliberately
