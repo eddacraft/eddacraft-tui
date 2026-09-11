@@ -13,6 +13,17 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **Concurrent daemon ensure no longer fails on a short lock wait.** When
+  another `ensure` already holds the rendezvous or start lock, the waiter
+  retries until the lifecycle budget is spent, re-probes for a live peer-started
+  daemon, and reuses it when one answers. A genuinely stuck holder still fails
+  closed when the budget expires.
+
+- **Windows doctor and config paths share one identity.** Delegated
+  `architecture.source` and leftover checks no longer mix `\\?\` canonical forms
+  with ordinary drive paths, so a healthy migrated config is not reported as
+  dual-truth shadowing (Warn vs Pass plus a leftover offer).
+
 - **False-positive secrets can be marked without silencing real keys.** Codex's
   `anvil_suppress` comments (`@anvil-ignore-until DATE ID: reason`) are now
   parsed. Entropy, generic-secret, API-key, and credit-card matches honour

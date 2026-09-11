@@ -169,6 +169,10 @@ release claim until a cut record says so.
 - **Daemon ensure bounded to one lifecycle budget.** Coordinator lock, start
   lock, discovery, spawn, and bind-wait share a monotonic deadline; stuck locks
   fail closed instead of hanging. (JREL-011, #4566)
+- **Timed-out ensure lock slices retry with live re-probe.** Concurrent
+  `ensure_with` waiters no longer treat a single `LOCK_ACQUIRE_TIMEOUT` miss as
+  terminal while budget remains; a peer-started daemon is reused when it
+  answers. (#4624)
 - **Pre-write protection evidence scoped to one worktree.** `query_status`
   accepts an optional worktree filter so claim fetch cost does not scale with
   unrelated sessions. (JREL-013, #4568)
@@ -271,6 +275,12 @@ release claim until a cut record says so.
 
 ### CI / reliability freight
 
+- **Ensure lock re-probe plus post-#4615 reliability freight.** Concurrent
+  ensure lock timeout retry (#4624); Windows path-identity / doctor dual-truth
+  repair (#4619); test teardown ignores recycled PIDs (#4618); neon workflow
+  contract bound structurally (#4620); mid-edit bench requires complete gate
+  input (#4621); unused TypeScript runtime cache surface retired (CIB-418,
+  #4622); APS loader paths contained after `realpath` (#4630).
 - **Mid-edit service SLO soft-warn; roundtrip hard-fail.** CI stops flaking on
   mid-edit service noise while keeping roundtrip fail-closed. (#4575)
 - **Runtime I/O bounds on daemon exchanges and Git object reads.** Shared
