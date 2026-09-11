@@ -53,12 +53,13 @@ import {
 
 ### @eddacraft/anvil-runtime (Layer 3)
 
-Orchestration and I/O: cache, feature flags, git-status watch helpers. The
-TypeScript FileWatcher and `@eddacraft/anvil-policy` OPA wrappers were retired
-(CIB-370); policy evaluation is `crates/anvil-policy`.
+Feature-flag resolution for API/docs. The TypeScript cache surface and `./cache`
+export were retired (CIB-418). FileWatcher and `@eddacraft/anvil-policy` OPA
+wrappers were retired earlier (CIB-370); policy evaluation is
+`crates/anvil-policy`.
 
 ```typescript
-import { FileCache } from '@eddacraft/anvil-runtime';
+import { resolveFlag } from '@eddacraft/anvil-runtime/feature-flags';
 ```
 
 ## Dependency Direction

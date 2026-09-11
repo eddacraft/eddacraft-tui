@@ -33,16 +33,9 @@
   },
   "dependencies": {
     "@eddacraft/anvil-contracts": "workspace:*",
-    "@eddacraft/anvil-core": "workspace:*",
-    "chokidar": "^5.0.0",
-    "eslint": "^10.6.0",
-    "glob": "^13.0.0",
-    "minimatch": "^10.2.5",
-    "shell-quote": "^1.9.0",
-    "zod": "^4.4.3"
+    "@eddacraft/anvil-core": "workspace:*"
   },
   "devDependencies": {
-    "@types/shell-quote": "^1.7.5",
     "vitest": "^4.1.8"
   }
 }
