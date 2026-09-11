@@ -1,5 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { SessionHash, AgentId } from './types.js';
+import {
+  isCredentialEnvVarName,
+  isCredentialShapedValue,
+  redactCredentialShapedValue,
+} from '../../utils/credential-redaction.js';
 
 /**
  * Generate a session hash from tool and conversation ID
@@ -37,7 +42,9 @@ export function createAgentId(options: {
   const { tool, model } = options;
 
   // Generate conversation ID if not provided (using crypto for robust randomness)
-  const conversationId = options.conversationId ?? `${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const conversationId = redactCredentialShapedValue(
+    options.conversationId ?? `${Date.now()}-${randomUUID().slice(0, 8)}`
+  );
 
   return {
     tool,
@@ -62,7 +69,7 @@ const AI_TOOL_PATTERNS = [
   },
   {
     tool: 'copilot',
-    envVars: ['GITHUB_COPILOT_TOKEN', 'COPILOT_SESSION'],
+    envVars: ['COPILOT_SESSION'],
     modelVar: undefined,
   },
   {
@@ -88,8 +95,9 @@ const AI_TOOL_PATTERNS = [
 export function detectCurrentAgent(): AgentId | null {
   for (const pattern of AI_TOOL_PATTERNS) {
     for (const envVar of pattern.envVars) {
+      if (isCredentialEnvVarName(envVar)) continue;
       const sessionId = process.env[envVar];
-      if (sessionId) {
+      if (sessionId && !isCredentialShapedValue(sessionId)) {
         return createAgentId({
           tool: pattern.tool,
           conversationId: sessionId,
@@ -115,7 +123,7 @@ export function detectCurrentAgent(): AgentId | null {
 export function createExplicitAgent(tool: string, sessionId: string, model?: string): AgentId {
   return {
     tool,
-    id: sessionId,
+    id: redactCredentialShapedValue(sessionId),
     model,
   };
 }

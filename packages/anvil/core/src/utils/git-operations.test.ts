@@ -237,4 +237,48 @@ describe('gitRemoteUrl', () => {
     const { gitRemoteUrl, GitOperationError } = await import('./git-operations.js');
     await expect(gitRemoteUrl('/repo')).rejects.toThrow(GitOperationError);
   });
+
+  it('strips userinfo from credential-bearing HTTPS remotes', async () => {
+    mockExecFileAsync.mockResolvedValue({
+      stdout: 'https://user:pass@github.com/org/repo.git\n',
+      stderr: '',
+    });
+
+    const { gitRemoteUrl } = await import('./git-operations.js');
+    const result = await gitRemoteUrl('/repo');
+    expect(result).toBe('https://github.com/org/repo.git');
+    expect(result).not.toContain('user:pass');
+  });
+
+  it('strips token userinfo from HTTPS remotes', async () => {
+    mockExecFileAsync.mockResolvedValue({
+      stdout: 'https://ghu_testfixture000000000000000000000000@github.com/org/repo.git',
+      stderr: '',
+    });
+
+    const { gitRemoteUrl } = await import('./git-operations.js');
+    const result = await gitRemoteUrl('/repo');
+    expect(result).toBe('https://github.com/org/repo.git');
+    expect(result).not.toContain('ghu_');
+  });
+
+  it('leaves clean HTTPS remotes unchanged', async () => {
+    mockExecFileAsync.mockResolvedValue({
+      stdout: 'https://github.com/org/repo.git',
+      stderr: '',
+    });
+
+    const { gitRemoteUrl } = await import('./git-operations.js');
+    await expect(gitRemoteUrl('/repo')).resolves.toBe('https://github.com/org/repo.git');
+  });
+
+  it('leaves SSH scp-style remotes unchanged', async () => {
+    mockExecFileAsync.mockResolvedValue({
+      stdout: 'git@github.com:org/repo.git',
+      stderr: '',
+    });
+
+    const { gitRemoteUrl } = await import('./git-operations.js');
+    await expect(gitRemoteUrl('/repo')).resolves.toBe('git@github.com:org/repo.git');
+  });
 });

@@ -1,6 +1,7 @@
 import type { AuthorshipLog, FileAttestation } from './types.js';
 import { AuthorshipLogSchema, SCHEMA_VERSION } from './types.js';
 import { createDebugger } from '../../utils/debug.js';
+import { redactCredentialShapedValue } from '../../utils/credential-redaction.js';
 
 const debug = createDebugger('provenance');
 
@@ -44,10 +45,25 @@ export function serializeAuthorshipLog(log: AuthorshipLog): string {
   // Separator
   lines.push('---');
 
-  // Metadata section (JSON, pretty-printed for readability)
-  lines.push(JSON.stringify(log.metadata, null, 2));
+  // Metadata section (JSON, pretty-printed for readability).
+  // Token-shaped agent ids are redacted before the payload is persisted.
+  lines.push(JSON.stringify(redactAuthorshipMetadata(log.metadata), null, 2));
 
   return lines.join('\n');
+}
+
+function redactAuthorshipMetadata(metadata: AuthorshipLog['metadata']): AuthorshipLog['metadata'] {
+  const prompts: AuthorshipLog['metadata']['prompts'] = {};
+  for (const [hash, prompt] of Object.entries(metadata.prompts)) {
+    prompts[hash] = {
+      ...prompt,
+      agent_id: {
+        ...prompt.agent_id,
+        id: redactCredentialShapedValue(prompt.agent_id.id),
+      },
+    };
+  }
+  return { ...metadata, prompts };
 }
 
 /**

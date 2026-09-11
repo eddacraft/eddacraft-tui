@@ -8,6 +8,7 @@
 
 import { execFile, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
+import { stripGitRemoteUserinfo } from './credential-redaction.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -126,10 +127,11 @@ export async function gitCurrentBranch(cwd: string): Promise<string> {
   return stdout;
 }
 
+/** Return the remote URL with credential userinfo stripped. */
 export async function gitRemoteUrl(cwd: string, remote = 'origin'): Promise<string | undefined> {
   try {
     const { stdout } = await gitExec(['remote', 'get-url', remote], { cwd });
-    return stdout || undefined;
+    return stdout ? stripGitRemoteUserinfo(stdout) : undefined;
   } catch (error: unknown) {
     if (error instanceof GitOperationError) {
       const stderr = typeof error.stderr === 'string' ? error.stderr : '';

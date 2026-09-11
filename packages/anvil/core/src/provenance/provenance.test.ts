@@ -87,6 +87,36 @@ describe('Provenance System', () => {
       expect(git?.dirty).toBe(true);
       expect(git?.modified_files).toContain('test.txt');
     });
+
+    itIfGit('strips userinfo from credential-bearing remotes', async () => {
+      execSync('git init', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config user.email "test@example.com"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config user.name "Test User"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git remote add origin https://user:s3cret@github.com/org/repo.git', {
+        cwd: tempDir,
+        stdio: 'pipe',
+      });
+
+      const git = await collectGitContext(tempDir);
+
+      expect(git?.repository).toBe('https://github.com/org/repo.git');
+      expect(JSON.stringify(git)).not.toContain('s3cret');
+      expect(JSON.stringify(git)).not.toContain('user:s3cret');
+    });
+
+    itIfGit('keeps clean remotes stable', async () => {
+      execSync('git init', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config user.email "test@example.com"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config user.name "Test User"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git remote add origin https://github.com/org/repo.git', {
+        cwd: tempDir,
+        stdio: 'pipe',
+      });
+
+      const git = await collectGitContext(tempDir);
+
+      expect(git?.repository).toBe('https://github.com/org/repo.git');
+    });
   });
 
   describe('detectAITool', () => {
@@ -125,6 +155,24 @@ describe('Provenance System', () => {
 
       expect(tool?.name).toBe('copilot');
       expect(tool?.confidence).toBe('medium');
+    });
+
+    it('detects Copilot from token presence without persisting the token value', async () => {
+      const token = 'ghu_testfixture000000000000000000000000';
+      const previous = process.env.GITHUB_COPILOT_TOKEN;
+      process.env.GITHUB_COPILOT_TOKEN = token;
+      try {
+        const tool = await detectAITool(tempDir);
+        expect(tool?.name).toBe('copilot');
+        expect(tool?.indicators).toContain('GITHUB_COPILOT_TOKEN env var present');
+        expect(JSON.stringify(tool)).not.toContain(token);
+      } finally {
+        if (previous === undefined) {
+          delete process.env.GITHUB_COPILOT_TOKEN;
+        } else {
+          process.env.GITHUB_COPILOT_TOKEN = previous;
+        }
+      }
     });
   });
 
