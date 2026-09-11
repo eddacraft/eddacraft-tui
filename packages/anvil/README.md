@@ -9,7 +9,7 @@ anvil/
 ├── contracts/   # @eddacraft/anvil-contracts - Schemas, types (zero deps)
 ├── ports/       # @eddacraft/anvil-ports - Interface definitions
 ├── core/        # @eddacraft/anvil-core - Pure domain logic (no I/O)
-├── runtime/     # @eddacraft/anvil-runtime - Orchestration and I/O
+├── runtime/     # @eddacraft/anvil-runtime - Feature-flag resolution via the supported subpath
 └── sdk/         # @eddacraft/anvil-sdk - Client SDK (planned, not yet created)
 ```
 

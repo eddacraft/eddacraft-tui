@@ -10173,7 +10173,7 @@ section above; this block focuses on the build-time runtime surface.
 | siginfo | 2.0.0 | ISC | https://github.com/emilbayes/siginfo |
 | signal-exit | 3.0.7 | ISC | https://github.com/tapjs/signal-exit |
 | slide | 1.1.6 | ISC | https://github.com/isaacs/slide-flow-control |
-| smol-toml | 1.6.1 | BSD-3-Clause | https://github.com/squirrelchat/smol-toml |
+| smol-toml | 1.7.2 | BSD-3-Clause | https://github.com/squirrelchat/smol-toml |
 | source-map-js | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js |
 | spdx-compare | 1.0.0 | MIT | https://github.com/kemitchell/spdx-compare.js |
 | spdx-correct | 3.2.0 | Apache-2.0 | https://github.com/jslicense/spdx-correct.js |

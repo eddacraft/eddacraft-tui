@@ -37,6 +37,9 @@ test('published entry points cannot resolve retired JS services', () => {
       .trim(),
     ''
   );
+  const packageOverview = read('packages/anvil/README.md');
+  assert.doesNotMatch(packageOverview, /FileCache|runtime - Orchestration and I\/O/);
+  assert.match(packageOverview, /@eddacraft\/anvil-runtime\/feature-flags/);
   const stack = json('packages/edda-stack/package.json');
   assert.equal(stack.exports['./ember'], undefined);
   assert.equal(stack.dependencies['better-sqlite3'], undefined);
