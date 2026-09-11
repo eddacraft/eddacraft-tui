@@ -16,6 +16,8 @@ const JWT_SHAPE = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const HEX_TOKEN = /^[0-9a-fA-F]{40,}$/;
 const BEARER = /^Bearer\s+\S+/i;
 const SK_PREFIX = /^sk-[A-Za-z0-9_-]{16,}$/;
+const DELIMITED_BASE64_TOKEN = /(^|[^A-Za-z0-9+/])([A-Za-z0-9+/]{20,}={0,3})(?=$|[^A-Za-z0-9+/=])/g;
+const GIT_OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 
 const EMBEDDED_CREDENTIAL_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\b(?:ghp_|ghu_|ghs_|gho_|ghr_|github_pat_)[A-Za-z0-9_-]+/gi, REDACTED],
@@ -70,6 +72,11 @@ export function redactCredentialShapedText(value: string): string {
   for (const [pattern, replacement] of EMBEDDED_CREDENTIAL_PATTERNS) {
     redacted = redacted.replace(pattern, replacement);
   }
+  redacted = redacted.replace(
+    DELIMITED_BASE64_TOKEN,
+    (_match, prefix: string, candidate: string) =>
+      `${prefix}${GIT_OBJECT_ID.test(candidate) ? candidate : REDACTED}`
+  );
   return redacted;
 }
 

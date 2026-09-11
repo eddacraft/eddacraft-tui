@@ -92,4 +92,20 @@ describe('debug structured-data redaction', () => {
     expect(rendered).toContain('50c40cf374b927ae2b6ba4dd12618ac7754950ec');
     expect(rendered).toContain('a'.repeat(64));
   });
+
+  it('redacts padded base64 values and values ending in base64 symbols', () => {
+    vi.stubEnv('ANVIL_DEBUG', '1');
+    const consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+    const padded = 'dGVzdC1maXh0dXJlLXRva2VuLQ==';
+    const terminalPlus = `${'A'.repeat(23)}+`;
+    const terminalSlash = `${'A'.repeat(23)}/`;
+
+    debug('provenance', `credentials (${padded}), ${terminalPlus}, ${terminalSlash}`);
+
+    const rendered = JSON.stringify(consoleDebug.mock.calls[0]);
+    expect(rendered).not.toContain(padded);
+    expect(rendered).not.toContain(terminalPlus);
+    expect(rendered).not.toContain(terminalSlash);
+    expect(rendered.match(/\[redacted\]/g)).toHaveLength(3);
+  });
 });

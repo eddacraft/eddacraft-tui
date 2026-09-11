@@ -106,6 +106,7 @@ export class DriverClient {
   private driverIdentity: string | undefined;
 
   private transport: Transport | null = null;
+  private openingTransport: Transport | null = null;
   private framer: NdjsonFramer | null = null;
   private nextRequestId = 1;
   private pending = new Map<string, PendingRequest>();
@@ -351,14 +352,20 @@ export class DriverClient {
     this.cancelAllPending(
       driverError('anvil-driver-closed', 'driver client closed while request was in flight')
     );
-    if (this.transport !== null) {
-      try {
-        await this.transport.close();
-      } catch {
-        // Transport close is best-effort; nothing the caller can do.
-      }
-      this.transport = null;
-    }
+    const transports = new Set<Transport>();
+    if (this.openingTransport !== null) transports.add(this.openingTransport);
+    if (this.transport !== null) transports.add(this.transport);
+    this.openingTransport = null;
+    this.transport = null;
+    await Promise.all(
+      [...transports].map(async (transport) => {
+        try {
+          await transport.close();
+        } catch {
+          // Transport close is best-effort; nothing the caller can do.
+        }
+      })
+    );
     this.framer = null;
     // Drop subscribers and listeners so a closed client does not leak
     // references to consumer-supplied closures.
@@ -475,6 +482,7 @@ export class DriverClient {
   private async openTransport(): Promise<void> {
     this.state = 'connecting';
     const transport = this.transportFactory(this.transportOptions);
+    this.openingTransport = transport;
     const framer = new NdjsonFramer({
       onFrame: (value) => this.handleIncomingFrame(value),
       onError: (err) => this.handleFramerError(err),
@@ -486,8 +494,25 @@ export class DriverClient {
         onClose: (cause) => this.handleTransportClose(cause),
       });
     } catch (err) {
-      this.state = 'unbound';
+      if (this.openingTransport === transport) {
+        this.openingTransport = null;
+      }
+      if (!this.explicitClose) {
+        this.state = 'unbound';
+      }
       throw err;
+    }
+
+    if (this.openingTransport === transport) {
+      this.openingTransport = null;
+    }
+    if (this.explicitClose) {
+      try {
+        await transport.close();
+      } catch {
+        // A concurrent close already made this transport unusable.
+      }
+      throw driverError('anvil-driver-closed', 'driver client closed while connecting');
     }
 
     this.transport = transport;

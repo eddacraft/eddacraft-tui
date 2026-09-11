@@ -417,6 +417,7 @@ export class WindowsNamedPipeTransport implements Transport {
         }
         settled = true;
         this.pendingConnect = null;
+        this.connectingSocket = null;
         sock.destroy();
         reject(mapConnectError(this.pipeName, err));
       });

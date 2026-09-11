@@ -84,6 +84,17 @@ describe('authorship serialisation credential redaction', () => {
     expect(output).toContain('Use [redacted] for the request');
   });
 
+  it('does not serialise base64 credentials embedded in prompt messages', () => {
+    const base64Credential = 'dGVzdC1maXh0dXJlLXRva2VuLQ==';
+    const log = makeLog('copilot-session-42');
+    log.metadata.prompts.a1b2c3d4e5f67890.messages[0]!.text = `Use (${base64Credential}) for the request`;
+
+    const output = serializeAuthorshipLog(log);
+
+    expect(output).not.toContain(base64Credential);
+    expect(output).toContain('Use ([redacted]) for the request');
+  });
+
   it('keeps legitimate non-secret agent ids', () => {
     const output = serializeAuthorshipLog(makeLog('copilot-session-42'));
 

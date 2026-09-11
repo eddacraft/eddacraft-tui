@@ -75,6 +75,17 @@ describe('redactCredentialShapedText', () => {
     );
   });
 
+  it('redacts delimited base64 credentials including padding and terminal symbols', () => {
+    const padded = 'dGVzdC1maXh0dXJlLXRva2VuLQ==';
+    const terminalPlus = `${'A'.repeat(23)}+`;
+    const terminalSlash = `${'A'.repeat(23)}/`;
+
+    expect(redactCredentialShapedText(`token (${padded})`)).toBe('token ([redacted])');
+    expect(redactCredentialShapedText(`values ${terminalPlus}, ${terminalSlash}.`)).toBe(
+      'values [redacted], [redacted].'
+    );
+  });
+
   it('redacts hexadecimal credentials when their text labels the value', () => {
     expect(redactCredentialShapedText(`API_TOKEN=${FAKE_CLASSIC_HEX}`)).toBe(
       'API_TOKEN=[redacted]'

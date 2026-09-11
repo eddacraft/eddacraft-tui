@@ -86,13 +86,13 @@ export function isDebugEnabled(namespace?: DebugNamespace): boolean {
  * 2. Strips ANSI escape sequences (CSI and OSC) to prevent log forging
  * 3. Redacts values that look like tokens, keys, or secrets
  *
- * Secret patterns redacted:
- * - Hex tokens (40+ hex characters, e.g. SHA tokens, API keys)
- * - Base64 tokens (20+ chars of base64 alphabet)
- * - Common secret prefixes: sk-, ghp_, ghu_, Bearer
+ * Secret patterns redacted via {@link redactCredentialShapedText}:
+ * - Known token prefixes (sk-, ghp_, ghu_, Bearer, JWTs, labelled hex credentials)
+ * - Delimited base64 tokens (20+ chars, including padding / terminal + or /)
+ * - Exact 40/64-character Git SHA-1/SHA-256 object IDs are preserved
  *
  * @param value - The string to sanitize
- * @returns The sanitized string with control chars stripped and secrets replaced by [REDACTED]
+ * @returns The sanitized string with control chars stripped and secrets replaced by [redacted]
  */
 export function sanitizeForLog(value: string): string {
   // Strip control characters that enable log injection (newlines, carriage returns)
@@ -103,11 +103,6 @@ export function sanitizeForLog(value: string): string {
   sanitized = sanitized.replace(/\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '');
 
   sanitized = redactCredentialShapedText(sanitized);
-
-  // Redact base64 tokens while preserving exact Git SHA-1/SHA-256 object ids.
-  sanitized = sanitized.replace(/\b[A-Za-z0-9+/]{20,}={0,3}\b/g, (candidate) =>
-    /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(candidate) ? candidate : '[REDACTED]'
-  );
 
   return sanitized;
 }

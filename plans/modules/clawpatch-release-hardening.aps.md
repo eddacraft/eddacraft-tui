@@ -97,13 +97,14 @@ the single implementation PR is the rollback.
 - **Independent verification:** the first pass required repair for ordinary Git
   object IDs and non-credential debug keys being over-redacted, plus Windows
   closure losing error precedence after socket connection but before
-  authentication. Repair cycle 1 adds those adversarial regressions; final
-  verification remains required before review-ready.
+  authentication. Repair cycle 1 added those adversarial regressions and the
+  verifier passed tree `4bf98f5366fef1075f5611da21baa28fb5f23f82`.
 - **Re-verification:** repair cycle 1 closed its original findings but exposed
   labelled hexadecimal credentials, semantic credential-key variants, and the
   staged driver architecture freshness gate. Repair cycle 2 covers those inputs
-  and updates the owning component documentation; final verification remains
-  required before review-ready.
+  and updates the owning component documentation. Council converged at PASS
+  with no open findings or waivers; the subsequent CodeQL flow repair passed
+  independent verification on tree `2ee4dcacb709560c094d20938e523152c7b024ea`.
 
 ## Non-scope
 

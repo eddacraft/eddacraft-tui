@@ -20,6 +20,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { makeFakeTransportFactory } from '../__fixtures__/fake-transport.js';
 import { DriverClient } from './driver-client.js';
 import { DriverClientError } from '../errors.js';
+import type { Transport, TransportHandlers } from '../transport/types.js';
 
 interface ManualScheduler {
   setTimeout: (cb: () => void, ms: number) => unknown;
@@ -78,6 +79,40 @@ function manualScheduler(): ManualScheduler {
 }
 
 describe('DriverClient — happy path', () => {
+  it('closes a transport while the initial connection is still pending', async () => {
+    let handlers: TransportHandlers | undefined;
+    let rejectConnect: ((reason: DriverClientError) => void) | undefined;
+    const close = vi.fn(async () => {
+      handlers?.onClose('local');
+      rejectConnect?.(
+        new DriverClientError({
+          error: 'anvil-driver-closed',
+          retriable: false,
+          message: 'transport closed during connect',
+        })
+      );
+    });
+    const transport: Transport = {
+      connect(nextHandlers) {
+        handlers = nextHandlers;
+        return new Promise<void>((_resolve, reject) => {
+          rejectConnect = reject;
+        });
+      },
+      async send() {},
+      close,
+    };
+    const client = new DriverClient({ transportFactory: () => transport });
+
+    const connecting = client.connect();
+    await Promise.resolve();
+    await client.close();
+
+    await expect(connecting).rejects.toMatchObject({ code: 'anvil-driver-closed' });
+    expect(close).toHaveBeenCalledOnce();
+    await expect(client.connect()).rejects.toMatchObject({ code: 'anvil-driver-closed' });
+  });
+
   it('round-trips a request through a fake daemon', async () => {
     const tf = makeFakeTransportFactory([
       {
