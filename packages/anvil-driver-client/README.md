@@ -107,8 +107,9 @@ current user with mode `0700`, or whose own mode is not `0600`. This mirrors
 daemon side — the daemon also refuses; the client adds a defence-in-depth gate
 so a hostile peer cannot trick the consumer into sending content to a socket the
 user did not control. On Windows the client validates the pipe-name pattern
-(`\\.\pipe\anvil-intercept-<sid>`); the deeper ACL check is documented as a
-deferred gap (see source).
+(`\\.\pipe\anvil-intercept-<sid>`) and then authenticates the connected server
+process SID before sending document bytes. A correctly named squatted pipe from
+another principal is refused as `anvil-daemon-wrong-owner`.
 
 ## Diagnostic shape
 

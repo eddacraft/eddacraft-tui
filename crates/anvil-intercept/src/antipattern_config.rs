@@ -96,6 +96,30 @@ impl AntipatternConfigError {
                 current_uid,
             },
             ConfinementError::SymlinkedConfig(path) => Self::SymlinkedConfig(path),
+            #[cfg(windows)]
+            ConfinementError::NotOwnerSid {
+                path,
+                owner_sid,
+                current_sid,
+            } => Self::Io {
+                path,
+                source: std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    format!("owned by {owner_sid}, current {current_sid}"),
+                ),
+            },
+            #[cfg(windows)]
+            ConfinementError::ForeignWritable {
+                path,
+                owner_sid,
+                writer_sid,
+            } => Self::Io {
+                path,
+                source: std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    format!("grants write to {writer_sid} (owner {owner_sid})"),
+                ),
+            },
             other => Self::Io {
                 path: fallback_path.to_path_buf(),
                 source: std::io::Error::other(other.to_string()),

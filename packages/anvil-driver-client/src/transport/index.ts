@@ -20,6 +20,7 @@ export {
 } from './path.js';
 export { UnixSocketTransport, validateUnixSocketOwnership } from './unix.js';
 export {
+  assertWindowsServerSid,
   parseSidFromWhoamiOutput,
   resolveCurrentUserSid,
   validateWindowsPipeName,

@@ -53,6 +53,7 @@ export {
   UnixSocketTransport,
   WindowsNamedPipeTransport,
   defaultTransportFactory,
+  assertWindowsServerSid,
   parseSidFromWhoamiOutput,
   resolveCurrentUserSid,
   resolveDefaultSocketPath,

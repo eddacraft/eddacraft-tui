@@ -1,13 +1,16 @@
 /**
- * Windows pipe-name validation tests. Pure: doesn't open any pipe —
- * the ownership-gate transport tests inject a SID provider and only
- * ever observe a rejected `connect()`, so they run on any platform.
+ * Windows pipe-name validation and server-identity tests. Ownership-gate
+ * and authenticator-injection tests inject SID / connect / auth seams
+ * and run on any platform. They never open a real named pipe.
  */
+
+import net from 'node:net';
 
 import { describe, expect, it } from 'vitest';
 
 import { DriverClientError } from '../errors.js';
 import {
+  assertWindowsServerSid,
   parseSidFromWhoamiOutput,
   validateWindowsPipeName,
   validateWindowsPipeOwnership,
@@ -219,5 +222,127 @@ describe('WindowsNamedPipeTransport ownership gate', () => {
     await expect(transport.connect(handlers)).rejects.toMatchObject({
       code: 'anvil-daemon-wrong-owner',
     });
+  });
+});
+
+function fakeConnectingSocket(): net.Socket {
+  const sock = new net.Socket();
+  queueMicrotask(() => {
+    sock.emit('connect');
+  });
+  return sock;
+}
+
+describe('assertWindowsServerSid', () => {
+  it('accepts a matching SID regardless of case', () => {
+    expect(() => assertWindowsServerSid(CURRENT_SID.toLowerCase(), CURRENT_SID)).not.toThrow();
+  });
+
+  it('rejects a different server SID as anvil-daemon-wrong-owner', () => {
+    let err: unknown;
+    try {
+      assertWindowsServerSid(OTHER_SID, CURRENT_SID);
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(DriverClientError);
+    expect((err as DriverClientError).code).toBe('anvil-daemon-wrong-owner');
+    expect((err as DriverClientError).retriable).toBe(false);
+  });
+
+  it('rejects a malformed server SID instead of comparing it', () => {
+    expect(() => assertWindowsServerSid('not-a-sid', CURRENT_SID)).toThrowError(DriverClientError);
+  });
+});
+
+describe('WindowsNamedPipeTransport server-identity gate', () => {
+  const handlers = { onData: (): void => {}, onClose: (): void => {} };
+
+  it('rejects a correctly named squatted peer via the authenticator seam', async () => {
+    let authCalls = 0;
+    const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {
+      currentUserSid: () => CURRENT_SID,
+      createConnection: fakeConnectingSocket,
+      authenticateServer: () => {
+        authCalls += 1;
+        throw new DriverClientError({
+          error: 'anvil-daemon-wrong-owner',
+          retriable: false,
+          message: 'squatted named-pipe server',
+        });
+      },
+    });
+    await expect(transport.connect(handlers)).rejects.toMatchObject({
+      code: 'anvil-daemon-wrong-owner',
+    });
+    expect(authCalls).toBe(1);
+  });
+
+  it('does not fire onClose or stick in already-connected after squat reject', async () => {
+    let closed = 0;
+    const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {
+      currentUserSid: () => CURRENT_SID,
+      createConnection: fakeConnectingSocket,
+      authenticateServer: () => {
+        throw new Error('foreign server SID');
+      },
+    });
+    await expect(
+      transport.connect({
+        onData: (): void => {},
+        onClose: () => {
+          closed += 1;
+        },
+      })
+    ).rejects.toMatchObject({ code: 'anvil-daemon-wrong-owner' });
+    expect(closed).toBe(0);
+    await expect(
+      transport.connect({
+        onData: (): void => {},
+        onClose: () => {
+          closed += 1;
+        },
+      })
+    ).rejects.toMatchObject({ code: 'anvil-daemon-wrong-owner' });
+    expect(closed).toBe(0);
+  });
+
+  it('authenticates after connect and before onData or send', async () => {
+    let authCalled = false;
+    let dataListenerDuringAuth = false;
+    const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {
+      currentUserSid: () => CURRENT_SID,
+      createConnection: () => {
+        const sock = fakeConnectingSocket();
+        sock.on('newListener', (event: string) => {
+          if (event === 'data' && !authCalled) {
+            dataListenerDuringAuth = true;
+          }
+        });
+        return sock;
+      },
+      authenticateServer: () => {
+        authCalled = true;
+      },
+    });
+    await transport.connect(handlers);
+    expect(authCalled).toBe(true);
+    expect(dataListenerDuringAuth).toBe(false);
+    await transport.close();
+  });
+
+  it('preserves the SID-suffix gate before the authenticator runs', async () => {
+    let authCalls = 0;
+    const transport = new WindowsNamedPipeTransport(pipeFor(OTHER_SID), {
+      currentUserSid: () => CURRENT_SID,
+      createConnection: fakeConnectingSocket,
+      authenticateServer: () => {
+        authCalls += 1;
+      },
+    });
+    await expect(transport.connect(handlers)).rejects.toMatchObject({
+      code: 'anvil-daemon-wrong-owner',
+    });
+    expect(authCalls).toBe(0);
   });
 });

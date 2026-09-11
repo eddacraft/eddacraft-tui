@@ -60,6 +60,17 @@ pub enum ConfinementError {
         owner_sid: String,
         current_sid: String,
     },
+    /// (Windows, CIB-211) the config file is owner-matched but its DACL grants
+    /// write to another principal — the analogue of Unix `mode & 0o022`.
+    #[cfg(windows)]
+    #[error(
+        "confinement config {path} grants write to another principal (writer SID {writer_sid}, owner {owner_sid}) — refusing"
+    )]
+    ForeignWritable {
+        path: PathBuf,
+        owner_sid: String,
+        writer_sid: String,
+    },
     /// The config file exists but does not parse.
     #[error("confinement config {path} is malformed: {source}")]
     Parse {
@@ -616,12 +627,14 @@ pub(crate) fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementErr
     Ok(Some(raw))
 }
 
-/// Windows (DSV-010b): the owner-only trusted read, the analogue of the Unix
-/// `O_NOFOLLOW` + owner-uid check. Refuses a reparse point (symlink/junction →
-/// [`ConfinementError::SymlinkedConfig`]) and a file owned by another principal
-/// ([`ConfinementError::NotOwnerSid`]); reads the verified handle otherwise. The
-/// unsafe `GetSecurityInfo` / reparse-detection FFI is quarantined in
-/// `anvil-intercept-win32` so this crate keeps `forbid(unsafe_code)`.
+/// Windows (DSV-010b / CIB-211): the owner-only trusted read, the analogue of
+/// the Unix `O_NOFOLLOW` + owner-uid + `0o022` check. Refuses a reparse point
+/// ([`ConfinementError::SymlinkedConfig`]), a file owned by another principal
+/// ([`ConfinementError::NotOwnerSid`]), and an owner-matched foreign-writable
+/// DACL ([`ConfinementError::ForeignWritable`]); reads the verified handle
+/// otherwise. The unsafe `GetSecurityInfo` / reparse-detection FFI is
+/// quarantined in `anvil-intercept-win32` so this crate keeps
+/// `forbid(unsafe_code)`.
 #[cfg(windows)]
 pub(crate) fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
     use anvil_intercept_win32::TrustedConfigRead;
@@ -637,6 +650,14 @@ pub(crate) fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementErr
             path: path.to_path_buf(),
             owner_sid,
             current_sid,
+        }),
+        Ok(TrustedConfigRead::ForeignWritable {
+            owner_sid,
+            writer_sid,
+        }) => Err(ConfinementError::ForeignWritable {
+            path: path.to_path_buf(),
+            owner_sid,
+            writer_sid,
         }),
         Ok(TrustedConfigRead::Trusted(raw)) => Ok(Some(raw)),
         Err(source) => Err(ConfinementError::Io {

@@ -1,8 +1,8 @@
 # anvil driver client architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                         |
-| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DRVR  | Live   | Last reviewed 2026-08-28 against `packages/anvil-driver-client/src` CIB-371 transport/JSON-RPC narrowing; request and notification flow unchanged |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                             |
+| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DRVR  | Live   | Last reviewed 2026-09-11 against `packages/anvil-driver-client/src/transport/windows.ts` CIB-211 named-pipe server SID authentication |
 
 | Upstream                                                             | Downstream                                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -62,9 +62,14 @@ and a socket that is symlinked, not a socket, not owner-owned, or not mode
 not expose a stable `SO_PEERCRED` API.
 
 `src/transport/windows.ts` requires the `anvil-intercept-<sid>` pipe namespace
-and compares the suffix with the current user's canonical SID. It does not
-inspect the pipe DACL; the Rust server-side Win32 listener owns that check. A
-failure on either platform is non-retriable `anvil-daemon-wrong-owner`.
+and compares the suffix with the current user's canonical SID. After connect,
+and before any request or document bytes, it authenticates the connected server
+process TokenUser SID (`GetNamedPipeServerProcessId`, same contract as Rust
+`named_pipe_server_is_owner`). The default Win32 path opens the pipe with
+Identification SQOS via optional `koffi` FFI and fails closed if that native
+path cannot run. Tests inject `authenticateServer` (and optionally
+`createConnection`) so squat-reject coverage runs off Windows. A failure on
+either platform is non-retriable `anvil-daemon-wrong-owner`.
 
 ## Reconnection and reliability
 

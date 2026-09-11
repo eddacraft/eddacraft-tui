@@ -1,8 +1,8 @@
 # Driver Framework + intercept-proto — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| As-built | Derived   | DRVR  | Live   | Cross-system boundary reviewed 2026-08-20 against `crates/anvil-intercept-proto/src`, `packages/anvil-driver-client/src`, `crates/anvil-intercept/src`, `crates/anvil-intercept-rules/src`, and `crates/anvil-intercept-win32/src` at `f0f834b39`; pre-migration component snapshot retained below as historical context |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-09-11 against CIB-211 TypeScript named-pipe server SID authentication in `packages/anvil-driver-client/src/transport/windows.ts`. Prior: cross-system boundary reviewed 2026-08-20 against `crates/anvil-intercept-proto/src`, `packages/anvil-driver-client/src`, `crates/anvil-intercept/src`, `crates/anvil-intercept-rules/src`, and `crates/anvil-intercept-win32/src` at `f0f834b39`; pre-migration component snapshot retained below as historical context |
 
 | Upstream                                                                                                                                         | Downstream                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -761,12 +761,12 @@ status query.
 
 The TS Windows transport path is in
 `packages/anvil-driver-client/src/transport/windows.ts`. It validates that the
-supplied `pipeName` matches the `\\.\pipe\anvil-intercept-<sid>` pattern and
-refuses anything else as `anvil-daemon-wrong-owner`, but the deeper ACL check is
-deferred — documented as a gap rather than a false-comfort check that always
-returns OK (`windows.ts:7-28`). The path resolver requires the consumer to pass
-an explicit `pipeName` on Windows because Node has no cheap way to fetch the SID
-(`transport/path.ts:53-77`).
+supplied `pipeName` matches the `\\.\pipe\anvil-intercept-<sid>` pattern, then
+authenticates the connected server process SID before any request bytes
+(`GetNamedPipeServerProcessId`). A correctly named squatted pipe from another
+principal is `anvil-daemon-wrong-owner`. The path resolver requires the consumer
+to pass an explicit `pipeName` on Windows because Node has no cheap way to fetch
+the SID (`transport/path.ts:53-77`).
 
 ## 10. Capability negotiation
 
@@ -919,12 +919,13 @@ and where they don't:
    uses `fs::read_to_string` without `lstat` for owner / mode (`auth.rs:228`).
    Operators must manually `chmod 0600 ~/.config/anvil/drivers.allow`. Tracked
    for the next tag.
-6. **TS Windows transport defers ACL inspection.** `validateWindowsPipeName`
-   confirms only that the supplied pipe name follows the daemon's
-   `\\.\pipe\anvil-intercept-<sid>` pattern; the deeper ACL check is deferred
-   alongside the INTD-012 Windows CI matrix work
-   (`packages/anvil-driver-client/src/transport/windows.ts:7-28`). The daemon's
-   listener-side ACL is the authoritative gate.
+6. **TS Windows transport authenticates the connected server SID.**
+   `validateWindowsPipeName` confirms the `\\.\pipe\anvil-intercept-<sid>`
+   pattern; after connect the client authenticates the server process SID
+   (`GetNamedPipeServerProcessId`) before document bytes. Same-user squats
+   remain in-model, matching Unix same-uid. The daemon's listener-side ACL is
+   still the authoritative server-side gate
+   (`packages/anvil-driver-client/src/transport/windows.ts`).
 7. **Driver-client reliability ledger is in-process only.** `ReliabilityBudget`
    retains failures across reconnects within one process but does not persist
    across process boundaries. The on-disk ledger schema is documented as

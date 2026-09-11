@@ -30,20 +30,27 @@ use windows_sys::Win32::Foundation::{
     ERROR_NOT_FOUND, ERROR_OPERATION_ABORTED, ERROR_PIPE_NOT_CONNECTED, FILETIME, HANDLE,
     INVALID_HANDLE_VALUE, LocalFree, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
+#[cfg(test)]
+use windows_sys::Win32::Security::Authorization::SetNamedSecurityInfoW;
 use windows_sys::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, GetSecurityInfo,
     SDDL_REVISION_1, SE_FILE_OBJECT,
 };
 use windows_sys::Win32::Security::{
-    ACL, DACL_SECURITY_INFORMATION, GetSecurityDescriptorControl, GetTokenInformation,
-    SE_DACL_PROTECTED, SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR, TOKEN_OWNER, TOKEN_QUERY,
-    TOKEN_USER, TokenOwner, TokenUser,
+    ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, DACL_SECURITY_INFORMATION, GetAce,
+    GetSecurityDescriptorControl, GetTokenInformation, INHERIT_ONLY_ACE, SE_DACL_PROTECTED,
+    SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR, TOKEN_OWNER, TOKEN_QUERY, TOKEN_USER, TokenOwner,
+    TokenUser,
+};
+#[cfg(test)]
+use windows_sys::Win32::Security::{
+    GetSecurityDescriptorDacl, PROTECTED_DACL_SECURITY_INFORMATION,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    BY_HANDLE_FILE_INFORMATION, CreateDirectoryW, CreateFileW, FILE_FLAG_OPEN_REPARSE_POINT,
-    FILE_FLAG_OVERLAPPED, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
-    GetFileInformationByHandle, OPEN_EXISTING, ReadFile, SECURITY_IDENTIFICATION,
-    SECURITY_SQOS_PRESENT, WriteFile,
+    BY_HANDLE_FILE_INFORMATION, CreateDirectoryW, CreateFileW, DELETE, FILE_APPEND_DATA,
+    FILE_FLAG_OPEN_REPARSE_POINT, FILE_FLAG_OVERLAPPED, FILE_SHARE_DELETE, FILE_SHARE_READ,
+    FILE_SHARE_WRITE, FILE_WRITE_DATA, FILE_WRITE_EA, GetFileInformationByHandle, OPEN_EXISTING,
+    ReadFile, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT, WRITE_DAC, WRITE_OWNER, WriteFile,
 };
 use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
 use windows_sys::Win32::System::JobObjects::{
@@ -61,6 +68,22 @@ use windows_sys::Win32::System::Threading::{
 // inline keeps the Cargo feature-flag set narrow.
 const GENERIC_READ: u32 = 0x8000_0000;
 const GENERIC_WRITE: u32 = 0x4000_0000;
+const GENERIC_ALL: u32 = 0x1000_0000;
+const MAXIMUM_ALLOWED: u32 = 0x0200_0000;
+const ACCESS_ALLOWED_ACE_TYPE: u8 = 0;
+const ACCESS_DENIED_ACE_TYPE: u8 = 1;
+/// Unix `mode & 0o022` analogue: data-write plus ACL/file takeover bits.
+const FOREIGN_WRITE_MASK: u32 = FILE_WRITE_DATA
+    | FILE_APPEND_DATA
+    | FILE_WRITE_EA
+    | DELETE
+    | WRITE_DAC
+    | WRITE_OWNER
+    | GENERIC_WRITE
+    | GENERIC_ALL
+    | MAXIMUM_ALLOWED;
+const OWNER_RIGHTS_SID: &str = "S-1-3-4";
+const NULL_DACL_WRITER: &str = "NULL_DACL";
 
 // `GetExitCodeProcess` reports this sentinel (STATUS_PENDING, 259) for a
 // process that has not exited. Pinned inline for the same reason as the
@@ -1251,23 +1274,32 @@ pub enum TrustedConfigRead {
         owner_sid: String,
         current_sid: String,
     },
-    /// Owner-verified and not a reparse point — the file contents.
+    /// Owner-matched, but the DACL grants write to another principal — the
+    /// Windows analogue of Unix `mode & 0o022`. `writer_sid` is the first
+    /// offending trustee, or [`NULL_DACL_WRITER`] when the DACL is missing.
+    ForeignWritable {
+        owner_sid: String,
+        writer_sid: String,
+    },
+    /// Owner-verified, not a reparse point, and not foreign-writable — the
+    /// file contents.
     Trusted(String),
 }
 
 /// Read an operator config file only if it is trusted: not a reparse point
-/// (symlink/junction) **and** owned by the current user. The Windows analogue of
-/// the Unix `read_trusted` (`O_NOFOLLOW` + owner-uid + no-foreign-write). The
-/// "no foreign write" property comes from the owner-only config directory
-/// ([`create_owner_only_dir`]) plus the per-user profile ACLs Windows applies
-/// under `%APPDATA%`/`%USERPROFILE%`; this function verifies owner + no-redirect
-/// at read time, reading the **verified handle** (never re-opening the path).
+/// (symlink/junction), owned by the current user (or the token owner SID),
+/// **and** not foreign-writable via DACL. The Windows analogue of the Unix
+/// `read_trusted` (`O_NOFOLLOW` + owner-uid + `mode & 0o022 == 0`). Trust is
+/// evaluated on the **verified handle** (never re-opening the path). Default
+/// inherited NTFS ACLs that grant Users/Everyone/SYSTEM write are untrusted;
+/// supported files live under [`create_owner_only_dir`] (owner-only SDDL).
 ///
 /// # Errors
 /// Propagates a genuine OS error (open / file-info / security-query / read
-/// failure). A missing file, a reparse point, or a foreign owner are reported via
-/// [`TrustedConfigRead`] — not as errors — so the caller can fail-open (missing)
-/// or fail-closed (untrusted) per its own policy.
+/// failure). A missing file, a reparse point, a foreign owner, or a
+/// foreign-writable DACL are reported via [`TrustedConfigRead`] — not as
+/// errors — so the caller can fail-open (missing) or fail-closed (untrusted)
+/// per its own policy.
 pub fn read_trusted_config(path: &Path) -> io::Result<TrustedConfigRead> {
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain([0]).collect();
     // `FILE_FLAG_OPEN_REPARSE_POINT` opens a symlink/junction AS the link object
@@ -1322,7 +1354,7 @@ pub fn read_trusted_config(path: &Path) -> io::Result<TrustedConfigRead> {
     // principal is still refused.
     let user_sid = current_user_sid_string()?;
     let token_owner_sid = current_token_owner_sid()?;
-    let owner_sid = owner_sid_of_handle(handle.0)?;
+    let (owner_sid, dacl) = owner_and_dacl_of_handle(handle.0)?;
     if !owner_sid.eq_ignore_ascii_case(&user_sid)
         && !owner_sid.eq_ignore_ascii_case(&token_owner_sid)
     {
@@ -1332,8 +1364,212 @@ pub fn read_trusted_config(path: &Path) -> io::Result<TrustedConfigRead> {
         });
     }
 
+    let allowed = [
+        owner_sid.as_str(),
+        user_sid.as_str(),
+        token_owner_sid.as_str(),
+        OWNER_RIGHTS_SID,
+    ];
+    if let Some(writer_sid) = dacl_foreign_writer(dacl.as_ptr(), &allowed)? {
+        return Ok(TrustedConfigRead::ForeignWritable {
+            owner_sid,
+            writer_sid,
+        });
+    }
+
     // Trusted: read the verified handle.
     Ok(TrustedConfigRead::Trusted(read_handle_to_string(handle.0)?))
+}
+
+/// Owner SID plus DACL pointer (into the returned descriptor) of an open handle.
+fn owner_and_dacl_of_handle(handle: HANDLE) -> io::Result<(String, DaclView)> {
+    let mut owner_sid: *mut c_void = null_mut();
+    let mut dacl: *mut ACL = null_mut();
+    let mut descriptor: *mut c_void = null_mut();
+    // SAFETY: `handle` is a live file handle. `owner_sid` and `dacl` receive
+    // pointers INTO the LocalAlloc-owned `descriptor`.
+    let status = unsafe {
+        GetSecurityInfo(
+            handle,
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+            &mut owner_sid,
+            null_mut(),
+            &mut dacl,
+            null_mut(),
+            &mut descriptor,
+        )
+    };
+    if status != 0 {
+        return Err(io::Error::from_raw_os_error(status as i32));
+    }
+    let descriptor = LocalMem(descriptor.cast());
+    if owner_sid.is_null() {
+        return Err(io::Error::other(
+            "GetSecurityInfo returned a null owner SID",
+        ));
+    }
+    let mut sid_string = null_mut();
+    // SAFETY: `owner_sid` is a valid SID inside the live `descriptor`.
+    let ok = unsafe { ConvertSidToStringSidW(owner_sid, &mut sid_string) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let sid_string = LocalMem(sid_string.cast());
+    let owner = wide_ptr_to_string(sid_string.as_ptr().cast())?;
+    Ok((
+        owner,
+        DaclView {
+            dacl,
+            _descriptor: descriptor,
+        },
+    ))
+}
+
+/// DACL pointer whose backing security descriptor stays alive for the walk.
+struct DaclView {
+    dacl: *mut ACL,
+    _descriptor: LocalMem,
+}
+
+impl DaclView {
+    fn as_ptr(&self) -> *mut ACL {
+        self.dacl
+    }
+}
+
+/// First foreign writer SID granted write-equivalent rights, if any.
+fn dacl_foreign_writer(dacl: *mut ACL, allowed_sids: &[&str]) -> io::Result<Option<String>> {
+    if dacl.is_null() {
+        return Ok(Some(NULL_DACL_WRITER.to_string()));
+    }
+    let count = unsafe { (*dacl).AceCount };
+    for i in 0..count {
+        let mut ace: *mut c_void = null_mut();
+        // SAFETY: `dacl` is a live ACL; `ace` receives a pointer into it.
+        let ok = unsafe { GetAce(dacl, u32::from(i), &mut ace) };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if ace.is_null() {
+            return Err(io::Error::other("GetAce returned a null ACE"));
+        }
+        // SAFETY: GetAce succeeded; ACE_HEADER is the prefix of every ACE.
+        let header = unsafe { &*(ace as *const ACE_HEADER) };
+        let examined = if header.AceType == ACCESS_ALLOWED_ACE_TYPE {
+            // SAFETY: type 0 ACE is ACCESS_ALLOWED_ACE; SidStart is the SID.
+            let allowed_ace = unsafe { &*(ace as *const ACCESS_ALLOWED_ACE) };
+            let sid = sid_ptr_to_string(
+                std::ptr::addr_of!(allowed_ace.SidStart)
+                    .cast::<c_void>()
+                    .cast_mut(),
+            )?;
+            ExaminedAce::Allow {
+                flags: header.AceFlags,
+                mask: allowed_ace.Mask,
+                sid,
+            }
+        } else if header.AceType == ACCESS_DENIED_ACE_TYPE {
+            ExaminedAce::Deny {
+                flags: header.AceFlags,
+            }
+        } else {
+            ExaminedAce::Other {
+                ace_type: header.AceType,
+                flags: header.AceFlags,
+            }
+        };
+        if let Some(writer) = ace_foreign_writer(&examined, allowed_sids) {
+            return Ok(Some(writer));
+        }
+    }
+    Ok(None)
+}
+
+#[derive(Debug, Clone)]
+enum ExaminedAce {
+    Allow { flags: u8, mask: u32, sid: String },
+    Deny { flags: u8 },
+    Other { ace_type: u8, flags: u8 },
+}
+
+fn ace_foreign_writer(ace: &ExaminedAce, allowed_sids: &[&str]) -> Option<String> {
+    match ace {
+        ExaminedAce::Allow { flags, mask, sid } => {
+            if flags & INHERIT_ONLY_ACE as u8 != 0 {
+                return None;
+            }
+            if mask & FOREIGN_WRITE_MASK == 0 {
+                return None;
+            }
+            if allowed_sids
+                .iter()
+                .any(|allowed| sid.eq_ignore_ascii_case(allowed))
+            {
+                return None;
+            }
+            Some(sid.clone())
+        }
+        ExaminedAce::Deny { flags } => {
+            let _ = flags;
+            None
+        }
+        ExaminedAce::Other { ace_type, flags } => {
+            if flags & INHERIT_ONLY_ACE as u8 != 0 {
+                return None;
+            }
+            Some(format!("UNKNOWN_ACE_TYPE_{ace_type}"))
+        }
+    }
+}
+
+fn sid_ptr_to_string(sid: *mut c_void) -> io::Result<String> {
+    if sid.is_null() {
+        return Err(io::Error::other("ACE contained a null SID"));
+    }
+    let mut sid_string = null_mut();
+    // SAFETY: `sid` is a valid SID; `sid_string` receives a LocalAlloc string.
+    let ok = unsafe { ConvertSidToStringSidW(sid, &mut sid_string) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let sid_string = LocalMem(sid_string.cast());
+    wide_ptr_to_string(sid_string.as_ptr().cast())
+}
+
+#[cfg(test)]
+fn apply_file_dacl_sddl(path: &Path, sddl: &str) -> io::Result<()> {
+    let descriptor = security_descriptor_from_sddl(sddl)?;
+    let mut present = 0;
+    let mut defaulted = 0;
+    let mut dacl: *mut ACL = null_mut();
+    // SAFETY: `descriptor` is a live SECURITY_DESCRIPTOR from SDDL conversion.
+    let ok = unsafe {
+        GetSecurityDescriptorDacl(descriptor.as_ptr(), &mut present, &mut dacl, &mut defaulted)
+    };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if present == 0 || dacl.is_null() {
+        return Err(io::Error::other("SDDL did not produce a DACL"));
+    }
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain([0]).collect();
+    // SAFETY: `wide` is NUL-terminated; `dacl` points into `descriptor`.
+    let status = unsafe {
+        SetNamedSecurityInfoW(
+            wide.as_ptr(),
+            SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            null_mut(),
+            null_mut(),
+            dacl,
+            null_mut(),
+        )
+    };
+    if status != 0 {
+        return Err(io::Error::from_raw_os_error(status as i32));
+    }
+    Ok(())
 }
 
 /// The owner SID (as a string) of an open file handle, via
@@ -1471,12 +1707,13 @@ fn read_handle_to_string(handle: HANDLE) -> io::Result<String> {
 
 /// Create `dir` (and any missing parents) with an owner-only DACL — the Windows
 /// analogue of the Unix 0700 config dir, so a **newly-created** config dir
-/// restricts modify access to the current user (admins / SYSTEM excepted, as
-/// always on Windows). Idempotent: an already-existing directory is accepted
+/// restricts modify access to the current user via a protected owner-only DACL
+/// (no SYSTEM / Administrators ACE). Privileged Windows accounts can still
+/// bypass DACL. Idempotent: an already-existing directory is accepted
 /// **without** re-applying or validating its DACL (it may have been created by
 /// another tool, or be an operator-pointed `ANVIL_HOME`), so this is not by
-/// itself a guarantee for pre-existing dirs — the read-time owner + reparse check
-/// in [`read_trusted_config`] is the authoritative trust gate regardless.
+/// itself a guarantee for pre-existing dirs — the read-time owner + reparse +
+/// DACL check in [`read_trusted_config`] is the authoritative trust gate.
 ///
 /// # Errors
 /// Propagates a directory-creation failure other than "already exists".
@@ -1873,6 +2110,8 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join("confinement.yaml");
         std::fs::write(&path, b"admission: open\n").expect("write config");
+        let sid = current_user_sid_string().expect("current SID");
+        apply_file_dacl_sddl(&path, &format!("D:P(A;;FA;;;{sid})")).expect("owner-only DACL");
 
         match read_trusted_config(&path).expect("trusted read") {
             TrustedConfigRead::Trusted(raw) => assert_eq!(raw, "admission: open\n"),
@@ -1929,6 +2168,115 @@ mod tests {
         match read_trusted_config(&cfg).expect("trusted read") {
             TrustedConfigRead::Trusted(raw) => assert_eq!(raw, "patterns: []\n"),
             other => panic!("config in the owner-only dir must be Trusted, got {other:?}"),
+        }
+    }
+
+    fn allow(flags: u8, mask: u32, sid: &str) -> ExaminedAce {
+        ExaminedAce::Allow {
+            flags,
+            mask,
+            sid: sid.to_string(),
+        }
+    }
+
+    #[test]
+    fn ace_walk_skips_inherit_only_write() {
+        let owner = "S-1-5-21-1-2-3-1000";
+        let everyone = "S-1-1-0";
+        assert_eq!(
+            ace_foreign_writer(
+                &allow(INHERIT_ONLY_ACE as u8, FILE_WRITE_DATA, everyone),
+                &[owner]
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn ace_walk_refuses_inherited_everyone_write() {
+        let owner = "S-1-5-21-1-2-3-1000";
+        let everyone = "S-1-1-0";
+        assert_eq!(
+            ace_foreign_writer(&allow(16, FILE_WRITE_DATA, everyone), &[owner]).as_deref(),
+            Some(everyone)
+        );
+    }
+
+    #[test]
+    fn ace_walk_accepts_owner_and_owner_rights_write() {
+        let owner = "S-1-5-21-1-2-3-1000";
+        assert_eq!(
+            ace_foreign_writer(&allow(0, GENERIC_ALL, owner), &[owner, OWNER_RIGHTS_SID]),
+            None
+        );
+        assert_eq!(
+            ace_foreign_writer(
+                &allow(0, FILE_WRITE_DATA, OWNER_RIGHTS_SID),
+                &[owner, OWNER_RIGHTS_SID]
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn ace_walk_refuses_generic_write_and_write_dac() {
+        let owner = "S-1-5-21-1-2-3-1000";
+        let users = "S-1-5-32-545";
+        assert_eq!(
+            ace_foreign_writer(&allow(0, GENERIC_WRITE, users), &[owner]).as_deref(),
+            Some(users)
+        );
+        assert_eq!(
+            ace_foreign_writer(&allow(0, WRITE_DAC, users), &[owner]).as_deref(),
+            Some(users)
+        );
+    }
+
+    #[test]
+    fn ace_walk_refuses_unknown_ace_types() {
+        let owner = "S-1-5-21-1-2-3-1000";
+        assert_eq!(
+            ace_foreign_writer(
+                &ExaminedAce::Other {
+                    ace_type: 9,
+                    flags: 0,
+                },
+                &[owner]
+            )
+            .as_deref(),
+            Some("UNKNOWN_ACE_TYPE_9")
+        );
+    }
+
+    #[test]
+    fn null_dacl_is_foreign_writable() {
+        assert_eq!(
+            dacl_foreign_writer(std::ptr::null_mut(), &["S-1-5-21-1-2-3-1000"])
+                .expect("null DACL walk")
+                .as_deref(),
+            Some(NULL_DACL_WRITER)
+        );
+    }
+
+    #[test]
+    fn read_trusted_config_refuses_owner_matched_foreign_writable_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("confinement.yaml");
+        std::fs::write(&path, b"admission: open\n").expect("write config");
+        let sid = current_user_sid_string().expect("current SID");
+        apply_file_dacl_sddl(&path, &format!("D:P(A;;FA;;;{sid})(A;;FW;;;WD)"))
+            .expect("owner + Everyone write DACL");
+
+        match read_trusted_config(&path).expect("trusted read") {
+            TrustedConfigRead::ForeignWritable { writer_sid, .. } => {
+                assert!(
+                    writer_sid.eq_ignore_ascii_case("S-1-1-0"),
+                    "Everyone SID expected, got {writer_sid}"
+                );
+            }
+            other => panic!(
+                "owner-matched Everyone-writable file must be ForeignWritable, got {other:?}"
+            ),
         }
     }
 }

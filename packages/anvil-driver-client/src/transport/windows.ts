@@ -25,13 +25,15 @@
  *      {@link WindowsTransportOptions.currentUserSid}); the gate fails
  *      CLOSED — if the SID cannot be resolved, connect() rejects as
  *      `anvil-daemon-wrong-owner` rather than skipping the check.
- *   3. The deeper server-identity check (pipe security descriptor /
- *      `GetNamedPipeServerProcessId`) needs native access and stays a
- *      documented gap, tracked in issue #2484: a local attacker who
- *      pre-creates the correctly-named pipe before the daemon binds is
- *      not detected client-side. The daemon-side owner-only DACL plus
- *      client-SID check (DSV-010b / ADR-070) remains the authoritative
- *      gate.
+ *   3. After connect — and before any request/document bytes — the
+ *      connected server process TokenUser SID is authenticated
+ *      (`GetNamedPipeServerProcessId`, same contract as Rust
+ *      `named_pipe_server_is_owner`). A correctly named squatted pipe
+ *      owned by another principal is rejected as
+ *      `anvil-daemon-wrong-owner`. The default Win32 path opens the
+ *      pipe with Identification SQOS via optional `koffi` FFI; tests
+ *      inject {@link WindowsTransportOptions.authenticateServer} and
+ *      optionally {@link WindowsTransportOptions.createConnection}.
  *
  * Trust anchor: the gate is only as trustworthy as the resolved SID.
  * The default provider executes `%SystemRoot%\System32\whoami.exe` by
@@ -44,10 +46,11 @@
  * (there is no SID to resolve, so the default provider fails the gate
  * CLOSED — inject the SID the rig expects, or use a fake transport).
  *
- * If the consumer needs a stronger Windows check before the #2484
- * follow-up lands, they can supply a custom transport via the
- * `transportFactory` option on {@link DriverClient} and run their own
- * Win32 ACL inspection.
+ * Production Windows consumers get the default FFI authenticator. If
+ * `koffi` cannot be loaded on win32, connect() fails closed rather
+ * than skipping the squat check. Impersonating services and
+ * non-Windows test rigs inject `currentUserSid` / `authenticateServer`
+ * instead of the defaults.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -55,6 +58,22 @@ import net from 'node:net';
 
 import { DriverClientError, driverError } from '../errors.js';
 import type { Transport, TransportCloseCause, TransportHandlers } from './types.js';
+import { openAuthenticatedWindowsPipe } from './windows-native-auth.js';
+
+export { assertWindowsServerSid } from './windows-native-auth.js';
+
+function mapConnectError(pipeName: string, err: Error): DriverClientError {
+  const code = (err as NodeJS.ErrnoException).code;
+  if (code === 'ENOENT' || code === 'ECONNREFUSED') {
+    return driverError('anvil-daemon-unavailable', `cannot connect to ${pipeName}: ${err.message}`);
+  }
+  if (code === 'EACCES' || code === 'EPERM') {
+    return driverError('anvil-daemon-wrong-owner', `cannot connect to ${pipeName}: ${err.message}`);
+  }
+  return driverError('anvil-daemon-unavailable', `cannot connect to ${pipeName}: ${err.message}`, {
+    data: { code },
+  });
+}
 
 const PIPE_PREFIX = '\\\\.\\pipe\\anvil-intercept-';
 
@@ -199,6 +218,17 @@ export interface WindowsTransportOptions {
    *  canonical `S-1-…` string form; thrown errors fail the gate
    *  closed (`anvil-daemon-wrong-owner`). */
   currentUserSid?: () => string;
+  /** Post-connect server-identity check, overriding the default Win32
+   *  `GetNamedPipeServerProcessId` path. Tests inject a reject/accept
+   *  function so squat-reject coverage runs on Linux. Thrown errors
+   *  fail closed (`anvil-daemon-wrong-owner`). Not forwarded from
+   *  {@link import('../client/types.js').DriverClientOptions}. */
+  authenticateServer?: (socket: net.Socket) => void;
+  /** Test-only connection factory. Production Windows uses FFI
+   *  `CreateFileW` with Identification SQOS. Injected alongside
+   *  {@link WindowsTransportOptions.authenticateServer} so a fake
+   *  `connect` event can be raised on Linux. */
+  createConnection?: (pipeName: string) => net.Socket;
 }
 
 /**
@@ -207,8 +237,7 @@ export interface WindowsTransportOptions {
  *
  * The check is intentionally narrow — it confirms only that the pipe
  * name follows the daemon's documented `anvil-intercept-<sid>`
- * pattern. The deeper ACL check is documented as a deferred gap (see
- * the module header).
+ * pattern. Server-process SID authentication happens after connect.
  */
 export function validateWindowsPipeName(pipeName: string): void {
   if (!pipeName.startsWith(PIPE_PREFIX)) {
@@ -236,8 +265,11 @@ export function validateWindowsPipeName(pipeName: string): void {
 export class WindowsNamedPipeTransport implements Transport {
   private readonly pipeName: string;
   private readonly currentUserSid: () => string;
+  private readonly authenticateServer: ((socket: net.Socket) => void) | undefined;
+  private readonly createConnection: ((pipeName: string) => net.Socket) | undefined;
   private socket: net.Socket | null = null;
   private handlers: TransportHandlers | null = null;
+  private connecting = false;
   private closed = false;
   private closeFired = false;
   private writePromises: Array<() => void> = [];
@@ -245,10 +277,12 @@ export class WindowsNamedPipeTransport implements Transport {
   public constructor(pipeName: string, options: WindowsTransportOptions = {}) {
     this.pipeName = pipeName;
     this.currentUserSid = options.currentUserSid ?? resolveCurrentUserSid;
+    this.authenticateServer = options.authenticateServer;
+    this.createConnection = options.createConnection;
   }
 
   public async connect(handlers: TransportHandlers): Promise<void> {
-    if (this.handlers !== null) {
+    if (this.handlers !== null || this.socket !== null || this.connecting) {
       throw new TypeError('WindowsNamedPipeTransport.connect: already connected');
     }
     if (this.closed) {
@@ -256,57 +290,19 @@ export class WindowsNamedPipeTransport implements Transport {
     }
 
     validateWindowsPipeName(this.pipeName);
-    validateWindowsPipeOwnership(this.pipeName, this.resolveSidFailClosed());
-    this.handlers = handlers;
+    const currentSid = this.resolveSidFailClosed();
+    validateWindowsPipeOwnership(this.pipeName, currentSid);
 
-    await new Promise<void>((resolve, reject) => {
-      const sock = net.createConnection(this.pipeName);
-      let settled = false;
-
-      sock.once('connect', () => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        this.socket = sock;
-        this.attachStreamHandlers(sock);
-        resolve();
-      });
-
-      sock.once('error', (err) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        this.handlers = null;
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code === 'ENOENT' || code === 'ECONNREFUSED') {
-          reject(
-            driverError(
-              'anvil-daemon-unavailable',
-              `cannot connect to ${this.pipeName}: ${err.message}`
-            )
-          );
-          return;
-        }
-        if (code === 'EACCES' || code === 'EPERM') {
-          reject(
-            driverError(
-              'anvil-daemon-wrong-owner',
-              `cannot connect to ${this.pipeName}: ${err.message}`
-            )
-          );
-          return;
-        }
-        reject(
-          driverError(
-            'anvil-daemon-unavailable',
-            `cannot connect to ${this.pipeName}: ${err.message}`,
-            { data: { code } }
-          )
-        );
-      });
-    });
+    this.connecting = true;
+    try {
+      const sock = await this.openAndAuthenticate(currentSid);
+      this.socket = sock;
+      this.handlers = handlers;
+      this.attachStreamHandlers(sock);
+      sock.resume();
+    } finally {
+      this.connecting = false;
+    }
   }
 
   public async send(chunk: string): Promise<void> {
@@ -338,6 +334,69 @@ export class WindowsNamedPipeTransport implements Transport {
       return;
     }
     this.socket.end();
+  }
+
+  private async openAndAuthenticate(currentSid: string): Promise<net.Socket> {
+    if (this.createConnection !== undefined || this.authenticateServer !== undefined) {
+      const sock = await this.connectViaFactory(
+        this.createConnection ?? ((name) => net.createConnection(name))
+      );
+      try {
+        this.runAuthenticator(sock, currentSid);
+      } catch (err) {
+        sock.destroy();
+        throw this.mapAuthError(err);
+      }
+      return sock;
+    }
+    if (process.platform === 'win32') {
+      return openAuthenticatedWindowsPipe(this.pipeName, currentSid);
+    }
+    return this.connectViaFactory((name) => net.createConnection(name));
+  }
+
+  private runAuthenticator(sock: net.Socket, _currentSid: string): void {
+    if (this.authenticateServer === undefined) {
+      throw driverError(
+        'anvil-daemon-wrong-owner',
+        'named-pipe server authenticator is required after an injected connection'
+      );
+    }
+    this.authenticateServer(sock);
+  }
+
+  private connectViaFactory(create: (name: string) => net.Socket): Promise<net.Socket> {
+    return new Promise<net.Socket>((resolve, reject) => {
+      const sock = create(this.pipeName);
+      let settled = false;
+      sock.once('connect', () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        sock.pause();
+        resolve(sock);
+      });
+      sock.once('error', (err: Error) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        sock.destroy();
+        reject(mapConnectError(this.pipeName, err));
+      });
+    });
+  }
+
+  private mapAuthError(err: unknown): DriverClientError {
+    if (err instanceof DriverClientError) {
+      return err;
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return driverError(
+      'anvil-daemon-wrong-owner',
+      `named-pipe server authentication failed: ${message}`
+    );
   }
 
   /** Run the injected SID provider, mapping any non-structured throw
