@@ -48,6 +48,9 @@ retries = { backoff = "fixed", count = 2, delay = "500ms" }
 # is still spawning. Locally the suite is stable (~1.3s); CI observed
 # `timed out after 2000ms waiting for the daemon-start lock` once on this
 # branch after earlier greens. Two retries match the GH #3182 / LSP pattern.
+# 2026-09-11: ensure_with now retries timed-out lock slices with live re-probe
+# until the lifecycle budget (Journey path — raw cargo test — has no nextest
+# retries). Keep this override as belt-and-suspenders under full-suite load.
 [[profile.default.overrides]]
 filter = 'package(eddacraft-anvil) & test(concurrent_ensures_from_disjoint_runtime_dirs_start_exactly_one_daemon)'
 retries = { backoff = "fixed", count = 2, delay = "1s" }

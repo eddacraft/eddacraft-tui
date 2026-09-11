@@ -35,8 +35,10 @@ const BIND_POLL_INTERVAL: Duration = Duration::from_millis(50);
 #[cfg(any(unix, windows))]
 const LIFECYCLE_BUDGET: Duration = Duration::from_secs(12);
 
-/// Cap on rendezvous-coordinator and per-install start-lock wait. A stuck
-/// holder must not block ensure indefinitely (JREL-004 residual / JREL-011).
+/// Cap on one rendezvous-coordinator / per-install start-lock wait slice.
+/// `ensure_with` retries timed-out slices (re-probing for a peer-started
+/// daemon) until the lifecycle budget is spent, so a stuck holder still
+/// fails closed without blocking forever (JREL-004 residual / JREL-011).
 #[cfg(any(unix, windows))]
 const LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -466,9 +468,35 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
 
     // 3. Serialise the spawn critical section. Coordinator then per-install
     //    start lock, both inside the remaining lifecycle budget (JREL-011).
-    let (_rendezvous, _lock) = match hold_spawn_serialisation(params, deadline) {
-        Ok(locks) => locks,
-        Err(outcome) => return outcome,
+    //    A racing ensure may hold those locks for the whole spawn+bind window.
+    //    A single LOCK_ACQUIRE_TIMEOUT miss is not terminal: re-probe between
+    //    attempts and reuse a daemon that appeared, or keep trying until the
+    //    lifecycle budget is spent. Journey verification runs raw `cargo test`
+    //    (not nextest), so this product path — not a retry override — is what
+    //    keeps concurrent version-skew ensures green under CI contention.
+    let (_rendezvous, _lock) = loop {
+        match hold_spawn_serialisation(params, deadline) {
+            Ok(locks) => break locks,
+            Err(outcome) => match live_endpoints(params) {
+                EndpointLiveness::One => {
+                    publish_observed_live_endpoint(params);
+                    return EnsureOutcome::Reused;
+                }
+                EndpointLiveness::Conflict { live, endpoints } => {
+                    return conflict_outcome(live, &endpoints);
+                }
+                EndpointLiveness::Unresponsive { endpoint } => {
+                    return unresponsive_outcome(&endpoint);
+                }
+                EndpointLiveness::None => {
+                    if Instant::now() >= deadline || !serialisation_wait_is_retryable(&outcome)
+                    {
+                        return outcome;
+                    }
+                    std::thread::sleep(params.poll_interval.min(Duration::from_millis(50)));
+                }
+            },
+        }
     };
 
     // 4. Re-probe under the locks: a racing caller — from this environment or
@@ -546,6 +574,16 @@ fn unresponsive_outcome(endpoint: &str) -> EnsureOutcome {
              Run `anvil doctor --fix` or retry with bare `anvil`"
         ),
     }
+}
+
+/// Lock / rendezvous waits that timed out may be retried while the lifecycle
+/// budget remains: the holder is often a peer still binding, not a stuck lock.
+#[cfg(any(unix, windows))]
+fn serialisation_wait_is_retryable(outcome: &EnsureOutcome) -> bool {
+    matches!(
+        outcome,
+        EnsureOutcome::Failed { recovery } if recovery.contains("timed out")
+    )
 }
 
 /// Take the rendezvous coordinator then the per-install start lock, sharing
@@ -1792,6 +1830,38 @@ mod tests {
             launcher.spawns(),
             0,
             "must not spawn while the lock is held"
+        );
+    }
+
+    /// Peer still binding: lock slices time out, then the peer answers and we
+    /// reuse without spawning (Journey concurrent skew / disjoint-runtime class).
+    #[test]
+    fn lock_timeout_reprobes_and_reuses_peer_started_daemon() {
+        let fx = fixture();
+        let _holder =
+            acquire_ensure_lock(&fx.lock, Duration::from_secs(2)).expect("hold start lock");
+        let (probe, ready) = FlagProbe::absent();
+        let launcher = FakeLauncher::never_binds();
+        let p = EnsureParams {
+            lock_timeout: Duration::from_millis(40),
+            lifecycle_budget: Duration::from_millis(500),
+            bind_timeout: Duration::from_millis(40),
+            poll_interval: Duration::from_millis(15),
+            ..params(&probe, &launcher, &fx.lock, &fx.log)
+        };
+        let ready_flip = Arc::clone(&ready);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(120));
+            ready_flip.store(true, Ordering::SeqCst);
+        });
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Reused => {}
+            other => panic!("expected Reused after peer answered mid-wait, got {other:?}"),
+        }
+        assert_eq!(
+            launcher.spawns(),
+            0,
+            "must reuse the peer-started daemon, not spawn over the held lock"
         );
     }
 
