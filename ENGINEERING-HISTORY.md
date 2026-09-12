@@ -9,11 +9,11 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased] — Draft — Continuous journey honesty
 
-> **Draft for `v0.9.8-beta`.** Technical work landed on `main` since
+> **Draft for `v0.10.0-beta`.** Technical work landed on `main` since
 > `v0.9.7-beta`. Theme locked: continuous journey honesty. Version and date land
 > at the cut.
 
-Technical work on `main` since `v0.9.7-beta`. The locked `v0.9.8-beta` claim is
+Technical work on `main` since `v0.9.7-beta`. The locked `v0.10.0-beta` claim is
 **continuous journey honesty**: first use through daily ensure tells the truth
 about activation, coverage, and protection (JSIMP-001…006; JREL-002 live MCP
 attach; JREL-009 explicit launch overrides; JREL-010 worktree-pinned MCP).
