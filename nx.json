@@ -37,7 +37,7 @@
   "plugins": [
     {
       "plugin": "@nx/js/typescript",
-      "exclude": ["tools/test-harness/**"],
+      "exclude": ["tools/test-harness/**", "apps/docs-public-astro/**"],
       "options": {
         "typecheck": {
           "targetName": "typecheck"
@@ -51,7 +51,7 @@
     },
     {
       "plugin": "@nx/eslint/plugin",
-      "exclude": ["tools/test-harness/**"],
+      "exclude": ["tools/test-harness/**", "apps/docs-public-astro/**"],
       "options": {
         "targetName": "lint"
       }

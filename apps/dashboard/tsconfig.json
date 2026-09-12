@@ -16,6 +16,9 @@
   "include": ["src", "vite.config.ts"],
   "references": [
     {
+      "path": "../../packages/anvil/flags-catalogue"
+    },
+    {
       "path": "../../packages/libs/render"
     }
   ]
