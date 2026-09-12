@@ -224,7 +224,7 @@ $anvil welcome                 # optional ungated learning; no login
 $anvil start                   # activate: daemon, hooks, consent-first MCP
 $anvil start --no-mcp          # activation without writing editor MCP config
 ANVIL_NO_MCP=1 $anvil start    # same via env
-$anvil                         # daily ensure after a successful start (bare)
+$anvil                         # day-two ensure: daemon + remembered MCP (bare)
 
 $anvil status                  # project + daemon health
 $anvil status --json
@@ -430,8 +430,9 @@ winget install eddacraft.anvil
 ```
 
 First value after install: optional `anvil welcome` (ungated learning), then
-`anvil start` for activation — a closing receipt names proven coverage. Day two
-is bare `anvil` (quiet ensure of remembered integrations). Details:
+`anvil auth login` once you have beta access, then `anvil start` for activation
+— a closing receipt names proven coverage. Day two is bare `anvil` (ensure
+report: local daemon plus already-configured MCP; no setup picker). Details:
 [Quick Start](./docs/public/anvil/quickstart.md).
 
 On Windows, release the running binary first by quitting the IDE or stopping
