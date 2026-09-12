@@ -345,6 +345,10 @@ pub struct TutorialState {
     autoplay_ghost_offset: usize,
     autoplay_result_dwell: bool,
     autoplay_watch_dwell: bool,
+    /// Interactive command steps hold on the captured output until the user
+    /// continues. Distinct from [`Self::autoplay_result_dwell`], which is a
+    /// one-tick pause for the hands-free demo.
+    command_result_dwell: bool,
     autoplay_command: Option<executor::AutoplayCommand>,
     autoplay_command_advance: bool,
     /// Supplied by `anvil-cli` (CIB-248). Runs the demo check in-process so
@@ -445,6 +449,7 @@ impl TutorialState {
             autoplay_ghost_offset: 0,
             autoplay_result_dwell: false,
             autoplay_watch_dwell: false,
+            command_result_dwell: false,
             autoplay_command: None,
             autoplay_command_advance: false,
             autoplay_runner: None,
@@ -816,6 +821,7 @@ impl TutorialState {
             self.reveal = None;
             self.autoplay_result_dwell = false;
             self.autoplay_watch_dwell = false;
+            self.command_result_dwell = false;
             true
         } else {
             false
@@ -832,6 +838,7 @@ impl TutorialState {
         self.wants_watch_demo = false;
         self.reveal = None;
         self.editor = None;
+        self.command_result_dwell = false;
     }
 
     /// Recover from an autoplay failure **without leaving the TUI** (CIB-248).
@@ -927,6 +934,7 @@ impl TutorialState {
         self.wants_watch_demo = false;
         self.reveal = None;
         self.editor = None;
+        self.command_result_dwell = false;
     }
 
     fn resolve_session_target(
@@ -1048,6 +1056,7 @@ impl TutorialState {
         self.autoplay_ghost_offset = 0;
         self.autoplay_result_dwell = false;
         self.autoplay_watch_dwell = false;
+        self.command_result_dwell = false;
         if self.current_step < self.steps.len() {
             self.steps[self.current_step].completed = true;
             if self.current_step + 1 < self.steps.len() {
@@ -1226,6 +1235,27 @@ impl TutorialState {
             return;
         }
 
+        // Successful command output is on screen — Enter/space continue,
+        // Esc returns to the picker. Do not start another reveal.
+        if self.command_result_dwell {
+            match action {
+                Action::Select | Action::Toggle => {
+                    self.command_result_dwell = false;
+                    self.advance_step();
+                }
+                Action::Back => {
+                    self.command_result_dwell = false;
+                    self.phase = TutorialPhase::PathSelect;
+                }
+                Action::Quit => {
+                    self.command_result_dwell = false;
+                    self.should_quit = true;
+                }
+                _ => {}
+            }
+            return;
+        }
+
         // When a command has failed or verification has failed, only retry
         // (r) and skip (s) are active; everything else is ignored except
         // Back and Quit.
@@ -1238,8 +1268,10 @@ impl TutorialState {
                         step.verify_result = None;
                         step.command.clone()
                     });
-                    if let Some(cmd) = cmd {
-                        self.execute_current_command(&cmd);
+                    if let Some(cmd) = cmd
+                        && self.execute_current_command_with_advance(&cmd, false)
+                    {
+                        self.command_result_dwell = true;
                     }
                 }
                 // 's' — skip: mark complete and advance without re-running
@@ -1384,7 +1416,7 @@ impl TutorialState {
             if self.autoplay {
                 self.autoplay_result_dwell = true;
             } else if self.autoplay_command_advance {
-                self.advance_step();
+                self.command_result_dwell = true;
             }
         } else if self.autoplay {
             let detail = self
@@ -1467,8 +1499,11 @@ impl TutorialState {
         }
     }
 
-    /// Complete the reveal and execute the revealed command — the same
-    /// execute → verify → advance sequence Enter performed before WOW-002.
+    /// Complete the reveal and execute the revealed command.
+    ///
+    /// Autoplay dwells one tick on the result, then advances. Interactive
+    /// mode holds on the captured output until the user continues, so a
+    /// welcome/tutorial command is actually seen finishing (GH #4652).
     fn finish_reveal(&mut self) {
         let Some(reveal) = self.reveal.take() else {
             return;
@@ -1477,15 +1512,15 @@ impl TutorialState {
             if self.execute_current_command_with_advance(&reveal.command, false) {
                 self.autoplay_result_dwell = true;
             }
-        } else {
-            self.execute_current_command(&reveal.command);
+        } else if self.execute_current_command_with_advance(&reveal.command, false) {
+            self.command_result_dwell = true;
         }
     }
 
     /// Execute `cmd` for the current step, store its output, verify, and
-    /// advance on success. Returns whether the step advanced. Shared by
-    /// reveal completion, failed-step retry, and watch-triggered re-runs so
-    /// the execution contract lives in one place.
+    /// advance on success. Returns whether the step advanced. Used by
+    /// watch-triggered re-runs. Interactive Enter/retry hold on the result
+    /// instead (`command_result_dwell`).
     fn execute_current_command(&mut self, cmd: &str) -> bool {
         self.execute_current_command_with_advance(cmd, true)
     }
@@ -1628,6 +1663,8 @@ impl crate::surface::Surface for TutorialState {
                     "type to edit  enter newline  ctrl-s save  esc cancel"
                 } else if self.is_revealing() {
                     "any key run now  esc cancel  q quit"
+                } else if self.command_result_dwell {
+                    "enter continue  space continue  esc paths  q quit"
                 } else if self.current_step_failed() {
                     "r retry  s skip  esc paths  q quit"
                 } else if self.current_step_is_editable() {
@@ -1691,6 +1728,7 @@ impl crate::surface::Surface for TutorialState {
         self.autoplay_ghost_offset = 0;
         self.autoplay_result_dwell = false;
         self.autoplay_watch_dwell = false;
+        self.command_result_dwell = false;
         if let Some(command) = self.autoplay_command.take() {
             command.cancel();
         }
@@ -1871,6 +1909,15 @@ mod tests {
         assert!(
             state.is_revealing(),
             "Enter on a command step must start the reveal"
+        );
+        state.handle_key(Action::Select);
+    }
+
+    /// Continue past a successful command result (GH #4652).
+    fn continue_after_result(state: &mut TutorialState) {
+        assert!(
+            state.command_result_dwell,
+            "expected the command result to still be on screen"
         );
         state.handle_key(Action::Select);
     }
@@ -3027,21 +3074,51 @@ mod tests {
     // --- Command execution tests ---
 
     #[test]
-    fn successful_command_step_advances() {
+    fn successful_command_stays_on_step_until_enter() {
+        // Welcome/tutorial command steps used to execute and immediately
+        // advance, so the captured output never appeared. Stay on the step
+        // until the user continues (GH #4652).
         let mut state = state_with_command_step("echo hello");
         assert_eq!(state.current_step, 0);
 
         select_and_run(&mut state);
 
-        // Command succeeds — step is completed and phase moves to Complete
-        // (only one step in this state)
-        assert_eq!(state.phase, TutorialPhase::Complete);
-        assert!(state.steps[0].completed);
+        assert_eq!(state.phase, TutorialPhase::Running);
+        assert_eq!(state.current_step, 0);
+        assert!(!state.steps[0].completed);
         let output = state.steps[0]
             .output
             .as_ref()
             .expect("output should be present");
         assert!(output.success);
+        assert!(output.stdout.contains("hello"));
+
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert_eq!(help, "enter continue  space continue  esc paths  q quit");
+
+        state.handle_key(Action::Select);
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+    }
+
+    #[test]
+    fn space_continues_after_successful_command() {
+        let mut state = state_with_command_step("echo hello");
+        select_and_run(&mut state);
+        assert_eq!(state.phase, TutorialPhase::Running);
+        state.handle_key(Action::Toggle);
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert!(state.steps[0].completed);
+    }
+
+    #[test]
+    fn esc_from_command_result_returns_to_picker() {
+        let mut state = state_with_command_step("echo hello");
+        select_and_run(&mut state);
+        state.handle_key(Action::Back);
+        assert_eq!(state.phase, TutorialPhase::PathSelect);
+        assert!(!state.steps[0].completed);
+        assert!(!state.command_result_dwell);
     }
 
     #[test]
@@ -3094,7 +3171,8 @@ mod tests {
         // Press 'r' to retry — the actual command is "echo retry_test" which succeeds.
         state.handle_key(Action::Character('r'));
 
-        // Should advance past the step.
+        assert!(state.steps[0].output.as_ref().is_some_and(|o| o.success));
+        continue_after_result(&mut state);
         assert_eq!(state.phase, TutorialPhase::Complete);
         assert!(state.steps[0].completed);
     }
@@ -3256,9 +3334,12 @@ mod tests {
         state.reveal_tick(); // clamps to 10 → complete → executes
 
         assert!(!state.is_revealing());
+        assert_eq!(state.phase, TutorialPhase::Running);
+        assert!(!state.steps[0].completed);
+        assert!(state.steps[0].output.as_ref().unwrap().success);
+        continue_after_result(&mut state);
         assert_eq!(state.phase, TutorialPhase::Complete);
         assert!(state.steps[0].completed);
-        assert!(state.steps[0].output.as_ref().unwrap().success);
     }
 
     #[test]
@@ -3271,8 +3352,10 @@ mod tests {
         state.handle_key(Action::Character('x'));
 
         assert!(!state.is_revealing());
-        assert_eq!(state.phase, TutorialPhase::Complete);
+        assert_eq!(state.phase, TutorialPhase::Running);
         assert!(state.steps[0].output.as_ref().unwrap().success);
+        continue_after_result(&mut state);
+        assert_eq!(state.phase, TutorialPhase::Complete);
     }
 
     #[test]
@@ -3348,6 +3431,8 @@ mod tests {
         state.handle_key(Action::Character('r'));
 
         assert!(!state.is_revealing());
+        assert_eq!(state.phase, TutorialPhase::Running);
+        continue_after_result(&mut state);
         assert_eq!(state.phase, TutorialPhase::Complete);
     }
 
@@ -3747,7 +3832,8 @@ mod tests {
 
     #[test]
     fn verify_pass_advances_step() {
-        // "echo hello" succeeds and stdout contains "hello" — should advance.
+        // "echo hello" succeeds and stdout contains "hello" — show the
+        // result, then continue.
         let mut state = state_with_verified_step(
             "echo hello",
             Verify::OutputContains("hello".to_string()),
@@ -3755,9 +3841,11 @@ mod tests {
         );
         select_and_run(&mut state);
 
+        assert_eq!(state.phase, TutorialPhase::Running);
+        assert_eq!(state.steps[0].verify_result, Some(VerifyResult::Pass));
+        continue_after_result(&mut state);
         assert_eq!(state.phase, TutorialPhase::Complete);
         assert!(state.steps[0].completed);
-        assert_eq!(state.steps[0].verify_result, Some(VerifyResult::Pass));
     }
 
     #[test]
@@ -3818,9 +3906,10 @@ mod tests {
         // Retry — the actual "echo hello" command succeeds and contains "hello".
         state.handle_key(Action::Character('r'));
 
+        assert_eq!(state.steps[0].verify_result, Some(VerifyResult::Pass));
+        continue_after_result(&mut state);
         assert_eq!(state.phase, TutorialPhase::Complete);
         assert!(state.steps[0].completed);
-        assert_eq!(state.steps[0].verify_result, Some(VerifyResult::Pass));
     }
 
     // --- Static mode tests ---
