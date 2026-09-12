@@ -944,11 +944,9 @@ fn write_atomic_owner_only(path: &Path, body: &[u8]) -> Result<(), ConfinementEr
         path: path.to_path_buf(),
         source,
     })?;
-    anvil_intercept_win32::apply_owner_only_file_dacl(path).map_err(|source| {
-        ConfinementError::Io {
-            path: path.to_path_buf(),
-            source,
-        }
+    anvil_intercept_win32::apply_owner_only_file_dacl(path).map_err(|source| ConfinementError::Io {
+        path: path.to_path_buf(),
+        source,
     })
 }
 
@@ -1026,8 +1024,7 @@ mod tests {
         }
         #[cfg(windows)]
         {
-            anvil_intercept_win32::apply_owner_only_file_dacl(path)
-                .expect("owner-only DACL");
+            anvil_intercept_win32::apply_owner_only_file_dacl(path).expect("owner-only DACL");
         }
     }
 

@@ -30,21 +30,15 @@ use windows_sys::Win32::Foundation::{
     ERROR_NOT_FOUND, ERROR_OPERATION_ABORTED, ERROR_PIPE_NOT_CONNECTED, FILETIME, HANDLE,
     INVALID_HANDLE_VALUE, LocalFree, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
-#[cfg(test)]
-use windows_sys::Win32::Security::Authorization::SetNamedSecurityInfoW;
 use windows_sys::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, GetSecurityInfo,
-    SDDL_REVISION_1, SE_FILE_OBJECT,
+    SDDL_REVISION_1, SE_FILE_OBJECT, SetNamedSecurityInfoW,
 };
 use windows_sys::Win32::Security::{
     ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, DACL_SECURITY_INFORMATION, GetAce,
-    GetSecurityDescriptorControl, GetTokenInformation, INHERIT_ONLY_ACE, SE_DACL_PROTECTED,
-    SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR, TOKEN_OWNER, TOKEN_QUERY, TOKEN_USER, TokenOwner,
-    TokenUser,
-};
-#[cfg(test)]
-use windows_sys::Win32::Security::{
-    GetSecurityDescriptorDacl, PROTECTED_DACL_SECURITY_INFORMATION,
+    GetSecurityDescriptorControl, GetSecurityDescriptorDacl, GetTokenInformation, INHERIT_ONLY_ACE,
+    PROTECTED_DACL_SECURITY_INFORMATION, SE_DACL_PROTECTED, SECURITY_ATTRIBUTES,
+    SECURITY_DESCRIPTOR, TOKEN_OWNER, TOKEN_QUERY, TOKEN_USER, TokenOwner, TokenUser,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     BY_HANDLE_FILE_INFORMATION, CreateDirectoryW, CreateFileW, DELETE, FILE_APPEND_DATA,
