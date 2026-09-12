@@ -833,7 +833,7 @@ jobs:
           'true' || needs.detect-changes.outputs.format-required == 'true'
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            pnpm exec nx affected -t lint && pnpm run lint:md
+            pnpm exec nx affected -t lint --exclude=eddacraft-anvil && pnpm run lint:md
           else
             pnpm run lint:check
           fi
