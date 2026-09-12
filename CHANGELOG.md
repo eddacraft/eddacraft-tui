@@ -52,6 +52,18 @@ engineering maintenance are recorded in the
   with ordinary drive paths, so a healthy migrated config is not reported as
   dual-truth shadowing (Warn vs Pass plus a leftover offer).
 
+- **Windows named-pipe clients authenticate the daemon before traffic.** After
+  the existing ownership gate, the driver checks the pipe server process SID and
+  refuses a mismatched server before handlers attach. Trusted Windows config
+  files whose DACL grants write to another principal are refused the same way
+  Unix refuses world-writable config.
+
+- **Provenance and debug output no longer keep credential-shaped material.**
+  Token-shaped session ids, Git remote userinfo, SCP-style remotes, prompt text,
+  and nested structured debug values are redacted before they reach Git notes,
+  stored provenance, or the console. Ordinary remotes, messages, and exact Git
+  object ids stay intact.
+
 - **False-positive secrets can be marked without silencing real keys.** Codex's
   `anvil_suppress` comments (`@anvil-ignore-until DATE ID: reason`) are now
   parsed. Entropy, generic-secret, API-key, and credit-card matches honour

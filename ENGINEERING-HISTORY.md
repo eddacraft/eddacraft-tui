@@ -19,8 +19,9 @@ about activation, coverage, and protection (JSIMP-001…006; JREL-002 live MCP
 attach; JREL-009 explicit launch overrides; JREL-010 worktree-pinned MCP).
 JOURNEY-015/-016 are Merged evidence gates only — not publication authority.
 Adjacent tip freight (GATT attestation, SDT/GTAO/CONF/SETCON/FLAGCAT, CCTX
-spike, PSCAF, Windows park-and-swap, ensure lock re-probe) ships on the same tip
-but is not the cut headline.
+spike, PSCAF, Windows park-and-swap, ensure lock re-probe, CIB-211 pipe/ACL,
+CIB-215 / CLAWREL credential boundaries) ships on the same tip but is not the
+cut headline.
 
 ### Secret-detection truth (SDT, ADR-136)
 
@@ -112,6 +113,10 @@ but is not the cut headline.
 - **`anvil update` park-and-swap for a held `anvil.exe`.** (CIB-362, #4129 /
   #4148)
 - **Git Bash drive-relative `workspace allow` refused.** (CIB-360, #4129)
+- **Windows named-pipe server authentication plus trusted-config DACL.** Driver
+  clients authenticate the pipe server process SID before document traffic;
+  `read_trusted_config` refuses owner-matched files whose DACL grants write to
+  another principal (Unix `0o022` analogue). (CIB-211, #4635)
 
 ### Observation honesty / telemetry / insights
 
@@ -173,6 +178,12 @@ but is not the cut headline.
   `ensure_with` waiters no longer treat a single `LOCK_ACQUIRE_TIMEOUT` miss as
   terminal while budget remains; a peer-started daemon is reused when it
   answers. (#4624)
+- **Upgrade-leg journey verify invokes the previous public binary.**
+  `--require-upgrade` runs the prior Homebrew/`--version`-identified anvil,
+  writes `mcp-config` into an isolated workspace, and requires the current
+  binary to `--verify` the hand-off; the 10 September JOURNEY-015 upgrade-leg
+  pass was retracted because it never executed that previous binary. (JREL-012
+  residual, #4634)
 - **Pre-write protection evidence scoped to one worktree.** `query_status`
   accepts an optional worktree filter so claim fetch cost does not scale with
   unrelated sessions. (JREL-013, #4568)
@@ -234,6 +245,8 @@ but is not the cut headline.
 - **JOURNEY-015 pinned-main rehearsal handoff closed.** Local and CI
   `journey:verify` green; release claim freeze not authorised; JSIMP / JOURNEY
   simplification permitted. (#4574)
+- **JOURNEY-015 upgrade-leg evidence corrected.** Prior `--require-upgrade` pass
+  retracted; harness now requires a distinct previous public executable (#4634).
 - **JOURNEY-013 activation navigation closed as fixed.** First-run consent
   navigation re-test against contextual help bar; no splash. (#4578)
 - **Fail-closed journey verification harness.** E2E proves journey outcomes stay
@@ -273,14 +286,32 @@ but is not the cut headline.
 - **Ember default-off; JavaScript Ember retired.** Historical reader only under
   explicit `ANVIL_EMBER=1`; generation unavailable. (#4399)
 
+### Clawpatch release hardening (CLAWREL)
+
+- **Credential-shaped material redacted at provenance and debug boundaries.**
+  Session env ids, Git remote userinfo, SCP usernames, prompt text, and nested
+  structured debug values are scrubbed without hiding exact Git SHA-1/SHA-256
+  object ids. (CIB-215, #4632; CLAWREL-001, #4637)
+- **Feature-flag snapshots use the canonical definition schema only.** Weaker
+  parallel validators removed; invalid definitions surface as
+  `SnapshotLoadError`. (CLAWREL-001, #4637)
+- **Driver transport close cancels pending connect/auth.** Unix and Windows
+  shutdown destroy late sockets, reject `connect()` with `anvil-driver-closed`,
+  and fire the close callback once. (CLAWREL-001, #4637)
+
 ### CI / reliability freight
 
 - **Ensure lock re-probe plus post-#4615 reliability freight.** Concurrent
   ensure lock timeout retry (#4624); Windows path-identity / doctor dual-truth
   repair (#4619); test teardown ignores recycled PIDs (#4618); neon workflow
-  contract bound structurally (#4620); mid-edit bench requires complete gate
-  input (#4621); unused TypeScript runtime cache surface retired (CIB-418,
-  #4622); APS loader paths contained after `realpath` (#4630).
+  contract bound structurally (#4620) with residual evasions closed (#4640);
+  mid-edit bench requires complete gate input (#4621); unused TypeScript runtime
+  cache surface retired (CIB-418, #4622); APS loader paths contained after
+  `realpath` (#4630).
+- **v0.10.0-beta preflight workspace repairs.** TypeScript project-graph sync
+  restored (exclude Astro spike; dashboard `flags-catalogue` reference) (#4643);
+  Rust-only `eddacraft-anvil` excluded from JS ESLint fan-out while retaining
+  `lint:rust` (#4644).
 - **Mid-edit service SLO soft-warn; roundtrip hard-fail.** CI stops flaking on
   mid-edit service noise while keeping roundtrip fail-closed. (#4575)
 - **Runtime I/O bounds on daemon exchanges and Git object reads.** Shared
