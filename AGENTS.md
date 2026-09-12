@@ -1,15 +1,12 @@
 # Agent Guidelines
 
-These conventions apply to all agents working in this repository.
+Shared behaviour contract for all agents. Map and vocabulary:
+[`CONTEXT.md`](CONTEXT.md). Skills, agents, and commands:
+`docs/guides/agent-surface-inventory.md` — do not re-describe them in adapters.
+Claude Code keeps a thin `CLAUDE.md` that imports this file.
 
-For orientation, vocabulary, and repository layout, read
-[`CONTEXT.md`](CONTEXT.md). This file is the shared behaviour contract;
-`CONTEXT.md` is the map.
-
-Tool-specific adapters live outside this contract. Claude Code keeps a **thin**
-`CLAUDE.md` (import this contract + Claude-only notes). Shared skills, agents,
-and commands are inventoried in `docs/guides/agent-surface-inventory.md` — do
-not re-describe them in adapters.
+Local directory conventions belong in the nearest local `AGENTS.md`; do not add
+nested `CONTEXT.md` files.
 
 ## Operating Rules
 
@@ -24,8 +21,11 @@ not re-describe them in adapters.
 - Before the final response on non-trivial work, run
   `pnpm ci-log:append -- --task "<summary>"` (pending by default).
   `Improvement: none` is valid. Do not skip it because the note looks unrelated
-  to the feature PR — pending is PR-independent (CIB-191). Full form:
-  `docs/guides/continuous-improvement-log.md`.
+  to the feature PR — pending is PR-independent (CIB-191). Pending notes live
+  under the git common dir and stay invisible in feature-PR diffs until
+  `pnpm ci-log:harvest` on a bookkeeping branch; check `pnpm ci-log:status`, not
+  the tracked log. `agentic-loop` names docs-workflow closeout, not this step.
+  Full form: `docs/guides/continuous-improvement-log.md`.
 - Never revert or overwrite another person's uncommitted work unless explicitly
   asked.
 - Treat administrator and policy-bypass operations as a separate authority
@@ -63,15 +63,14 @@ APS Ready -> claim issue -> Worktrunk branch -> /dev-loop -> Council -> PR -> Me
 `eddaskills sync` (`eddaskills.toml`). Do not depend on a user-global `code-env`
 or `~/.claude/skills` copy for the loop.
 
-Use Worktrunk-managed worktrees from `main` for task branches. See
+Use Worktrunk-managed worktrees from `main`. See
 `docs/guides/branching-strategy.md` and `docs/guides/worktree-policy.md`.
 
-For APS vocabulary, status extensions, progress counters, release metadata,
-feature flags, commit format, and local validation policy, read
-`plans/project-context.md`. Continuous-improvement closeout (pending queue +
-harvest) is also defined there and in
-`docs/guides/continuous-improvement-log.md`. For repository-management commands
-and local setup, read `docs/guides/repository-operations.md`.
+APS vocabulary, status extensions, progress counters, release metadata, feature
+flags, commit format, local validation, and continuous-improvement harvest:
+`plans/project-context.md` and `docs/guides/continuous-improvement-log.md`.
+Repository-management commands and local setup:
+`docs/guides/repository-operations.md`.
 
 ## Architecture And Scope
 
@@ -87,34 +86,16 @@ Durable architectural decisions require an ADR using
 
 ## Documentation Changes
 
-Documentation is operational context, not prose cleanup.
-
-When changing `docs/**`, `plans/**`, `README.md`, `CONTRIBUTING.md`,
-`AGENTS.md`, `CLAUDE.md`, or package/crate READMEs, follow:
-
-- `docs/guides/documentation-governance.md`
-- `plans/project-context.md`
+Documentation is operational context, not prose cleanup. When changing
+`docs/**`, `plans/**`, `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `CLAUDE.md`,
+or package/crate READMEs, follow `docs/guides/documentation-governance.md` and
+`plans/project-context.md`.
 
 Code and contract changes must review documentation and diagram impact in the
-same change when they match any trigger in the authoritative
+same change when they match any trigger in the
 [change-impact review](docs/guides/documentation-governance.md#change-impact-review).
-That authority defines the triggers, exemptions, and required
-update-or-unaffected disposition.
 
 Include a short `Docs Closeout` note in the final response.
-
-## Continuous-improvement closeout
-
-The MUST is in Operating Rules so harnesses that truncate this file still see
-it. `agentic-loop` names docs-workflow closeout, not this step; the repo
-contract still requires `pnpm ci-log:append -- --task "<summary>"`.
-
-Pending notes live under the git common dir and are invisible in feature-PR
-diffs until `pnpm ci-log:harvest` on a bookkeeping branch. Check
-`pnpm ci-log:status`, not the tracked log, to see whether the practice is alive.
-
-Full procedure, including harvest and triage:
-`docs/guides/continuous-improvement-log.md`.
 
 ## Validation
 
@@ -137,36 +118,23 @@ For full primary-CLI crate validation, run
 required so an earlier test-binary failure cannot hide integration-test
 failures.
 
-For full confidence, run `pnpm validate:full`.
-
-For test selection and stack-specific commands, read `docs/guides/testing.md`.
+For full confidence, run `pnpm validate:full`. Stack-specific selection:
+`docs/guides/testing.md`.
 
 ## Anvil Developer Functions
 
 This repository is anvil-enabled. When the anvil MCP tools are available, prefer
 them over blind file reads and unchecked writes:
 
-- Use the graph-context tools (`anvil_status`, `anvil_search_symbols`,
+- Graph-context tools (`anvil_status`, `anvil_search_symbols`,
   `anvil_symbol_context`, `anvil_find_callers`, `anvil_find_dependents`,
-  `anvil_impact_of_change`, `anvil_affected_tests`, `anvil_query_boundary`) to
-  understand code before reading whole files. They are bounded, deterministic,
-  and never block.
-- Call `anvil_validate_write` before applying a file write, or
-  `anvil_apply_patch` when applying a unified diff. Honour a `block` decision;
-  surface `warn` diagnostics and continue.
+  `anvil_impact_of_change`, `anvil_affected_tests`, `anvil_query_boundary`)
+  before reading whole files. They are bounded, deterministic, and never block.
+- `anvil_validate_write` before a file write, or `anvil_apply_patch` for a
+  unified diff. Honour a `block` decision; surface `warn` diagnostics and
+  continue.
 
 If the tools are not wired into your harness, fall back to ordinary file reads
-and note that anvil's developer functions were unavailable; do not stall. For
-procedure use the `anvil-developer-functions` skill; for setup, `anvil check`,
-`anvil gate`, watch mode, and CI use `using-anvil`.
-
-## Agent Surfaces
-
-Repo-local and global skills, agents, and commands are inventoried in
-`docs/guides/agent-surface-inventory.md`.
-
-Use the relevant skill, command, or agent surface instead of copying procedure
-text into this file.
-
-Local directory conventions belong in the nearest local `AGENTS.md`; do not add
-nested `CONTEXT.md` files.
+and note that anvil's developer functions were unavailable; do not stall.
+Procedure: `anvil-developer-functions` skill. Setup, `anvil check`,
+`anvil gate`, watch mode, and CI: `using-anvil`.
