@@ -937,7 +937,7 @@ fn write_atomic_owner_only(path: &Path, body: &[u8]) -> Result<(), ConfinementEr
 /// Administrators owner + LOCAL SYSTEM write — which [`read_trusted`] correctly
 /// rejects as [`ConfinementError::ForeignWritable`]. Applying the owner-only
 /// DACL after write is the Windows analogue of Unix `chmod 0600`, and keeps the
-/// ForeignWritable gate intact for truly foreign writers.
+/// [`ConfinementError::ForeignWritable`] gate intact for truly foreign writers.
 #[cfg(windows)]
 fn write_atomic_owner_only(path: &Path, body: &[u8]) -> Result<(), ConfinementError> {
     std::fs::write(path, body).map_err(|source| ConfinementError::Io {

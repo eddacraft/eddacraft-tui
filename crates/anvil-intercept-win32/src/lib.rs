@@ -1536,7 +1536,7 @@ fn sid_ptr_to_string(sid: *mut c_void) -> io::Result<String> {
 /// write ACEs that default NTFS ACLs stamp on files under GHA runner tempdirs
 /// (Administrators owner + LOCAL SYSTEM writer). Used by the confinement /
 /// antipattern config write paths so a just-written file passes
-/// [`read_trusted_config`] without weakening the ForeignWritable gate.
+/// [`read_trusted_config`] without weakening the [`TrustedConfigRead::ForeignWritable`] gate.
 ///
 /// Grants full access to the process token user SID only (protected DACL, no
 /// inheritance). Privileged accounts can still bypass DACL; the read-time gate
