@@ -14,6 +14,11 @@ engineering maintenance are recorded in the
 
 ### Fixed
 
+- **A missing Windows named pipe is reported as daemon unavailable.** Connecting
+  when no intercept daemon is listening no longer looks like a wrong-owner
+  refusal, so clients can retry instead of treating "daemon down" as a hostile
+  pipe.
+
 - **`anvil welcome` restores the terminal on every exit.** Success, cancel,
   ordinary errors, partial setup failures, and panics all leave raw mode, mouse
   capture, and the alternate screen cleaned up.

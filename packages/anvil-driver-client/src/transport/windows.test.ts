@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { DriverClientError } from '../errors.js';
 import {
   assertWindowsServerSid,
+  mapWindowsPipeOpenError,
   parseSidFromWhoamiOutput,
   validateWindowsPipeName,
   validateWindowsPipeOwnership,
@@ -221,6 +222,39 @@ describe('WindowsNamedPipeTransport ownership gate', () => {
     });
     await expect(transport.connect(handlers)).rejects.toMatchObject({
       code: 'anvil-daemon-wrong-owner',
+    });
+  });
+});
+
+describe('mapWindowsPipeOpenError', () => {
+  const pipe = pipeFor(CURRENT_SID);
+
+  it('maps a missing pipe to retriable anvil-daemon-unavailable', () => {
+    expect(mapWindowsPipeOpenError(pipe, 2)).toMatchObject({
+      code: 'anvil-daemon-unavailable',
+      retriable: true,
+    });
+    expect(mapWindowsPipeOpenError(pipe, 3)).toMatchObject({
+      code: 'anvil-daemon-unavailable',
+      retriable: true,
+    });
+  });
+
+  it('maps a busy pipe to retriable anvil-daemon-unavailable', () => {
+    expect(mapWindowsPipeOpenError(pipe, 231)).toMatchObject({
+      code: 'anvil-daemon-unavailable',
+      retriable: true,
+    });
+  });
+
+  it('maps access-denied and unknown open failures to anvil-daemon-wrong-owner', () => {
+    expect(mapWindowsPipeOpenError(pipe, 5)).toMatchObject({
+      code: 'anvil-daemon-wrong-owner',
+      retriable: false,
+    });
+    expect(mapWindowsPipeOpenError(pipe, 0)).toMatchObject({
+      code: 'anvil-daemon-wrong-owner',
+      retriable: false,
     });
   });
 });

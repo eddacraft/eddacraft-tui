@@ -3,8 +3,9 @@
  *
  * Isolated so Linux tests never execute FFI. Loaded lazily via
  * `createRequire('koffi')`; koffi is an optionalDependency. Missing koffi,
- * a failed syscall, or a SID mismatch all fail closed as
- * `anvil-daemon-wrong-owner`.
+ * access-denied, or a SID mismatch fail closed as `anvil-daemon-wrong-owner`.
+ * A missing or busy pipe is `anvil-daemon-unavailable` — no listener is not
+ * an ownership failure.
  *
  * Mirrors `connect_owner_only_overlapped_pipe_client` in
  * `crates/anvil-intercept-win32`: `CreateFileW` with Identification SQOS
@@ -15,7 +16,7 @@
 import { createRequire } from 'node:module';
 import net from 'node:net';
 
-import { driverError } from '../errors.js';
+import { type DriverClientError, driverError } from '../errors.js';
 
 const GENERIC_READ = 0x8000_0000;
 const GENERIC_WRITE = 0x4000_0000;
@@ -32,6 +33,12 @@ const FILE_TYPE_PIPE = 3;
 const O_RDWR = 2;
 const O_BINARY = 0x8000;
 const FULL_SID_PATTERN = /^S-1-\d+(?:-\d+)+$/i;
+
+/** Win32 `GetLastError` values that mean no usable pipe listener. */
+const WIN32_ERROR_FILE_NOT_FOUND = 2;
+const WIN32_ERROR_PATH_NOT_FOUND = 3;
+const WIN32_ERROR_ACCESS_DENIED = 5;
+const WIN32_ERROR_PIPE_BUSY = 231;
 
 type Koffi = {
   load: (name: string) => {
@@ -76,6 +83,35 @@ function failAuth(message: string): never {
 }
 
 /**
+ * Map a `CreateFileW` last-error to the driver-client connect contract.
+ * Missing/busy pipes are unavailable (retriable). Access-denied and unknown
+ * open failures stay fail-closed as wrong-owner so a squat or ACL miss is
+ * never retried as "daemon down".
+ */
+export function mapWindowsPipeOpenError(pipeName: string, lastError: number): DriverClientError {
+  if (
+    lastError === WIN32_ERROR_FILE_NOT_FOUND ||
+    lastError === WIN32_ERROR_PATH_NOT_FOUND ||
+    lastError === WIN32_ERROR_PIPE_BUSY
+  ) {
+    return driverError(
+      'anvil-daemon-unavailable',
+      `cannot open named pipe ${pipeName}: Win32 error ${lastError}`
+    );
+  }
+  if (lastError === WIN32_ERROR_ACCESS_DENIED) {
+    return driverError(
+      'anvil-daemon-wrong-owner',
+      `cannot open named pipe ${pipeName}: Win32 error ${lastError}`
+    );
+  }
+  return driverError(
+    'anvil-daemon-wrong-owner',
+    `cannot open named pipe for server authentication: ${pipeName}`
+  );
+}
+
+/**
  * Open `pipeName` with Identification SQOS, authenticate the server process
  * SID, and adopt the HANDLE as a paused `net.Socket`.
  */
@@ -101,6 +137,7 @@ export function openAuthenticatedWindowsPipe(pipeName: string, currentUserSid: s
     'uint32',
     'void *',
   ]);
+  const GetLastError = kernel32.func('GetLastError', 'uint32', []);
   const CloseHandle = kernel32.func('CloseHandle', 'bool', ['void *']);
   const GetFileType = kernel32.func('GetFileType', 'uint32', ['void *']);
   const GetNamedPipeServerProcessId = kernel32.func('GetNamedPipeServerProcessId', 'bool', [
@@ -137,8 +174,9 @@ export function openAuthenticatedWindowsPipe(pipeName: string, currentUserSid: s
     flags,
     null
   );
+  const lastError = GetLastError() as number;
   if (isInvalidHandle(koffi, handle)) {
-    failAuth(`cannot open named pipe for server authentication: ${pipeName}`);
+    throw mapWindowsPipeOpenError(pipeName, lastError);
   }
 
   let adopted = false;

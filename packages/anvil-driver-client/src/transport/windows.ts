@@ -60,7 +60,7 @@ import { DriverClientError, driverError } from '../errors.js';
 import type { Transport, TransportCloseCause, TransportHandlers } from './types.js';
 import { openAuthenticatedWindowsPipe } from './windows-native-auth.js';
 
-export { assertWindowsServerSid } from './windows-native-auth.js';
+export { assertWindowsServerSid, mapWindowsPipeOpenError } from './windows-native-auth.js';
 
 function mapConnectError(pipeName: string, err: Error): DriverClientError {
   const code = (err as NodeJS.ErrnoException).code;

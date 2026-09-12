@@ -1,8 +1,8 @@
 # anvil driver client architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                           |
-| ------------ | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | DRVR  | Live   | Last reviewed 2026-09-11 against `packages/anvil-driver-client/src/transport/{unix,windows}.ts` CLAWREL-001 connection cancellation |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                          |
+| ------------ | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | DRVR  | Live   | Last reviewed 2026-09-13 against `windows-native-auth.ts` missing-pipe mapping: CreateFile not-found/busy is `anvil-daemon-unavailable`; identity/ACL failures stay `anvil-daemon-wrong-owner`. Prior review 2026-09-11 against `packages/anvil-driver-client/src/transport/{unix,windows}.ts` CLAWREL-001 connection cancellation |
 
 | Upstream                                                             | Downstream                                                          |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -69,7 +69,10 @@ process TokenUser SID (`GetNamedPipeServerProcessId`, same contract as Rust
 Identification SQOS via optional `koffi` FFI and fails closed if that native
 path cannot run. Tests inject `authenticateServer` (and optionally
 `createConnection`) so squat-reject coverage runs off Windows. A failure on
-either platform is non-retriable `anvil-daemon-wrong-owner`.
+either platform's identity or ACL check is non-retriable
+`anvil-daemon-wrong-owner`. A missing or busy named-pipe listener is retriable
+`anvil-daemon-unavailable`, matching the Unix missing-socket path and
+`Transport.connect`.
 
 Explicit close is terminal even while a connection is opening. Both transports
 destroy a provisional socket, reject the pending `connect()` with
