@@ -932,17 +932,21 @@ fn write_atomic_owner_only(path: &Path, body: &[u8]) -> Result<(), ConfinementEr
     })
 }
 
-/// Windows (DSV-010b / CIB-211): write then stamp a protected owner-only DACL.
-/// Plain `fs::write` inherits parent NTFS ACLs; under GHA runners that means
-/// Administrators owner + LOCAL SYSTEM write — which [`read_trusted`] correctly
-/// rejects as [`ConfinementError::ForeignWritable`]. Applying the owner-only
-/// DACL after write is the Windows analogue of Unix `chmod 0600`, and keeps the
-/// [`ConfinementError::ForeignWritable`] gate intact for truly foreign writers.
+/// Windows (DSV-010b / CIB-211): atomic no-reparse publish, then stamp a
+/// protected owner-only DACL. Mirrors the Unix temp/`O_NOFOLLOW`/`chmod 0600`/
+/// rename path via [`anvil_intercept_win32::path_nofollow::atomic_write_nofollow`]
+/// so a junction at the destination cannot redirect the write and a concurrent
+/// trusted read cannot observe a truncated body. The DACL stamp is the Unix
+/// `chmod 0600` analogue: without it, GHA runner tempdirs inherit Administrators
+/// owner + LOCAL SYSTEM write, which [`read_trusted`] correctly rejects as
+/// [`ConfinementError::ForeignWritable`].
 #[cfg(windows)]
 fn write_atomic_owner_only(path: &Path, body: &[u8]) -> Result<(), ConfinementError> {
-    std::fs::write(path, body).map_err(|source| ConfinementError::Io {
-        path: path.to_path_buf(),
-        source,
+    anvil_intercept_win32::path_nofollow::atomic_write_nofollow(path, body).map_err(|source| {
+        ConfinementError::Io {
+            path: path.to_path_buf(),
+            source,
+        }
     })?;
     anvil_intercept_win32::apply_owner_only_file_dacl(path).map_err(|source| ConfinementError::Io {
         path: path.to_path_buf(),
