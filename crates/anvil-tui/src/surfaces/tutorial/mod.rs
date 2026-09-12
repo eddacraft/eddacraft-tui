@@ -987,6 +987,10 @@ impl TutorialState {
             return false;
         }
 
+        // Drop any prior interactive dwell before re-verification so a
+        // failed re-run exposes retry/skip instead of advancing on Enter.
+        self.command_result_dwell = false;
+
         // For steps with a command, re-execute it then verify.
         // For steps without a command, verify directly (e.g. FileExists).
         if let Some(ref cmd) = step.command.clone() {
@@ -1237,7 +1241,9 @@ impl TutorialState {
 
         // Successful command output is on screen — Enter/space continue,
         // Esc returns to the picker. Do not start another reveal.
-        if self.command_result_dwell {
+        // Gate on !current_step_failed(): a watch re-run can leave the dwell
+        // flag set after a later failure; Enter must then expose retry/skip.
+        if self.command_result_dwell && !self.current_step_failed() {
             match action {
                 Action::Select | Action::Toggle => {
                     self.command_result_dwell = false;
@@ -1416,6 +1422,10 @@ impl TutorialState {
             if self.autoplay {
                 self.autoplay_result_dwell = true;
             } else if self.autoplay_command_advance {
+                // Watch re-verify asked to advance on success.
+                self.advance_step();
+            } else {
+                // Interactive (including post-hand-back) holds on the result.
                 self.command_result_dwell = true;
             }
         } else if self.autoplay {
@@ -1663,7 +1673,7 @@ impl crate::surface::Surface for TutorialState {
                     "type to edit  enter newline  ctrl-s save  esc cancel"
                 } else if self.is_revealing() {
                     "any key run now  esc cancel  q quit"
-                } else if self.command_result_dwell {
+                } else if self.command_result_dwell && !self.current_step_failed() {
                     "enter continue  space continue  esc paths  q quit"
                 } else if self.current_step_failed() {
                     "r retry  s skip  esc paths  q quit"
@@ -3119,6 +3129,102 @@ mod tests {
         assert_eq!(state.phase, TutorialPhase::PathSelect);
         assert!(!state.steps[0].completed);
         assert!(!state.command_result_dwell);
+    }
+
+    #[test]
+    fn dwell_yields_to_retry_when_step_later_fails() {
+        // Copilot #4654: a stale command_result_dwell must not swallow a
+        // later failure — Enter should hit retry/skip, not advance.
+        let mut state = state_with_command_step("echo hello");
+        select_and_run(&mut state);
+        assert!(state.command_result_dwell);
+
+        // Simulate watch re-verify leaving dwell set while the step failed.
+        state.steps[0].output = Some(CommandOutput {
+            stdout: String::new(),
+            stderr: "watch re-run failed".to_string(),
+            success: false,
+            exit_code: Some(1),
+        });
+        assert!(state.current_step_failed());
+
+        state.handle_key(Action::Select);
+        assert_eq!(state.current_step, 0);
+        assert!(!state.steps[0].completed);
+        assert_eq!(state.phase, TutorialPhase::Running);
+        let help = <TutorialState as crate::surface::Surface>::help_text(&state);
+        assert_eq!(help, "r retry  s skip  esc paths  q quit");
+    }
+
+    #[test]
+    fn handle_file_change_clears_command_result_dwell() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = state_with_command_step("echo hello");
+        state
+            .bind_working_root(root.path())
+            .expect("bind working root");
+        select_and_run(&mut state);
+        assert!(state.command_result_dwell);
+
+        let watched = root.path().join("watched.txt");
+        std::fs::write(&watched, "x").expect("write watched");
+        state.steps[0].watch_path = Some("watched.txt".into());
+        state.steps[0].command = Some("exit 1".into());
+        let advanced = state.handle_file_change(&[watched]);
+        assert!(!advanced);
+        assert!(!state.command_result_dwell);
+        assert!(state.current_step_failed());
+    }
+
+    #[test]
+    fn consume_autoplay_output_advances_when_flag_set() {
+        // Copilot #4654: watch re-verify (advance=true) must advance_step,
+        // not hold on command_result_dwell.
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.hand_back_autoplay();
+        assert!(!state.autoplay);
+        assert!(state.autoplay_session);
+        state.steps = vec![TutorialStep {
+            command: Some("echo ok".into()),
+            ..TutorialStep::default()
+        }];
+        state.current_step = 0;
+        state.phase = TutorialPhase::Running;
+        state.autoplay_command_advance = true;
+        state.consume_autoplay_output(CommandOutput {
+            stdout: "ok\n".into(),
+            stderr: String::new(),
+            success: true,
+            exit_code: Some(0),
+        });
+        assert!(!state.command_result_dwell);
+        assert!(state.steps[0].completed || state.phase == TutorialPhase::Complete);
+    }
+
+    #[test]
+    fn consume_autoplay_output_dwells_when_flag_clear() {
+        // Copilot #4654: interactive / post-hand-back (advance=false) must
+        // set command_result_dwell instead of no-oping.
+        let root = tempfile::tempdir().expect("tempdir");
+        let mut state = TutorialState::new_autoplay_in(root.path()).expect("autoplay root");
+        state.hand_back_autoplay();
+        state.steps = vec![TutorialStep {
+            command: Some("echo ok".into()),
+            ..TutorialStep::default()
+        }];
+        state.current_step = 0;
+        state.phase = TutorialPhase::Running;
+        state.autoplay_command_advance = false;
+        state.consume_autoplay_output(CommandOutput {
+            stdout: "ok\n".into(),
+            stderr: String::new(),
+            success: true,
+            exit_code: Some(0),
+        });
+        assert!(state.command_result_dwell);
+        assert_eq!(state.current_step, 0);
+        assert!(!state.steps[0].completed);
     }
 
     #[test]
