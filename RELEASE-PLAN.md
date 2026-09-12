@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                 |
-| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-09-11: **`v0.9.8-beta` claim locked** — continuous journey honesty (JSIMP + JREL attach/worktree/overrides; JOURNEY-015/-016 as gates only). Implementation already on `main`. Remaining cut work is standing bar + preflight → tag. |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                                                                                                                                                                    |
+| ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-09-12: **`v0.10.0-beta` claim locked** — continuous journey honesty (JSIMP + JREL attach/worktree/overrides; JOURNEY-015/-016 as gates only). Minor scope reconciled against the shipped feature additions since `v0.9.7-beta`; implementation already on `main`. Remaining cut work is standing bar + preflight → tag. |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -40,13 +40,13 @@ nothing else.
   config unification; `v0.9.4-beta` install advice + quieter FPs.
 - **Cadence:** current-minor patches when user signal warrants. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** **`v0.9.8-beta`** — claim locked: continuous journey
+- **Active window:** **`v0.10.0-beta`** — claim locked: continuous journey
   honesty. Primary items are Merged on `main`. Not cut-ready until standing
   bar + preflight.
 
 ---
 
-## Active window — `v0.9.8-beta` (claim locked)
+## Active window — `v0.10.0-beta` (claim locked)
 
 **Theme:** Continuous journey honesty — first use through daily ensure tells the
 truth about activation, coverage, and protection.
@@ -61,8 +61,10 @@ worktree-pinned MCP) and does not treat silence, missing MCP, or a
 configured-but-closed editor as success.
 
 **Authority:** Operator-approved claim (2026-09-11) from the Librarian release
-prep draft after JOURNEY-015/-016 evidence and JSIMP/JREL landings on `main`.
-JOURNEY passes are gates only — they did **not** grant publication authority.
+prep draft after JOURNEY-015/-016 evidence and JSIMP/JREL landings on `main`;
+operator-confirmed minor version scope (2026-09-12) after reconciling the
+feature additions since `v0.9.7-beta`. JOURNEY passes are gates only — they did
+**not** grant publication authority.
 
 ### Journey reliability readiness
 
@@ -128,7 +130,7 @@ were **not** granted by that gate alone — this lock supplies the claim freeze.
 | ------------------ | ------------------------------------------- | -------------------------------------------------------------------------- |
 | **0.9.7 closeout** | Record + APS advance + prune                | Done 2026-08-21                                                            |
 | **Field intake**   | Post-`v0.9.7-beta` signal → theme selection | Done 2026-09-10 (JOURNEY-015/-016) + 2026-09-11 claim wording              |
-| **Claim lock**     | Freeze primary IDs for `v0.9.8-beta`        | This change                                                                |
+| **Claim lock**     | Freeze primary IDs for `v0.10.0-beta`       | This change                                                                |
 | **Implement**      | Claim items                                 | Done on `main` (JSIMP #4580–#4611; JREL-002/#4416, -009/#4556, -010/#4562) |
 | **Changelog**      | Curate `[Unreleased]` theme-led             | This change (builds on #4615 / #4631)                                      |
 | **Cut**            | Preflight → prepare → readiness → tag       | Next                                                                       |
@@ -140,7 +142,8 @@ were **not** granted by that gate alone — this lock supplies the claim freeze.
 - Claim locked with Merged primary items (and secondaries Merged or waived).
 - Changelog leads with the locked theme only — not programme freight.
 - Strategy: **direct** unless readiness forces stabilisation.
-- Version stays `v0.9.8-beta` (patch on the v0.9 line).
+- Version is `v0.10.0-beta` (minor scope for the public feature additions
+  shipped since `v0.9.7-beta`).
 
 ### Risks
 

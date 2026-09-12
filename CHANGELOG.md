@@ -8,7 +8,7 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft for `v0.9.8-beta`.** Customer-facing changes on `main` since
+> **Draft for `v0.10.0-beta`.** Customer-facing changes on `main` since
 > `v0.9.7-beta`. Theme locked: continuous journey honesty. Version and date land
 > at the cut.
 
