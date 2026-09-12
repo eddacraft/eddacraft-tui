@@ -209,12 +209,13 @@ Consume the observation as **close as fixed**:
 
 - Reject a splash, overlay, progress indicator, tutorial rewrite, always-on app
   and dashboard as JSIMP solutions.
-- Keep the current consent stepping model: `↑/↓` move inside a section, `←/→`
-  next section, `space` toggle, `a` apply, `esc`/`q` quit. Silent `h`/`j`/`k`/`l`
-  aliases remain silent.
-- Residual difficulty (in-section wrap; `a` versus Enter; 80-column truncation
-  of `esc/q quit`) is editorial / CIB-353 if promoted. It is **not** a licence
-  to change the stepping affordance in this programme.
+- **Consent keys (superseded 2026-09-13 by
+  [ADR-146](146-consent-space-toggle-enter-confirm.md)):** JSIMP itself was not
+  a licence to rewrite stepping. The operator later aligned start/welcome
+  consent with wizard/hooks: space ticks, Enter next/apply. `a` and `←/→`
+  remain silent aliases. The no-splash rule in this section still stands.
+- Residual 80-column truncation of `esc/q quit` is editorial / CIB-353 if
+  promoted.
 
 ### 9. Entitlement and consent — no silent override
 

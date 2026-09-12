@@ -29,6 +29,10 @@ fn restore_terminal() {
     let _ = execute!(io::stdout(), DisableMouseCapture);
     let _ = execute!(io::stdout(), LeaveAlternateScreen);
     let _ = terminal::disable_raw_mode();
+    // Unmute after leaving the alternate screen so a panic hook can print
+    // against a normal terminal, and live TUI frames are not overpainted
+    // (GH #4655).
+    anvil_observability::set_console_quiet(false);
 }
 
 fn enter_alternate_screen() -> anyhow::Result<()> {
@@ -158,6 +162,9 @@ impl TerminalGuard {
             restore_terminal();
             return Err(error);
         }
+        // Drop tracing JSON on stderr for the life of the session so MCP
+        // probe/install `warn!` lines cannot overlay the frame (GH #4655).
+        anvil_observability::set_console_quiet(true);
         Ok(Self { active: true })
     }
 
@@ -182,6 +189,7 @@ impl TerminalGuard {
         execute!(io::stdout(), LeaveAlternateScreen)?;
         terminal::disable_raw_mode()?;
         self.active = false;
+        anvil_observability::set_console_quiet(false);
         Ok(())
     }
 }

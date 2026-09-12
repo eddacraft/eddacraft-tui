@@ -183,18 +183,14 @@ impl FirstWinState {
         match action {
             Action::Up => offer.consent.previous(),
             Action::Down => offer.consent.next(),
-            // Enter and Space both toggle the consent row (the ACTTUI key
-            // model) — Enter never applies, so Enter-without-tick can never
-            // write anything.
+            // ADR-146: space ticks; Enter confirms. Empty confirm writes
+            // nothing (CIB-165). `a` stays a silent apply alias.
             Action::Toggle => offer.consent.toggle_current(),
-            Action::Select => offer.consent.select_current(),
-            Action::Character('a' | 'A') => {
+            Action::Select | Action::Character('a' | 'A') => {
                 offer.consent.submit();
                 if offer.consent.is_selected(FIRST_WIN_CONSENT_ID) {
                     self.pending_apply = offer.finding.fix_request();
                 } else {
-                    // Applying an empty selection writes nothing and lands on
-                    // the path picker — the same contract as declining.
                     self.declined = true;
                 }
             }
@@ -221,7 +217,7 @@ impl Surface for FirstWinState {
     fn help_text(&self) -> &'static str {
         match self.phase {
             FirstWinPhase::Clean { .. } | FirstWinPhase::Done { .. } => "enter continue  q quit",
-            FirstWinPhase::Offer => "space tick  a apply  s skip to paths  q quit",
+            FirstWinPhase::Offer => "space tick  enter apply  s skip to paths  q quit",
         }
     }
 
@@ -427,12 +423,9 @@ mod tests {
     #[test]
     fn enter_without_tick_writes_nothing() {
         let mut state = offer_state();
-        // Enter toggles; a second Enter unticks. Neither produces an apply.
+        // Enter confirms the empty (unticked) selection — no write, same
+        // as declining to the picker (CIB-165 / ADR-146).
         state.handle_key(Action::Select);
-        state.handle_key(Action::Select);
-        assert!(state.take_pending_apply().is_none());
-        // Apply with nothing ticked writes nothing and declines to the picker.
-        state.handle_key(Action::Character('a'));
         assert!(state.take_pending_apply().is_none());
         assert!(state.declined);
     }
@@ -441,7 +434,7 @@ mod tests {
     fn apply_requires_ticked_consent() {
         let mut state = offer_state();
         state.handle_key(Action::Toggle);
-        state.handle_key(Action::Character('a'));
+        state.handle_key(Action::Select);
         let request = state.take_pending_apply().expect("consented apply");
         assert_eq!(
             request,
@@ -545,7 +538,7 @@ mod tests {
     #[test]
     fn help_text_changes_per_phase() {
         let mut state = offer_state();
-        assert!(state.help_text().contains("a apply"));
+        assert!(state.help_text().contains("enter apply"));
         state.mark_outcome(true, "done");
         assert!(state.help_text().contains("continue"));
         let clean = FirstWinState::clean(1);

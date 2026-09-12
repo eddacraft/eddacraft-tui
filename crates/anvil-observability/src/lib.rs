@@ -34,7 +34,10 @@ pub use traceparent::{TraceContext, TraceContextError};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+
+use tracing_subscriber::fmt::MakeWriter;
 
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
@@ -43,6 +46,55 @@ use tracing::Span;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 const TRACE_SINK_ENV: &str = "ANVIL_TRACE_SINK";
+
+/// When true, the CLI JSON console layer drops bytes instead of writing
+/// stderr, so a live TUI frame is not painted over (GH #4655). File sinks
+/// are unaffected.
+static CONSOLE_QUIET: AtomicBool = AtomicBool::new(false);
+
+/// Silence or restore the CLI tracing console (stderr JSON).
+///
+/// Safe to call before [`init_tracing`]. Pair with TUI enter/leave so
+/// `tracing::warn!` during `anvil start` cannot overlay the alternate
+/// screen. Idempotent.
+pub fn set_console_quiet(quiet: bool) {
+    CONSOLE_QUIET.store(quiet, Ordering::SeqCst);
+}
+
+/// Whether the CLI tracing console is currently dropping stderr writes.
+#[must_use]
+pub fn console_is_quiet() -> bool {
+    CONSOLE_QUIET.load(Ordering::Relaxed)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct QuietStderr;
+
+impl<'a> MakeWriter<'a> for QuietStderr {
+    type Writer = QuietStderrIo;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        QuietStderrIo
+    }
+}
+
+struct QuietStderrIo;
+
+impl Write for QuietStderrIo {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if CONSOLE_QUIET.load(Ordering::Relaxed) {
+            return Ok(buf.len());
+        }
+        io::stderr().write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if CONSOLE_QUIET.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        io::stderr().flush()
+    }
+}
 
 /// Identifies the binary calling [`init_tracing`]. The variant drives the
 /// default `EnvFilter` directive when neither `ANVIL_LOG` nor `RUST_LOG`
@@ -156,7 +208,7 @@ pub fn init_tracing(kind: BinaryKind) -> Result<(), InitTracingError> {
             let registry = tracing_subscriber::registry().with(resolved);
             let install = if matches!(kind, BinaryKind::Cli) {
                 tracing::subscriber::set_global_default(
-                    registry.with(layer.with_writer(std::io::stderr)),
+                    registry.with(layer.with_writer(QuietStderr)),
                 )
             } else {
                 tracing::subscriber::set_global_default(registry.with(layer))
@@ -527,5 +579,25 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&tmp).expect("cleanup");
+    }
+
+    #[test]
+    fn quiet_stderr_writer_drops_bytes_while_flag_is_set() {
+        struct RestoreQuiet(bool);
+        impl Drop for RestoreQuiet {
+            fn drop(&mut self) {
+                set_console_quiet(self.0);
+            }
+        }
+        let _restore = RestoreQuiet(console_is_quiet());
+
+        set_console_quiet(true);
+        assert!(console_is_quiet());
+        let mut writer = QuietStderrIo;
+        assert_eq!(writer.write(b"must-not-reach-stderr").unwrap(), 21);
+        writer.flush().unwrap();
+
+        set_console_quiet(false);
+        assert!(!console_is_quiet());
     }
 }

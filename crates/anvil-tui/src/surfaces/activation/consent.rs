@@ -226,6 +226,12 @@ impl ConsentState {
         (self.step_index + 1, self.steps.len())
     }
 
+    /// Whether Enter should apply rather than advance (ADR-146).
+    #[must_use]
+    pub fn is_last_step(&self) -> bool {
+        self.steps.len() <= 1 || self.step_index + 1 >= self.steps.len()
+    }
+
     /// Half-open `items` range covered by the current step.
     #[must_use]
     fn step_range(&self) -> (usize, usize) {
@@ -627,6 +633,7 @@ mod tests {
         state.next_step();
         assert_eq!(state.current_step(), Some(ConsentKind::Mcp));
         assert_eq!(state.step_position(), (1, 1));
+        assert!(state.is_last_step());
     }
 
     /// CIB-245: a blurb explains the row; without one the path detail stands in
