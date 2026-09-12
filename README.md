@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                         |
-| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Reviewed 2026-08-19 against `0.9.6-beta` and `benchmarks/history/2026-08-10.json` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                                         |
+| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Reviewed 2026-09-12 against latest tag `v0.9.7-beta`, locked `v0.10.0-beta` window in `RELEASE-PLAN.md`, and `benchmarks/history/2026-08-10.json` |
 
 | Upstream                                               | Downstream                      |
 | ------------------------------------------------------ | ------------------------------- |
@@ -22,14 +22,15 @@ before they leave the machine. Warnings over blocks; new edges only.
 **Shipped product:** Rust binary + MCP shim · **Monorepo also has:** TypeScript
 docs/API/tooling, Pulumi infra, APS plans.
 
-| Surface      | Link                                                                |
-| ------------ | ------------------------------------------------------------------- |
-| Early access | [eddacraft.ai](https://eddacraft.ai)                                |
-| Public docs  | [docs.eddacraft.ai/anvil](https://docs.eddacraft.ai/anvil/overview) |
-| Install      | [install.eddacraft.ai](https://install.eddacraft.ai)                |
-| Latest tag   | **`v0.9.6-beta`**                                                   |
-| Live work    | [`plans/index.aps.md`](./plans/index.aps.md)                        |
-| Release cut  | [`RELEASE-PLAN.md`](./RELEASE-PLAN.md)                              |
+| Surface       | Link                                                                |
+| ------------- | ------------------------------------------------------------------- |
+| Early access  | [eddacraft.ai](https://eddacraft.ai)                                |
+| Public docs   | [docs.eddacraft.ai/anvil](https://docs.eddacraft.ai/anvil/overview) |
+| Install       | [install.eddacraft.ai](https://install.eddacraft.ai)                |
+| Latest tag    | **`v0.9.7-beta`**                                                   |
+| Active window | **`v0.10.0-beta`** — continuous journey honesty (claim locked)      |
+| Live work     | [`plans/index.aps.md`](./plans/index.aps.md)                        |
+| Release cut   | [`RELEASE-PLAN.md`](./RELEASE-PLAN.md)                              |
 
 > **Orienting in this repo?** Start with [`CONTEXT.md`](CONTEXT.md) —
 > vocabulary, where things live, and where to go next. Behaviour contract:
@@ -219,10 +220,11 @@ After `cargo build -p eddacraft-anvil` (and usually `export ANVIL_DEV=1`):
 ```bash
 anvil=./target/debug/anvil   # or target/release/anvil
 
-$anvil welcome                 # discovery scan; no login
-$anvil start                   # daemon + hooks + consent-first MCP picker
+$anvil welcome                 # optional ungated learning; no login
+$anvil start                   # activate: daemon, hooks, consent-first MCP
 $anvil start --no-mcp          # activation without writing editor MCP config
 ANVIL_NO_MCP=1 $anvil start    # same via env
+$anvil                         # daily ensure after a successful start (bare)
 
 $anvil status                  # project + daemon health
 $anvil status --json
@@ -427,8 +429,10 @@ winget install eddacraft.anvil
 # or: irm https://install.eddacraft.ai/windows | iex
 ```
 
-First value after install: `anvil welcome` (no login) or `anvil start` (daemon,
-beta auth). Details: [Quick Start](./docs/public/anvil/quickstart.md).
+First value after install: optional `anvil welcome` (ungated learning), then
+`anvil start` for activation — a closing receipt names proven coverage. Day two
+is bare `anvil` (quiet ensure of remembered integrations). Details:
+[Quick Start](./docs/public/anvil/quickstart.md).
 
 On Windows, release the running binary first by quitting the IDE or stopping
 `anvil mcp serve`. WinGet- and Scoop-owned installs can then run `anvil update`;
