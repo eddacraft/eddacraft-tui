@@ -8,6 +8,13 @@ Claude Code keeps a thin `CLAUDE.md` that imports this file.
 Local directory conventions belong in the nearest local `AGENTS.md`; do not add
 nested `CONTEXT.md` files.
 
+## Start Here
+
+- This repository dogfoods the explicitly promoted `anvil-main` channel. Bare
+  `anvil` is the published-release comparison path. Before relying on the
+  dogfood binary, run `scripts/dev/promote-main.sh --status`; see the
+  [rolling-main runbook](docs/runbooks/anvil-home-side-by-side.md).
+
 ## Operating Rules
 
 - Use UK English in plans and documentation.

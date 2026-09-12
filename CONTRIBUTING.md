@@ -117,27 +117,23 @@ pnpm exec nx test core --coverage
 pnpm test:coverage
 ```
 
-### Running a candidate (`anvil-beta`) side-by-side with prod
+### Dogfooding rolling `main` alongside the published release
 
-Use `scripts/dev/run-candidate.sh` to dogfood a pre-release candidate without
-uninstalling the production anvil install. The script builds the current HEAD
-(or a specific git ref), stops the prod daemon so the candidate can bind the
-socket, symlinks the candidate as `~/.local/bin/anvil-beta`, and pre-creates an
-isolated scratch project under `/tmp/anvil-candidate-<sha>/`.
+Use `scripts/dev/promote-main.sh` to explicitly promote the exact fetched
+`origin/main` commit into the rolling `anvil-main` channel. The published
+`anvil` command remains available for comparison. The candidate has its own
+`ANVIL_HOME` and daemon, so both versions can run concurrently.
 
 ```bash
-scripts/dev/run-candidate.sh             # build current HEAD + setup
-scripts/dev/run-candidate.sh --ref <sha> # build a specific candidate
-scripts/dev/run-candidate.sh --status    # show current install state
-scripts/dev/run-candidate.sh --restore   # remove symlink, restart prod
+scripts/dev/promote-main.sh          # fetch, build, promote, restart candidate daemon
+scripts/dev/promote-main.sh --status # verify provenance and origin/main drift
 ```
 
-Caveat: `~/.anvil/` user state is still shared between prod and candidate (no
-`ANVIL_HOME` override exists yet — tracked as
-[GH #1726](https://github.com/eddacraft/anvil-001/issues/1726)). Project state
-is isolated by virtue of using a scratch directory. **Do not use this for Boring
-Week** — the protocol explicitly requires real install paths so testers see what
-a first-time user sees.
+Harness MCP entries must explicitly select `~/.local/bin/anvil-main` and set
+`ANVIL_HOME=~/.anvil-main`; do not export that value globally because bare
+`anvil` must continue to use published-release state. See the authoritative
+[rolling main dogfood runbook](docs/runbooks/anvil-home-side-by-side.md) for the
+configuration, write guard, operational checks, and recovery details.
 
 ## Code Standards
 

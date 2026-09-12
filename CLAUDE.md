@@ -1,5 +1,11 @@
 # anvil
 
+> **Start here:** this repository dogfoods explicitly promoted `anvil-main`;
+> bare `anvil` remains the published-release comparison. Run
+> `scripts/dev/promote-main.sh --status` before relying on its provenance.
+> Before the final response on non-trivial work, **MUST** append the pending
+> CI-log note required by `AGENTS.md`.
+
 **Shared conventions:** `@AGENTS.md`  
 **Repo map:** `@CONTEXT.md`  
 **Skills / agents / commands:** `@docs/guides/agent-surface-inventory.md`

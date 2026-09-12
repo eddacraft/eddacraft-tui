@@ -173,6 +173,7 @@ if [[ "${mode}" == 'full' ]]; then
   add_command 'pnpm test:ci-fast-pr'
   add_command 'pnpm test:ci-council-gate-workflow'
   add_command 'pnpm test:validate-local'
+  add_command 'pnpm test:promote-main'
   add_command 'cargo test --workspace'
   add_command 'opa test --verbose policies/fixtures/'
   add_command 'regal lint policies/fixtures/'
@@ -223,6 +224,7 @@ else
         add_command 'pnpm test:ci-fast-pr'
         add_command 'pnpm test:ci-council-gate-workflow'
         add_command 'pnpm test:validate-local'
+        add_command 'pnpm test:promote-main'
         ;;
       cargo-test)
         add_command 'cargo test --workspace'

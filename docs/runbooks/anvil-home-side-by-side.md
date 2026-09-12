@@ -1,17 +1,17 @@
-# Side-by-Side Candidate Install (`ANVIL_HOME`) — Operator Runbook
+# Rolling `main` Dogfood Channel — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                                     |
-| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-11 after docs-owed upstream touch on distribution-and-update.aps.md (link retarget only; ANVIL_HOME side-by-side procedure unchanged). First filed 2026-05-31 for DISTRIB-006 (ADR-060) |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                          |
+| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-12 for the explicit rolling `anvil-main` promotion path and isolated harness configuration. First filed 2026-05-31 for DISTRIB-006 (ADR-060) |
 
 | Upstream                                                                                                                                                                                                                                                                                    | Downstream                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | [`plans/archive/modules/distribution-and-update.aps.md`](../../plans/archive/modules/distribution-and-update.aps.md) (DISTRIB-006), [ADR-060](../../plans/decisions/060-anvil-home-install-root-override.md), [ADR-036](../../plans/decisions/036-daemon-scope-discovery-and-boundaries.md) | Boring-Week candidate testing, [adoption runbook](anvil-adoption.md), `anvil status --json` consumers |
 
-This runbook shows an internal developer how to run a pre-release Anvil
-**candidate** alongside the **production** install — testing a new version
-against a real project without cutting a release — using the `ANVIL_HOME` /
-`--anvil-home` install-root override.
+This runbook shows an internal developer how to promote and run the exact
+fetched `origin/main` commit as `anvil-main` alongside the published `anvil`
+install. This is a rolling dogfood channel, not a stamped release candidate.
+Promotion is always explicit.
 
 It replaces the old workaround (stop the prod daemon, symlink an `anvil-beta`
 binary, test only under `/tmp`, and accept that user state leaks into the prod
@@ -70,54 +70,121 @@ under a non-default `ANVIL_HOME` durable per-project **mutations** are gated:
 Check the posture at any time:
 
 ```bash
-ANVIL_HOME="$HOME/.anvil-candidate" anvil status --json \
+ANVIL_HOME="$HOME/.anvil-main" anvil-main status --json \
   | jq '{install_root, project_writes_gated}'
-# { "install_root": "/home/you/.anvil-candidate", "project_writes_gated": true }
+# { "install_root": "/home/you/.anvil-main", "project_writes_gated": true }
 ```
 
-## Procedure
+## Promotion
 
-### 1. Pick a prefix and point the candidate at it
+Prerequisites are Bash, Git, Cargo, and Python 3 on Linux or macOS. Python is
+used for physical-path checks and atomic link replacement. `systemd-run` is
+optional; the helper falls back to a startup-checked background process.
+
+From any worktree in this repository:
 
 ```bash
-export ANVIL_HOME="$HOME/.anvil-candidate"
-install -d -m 700 "$ANVIL_HOME"   # the daemon requires a 0700, user-owned prefix
+scripts/dev/promote-main.sh
 ```
 
-> The daemon binds its socket and PID file directly under the prefix and
-> enforces an owner-only `0700` directory (per ADR-036's runtime-dir hardening).
-> Prefer `install -d -m 700`. If the prefix already exists with a wider mode but
-> is owned by you, the **daemon ensure/bind path** tightens it to `0700`
-> automatically (#3220) instead of cascading into a misleading
-> `ready_restart_required` / intercept recovery path. Client-side probes
-> (`status`, MCP) refuse loose modes without mutating — align the prefix first.
-> Wrong ownership fails with an ownership recovery (recreate as yourself); never
-> start a second foreground daemon to "fix" a permission problem.
+The helper fetches `origin/main`, resolves its full SHA, builds that detached
+commit with the locked dependency graph, and installs it under
+`~/.local/lib/anvil-main/<sha>/`. That immutable directory contains both the
+binary and its `provenance.env`. Only after both are complete does the helper
+atomically move `~/.local/bin/anvil-main` to that immutable binary;
+`~/.local/lib/anvil-main/current` follows afterwards as a convenience link. A
+failed build or provenance write therefore leaves the previous dogfood binary
+and provenance selected together. The provenance records the source SHA, binary
+hash, version output, and promotion time. Promotions are serialised, and build
+artefacts are separated by source SHA.
 
-Run the candidate binary with the env var exported, or pass `--anvil-home`
-per-command (the flag takes precedence over the env var):
+It creates `~/.anvil-main` with mode `0700` and recycles only the daemon rooted
+there. On systemd-based developer machines it owns a transient
+`anvil-main-intercept.service`; elsewhere it uses the portable foreground daemon
+entrypoint in the background. It does not stop or replace the published daemon.
+Candidate daemon commands explicitly clear an ambient
+`ANVIL_NO_SAVE_TIME_DRIVER`; the rolling channel must exercise that driver. Skip
+the recycle when needed with `--no-restart-daemon`.
+
+Check provenance without fetching or rebuilding:
 
 ```bash
-./anvil-candidate --anvil-home "$HOME/.anvil-candidate" status
+scripts/dev/promote-main.sh --status
 ```
 
-`--anvil-home` is applied by re-execing the candidate once with `ANVIL_HOME` set
-in the child environment (the binary forbids `unsafe` env mutation), so the
-override reaches every resolver and the spawned daemon coherently.
+Status verifies that the channel resolves to the provenance-named immutable
+binary and that its hash and version match before comparing the promoted SHA
+with the local `origin/main` tracking ref. Run promotion again when it reports
+`behind origin/main`; promotion performs the fetch that makes this comparison
+authoritative.
 
-### 2. Authenticate the candidate (its user state is separate)
+### Authenticate before reconnecting harnesses
 
-The candidate's credentials live under `<ANVIL_HOME>/user/`, so it does not see
-your prod login. Either log in again under the prefix, or supply a token via
-`ANVIL_LICENSE` for a non-interactive candidate.
+The candidate's credentials live under `<ANVIL_HOME>/user/`, so it deliberately
+does not reuse the published install's login. On first use, complete a separate
+device login, then promote once more so the authenticated candidate daemon is
+restarted and its save-time drivers are exercised:
 
-### 3. Run the candidate against your real project
+```bash
+ANVIL_HOME="$HOME/.anvil-main" anvil-main auth login
+scripts/dev/promote-main.sh
+ANVIL_HOME="$HOME/.anvil-main" anvil-main auth whoami --json
+ANVIL_HOME="$HOME/.anvil-main" anvil-main intercept status --json
+```
+
+Do not reconnect harnesses until `auth whoami` succeeds and candidate worktrees
+report an active save-time driver rather than `failed`. For a non-interactive
+candidate, `ANVIL_LICENSE` is the supported explicit token override. The helper
+refuses to recycle the daemon while candidate authentication is missing.
+
+## Harness configuration
+
+Each dogfood harness must make both the binary and its isolated state explicit:
+
+```text
+command = "/home/you/.local/bin/anvil-main"
+ANVIL_HOME = "/home/you/.anvil-main"
+ANVIL_MCP_PREFERRED = "/home/you/.local/bin/anvil-main"
+ANVIL_NO_SAVE_TIME_DRIVER = ""
+```
+
+Apply those values to the harness's existing anvil MCP entry without replacing
+its unrelated settings. Do not export either variable globally in the shell:
+that would make the published `anvil` command use candidate state. Do not run
+`anvil mcp refresh` for this channel because refresh owns release-oriented MCP
+entries; preserve the explicit dogfood command. Reconnect the harness after a
+promotion so a new MCP process loads the promoted binary.
+
+`ANVIL_MCP_PREFERRED` also ensures MCP re-exec stays on `anvil-main` if another
+`anvil` appears earlier on `PATH`. The explicit empty save-time override
+neutralises a stale parent-process opt-out without setting the flag active.
+
+## Use and compare
+
+Run the rolling channel explicitly:
+
+```bash
+ANVIL_HOME="$HOME/.anvil-main" \
+  ANVIL_MCP_PREFERRED="$HOME/.local/bin/anvil-main" \
+  anvil-main status --json
+```
+
+Run bare `anvil` to test the latest published release. Its default state and
+daemon remain separate. A version string alone is not provenance: use
+`promote-main.sh --status` to identify the dogfood SHA.
+
+The daemon binds its socket and PID file directly under the prefix and enforces
+an owner-only `0700` directory (per ADR-036's runtime-dir hardening). Wrong
+ownership fails with a recovery instruction; do not start another foreground
+daemon to work around it.
+
+### Run the candidate against your real project
 
 ```bash
 cd ~/work/my-real-repo
-anvil status          # reads — unrestricted, against the real repo
-anvil check           # reads — unrestricted
-anvil watch           # exercises the candidate daemon on its own socket
+ANVIL_HOME="$HOME/.anvil-main" anvil-main status
+ANVIL_HOME="$HOME/.anvil-main" anvil-main check
+ANVIL_HOME="$HOME/.anvil-main" anvil-main watch
 ```
 
 The candidate daemon runs on `<ANVIL_HOME>/intercept.sock`, concurrent with the
@@ -128,34 +195,47 @@ prints a one-line notice and does **not** seed `.anvilrc`, `anvil/project-id`,
 `.gitattributes`, or workflows. Pass `--touch-project-state` if you intend the
 candidate to perform that first-run seeding.
 
-### 4. If you need the candidate to write project state
+### If you need the candidate to write project state
 
 ```bash
-anvil baseline --refresh --touch-project-state
+ANVIL_HOME="$HOME/.anvil-main" \
+  anvil-main baseline --refresh --touch-project-state
 ```
 
 Only do this when you intend the candidate's baseline/witness to become the
 project's real state.
 
-### 5. Tear down
+### Stop the candidate daemon
 
 ```bash
-# Stop the candidate daemon by its PID file (there is no `intercept stop`
-# subcommand yet); the foreground daemon also stops on Ctrl-C.
-kill "$(cat "$HOME/.anvil-candidate/intercept.pid")" 2>/dev/null || true
-rm -rf "$HOME/.anvil-candidate"                              # remove candidate state
+ANVIL_HOME="$HOME/.anvil-main" anvil-main intercept stop
 ```
 
 Production's `~/.config/anvil/`, its daemon socket, and its logs were never
 touched.
 
+### Recovery
+
+If restart fails, the newly promoted binary remains selected but the helper
+returns non-zero. With systemd, inspect
+`journalctl --user-unit anvil-main-intercept.service`; for the background
+fallback, inspect `${ANVIL_HOME:-$HOME/.anvil-main}/daemon.log`. Fix
+authentication or the reported state-directory problem, and run promotion again.
+Do not start a second candidate daemon against the same prefix.
+
+If the promoted `main` itself is unsuitable, use bare `anvil` as the published
+comparison path until `main` is repaired and promoted again; the helper does not
+provide an unverified manual rollback path. If a terminated promotion left
+`.promote.lock`, first confirm the recorded PID is no longer running, then
+remove only that lock directory and rerun the helper.
+
 ## Verification checklist
 
-- `ANVIL_HOME="$HOME/.anvil-candidate" anvil status --json | jq .install_root`
+- `ANVIL_HOME="$HOME/.anvil-main" anvil-main status --json | jq .install_root`
   shows the prefix; plain `anvil status --json | jq .install_root` is **absent**
   under prod.
 - `anvil intercept status` (prod) and
-  `ANVIL_HOME="$HOME/.anvil-candidate" anvil intercept status` (candidate)
+  `ANVIL_HOME="$HOME/.anvil-main" anvil-main intercept status` (candidate)
   report two separate running daemons.
 - After a gated `anvil baseline`, `git status` in the real repo shows
   `anvil/baseline.json` (and `anvil/project-id`) **unchanged**.

@@ -190,19 +190,18 @@ ANVIL_API_URL="https://api.eddacraft.ai" anvil auth login
 Flag inventory / override contract:
 [`docs/guides/feature-flag-inventory.md`](docs/guides/feature-flag-inventory.md).
 
-### Dogfood a candidate (`ANVIL_HOME`)
+### Dogfood current `main`
 
-Run a local build beside the production install without clobbering credentials
-or the prod daemon socket:
+Explicitly promote the fetched `origin/main` commit into the rolling
+`anvil-main` channel. It uses isolated state and a separate daemon; the
+published `anvil` command remains available for comparison:
 
 ```bash
-export ANVIL_HOME="$HOME/.anvil-candidate"
-install -d -m 700 "$ANVIL_HOME"
-export ANVIL_DEV=1
+scripts/dev/promote-main.sh
+scripts/dev/promote-main.sh --status
 
-cargo build -p eddacraft-anvil --release
-ANVIL_HOME="$ANVIL_HOME" ./target/release/anvil status --json
-ANVIL_HOME="$ANVIL_HOME" ./target/release/anvil start
+ANVIL_HOME="$HOME/.anvil-main" anvil-main status --json
+anvil status --json # published release comparison
 ```
 
 Under a non-default `ANVIL_HOME`, durable **project** writes (baseline, witness,
@@ -210,8 +209,8 @@ hooks, init, …) are gated read-only unless you pass `--touch-project-state` or
 set `ANVIL_TOUCH_PROJECT_STATE=1`. Full procedure:
 [`docs/runbooks/anvil-home-side-by-side.md`](docs/runbooks/anvil-home-side-by-side.md).
 
-Older symlink helper (still useful for a named `anvil-beta` on PATH):
-`scripts/dev/run-candidate.sh` (`--status` / `--restore`).
+`scripts/dev/run-candidate.sh` remains only as a migration entrypoint to the
+same promotion helper.
 
 ### Product CLI (local dogfood)
 

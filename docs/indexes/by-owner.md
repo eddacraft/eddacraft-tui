@@ -25,7 +25,7 @@
 | [Neon DB Operations Runbook](../../docs/runbooks/neon-db-operations.md)                                            | `docs/runbooks/neon-db-operations.md`               | Runbook  | Authoritative | @aneki | Live   |
 | [Post-Deploy Smoke Check Runbook](../../docs/runbooks/post-deploy-smoke-check.md)                                  | `docs/runbooks/post-deploy-smoke-check.md`          | Runbook  | Authoritative | @aneki | Live   |
 | [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                                       | `docs/runbooks/release-signing.md`                  | Runbook  | Authoritative | @aneki | Live   |
-| [Side-by-Side Candidate Install (ANVIL_HOME) — Operator Runbook](../../docs/runbooks/anvil-home-side-by-side.md)   | `docs/runbooks/anvil-home-side-by-side.md`          | Runbook  | Authoritative | @aneki | Live   |
+| [Rolling main Dogfood Channel — Operator Runbook](../../docs/runbooks/anvil-home-side-by-side.md)                  | `docs/runbooks/anvil-home-side-by-side.md`          | Runbook  | Authoritative | @aneki | Live   |
 | [Stack Migration Guide](../../docs/guides/stack-migration.md)                                                      | `docs/guides/stack-migration.md`                    | Guide    | Authoritative | @aneki | Live   |
 | [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                                     | `docs/runbooks/anvil-witness-chain.md`              | Runbook  | Authoritative | @aneki | Live   |
 | [anvil-migrate(1)](../../docs/runbooks/anvil-migrate.md)                                                           | `docs/runbooks/anvil-migrate.md`                    | Runbook  | Authoritative | @aneki | Live   |
