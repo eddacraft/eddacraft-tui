@@ -355,7 +355,7 @@ if [ "$restart_daemon" = true ]; then
   if [ "$use_systemd" = true ]; then
     systemctl --user stop anvil-main-intercept.service >/dev/null 2>&1 || true
     systemctl --user reset-failed anvil-main-intercept.service >/dev/null 2>&1 || true
-    systemd-run --user --unit=anvil-main-intercept --collect --quiet \
+    systemd-run --user --no-block --unit=anvil-main-intercept --collect --quiet \
       env -u ANVIL_NO_SAVE_TIME_DRIVER \
       ANVIL_HOME="$state_dir" ANVIL_MCP_PREFERRED="$channel_path" \
       "$channel_path" intercept start --foreground

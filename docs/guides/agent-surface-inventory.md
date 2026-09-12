@@ -1,8 +1,8 @@
 # Agent Surface Inventory
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                    |
-| ----- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | AICON | Live   | Last reviewed 2026-09-13 for the AGENTS.md trim; inventory content is unaffected. Prior review 2026-09-10 against `eddaskills.toml` / `eddaskills.lock.json` and tracked harness skill trees |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                                                                                                                          |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | AICON | Live   | Last reviewed 2026-09-13 for the AGENTS.md rolling-main dogfood entry; inventory content is unaffected. Prior review 2026-09-10 against `eddaskills.toml` / `eddaskills.lock.json` and tracked harness skill trees |
 
 | Upstream                                                                                                                                               | Downstream                                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
