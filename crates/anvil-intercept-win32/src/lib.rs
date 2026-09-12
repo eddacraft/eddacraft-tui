@@ -1537,7 +1537,21 @@ fn sid_ptr_to_string(sid: *mut c_void) -> io::Result<String> {
     wide_ptr_to_string(sid_string.as_ptr().cast())
 }
 
-#[cfg(test)]
+/// Apply a protected owner-only DACL to an existing file — the Windows analogue
+/// of Unix `chmod 0600` after write. Strips inherited SYSTEM / Users / Everyone
+/// write ACEs that default NTFS ACLs stamp on files under GHA runner tempdirs
+/// (Administrators owner + LOCAL SYSTEM writer). Used by the confinement /
+/// antipattern config write paths so a just-written file passes
+/// [`read_trusted_config`] without weakening the ForeignWritable gate.
+///
+/// Grants full access to the process token user SID only (protected DACL, no
+/// inheritance). Privileged accounts can still bypass DACL; the read-time gate
+/// remains the authority for rejecting truly foreign-writable configs.
+pub fn apply_owner_only_file_dacl(path: &Path) -> io::Result<()> {
+    let sid = current_user_sid_string()?;
+    apply_file_dacl_sddl(path, &format!("D:P(A;;FA;;;{sid})"))
+}
+
 fn apply_file_dacl_sddl(path: &Path, sddl: &str) -> io::Result<()> {
     let descriptor = security_descriptor_from_sddl(sddl)?;
     let mut present = 0;
@@ -2110,8 +2124,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join("confinement.yaml");
         std::fs::write(&path, b"admission: open\n").expect("write config");
-        let sid = current_user_sid_string().expect("current SID");
-        apply_file_dacl_sddl(&path, &format!("D:P(A;;FA;;;{sid})")).expect("owner-only DACL");
+        apply_owner_only_file_dacl(&path).expect("owner-only DACL");
 
         match read_trusted_config(&path).expect("trusted read") {
             TrustedConfigRead::Trusted(raw) => assert_eq!(raw, "admission: open\n"),

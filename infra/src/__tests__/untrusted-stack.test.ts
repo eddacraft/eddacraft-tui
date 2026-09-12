@@ -24,6 +24,11 @@ vi.mock('@azure/identity', () => ({
   DefaultAzureCredential: class {},
 }));
 
+// Pulumi module imports under mocks can exceed vitest's default 5s on a cold
+// Node 22 runner (observed ~6.1s for the DNS import). Match other heavy infra
+// fixture suites by giving these settle-import tests a durable per-test budget.
+const PULUMI_IMPORT_TEST_TIMEOUT_MS = 15_000;
+
 describe('untrusted stack gating (CIB-119)', () => {
   const resources: pulumi.runtime.MockResourceArgs[] = [];
 
@@ -58,55 +63,71 @@ describe('untrusted stack gating (CIB-119)', () => {
     expect(secretClientGetSecret).not.toHaveBeenCalled();
   });
 
-  it('does not define production Vercel resources', async () => {
-    const mod = await import('../../src/vercel.js');
-    await new Promise((resolve) => setTimeout(resolve, 300));
+  it(
+    'does not define production Vercel resources',
+    async () => {
+      const mod = await import('../../src/vercel.js');
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-    expect(mod.website).toBeUndefined();
-    expect(mod.api).toBeUndefined();
-    expect(mod.anvilDocsPrivate).toBeUndefined();
-    expect(mod.docsPublic).toBeUndefined();
-    expect(mod.docsShell).toBeUndefined();
+      expect(mod.website).toBeUndefined();
+      expect(mod.api).toBeUndefined();
+      expect(mod.anvilDocsPrivate).toBeUndefined();
+      expect(mod.docsPublic).toBeUndefined();
+      expect(mod.docsShell).toBeUndefined();
 
-    const vercelResources = resources.filter((r) => r.type.startsWith('vercel:'));
-    expect(vercelResources).toHaveLength(0);
-  });
+      const vercelResources = resources.filter((r) => r.type.startsWith('vercel:'));
+      expect(vercelResources).toHaveLength(0);
+    },
+    PULUMI_IMPORT_TEST_TIMEOUT_MS
+  );
 
-  it('does not read or define production DNS resources', async () => {
-    const mod = await import('../../src/dns/eddacraft-ai.js');
-    await new Promise((resolve) => setTimeout(resolve, 300));
+  it(
+    'does not read or define production DNS resources',
+    async () => {
+      const mod = await import('../../src/dns/eddacraft-ai.js');
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-    expect(mod.eddacraftAi).toBeUndefined();
+      expect(mod.eddacraftAi).toBeUndefined();
 
-    const dnsZones = resources.filter((r) => r.type === 'anvil:dns:Zone');
-    const recordSets = resources.filter((r) => r.type === 'azure-native:dns:RecordSet');
-    expect(dnsZones).toHaveLength(0);
-    expect(recordSets).toHaveLength(0);
-  });
+      const dnsZones = resources.filter((r) => r.type === 'anvil:dns:Zone');
+      const recordSets = resources.filter((r) => r.type === 'azure-native:dns:RecordSet');
+      expect(dnsZones).toHaveLength(0);
+      expect(recordSets).toHaveLength(0);
+    },
+    PULUMI_IMPORT_TEST_TIMEOUT_MS
+  );
 
-  it('does not define production signing resources', async () => {
-    const mod = await import('../../src/signing.js');
-    await new Promise((resolve) => setTimeout(resolve, 300));
+  it(
+    'does not define production signing resources',
+    async () => {
+      const mod = await import('../../src/signing.js');
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-    expect(mod.signingResourceGroup).toBeUndefined();
-    expect(mod.signingAccount).toBeUndefined();
-    expect(mod.certificateProfile).toBeUndefined();
+      expect(mod.signingResourceGroup).toBeUndefined();
+      expect(mod.signingAccount).toBeUndefined();
+      expect(mod.certificateProfile).toBeUndefined();
 
-    const azureResources = resources.filter((r) => r.type.startsWith('azure-native:'));
-    expect(azureResources).toHaveLength(0);
-  });
+      const azureResources = resources.filter((r) => r.type.startsWith('azure-native:'));
+      expect(azureResources).toHaveLength(0);
+    },
+    PULUMI_IMPORT_TEST_TIMEOUT_MS
+  );
 
-  it('does not provision admin keys or touch the production database', async () => {
-    const mod = await import('../../src/admin-keys.js');
-    await new Promise((resolve) => setTimeout(resolve, 300));
+  it(
+    'does not provision admin keys or touch the production database',
+    async () => {
+      const mod = await import('../../src/admin-keys.js');
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-    expect(mod.adminKeys).toEqual([]);
+      expect(mod.adminKeys).toEqual([]);
 
-    const keyResources = resources.filter(
-      (r) => r.type.startsWith('random:') || r.type.startsWith('command:')
-    );
-    expect(keyResources).toHaveLength(0);
-  });
+      const keyResources = resources.filter(
+        (r) => r.type.startsWith('random:') || r.type.startsWith('command:')
+      );
+      expect(keyResources).toHaveLength(0);
+    },
+    PULUMI_IMPORT_TEST_TIMEOUT_MS
+  );
 
   it('registers no cloud resources from the gated modules on an untrusted stack', () => {
     // Scoped to the modules imported above (vercel/signing/admin-keys/dns/

@@ -932,7 +932,27 @@ fn write_atomic_owner_only(path: &Path, body: &[u8]) -> Result<(), ConfinementEr
     })
 }
 
-#[cfg(not(unix))]
+/// Windows (DSV-010b / CIB-211): write then stamp a protected owner-only DACL.
+/// Plain `fs::write` inherits parent NTFS ACLs; under GHA runners that means
+/// Administrators owner + LOCAL SYSTEM write — which [`read_trusted`] correctly
+/// rejects as [`ConfinementError::ForeignWritable`]. Applying the owner-only
+/// DACL after write is the Windows analogue of Unix `chmod 0600`, and keeps the
+/// ForeignWritable gate intact for truly foreign writers.
+#[cfg(windows)]
+fn write_atomic_owner_only(path: &Path, body: &[u8]) -> Result<(), ConfinementError> {
+    std::fs::write(path, body).map_err(|source| ConfinementError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    anvil_intercept_win32::apply_owner_only_file_dacl(path).map_err(|source| {
+        ConfinementError::Io {
+            path: path.to_path_buf(),
+            source,
+        }
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
 fn write_atomic_owner_only(path: &Path, body: &[u8]) -> Result<(), ConfinementError> {
     std::fs::write(path, body).map_err(|source| ConfinementError::Io {
         path: path.to_path_buf(),
@@ -1003,6 +1023,11 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
                 .expect("chmod 0600");
+        }
+        #[cfg(windows)]
+        {
+            anvil_intercept_win32::apply_owner_only_file_dacl(path)
+                .expect("owner-only DACL");
         }
     }
 
