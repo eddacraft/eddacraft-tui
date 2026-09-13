@@ -96,7 +96,7 @@ Change a work item to **Ready** when:
 
 ### POSBRD-001: Correct SETCON enforcement-mode catalogue
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-13 via PR #4680
 - **Intent:** Stop advertising `off` / `warn` / `enforce` on `protection.enforcement.mode`.
 - **Expected Outcome:** Catalogue enum is `off`, `warn`, `fence`, `interrupt`; default remains `warn`. Rule-mode keys keep `off` / `warn` / `enforce`. Min-posture constraints on this key use `EnforcementMode` order and do not collapse `fence` / `interrupt` to `enforce`.
 - **Files:** `crates/anvil-settings/src/seed.rs`, `crates/anvil-settings/src/types.rs`, `crates/anvil-settings/src/constraints.rs`
@@ -107,10 +107,10 @@ Change a work item to **Ready** when:
 
 ### POSBRD-002: Posture snapshot read model
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-13 via PR #4680
 - **Intent:** Compute one snapshot of four projection rows with configured, resolved, and active cells.
 - **Expected Outcome:** Rows are `mcp_pre_write`, `intercept`, `gate`, `acceptance`. Ladder verbs on the first two; native gate and acceptance verbs on the last two. Configured is `(unset)` / `(none)` when the source is absent. Runtime state is `unknown` / `stale` / `failed` / `drift` / `active` per SETCON. Mapping legend is data, not a fifth row.
-- **Files:** `crates/anvil-settings/src/`
+- **Files:** `crates/anvil-settings/src/posture.rs`, `crates/anvil-settings/src/lib.rs`
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- posture_snapshot`
 - **Dependencies:** POSBRD-001
 - **Confidence:** high
