@@ -155,10 +155,25 @@ pub(crate) fn canonicalize_working_path(
 ///
 /// Notify may emit verbatim (`\\?\`) or 8.3 short-name paths while
 /// [`bind_working_root`] stores a dunce-canonical root. Equality and prefix
-/// checks must use one representation. Deleted files cannot canonicalize;
-/// fall back to stripping a verbatim prefix without a filesystem probe.
+/// checks must use one representation. A deleted leaf cannot canonicalize;
+/// walk to the nearest existing ancestor, expand that, and rejoin the suffix
+/// so Windows 8.3 directory components still match the bound root.
 fn ordinary_watch_path(path: &std::path::Path) -> std::path::PathBuf {
-    canonicalize_working_path(path).unwrap_or_else(|_| dunce::simplified(path).to_path_buf())
+    if let Ok(canonical) = canonicalize_working_path(path) {
+        return canonical;
+    }
+    let mut suffix = std::path::PathBuf::new();
+    let mut probe = path.to_path_buf();
+    while let Some(name) = probe.file_name() {
+        suffix = std::path::Path::new(name).join(suffix);
+        if !probe.pop() {
+            break;
+        }
+        if let Ok(canonical_parent) = canonicalize_working_path(&probe) {
+            return canonical_parent.join(suffix);
+        }
+    }
+    dunce::simplified(path).to_path_buf()
 }
 
 /// Resolve a tutorial-owned target beneath a canonical session root.
@@ -3184,7 +3199,7 @@ mod tests {
         std::fs::write(&watched, "x").expect("write watched");
         state.steps[0].watch_path = Some("watched.txt".into());
         state.steps[0].command = Some("exit 1".into());
-        let advanced = state.handle_file_change(&[watched]);
+        let advanced = state.handle_file_change(std::slice::from_ref(&watched));
         assert!(!advanced);
         assert!(!state.command_result_dwell);
         assert!(state.current_step_failed());
@@ -3198,6 +3213,16 @@ mod tests {
         assert!(
             !state.command_result_dwell,
             "non-canonical tempfile paths must still match the bound root"
+        );
+
+        std::fs::remove_file(&watched).expect("remove watched");
+        state.command_result_dwell = true;
+        let deleted = root.path().join("watched.txt");
+        let advanced = state.handle_file_change(&[deleted]);
+        assert!(!advanced);
+        assert!(
+            !state.command_result_dwell,
+            "deleted tempfile paths must still match via the existing parent"
         );
     }
 
