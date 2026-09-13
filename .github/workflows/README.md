@@ -16,26 +16,26 @@ The Workflow Contract Map below lists each workflow with the contract(s) it
 implements. A small set of explicit **auxiliary** workflows (labels, gates,
 observability) sit outside the five contracts.
 
-| #   | Contract              | Authoritative for                                                   |
-| --- | --------------------- | ------------------------------------------------------------------- |
-| 1   | **PR validation**     | Proving the proposed change shape (affected lint/typecheck/test).   |
-| 2   | **Integration push**  | Proving the merged integration SHA — full workspace evidence.       |
-| 3   | **Assurance**         | Scheduled full assurance — coverage, expanded matrices, deep scans. |
-| 4   | **Release candidate** | Release readiness for an explicit SHA before tag publish.           |
-| 5   | **Publish**           | Immutable tag-triggered build/publish + post-publish verification.  |
+| #   | Contract              | Authoritative for                                                                                    |
+| --- | --------------------- | ---------------------------------------------------------------------------------------------------- |
+| 1   | **PR validation**     | Proving the proposed change shape (affected lint/typecheck/test).                                    |
+| 2   | **Integration push**  | Proving the merged integration SHA — full workspace evidence.                                        |
+| 3   | **Assurance**         | Scheduled full assurance — coverage, expanded matrices, deep scans.                                  |
+| 4   | **Release candidate** | Release readiness for an explicit SHA before tag publish.                                            |
+| 5   | **Publish**           | Immutable tag-triggered (or existing-tag recovery) build/publish + signed post-publish verification. |
 
 ### Execution tiers (PR cost control)
 
 Expensive work is deliberately **not** on every PR. Map jobs to the cheapest
 tier that still protects the merge or the ship:
 
-| Tier                    | Typical trigger                              | Owns                                        | Examples                                                                                            |
-| ----------------------- | -------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **PR**                  | `pull_request` to `main`                     | Required ruleset checks + cheap correctness | `ci.yml` primaries, Rust Check/Clippy/Format/`Test`, Security Summary, Council gate                 |
-| **Integration push**    | `push` to `main`                             | Tip-of-main evidence after merge            | Node Integration Readiness aggregate; path-filtered resource-budget on crates merges                |
-| **Nightly / assurance** | `schedule` + `workflow_dispatch`             | Continuous fleet health                     | `ci-nightly.yml` (coverage, multi-OS, cross); `resource-budget.yml` nightly schedule                |
-| **Pre-release**         | `release-readiness.yml` dispatch (exact SHA) | Shippability of a candidate                 | `dist plan`, resource-budget on that SHA, format/lint/script contracts, publication-token preflight |
-| **Publish**             | version tags                                 | Immutable release                           | `release.yml` cargo-dist build/publish (tag-only; no PR dry-run)                                    |
+| Tier                    | Typical trigger                              | Owns                                        | Examples                                                                                                                         |
+| ----------------------- | -------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **PR**                  | `pull_request` to `main`                     | Required ruleset checks + cheap correctness | `ci.yml` primaries, Rust Check/Clippy/Format/`Test`, Security Summary, Council gate                                              |
+| **Integration push**    | `push` to `main`                             | Tip-of-main evidence after merge            | Node Integration Readiness aggregate; path-filtered resource-budget on crates merges                                             |
+| **Nightly / assurance** | `schedule` + `workflow_dispatch`             | Continuous fleet health                     | `ci-nightly.yml` (coverage, multi-OS, cross); `resource-budget.yml` nightly schedule                                             |
+| **Pre-release**         | `release-readiness.yml` dispatch (exact SHA) | Shippability of a candidate                 | `dist plan`, resource-budget on that SHA, format/lint/script contracts, publication-token preflight                              |
+| **Publish**             | version tags + existing-tag dispatch         | Immutable release                           | `release.yml` cargo-dist build/publish (tag push or recovery `workflow_dispatch`; signing must upload `.minisig`; no PR dry-run) |
 
 **Do not put back on routine PRs without a cost review:** resource-budget full
 suite (~18m release profile), cargo-dist plan fan-out, multi-OS Node matrices,
@@ -72,8 +72,8 @@ fixture enforces both directions.
 | `ci-nightly.yml`                       | Assurance                            | `schedule` (17:00 UTC Sun–Thu = 01:00 Perth Mon–Fri) plus `workflow_dispatch` — coverage (TS + Rust), cross-OS Node suites, cross-compile assurance (native `cargo test` on Linux/macOS/Windows), hostile-ambient CLI suite (CIB-391: umask 002, `DO_NOT_TRACK`, live daemon); resource budgets run as a sibling nightly via `resource-budget.yml` @ 17:15                                                                       | CICD         |
 | `ci-cost-report.yml`                   | Assurance                            | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                                                                                                                                                                                                                                                                  | CICD         |
 | `release-readiness.yml`                | Release candidate                    | `workflow_dispatch` only — exact `sourceSha` validation, `dist plan` packaging contract, resource-budget gate on that SHA, candidate metadata artefact; no publish credentials                                                                                                                                                                                                                                                   | RELORCH      |
-| `release.yml`                          | Publish                              | `push: tags: …` only — cargo-dist build, publish, post-publish verification (PR dry-run removed; use release-readiness)                                                                                                                                                                                                                                                                                                          | RELORCH      |
-| `release-sign-artefacts.yml`           | Publish                              | Successful tag-triggered `Release` workflow runs (`v*`, including prerelease betas) plus run-ID-bound `workflow_dispatch` recovery — verifies private/public assets against provenance, signs installers + provenance with minisign, and uploads `.minisig` to both releases; prefixed library releases skip                                                                                                                     | DISTRIB      |
+| `release.yml`                          | Publish                              | `push: tags: ['v*']` plus existing-tag `workflow_dispatch` recovery (YAML from the selected branch; source checkout `refs/tags/<tag>`; per-tag concurrency, `cancel-in-progress: false`) — cargo-dist build, publish, post-publish verification. Signing is a separate workflow; host success without `.minisig` is not complete. PR dry-run removed (use release-readiness).                                                    | RELORCH      |
+| `release-sign-artefacts.yml`           | Publish                              | Successful `Release` runs that are tag `push` (`v*`, including prerelease betas) **or** `workflow_dispatch` recovery, plus run-ID-bound manual dispatch — resolves the tag from the Release run (plan artefact / display / inputs), signs the tag commit (not a dispatch branch `head_sha`), verifies private/public assets against provenance, and uploads `.minisig` to both releases; prefixed library releases skip          | DISTRIB      |
 | `publish-eddacraft-tui.yml`            | Publish                              | `push: tags: ['eddacraft-tui-v*']` — validate against D-TUIR-007 publish-side gates, `cargo publish` to crates.io, propagate the tag (append-only) to `eddacraft/eddacraft-tui` mirror, then `gh release create` on anvil-001                                                                                                                                                                                                    | TUIR         |
 | `homebrew-bump.yml`                    | Publish                              | `release: published` plus `workflow_dispatch` plus path-filtered `pull_request` — dry-run contract on PR, manual republish to `eddacraft/homebrew-tap`, macOS arm64/x64 install smoke                                                                                                                                                                                                                                            | DISTRIB      |
 | `labeler.yml`                          | Auxiliary (PR labels)                | `pull_request` (any base) — `actions/labeler` path-based labels                                                                                                                                                                                                                                                                                                                                                                  | CICD         |
@@ -354,21 +354,32 @@ SHA validation): format/lint/script contracts, publication-token preflight,
 **cargo-dist `plan`** (packaging dry-run moved off PR), **resource-budget** on
 that SHA, and candidate metadata. No publish credentials.
 
-Immutable tag publishing (`release.yml`, tag-only cargo-dist build + publish +
-post-publish verify). See `plans/modules/release-orchestration.aps.md`.
+Immutable tag publishing (`release.yml`): cargo-dist build + publish +
+post-publish verify on `v*` tag push, or `workflow_dispatch` recovery of an
+existing tag (`gh workflow run Release --ref <branch-with-fix> -f tag=vX.Y.Z`).
+Recovery uses workflow YAML from the selected branch and checks out
+`refs/tags/<tag>` for source (missing tags fail closed; a same-named branch
+cannot be selected). Per-tag concurrency uses `cancel-in-progress: false`.
+Signing is a separate workflow; a GitHub Release without `.minisig` sidecars is
+not complete. See `plans/modules/release-orchestration.aps.md` and
+`docs/runbooks/release-signing.md`.
 
 ### `release-sign-artefacts.yml`
 
-Runs after a successful tag-triggered `Release` workflow (`v*`, including
-prerelease betas); pull-request runs and prefixed library releases are excluded.
-Manual recovery requires both the tag and its successful Release run ID. Before
-using the signing key, the workflow proves that the run SHA still matches the
-tag, the private provenance names that run/SHA, all required installer and
-provenance assets exist, their recorded digests match, and the private/public
-copies are byte-identical. It then signs both installers plus provenance,
-self-verifies them, and uploads the detached `.minisig` files to the private and
-public releases. Refuses to run when `vars.ANVIL_MINISIGN_PUBLIC_KEY` is empty
-or still equals the committed dev fallback. See ADR-045 and DISTRIB-001.
+Runs after a successful `Release` workflow that is either a tag-triggered `push`
+(`v*`, including prerelease betas) or a `workflow_dispatch` recovery of an
+existing tag. Pull-request runs and prefixed library releases are excluded.
+Manual recovery requires both the tag and a successful Release run ID (tag push
+or dispatch recovery). For dispatch runs the signer resolves the tag from the
+Release plan artefact (then display title / inputs), and signs the tag commit —
+not the workflow branch `head_sha`. Before using the signing key, the workflow
+proves that the tag SHA matches the built source, the private provenance names
+that run/SHA, all required installer and provenance assets exist, their recorded
+digests match, and the private/public copies are byte-identical. It then signs
+both installers plus provenance, self-verifies them, and uploads the detached
+`.minisig` files to the private and public releases. Refuses to run when
+`vars.ANVIL_MINISIGN_PUBLIC_KEY` is empty or still equals the committed dev
+fallback. See ADR-045 and DISTRIB-001.
 
 ### `publish-eddacraft-tui.yml`
 

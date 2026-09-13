@@ -1,8 +1,8 @@
 # Release Signing — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                                                       |
-| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | Last verified 2026-07-13 against `.github/workflows/release-sign-artefacts.yml` |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                             |
+| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last verified 2026-09-14 against `.github/workflows/release-sign-artefacts.yml` and `.github/workflows/release.yml` dispatch recovery |
 
 | Upstream                                                                                                                                                                                                                                            | Downstream                                                                                                                                                                                                                                      |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -105,29 +105,38 @@ workflow has it via the secret; routine signing happens in CI.
 
 ## Routine release
 
-Once setup is complete, no operator action is required per release:
+Once setup is complete, no operator action is required per tag-push release:
 
 1. Cut the tag as usual (`anvil release …`).
 2. `release.yml` runs cargo-dist and publishes the GitHub Release.
-3. A successful tag-triggered `Release` workflow emits `workflow_run`, which
-   starts `release-sign-artefacts.yml`. Pull-request runs are excluded before
-   secrets are consumed. The signing workflow resolves the tag to its exact
-   commit, signs every `*-installer.sh` / `*-installer.ps1` asset plus the
-   provenance manifest, self-verifies the signatures, and uploads the `.minisig`
-   files to both the private source release and the public `eddacraft/anvil`
-   release.
+3. A successful `Release` workflow — tag `push` **or** existing-tag
+   `workflow_dispatch` recovery — emits `workflow_run`, which starts
+   `release-sign-artefacts.yml`. Pull-request runs are excluded before secrets
+   are consumed. The signing workflow resolves the tag from the Release run
+   (plan artefact / display title / inputs), signs the tag commit (not a
+   dispatch branch `head_sha`), signs every `*-installer.sh` / `*-installer.ps1`
+   asset plus the provenance manifest, self-verifies the signatures, and uploads
+   the `.minisig` files to both the private source release and the public
+   `eddacraft/anvil` release.
 4. Users on v0.7.0+ run `anvil update`; the library-fallback path verifies the
    signature against the embedded public key before replacing the running
    binary.
 
+A `workflow_dispatch` recovery republish is **not** complete until signing
+uploads the `.minisig` sidecars. Auto-sign fires for successful recovery runs
+once this signer is on `main`. A recovery run that already completed before that
+change (for example v0.10.0-beta run `34773735970`) needs a one-shot manual
+dispatch against that run ID; do not retag.
+
 If automatic signing needs a deterministic retry, provide both the tag and the
-successful tag-triggered Release run ID. The signer revalidates their SHA and
-provenance binding before touching the private key or public release:
+successful Release run ID (tag push or dispatch recovery). The signer
+revalidates the plan artefact, tag SHA, and provenance binding before touching
+the private key or public release:
 
 ```sh
 gh workflow run release-sign-artefacts.yml --ref main \
-  -f tag=v0.9.0-beta \
-  -f run_id=29190475570
+  -f tag=v0.10.0-beta \
+  -f run_id=34773735970
 ```
 
 ## Verifying a release locally
