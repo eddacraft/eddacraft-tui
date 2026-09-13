@@ -537,12 +537,17 @@ jobs:
               | sort
           ) | jq -s '.' > "$ASSETS_TMP"
 
+          # Prefer the checked-out source commit (tag SHA on republish), not
+          # GITHUB_SHA which is the workflow_dispatch branch tip.
+          PRIVATE_SHA="$(git rev-parse HEAD)"
+          PRIVATE_REF="refs/tags/${RELEASE_TAG}"
+
           jq -n \
             --arg schema_version "1" \
             --arg release_tag "$RELEASE_TAG" \
             --arg private_repo "$GITHUB_REPOSITORY" \
-            --arg private_sha "$GITHUB_SHA" \
-            --arg private_ref "$GITHUB_REF" \
+            --arg private_sha "$PRIVATE_SHA" \
+            --arg private_ref "$PRIVATE_REF" \
             --arg workflow_run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --arg workflow_run_id "$GITHUB_RUN_ID" \
             --arg workflow_run_attempt "$GITHUB_RUN_ATTEMPT" \
