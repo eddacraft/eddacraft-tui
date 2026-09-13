@@ -151,6 +151,16 @@ pub(crate) fn canonicalize_working_path(
     dunce::canonicalize(path)
 }
 
+/// Normalise a watch-event path to the same form as a bound working root.
+///
+/// Notify may emit verbatim (`\\?\`) or 8.3 short-name paths while
+/// [`bind_working_root`] stores a dunce-canonical root. Equality and prefix
+/// checks must use one representation. Deleted files cannot canonicalize;
+/// fall back to stripping a verbatim prefix without a filesystem probe.
+fn ordinary_watch_path(path: &std::path::Path) -> std::path::PathBuf {
+    canonicalize_working_path(path).unwrap_or_else(|_| dunce::simplified(path).to_path_buf())
+}
+
 /// Resolve a tutorial-owned target beneath a canonical session root.
 pub fn resolve_working_path(
     root: &std::path::Path,
@@ -980,9 +990,11 @@ impl TutorialState {
         let Ok(target) = self.resolve_session_target(&watch_target_path) else {
             return false;
         };
-        let relevant = changed_paths
-            .iter()
-            .any(|p| p == &target || p.starts_with(&target));
+        let target = ordinary_watch_path(&target);
+        let relevant = changed_paths.iter().any(|p| {
+            let p = ordinary_watch_path(p);
+            p == target || p.starts_with(&target)
+        });
         if !relevant {
             return false;
         }
@@ -3159,14 +3171,16 @@ mod tests {
     #[test]
     fn handle_file_change_clears_command_result_dwell() {
         let root = tempfile::tempdir().expect("tempdir");
+        let canonical_root =
+            canonicalize_working_path(root.path()).expect("canonical workspace fixture");
         let mut state = state_with_command_step("echo hello");
         state
-            .bind_working_root(root.path())
+            .bind_working_root(&canonical_root)
             .expect("bind working root");
         select_and_run(&mut state);
         assert!(state.command_result_dwell);
 
-        let watched = root.path().join("watched.txt");
+        let watched = canonical_root.join("watched.txt");
         std::fs::write(&watched, "x").expect("write watched");
         state.steps[0].watch_path = Some("watched.txt".into());
         state.steps[0].command = Some("exit 1".into());
@@ -3174,6 +3188,17 @@ mod tests {
         assert!(!advanced);
         assert!(!state.command_result_dwell);
         assert!(state.current_step_failed());
+
+        // Notify may hand the raw tempfile join (8.3 / verbatim) rather than
+        // the dunce-canonical bound root. The relevance check must still fire.
+        state.command_result_dwell = true;
+        let raw_watched = root.path().join("watched.txt");
+        let advanced = state.handle_file_change(&[raw_watched]);
+        assert!(!advanced);
+        assert!(
+            !state.command_result_dwell,
+            "non-canonical tempfile paths must still match the bound root"
+        );
     }
 
     #[test]
