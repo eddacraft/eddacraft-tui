@@ -1,8 +1,8 @@
 # anvil-tui — Compatibility Record
 
-| Type     | Authority | Owner | Status     | Freshness                                                                                          |
-| -------- | --------- | ----- | ---------- | -------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | TUI   | Deprecated | Component truth moved 2026-08-20 to `crates/anvil-tui/ARCHITECTURE.md` under DOCRB-005 and ADR-123 |
+| Type     | Authority | Owner | Status     | Freshness                                                                                                                                                                                                                                                                                                                          |
+| -------- | --------- | ----- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | TUI   | Deprecated | Last reviewed 2026-09-14 for SETINS-001/002 settings surface work on `crates/anvil-tui/ARCHITECTURE.md`; this compatibility record remains deprecated and does not resurrect duplicate live architecture content. Prior review: Component truth moved 2026-08-20 to `crates/anvil-tui/ARCHITECTURE.md` under DOCRB-005 and ADR-123 |
 
 | Upstream            | Downstream                                                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |

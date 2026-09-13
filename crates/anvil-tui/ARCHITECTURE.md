@@ -1,8 +1,8 @@
 # anvil TUI architecture
 
-| Type         | Authority | Owner | Status | Freshness                                                                                                                                                     |
-| ------------ | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Architecture | Derived   | TUI   | Live   | Last reviewed 2026-08-20 against `f0f834b39`, `src/surfaces/**`, `src/lib.rs`, `eddacraft-tui::Surface`, tutorial copy tests, snapshots, ADR-115, and ADR-123 |
+| Type         | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                          |
+| ------------ | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture | Derived   | TUI   | Live   | Last reviewed 2026-09-14 for SETINS-001/002 inspect-only settings surface (grouping, search, keyboard navigation, expandable detail). Prior review 2026-08-20 against `f0f834b39`, `src/surfaces/**`, `src/lib.rs`, `eddacraft-tui::Surface`, tutorial copy tests, snapshots, ADR-115, and ADR-123 |
 
 | Upstream                                                                                | Downstream                                                                        |
 | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
