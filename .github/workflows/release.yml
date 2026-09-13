@@ -14,6 +14,7 @@
 # title/body based on your changelogs.
 
 name: Release
+run-name: ${{ github.event.inputs.tag || github.ref_name }}
 permissions:
   contents: read
 
@@ -38,11 +39,15 @@ permissions:
 #
 # If there's a prerelease-style suffix to the version, then the release(s)
 # will be marked as a prerelease.
-# Tag-triggered publish only. cargo-dist plan dry-runs used to fire on every
+# Tag-triggered publish, plus workflow_dispatch recovery for an existing tag
+# (YAML from the selected branch; source checkout from refs/tags/<tag>, never
+# a same-named branch). cargo-dist plan dry-runs used to fire on every
 # crates/** PR and added a large skipped-check fan-out; that surface moved to
 # release-readiness (`dist plan` on the exact candidate SHA). See
-# `.github/workflows/README.md` tier table. Hand-edits survive `dist generate`
-# via `allow-dirty = ["ci"]` in dist-workspace.toml.
+# `.github/workflows/README.md` tier table. A successful publish is not
+# complete until release-sign-artefacts.yml uploads the `.minisig` sidecars.
+# Hand-edits survive `dist generate` via `allow-dirty = ["ci"]` in
+# dist-workspace.toml.
 on:
   push:
     tags:
@@ -51,9 +56,13 @@ on:
       # semver glob would still start this workflow and skip most jobs.
       - 'v*'
   # Recovery: re-publish an existing tag without moving it. Select this
-  # workflow from a branch that has the CI fix, pass the existing tag, and
-  # checkouts use that tag for source while the workflow YAML comes from the
-  # selected branch (see plan job + checkout ref below).
+  # workflow from a branch that has the CI fix:
+  #   gh workflow run Release --ref <branch-with-fix> -f tag=vX.Y.Z-beta
+  # Checkouts use refs/tags/<tag> for source; missing tags fail closed.
+  # Per-tag concurrency (cancel-in-progress: false) serialises republishes.
+  # Signing is a separate workflow (auto workflow_run after success, or
+  # manual dispatch with this run id). Host success without `.minisig` is
+  # not a complete release.
   workflow_dispatch:
     inputs:
       tag:
@@ -61,16 +70,19 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
     # Defense in depth with the `v*` tag filter above: only CLI-style tags
     # should reach this job. Skipping `plan` cascades — every downstream job
     # needs it, and `host` gates on `needs.plan.result == 'success'`.
-    # workflow_dispatch recovery uses inputs.tag (existing tag, not moved).
-    if:
-      ${{ startsWith(github.ref_name, 'v') || (github.event_name == 'workflow_dispatch' &&
-      startsWith(inputs.tag, 'v')) }}
+    # workflow_dispatch always enters plan so invalid tags fail closed in meta
+    # instead of skipping the whole workflow as success.
+    if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v') }}
     runs-on: 'ubuntu-22.04'
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
@@ -83,13 +95,25 @@ jobs:
     steps:
       - id: meta
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ inputs.tag }}"
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${DISPATCH_TAG:-}"
           else
-            TAG="${{ github.ref_name }}"
+            TAG="${REF_NAME}"
           fi
+          # Reject characters outside the allowed tag set before writing
+          # GITHUB_OUTPUT (notably newline, which would smuggle extra keys).
+          case "${TAG}" in
+            *[!A-Za-z0-9.-]*)
+              echo "::error::tag '${TAG}' contains characters outside [A-Za-z0-9.-]"
+              exit 1
+              ;;
+          esac
           case "$TAG" in
             v*) ;;
             *)
@@ -100,7 +124,7 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "tag-flag=--tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "publishing=true" >> "$GITHUB_OUTPUT"
-          echo "source-ref=$TAG" >> "$GITHUB_OUTPUT"
+          echo "source-ref=refs/tags/$TAG" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.meta.outputs.source-ref }}
@@ -449,6 +473,7 @@ jobs:
           ref: ${{ needs.plan.outputs.source-ref }}
           persist-credentials: false
           submodules: recursive
+          fetch-tags: true
       - name: Install cached dist
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -541,6 +566,11 @@ jobs:
           # GITHUB_SHA which is the workflow_dispatch branch tip.
           PRIVATE_SHA="$(git rev-parse HEAD)"
           PRIVATE_REF="refs/tags/${RELEASE_TAG}"
+          TAG_SHA="$(git rev-parse "${PRIVATE_REF}^{commit}")"
+          if [ "$PRIVATE_SHA" != "$TAG_SHA" ]; then
+            echo "::error::Checked-out HEAD ${PRIVATE_SHA} is not ${PRIVATE_REF} (${TAG_SHA})."
+            exit 1
+          fi
 
           jq -n \
             --arg schema_version "1" \
