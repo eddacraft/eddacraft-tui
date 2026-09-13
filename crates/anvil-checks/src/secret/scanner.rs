@@ -1539,6 +1539,7 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
         );
     }
 
+    #[test]
     fn rust_cfg_test_raw_string_corpus_is_not_a_finding() {
         let config = SecretCheckConfig::default();
         let planted = format!("AKIA{}", "IOSFODNN7EXAMPLE");
@@ -1576,6 +1577,7 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
     }
 
     
+    #[test]
     fn rust_cfg_test_high_entropy_token_is_not_a_finding() {
         let config = SecretCheckConfig::default();
         let token = format!("{}{}", "9xY7qW2vK8mN4pR6", "sT1uV3wX5yZ0abcd");
