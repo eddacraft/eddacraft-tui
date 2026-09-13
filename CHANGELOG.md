@@ -179,6 +179,11 @@ engineering maintenance are recorded in the
   their holders exit. If the rename itself fails, the manual recipe (PowerShell
   installer after `anvil intercept stop`) is printed as before.
 
+- **Watch events match the bound project root on Windows.** Short 8.3 names and
+  `\\?\` verbatim paths no longer look like a different tree than the
+  dunce-canonical root `anvil watch` bound, so TUI file-change handling (and
+  dwell-clear) still runs for the project you opened. (#4659)
+
 ### Changed
 
 - **`anvil status` reports L4 `on` only when a pre-push hook and a parseable

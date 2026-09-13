@@ -117,6 +117,9 @@ cut headline.
   clients authenticate the pipe server process SID before document traffic;
   `read_trusted_config` refuses owner-matched files whose DACL grants write to
   another principal (Unix `0o022` analogue). (CIB-211, #4635)
+- **TUI watch relevance uses dunce-canonical bound roots.** Incoming notify
+  events (8.3 / `\\?\`) compare equal to `bind_working_root`, so Windows Cross
+  smoke no longer misses file-change dwell-clear. (#4659)
 
 ### Observation honesty / telemetry / insights
 
@@ -312,6 +315,12 @@ cut headline.
   restored (exclude Astro spike; dashboard `flags-catalogue` reference) (#4643);
   Rust-only `eddacraft-anvil` excluded from JS ESLint fan-out while retaining
   `lint:rust` (#4644).
+- **CI Nightly Windows Cross / unit-test freight (2026-09-13).** Watch events
+  match dunce-canonical bound roots so Cross `x86_64-pc-windows-msvc` smoke
+  stays green (#4659). Telemetry mount test no longer imports the full API graph
+  inside Vitest `testTimeout` (#4660). MCP reconnect-hint test waits for the
+  detached stderr line before child exit (#4663). Licence-route inventory uses a
+  cheap identifier scan instead of a per-id TypeScript AST walk (#4666).
 - **Mid-edit service SLO soft-warn; roundtrip hard-fail.** CI stops flaking on
   mid-edit service noise while keeping roundtrip fail-closed. (#4575)
 - **Runtime I/O bounds on daemon exchanges and Git object reads.** Shared
