@@ -119,10 +119,10 @@ engineering maintenance are recorded in the
 - **`DO_NOT_TRACK` now stops save-time and fence usage rows as well as the CLI
   beacon.** Any non-empty value other than `0`/`false` is a hard-off.
 
-- **GitHub release notes advertise `brew install eddacraft/tap/anvil`.**
-  cargo-dist used the crate name (`eddacraft-anvil`) in the Homebrew stanza
-  while the tap formula is `anvil`. Copy-paste of the v0.9.7-beta release-notes
-  line would not resolve. (#4077)
+- **GitHub release notes advertise the Homebrew tap formula
+  `eddacraft/tap/anvil`.** cargo-dist used the crate name (`eddacraft-anvil`) in
+  the Homebrew stanza while the tap formula is `anvil`. Copy-paste of the
+  v0.9.7-beta release-notes install line would not resolve. (#4077)
 
 - **GCTX and `anvil intercept status` find a daemon bound under the other Unix
   socket path.** A client with `XDG_RUNTIME_DIR` set no longer reports
@@ -338,7 +338,7 @@ engineering maintenance are recorded in the
 
 - **Secret detection includes vendored gitleaks tier-1 provider rules.**
   Prefix-anchored credentials (GitLab, Slack, Stripe, and similar) now match on
-  the built-in path. Anvil still compiles the rules itself; no third-party
+  the built-in path. anvil still compiles the rules itself; no third-party
   scanner enters the product.
 
 ## [0.9.7-beta] — 2026-08-21 — First-session honesty

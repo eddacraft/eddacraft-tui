@@ -6,7 +6,7 @@ owner: DOCSYNC
 upstream:
   - patterns/compiled/registry.json
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.9.7-beta
+verified_against: 0.10.0-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->
@@ -17,8 +17,8 @@ These rules are the body of the `antipattern-scan` check, not the list of anvil
 checks. See the [check catalogue](checks.md) for every shipped check.
 
 This catalogue covers source-pattern rules in the compiled registry shipped with
-anvil 0.9.7-beta. Secrets, architecture, policy, command-safety, and other gate
-checks have separate engines and are not listed here. The registry contains **49
+anvil 0.10.0-beta. Secrets, architecture, policy, command-safety, and other gate
+checks have separate engines and are not listed here. The registry contains **52
 enabled rules across 11 families**.
 
 Rule IDs are stable identifiers you may see in terminal or machine-readable
@@ -52,6 +52,9 @@ failed.
 | `PY-007`   | Any annotation escapes the type system                         | python-reliability        | warning          | .py                                             |
 | `PY-008`   | eval() / exec() / compile() called with a dynamic argument     | python-reliability        | error            | .py                                             |
 | `PY-009`   | os.system / shell=True / pickle.loads / yaml.load              | python-reliability        | error            | .py                                             |
+| `PY-010`   | named except handler whose body is only pass                   | python-reliability        | warning          | .py                                             |
+| `PY-011`   | eval/exec/compile first argument PY-008 cannot see             | python-reliability        | warning          | .py                                             |
+| `PY-012`   | yaml.load without a SafeLoader, or from pickle import loads    | python-reliability        | warning          | .py                                             |
 | `RL-001`   | Unverified pre-existing claim                                  | responsibility-laundering | warning          | agent-output, pr-description                    |
 | `RL-002`   | Phantom follow-up tracking                                     | responsibility-laundering | warning          | agent-output, pr-description, commit-message    |
 | `RL-003`   | Blanket unrelated dismissal                                    | responsibility-laundering | error            | agent-output, pr-description                    |
