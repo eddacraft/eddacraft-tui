@@ -78,13 +78,21 @@ assert_contains "github.event_name == 'workflow_dispatch' &&"
 assert_contains "startsWith(github.event.inputs.tag, 'v')"
 assert_contains "github.event.workflow_run.conclusion =="
 assert_contains "github.event.workflow_run.event =="
+assert_contains "github.event.workflow_run.event == 'workflow_dispatch'"
 assert_contains "actions: read"
 assert_contains "startsWith(github.event.workflow_run.head_branch, 'v')"
-assert_contains "TAG: \${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}"
+assert_contains "DISPATCH_TAG: \${{ github.event.inputs.tag }}"
+assert_contains "group: >-"
 assert_contains "RELEASE_RUN_ID: \${{ github.event.inputs.run_id || github.event.workflow_run.id }}"
+assert_contains "artifacts-plan-dist-manifest"
+assert_contains "announcement_tag"
+assert_contains "push|workflow_dispatch"
 assert_contains 'gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq '\''.sha'\'''
 assert_contains 'actions/runs/${RELEASE_RUN_ID}'
 assert_contains 'if [ "$tag_sha" != "$commit_sha" ]'
+assert_contains "Dispatch run head_sha"
+assert_not_contains "TAG: \${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}"
+assert_not_contains "is not a successful tag-triggered push run."
 assert_contains "scripts/release/validate-signing-inputs.sh"
 assert_contains "eddacraft-anvil-installer.sh.minisig"
 assert_contains "eddacraft-anvil-installer.ps1.minisig"
@@ -111,13 +119,23 @@ assert_release_step_blocking "Publish release evidence to eddacraft/anvil"
 assert_release_contains '::error title=Missing ACKNOWLEDGEMENTS.md'
 assert_release_contains '::error title=Missing release evidence'
 
-# CI de-bloat: cargo-dist publish is tag-only; PR dry-run lives in release-readiness.
+# CI de-bloat: cargo-dist publish is tag-only on PRs; recovery is dispatch.
 if grep -E '^[[:space:]]*pull_request:' "${release_workflow}" >/dev/null; then
   echo "expected ${release_workflow} not to declare a pull_request trigger" >&2
   exit 1
 fi
 assert_release_contains "push:"
 assert_release_contains "tags:"
+assert_release_contains "workflow_dispatch:"
+assert_release_contains "DISPATCH_TAG:"
+assert_release_contains "source-ref=refs/tags/"
+assert_release_contains "concurrency:"
+assert_release_contains "cancel-in-progress: false"
+assert_release_contains "*[!A-Za-z0-9.-]*"
+if grep -Fq -- 'TAG="${{ inputs.tag }}"' "${release_workflow}"; then
+  echo "expected ${release_workflow} not to interpolate inputs.tag into bash source" >&2
+  exit 1
+fi
 # CLI tags only — do not re-introduce the broad dist-generated semver glob.
 assert_release_contains "- 'v*'"
 if grep -Fq -- '**[0-9]+.[0-9]+.[0-9]+*' "${release_workflow}"; then

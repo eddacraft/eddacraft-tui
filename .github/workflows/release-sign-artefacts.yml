@@ -1,9 +1,11 @@
 # Sign release artefacts with minisign and upload the detached .minisig
 # files back to the GitHub Release. See ADR-045 and DISTRIB-001.
 #
-# This workflow runs after `release.yml` publishes a release. It is
-# intentionally separate so the cargo-dist-generated workflow stays
-# auto-managed and unaffected.
+# This workflow runs after `release.yml` publishes a release, including both
+# tag-push publishes and workflow_dispatch recovery republishes of an existing
+# tag. It is intentionally separate so the cargo-dist-generated workflow stays
+# auto-managed and unaffected. A published GitHub Release without `.minisig`
+# sidecars is not complete.
 
 name: Release — sign artefacts
 
@@ -17,7 +19,7 @@ on:
         description: 'Release tag to sign (e.g. v0.7.0-beta)'
         required: true
       run_id:
-        description: 'Successful tag-triggered Release workflow run ID'
+        description: 'Successful Release run ID (tag push or workflow_dispatch recovery)'
         required: true
 
 permissions:
@@ -25,7 +27,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-sign-${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}
+  group: >-
+    release-sign-${{ github.event.inputs.tag || github.event.workflow_run.display_title ||
+    github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 jobs:
@@ -34,11 +38,12 @@ jobs:
     runs-on: ubuntu-22.04
     if:
       ${{ (github.event_name == 'workflow_dispatch' && startsWith(github.event.inputs.tag, 'v')) ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event ==
-      'push' && startsWith(github.event.workflow_run.head_branch, 'v')) }}
+      (github.event.workflow_run.conclusion == 'success' && ((github.event.workflow_run.event ==
+      'push' && startsWith(github.event.workflow_run.head_branch, 'v')) ||
+      github.event.workflow_run.event == 'workflow_dispatch')) }}
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}
+      DISPATCH_TAG: ${{ github.event.inputs.tag }}
       RELEASE_RUN_ID: ${{ github.event.inputs.run_id || github.event.workflow_run.id }}
     steps:
       - name: Checkout (for verification helpers)
@@ -86,28 +91,98 @@ jobs:
         id: release
         run: |
           set -euo pipefail
+          [[ "${RELEASE_RUN_ID}" =~ ^[0-9]+$ ]] || {
+            echo "::error::Release run id '${RELEASE_RUN_ID}' is not numeric."
+            exit 1
+          }
+
           run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_RUN_ID}")
           run_name=$(jq -r '.name' <<< "$run_json")
           run_event=$(jq -r '.event' <<< "$run_json")
           run_conclusion=$(jq -r '.conclusion' <<< "$run_json")
-          run_tag=$(jq -r '.head_branch' <<< "$run_json")
-          commit_sha=$(jq -r '.head_sha' <<< "$run_json")
-          tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq '.sha')
+          run_head_branch=$(jq -r '.head_branch' <<< "$run_json")
+          run_head_sha=$(jq -r '.head_sha' <<< "$run_json")
+          run_display=$(jq -r '.display_title // empty' <<< "$run_json")
 
           [ "$run_name" = "Release" ] || {
             echo "::error::Run ${RELEASE_RUN_ID} is '${run_name}', not the Release workflow."
             exit 1
           }
-          [ "$run_event" = "push" ] && [ "$run_conclusion" = "success" ] || {
-            echo "::error::Run ${RELEASE_RUN_ID} is not a successful tag-triggered push run."
+          [ "$run_conclusion" = "success" ] || {
+            echo "::error::Run ${RELEASE_RUN_ID} conclusion is '${run_conclusion}', not success."
             exit 1
           }
-          [ "$run_tag" = "$TAG" ] || {
-            echo "::error::Run ${RELEASE_RUN_ID} built ${run_tag}, not ${TAG}."
+          case "$run_event" in
+            push|workflow_dispatch) ;;
+            *)
+              echo "::error::Run ${RELEASE_RUN_ID} event is '${run_event}', not push or workflow_dispatch."
+              exit 1
+              ;;
+          esac
+
+          plan_dir=$(mktemp -d)
+          trap 'rm -rf "${plan_dir}"' EXIT
+          gh run download "${RELEASE_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            -n artifacts-plan-dist-manifest \
+            -D "${plan_dir}"
+          planned_tag=$(jq -r '.announcement_tag // empty' "${plan_dir}/plan-dist-manifest.json")
+          [ -n "$planned_tag" ] || {
+            echo "::error::Run ${RELEASE_RUN_ID} plan artifact has no announcement_tag."
             exit 1
           }
+
+          if [ -n "${DISPATCH_TAG:-}" ]; then
+            TAG="${DISPATCH_TAG}"
+          elif [ "$run_event" = "push" ]; then
+            TAG="${run_head_branch}"
+          elif [[ "${run_display}" =~ ^v[A-Za-z0-9.-]+$ ]]; then
+            TAG="${run_display}"
+          else
+            TAG="${planned_tag}"
+          fi
+
+          case "${TAG}" in
+            *[!A-Za-z0-9.-]*)
+              echo "::error::tag '${TAG}' contains characters outside [A-Za-z0-9.-]"
+              exit 1
+              ;;
+          esac
+          case "${TAG}" in
+            v*) ;;
+            *)
+              echo "::error::Release tag must start with v (got '${TAG}')"
+              exit 1
+              ;;
+          esac
+
+          [ "$planned_tag" = "$TAG" ] || {
+            echo "::error::Run ${RELEASE_RUN_ID} planned '${planned_tag}', not '${TAG}'."
+            exit 1
+          }
+
+          tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq '.sha')
+          if [ "$run_event" = "push" ]; then
+            [ "$run_head_branch" = "$TAG" ] || {
+              echo "::error::Run ${RELEASE_RUN_ID} built ${run_head_branch}, not ${TAG}."
+              exit 1
+            }
+            commit_sha="$run_head_sha"
+          else
+            # workflow_dispatch head_sha is the selected workflow branch, not
+            # the tag that was built. Sign the tag commit; provenance binds it.
+            if [ "$run_head_sha" != "$tag_sha" ]; then
+              echo "Dispatch run head_sha ${run_head_sha} is the workflow branch; signing the tag commit."
+            fi
+            commit_sha="$tag_sha"
+          fi
+
+          if [[ ! "${tag_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Tag ${TAG} does not resolve to a valid commit SHA."
+            exit 1
+          fi
           if [[ ! "${commit_sha}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Run ${RELEASE_RUN_ID} does not expose a valid source SHA."
+            echo "::error::Run ${RELEASE_RUN_ID} does not resolve to a valid source SHA."
             exit 1
           fi
           if [ "$tag_sha" != "$commit_sha" ]; then
@@ -116,6 +191,7 @@ jobs:
           fi
           echo "commit_sha=${commit_sha}" >> "${GITHUB_OUTPUT}"
           echo "run_id=${RELEASE_RUN_ID}" >> "${GITHUB_OUTPUT}"
+          echo "TAG=${TAG}" >> "${GITHUB_ENV}"
 
       - name: Download release assets
         env:
