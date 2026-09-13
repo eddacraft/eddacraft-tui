@@ -12,6 +12,8 @@ engineering maintenance are recorded in the
 > `v0.9.7-beta`. Theme locked: continuous journey honesty. Version and date land
 > at the cut.
 
+## [0.10.0-beta] — 2026-09-13
+
 ### Fixed
 
 - **A missing Windows named pipe is reported as daemon unavailable.** Connecting
