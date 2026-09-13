@@ -1,7 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const src = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -11,28 +10,28 @@ function productionFiles(dir: string): string[] {
     if (entry.name === '__tests__') return [];
     const path = join(dir, entry.name);
     if (entry.isDirectory()) return productionFiles(path);
-    return /\.ts$/.test(path) && !/\.(test|spec)\.ts$/.test(path) ? [path] : [];
+    return path.endsWith('.ts') && !/\.(test|spec)\.ts$/.test(path) ? [path] : [];
   });
 }
 
+// One cheap pass over production sources, then identifier-token matches.
+// Catches imports, re-exports, and calls without a TypeScript AST walk.
+// Parsing every file per identifier timed out the 5s Vitest default on
+// Windows Nightly (same class as #4660).
+const productionSources = productionFiles(src).map((path) => ({
+  rel: relative(src, path).replaceAll('\\', '/'),
+  source: readFileSync(path, 'utf8'),
+}));
+
+function identifierToken(identifier: string): RegExp {
+  return new RegExp(`(?<![A-Za-z0-9_$])${identifier}(?![A-Za-z0-9_$])`);
+}
+
 function usersOf(identifier: string): string[] {
-  return productionFiles(src)
-    .filter((path) => {
-      const tree = ts.createSourceFile(
-        path,
-        readFileSync(path, 'utf8'),
-        ts.ScriptTarget.Latest,
-        true
-      );
-      let found = false;
-      function visit(node: ts.Node) {
-        if (ts.isIdentifier(node) && node.text === identifier) found = true;
-        ts.forEachChild(node, visit);
-      }
-      visit(tree);
-      return found;
-    })
-    .map((path) => relative(src, path).replaceAll('\\', '/'))
+  const token = identifierToken(identifier);
+  return productionSources
+    .filter(({ source }) => token.test(source))
+    .map(({ rel }) => rel)
     .sort();
 }
 
