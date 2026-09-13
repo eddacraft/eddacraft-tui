@@ -1910,6 +1910,15 @@ mod tests {
             h.supervisor.driver_status(worktree),
             Some(DriverStatus::Failed)
         );
+        // Stretch the hold window so a CI deschedule between Failed and the
+        // follow-up refresh cannot race past the short crash-loop backoff and
+        // admit another spawn. Same pattern as the sibling persistent-spawn-
+        // failure test: keep the short backoff for the loop under test, then
+        // bump before asserting the in-backoff hold.
+        let _ = h
+            .supervisor
+            .clone()
+            .with_spawn_failure_backoff(Duration::from_hours(1));
         // Further refreshes inside the backoff stay refused.
         enqueue(&h, MembershipChange::Refreshed, worktree);
         h.supervisor.process_pending();
