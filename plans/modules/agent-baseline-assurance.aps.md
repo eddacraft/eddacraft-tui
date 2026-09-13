@@ -172,7 +172,7 @@ flowchart LR
   ABASE --> SETINS[SETINS inspection surfaces]
   ABASE --> SETGOV[SETGOV governed mutation and approvals]
   ABASE --> AGOV[AGOV runtime capability governance]
-  ABASE --> RECEIPT[Witness and evidence receipts]
+  ABASE --> WITNESS[anvil-witness provenance chain / ADR-037]
 ```
 
 | Module/surface | Owns | Relationship to ABASE |
@@ -188,7 +188,7 @@ flowchart LR
 | [Settings Governed Changes](./settings-governed-changes.aps.md) (SETGOV) | Proposals, approvals, activation verification, and audit for protection-affecting mutations. | ABASE update/apply should reuse this workflow when pack changes affect protection; it must not create a second approval mechanism. |
 | [Git-native Exceptions](./git-native-exceptions.aps.md) (EXCEPT) | Scoped, expiring, auditable exceptions. | Missing/stale/drifted baseline requirements use EXCEPT rather than permanent hidden skips. |
 | [Agent Governance Patterns](./agent-governance-patterns.aps.md) (AGOV) | Runtime capability, trust, destructive-pattern, and audit signals. | ABASE proves what agent material was supplied; AGOV governs what the agent may do. Distribution is not runtime enforcement. |
-| Witness/evidence surfaces | Durable decision and provenance evidence. | Receipts bind governance context and immutable pack digests to later work without claiming behavioural obedience. |
+| [`anvil-witness`](../../crates/anvil-witness/) and [ADR-037](../decisions/037-witness-chain-and-l4-policy.md) | Canonical append-only, hash-chained provenance ledger and DAG verification. | ABASE receipts must extend the existing `WitnessLine`/witness-chain contract, or reference companion evidence from it, to bind governance context and immutable pack digests to later work without claiming behavioural obedience. ABASE must not create a parallel provenance store; AGOV-006 follows the same extension rule. |
 
 ## Candidate First Slice
 
@@ -233,6 +233,9 @@ items and promote them explicitly.
       becoming a fleet or package manager.
 - [ ] Define evidence language for installed/current/discoverable/loaded and
       prohibit unsupported “obeyed” claims.
+- [ ] Define the ABASE receipt extension against ADR-037 and
+      `crates/anvil-witness`, including how any companion evidence is
+      content-addressed from the canonical witness chain.
 - [ ] Decompose the accepted first slice into independently verifiable work
       items and promote them explicitly.
 
