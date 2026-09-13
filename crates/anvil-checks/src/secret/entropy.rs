@@ -139,6 +139,10 @@ pub(crate) fn detect_high_entropy_strings_over_source(
             if crate::secret::patterns::looks_like_structural_code(candidate) {
                 continue;
             }
+            if is_non_secret_entropy_token(line, candidate) {
+                record_benign_entropy(suppressions, &matcher, file, line_number, candidate);
+                continue;
+            }
 
             let entropy = calculate_entropy(candidate);
             if entropy < config.entropy_threshold {
@@ -580,6 +584,63 @@ fn is_document_extension(ext: &str) -> bool {
             | "bat"
             | "cmd"
     )
+}
+
+fn record_benign_entropy(
+    suppressions: &mut Vec<Suppression>,
+    matcher: &PatternMatcher,
+    file: &str,
+    line_number: usize,
+    candidate: &str,
+) {
+    suppressions.push(Suppression {
+        file: file.to_string(),
+        line: line_number,
+        rule_name: "High Entropy String".to_string(),
+        redacted_match: matcher.redact_secret(candidate),
+        provenance: AllowlistProvenance::BuiltinBenignFixture,
+    });
+}
+
+fn is_non_secret_entropy_token(line: &str, candidate: &str) -> bool {
+    let lower_line = line.to_ascii_lowercase();
+    let lower = candidate.to_ascii_lowercase();
+    if lower.contains("not-a-secret") || lower.contains("not_a_secret") {
+        return true;
+    }
+    if is_cross_compile_toolchain_token(candidate) {
+        return true;
+    }
+    is_minisign_public_key(candidate)
+        && (lower_line.contains("dev_key")
+            || lower_line.contains("dev_public_key")
+            || lower_line.contains("minisign")
+            || lower_line.contains("public_key"))
+}
+
+fn is_cross_compile_toolchain_token(candidate: &str) -> bool {
+    let lower = candidate.to_ascii_lowercase();
+    let looks_like_triple = lower.contains("-linux-")
+        || lower.contains("-unknown-")
+        || lower.contains("-pc-windows-")
+        || lower.contains("-apple-darwin");
+    let looks_like_tool = lower.ends_with("-gcc")
+        || lower.ends_with("-g++")
+        || lower.ends_with("-clang")
+        || lower.ends_with("-ar")
+        || lower.ends_with("-ld")
+        || lower.contains("-gnu-gcc")
+        || lower.contains("-gnu-g++")
+        || lower.contains("-gnu-ar");
+    looks_like_triple && looks_like_tool
+}
+
+fn is_minisign_public_key(candidate: &str) -> bool {
+    candidate.len() >= 40
+        && candidate.starts_with("RWR")
+        && candidate
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '+' | '='))
 }
 
 fn is_benign_entropy_fixture(file: &str, line_window: &LineWindow<'_>, candidate: &str) -> bool {
@@ -1307,6 +1368,51 @@ const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
     fn path_shaped(line: &str, digits: &str) -> bool {
         let start = line.find(digits).expect("digits in fixture");
         super::is_path_shaped_document_token(digits, line, start, start + digits.len())
+    }
+
+    #[test]
+    fn labelled_dummy_passphrase_is_not_high_entropy() {
+        let config = SecretCheckConfig::default();
+        let content = format!(
+            "echo \"PULUMI_CONFIG_PASSPHRASE=ci-preview-{}\" >> \"$GITHUB_ENV\"\n",
+            "not-a-secret",
+        );
+        let findings =
+            detect_high_entropy_strings(&content, ".github/workflows/infra.yml", &config);
+        assert!(
+            findings.is_empty(),
+            "labelled non-secrets must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn cross_compile_linker_assignment_is_not_high_entropy() {
+        let config = SecretCheckConfig::default();
+        let content = format!(
+            "echo \"CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER={}\" >> $GITHUB_ENV\n",
+            "aarch64-linux-gnu-gcc",
+        );
+        let findings = detect_high_entropy_strings(&content, ".github/workflows/rust.yml", &config);
+        assert!(
+            findings.is_empty(),
+            "cross-compile toolchain assignments must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn committed_dev_minisign_key_is_not_high_entropy() {
+        let config = SecretCheckConfig::default();
+        let key = format!(
+            "RWR{}{}",
+            "bilgipcbv8egsndfKxcAxjJCTusQPh", "/IsOy6ROFDiqvz8QNCVZRZ5",
+        );
+        let content = format!("DEV_KEY=\"{key}\"\n");
+        let findings =
+            detect_high_entropy_strings(&content, ".github/workflows/release.yml", &config);
+        assert!(
+            findings.is_empty(),
+            "committed development minisign keys must not flag: {findings:?}"
+        );
     }
 
     #[test]

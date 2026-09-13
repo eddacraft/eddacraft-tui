@@ -184,7 +184,15 @@ fn is_likely_code_identifier_path(value: &str) -> bool {
 ///
 /// Returns `true` when the value should be SKIPPED (i.e. the match is
 /// a false positive).
-fn is_generic_secret_false_positive(matched_value: &str) -> bool {
+fn is_generic_secret_false_positive_in(
+    matched_value: &str,
+    line: Option<&str>,
+    match_start: usize,
+) -> bool {
+    if generic_secret_keyword_is_glued(line, match_start) {
+        return true;
+    }
+
     // Split on the first `=` or `:` so the RHS is the candidate value.
     let Some(rhs_start) = matched_value.find(['=', ':']) else {
         return false;
@@ -251,7 +259,27 @@ fn is_generic_secret_false_positive(matched_value: &str) -> bool {
         return true;
     }
 
+    // Documentation / infra placeholders: `<agent-vault:db-password>`.
+    if unquoted.starts_with('<') && unquoted.ends_with('>') && unquoted.contains(':') {
+        return true;
+    }
+
     false
+}
+
+/// `stack-secret:` and `mysecret:` are identifiers, not `secret:` assignments.
+/// `DB_PASSWORD:` keeps the underscore so real env assignments still count.
+fn generic_secret_keyword_is_glued(line: Option<&str>, match_start: usize) -> bool {
+    let Some(line) = line else {
+        return false;
+    };
+    if match_start == 0 {
+        return false;
+    }
+    let Some(prev) = line.as_bytes().get(match_start - 1).copied() else {
+        return false;
+    };
+    prev == b'-' || prev.is_ascii_alphanumeric()
 }
 
 /// Why a pattern match was withheld. Distinguishes a deliberate *allowlist*
@@ -334,7 +362,8 @@ fn pattern_skip_reason(
     }
 
     let heuristic_skip = matcher.looks_like_code(matched_value)
-        || (pattern.name == "Generic Secret" && is_generic_secret_false_positive(matched_value))
+        || (pattern.name == "Generic Secret"
+            && is_generic_secret_false_positive_in(matched_value, Some(line), match_start))
         || (pattern.name == "Credit Card"
             && is_credit_card_false_positive(line, match_start, match_end));
     heuristic_skip.then_some(SkipReason::Heuristic)
@@ -396,7 +425,7 @@ fn is_placeholder_database_url_fixture(
     line: &str,
     matched_value: &str,
 ) -> bool {
-    if !is_benign_context(file_path, context) || has_runtime_database_binding(line) {
+    if has_runtime_database_binding(line) {
         return false;
     }
     let value = matched_value.to_ascii_lowercase();
@@ -404,14 +433,17 @@ fn is_placeholder_database_url_fixture(
         || value.contains("://user:pass@")
         || value.contains("${string}:${string}@")
         || value.contains("${string}:${number}")
-        || value.contains("<user>:<password>@");
+        || value.contains("<user>:<password>@")
+        || value.contains("@example.invalid");
     let validator_context = has_validator_fixture_context(context)
         || context.contains("connectionstring")
         || context.contains("template-literal")
         || file_path
             .to_ascii_lowercase()
             .contains("template-literal.test.");
-    placeholder_userinfo && validator_context
+    // Test / fixture paths only need placeholder userinfo. Validator context
+    // still covers the same shapes in non-test files (zod template literals).
+    placeholder_userinfo && (is_benign_context(file_path, context) || validator_context)
 }
 
 /// Tracks whether the line just read sits inside a `#[cfg(test)] mod … { … }`
@@ -544,6 +576,7 @@ fn is_public_high_entropy_material(pattern_name: &str, line: &str, matched_value
     let lower = line.to_ascii_lowercase();
     if lower.contains("dev_public_key")
         || lower.contains("test_public_key")
+        || lower.contains("dev_key")
         || lower.contains("zero_parent_id")
     {
         return true;
@@ -902,10 +935,10 @@ fn scan_source_with_compiled_patterns(
                 // pattern pass refused to inspect. Recomputed rather than
                 // remembered: it is the same O(1) test on the same line, and
                 // pass 1 ran to completion or we would not be here.
-                let line = window.line();
-                if line.len() > config.max_line_bytes {
+                if entropy_skips_line(window, config.max_line_bytes) {
                     return false;
                 }
+                let line = window.line();
                 patterns_for(line).all(|pattern| {
                     pattern.match_ranges(line).all(|range| {
                         should_skip_pattern_match(
@@ -926,6 +959,10 @@ fn scan_source_with_compiled_patterns(
     }
 
     Ok((findings, stats))
+}
+
+fn entropy_skips_line(window: &LineWindow<'_>, max_line_bytes: usize) -> bool {
+    window.line().len() > max_line_bytes || window.in_rust_cfg_test()
 }
 
 /// Legacy limited-scan entry point that drops the SCAN-002 stats.
@@ -1369,6 +1406,108 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
                 .iter()
                 .all(|finding| finding.pattern_name != "Generic Secret"),
             "Rust secret:: paths must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn hyphenated_secret_placeholder_tag_is_not_a_generic_secret() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = format!(
+            "expect(value).toBe('<untrusted-stack-{}:anvil-api-database-url>');\n",
+            "secret",
+        );
+        let findings = scan_content(
+            content.as_str(),
+            "infra/src/__tests__/untrusted-stack.test.ts",
+            &config,
+        );
+        assert!(
+            findings
+                .iter()
+                .all(|finding| finding.pattern_name != "Generic Secret"),
+            "placeholder tags must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn agent_vault_placeholder_assignment_is_not_a_generic_secret() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = format!("      DB_{}: <agent-vault:db-password>\n", "PASSWORD",);
+        let findings = scan_content(
+            content.as_str(),
+            ".agents/skills/agent-vault/SKILL.md",
+            &config,
+        );
+        assert!(
+            findings
+                .iter()
+                .all(|finding| finding.pattern_name != "Generic Secret"),
+            "agent-vault placeholders must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn dummy_database_url_on_test_path_is_not_a_finding() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = format!(
+            "const sql = neon('postgres://{}@example.invalid/db');\n",
+            "user:pass",
+        );
+        let findings = scan_content(
+            content.as_str(),
+            "apps/anvil-api/src/__tests__/sql-fragments.test.ts",
+            &config,
+        );
+        assert!(
+            findings
+                .iter()
+                .all(|finding| finding.pattern_name != "Database URL"),
+            "dummy DB URLs on test paths must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn rust_cfg_test_raw_string_corpus_is_not_a_finding() {
+        let config = SecretCheckConfig::default();
+        let planted = format!("AKIA{}", "IOSFODNN7EXAMPLE");
+        let content = format!(
+            "#[cfg(test)]\nmod tests {{\n    fn lockfile() {{\n        let lock = r#\"{{\n  \\\"packages\\\": {{\n    \\\"left-pad\\\": {{\n      \\\"k\\\": \\\"{planted}\\\"\n    }}\n  }}\n}}\n\"#;\n        let _ = lock;\n    }}\n}}\n",
+        );
+        let findings = scan_content(
+            &content,
+            "crates/anvil-cli/src/commands/welcome.rs",
+            &config,
+        );
+        assert!(
+            findings.is_empty(),
+            "raw-string corpus inside cfg(test) must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn rust_cfg_test_high_entropy_token_is_not_a_finding() {
+        let config = SecretCheckConfig::default();
+        let token = format!("{}{}", "9xY7qW2vK8mN4pR6", "sT1uV3wX5yZ0abcd");
+        let content = format!(
+            "#[cfg(test)]\nmod tests {{\n    fn t() {{\n        let x = \"{token}\";\n    }}\n}}\n"
+        );
+        let findings = scan_content(
+            &content,
+            "crates/anvil-cli/src/commands/welcome.rs",
+            &config,
+        );
+        assert!(
+            findings.is_empty(),
+            "entropy inside cfg(test) must not flag: {findings:?}"
         );
     }
 
