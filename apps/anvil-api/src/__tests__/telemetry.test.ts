@@ -378,8 +378,13 @@ describe('telemetry route mounting (index.ts)', () => {
       'utf8'
     );
     expect(indexSrc).toMatch(/\.basePath\(['"]\/api\/v1['"]\)/);
-    expect(indexSrc).toMatch(/app\.use\(['"]\*['"],\s*rateLimiter\(\)\)/);
-    expect(indexSrc).toMatch(/app\.route\(['"]\/telemetry['"],\s*telemetry\)/);
+    const rateLimiterUse = /app\.use\(['"]\*['"],\s*rateLimiter\(\)\)/.exec(indexSrc);
+    const telemetryRoute = /app\.route\(['"]\/telemetry['"],\s*telemetry\)/.exec(indexSrc);
+    expect(rateLimiterUse).not.toBeNull();
+    expect(telemetryRoute).not.toBeNull();
+    // Enforce use-before-route so a reorder cannot leave telemetry outside the
+    // shared limiter while this guard still matches both snippets.
+    expect(rateLimiterUse!.index).toBeLessThan(telemetryRoute!.index);
   });
 
   it('is mounted under the versioned base path and covered by the shared rate limiter', async () => {
@@ -392,18 +397,27 @@ describe('telemetry route mounting (index.ts)', () => {
 
     telemetryMocks.getClient.mockReturnValue(telemetryMocks.sql);
     telemetryMocks.sql.mockResolvedValue([]);
+    const previousDatabaseUrl = process.env['DATABASE_URL'];
     process.env['DATABASE_URL'] = 'postgres://telemetry-test';
 
-    const response = await indexApp.request('/api/v1/telemetry', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(validBeacon()),
-    });
+    try {
+      const response = await indexApp.request('/api/v1/telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validBeacon()),
+      });
 
-    expect(response.status).toBe(202);
-    // The app-level rateLimiter() stamps X-RateLimit-* headers on every
-    // request it admits — their presence proves the ingest route sits
-    // behind the shared limiter rather than being mounted around it.
-    expect(response.headers.get('X-RateLimit-Limit')).not.toBeNull();
+      expect(response.status).toBe(202);
+      // The app-level rateLimiter() stamps X-RateLimit-* headers on every
+      // request it admits — their presence proves the ingest route sits
+      // behind the shared limiter rather than being mounted around it.
+      expect(response.headers.get('X-RateLimit-Limit')).not.toBeNull();
+    } finally {
+      if (previousDatabaseUrl === undefined) {
+        delete process.env['DATABASE_URL'];
+      } else {
+        process.env['DATABASE_URL'] = previousDatabaseUrl;
+      }
+    }
   });
 });
