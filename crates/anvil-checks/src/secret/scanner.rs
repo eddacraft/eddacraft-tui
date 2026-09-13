@@ -430,27 +430,24 @@ fn is_placeholder_database_url_fixture(
     if has_runtime_database_binding(line) {
         return false;
     }
+    // Keep this skip on test/fixture paths only. Validator tokens in the
+    // content (expect/z.parse/connectionString) must not suppress the same
+    // bytes on a production control path — otherwise bn-placeholder-db-url /
+    // bn-template-literal-db-url go vacuous in secret calibration.
+    if !is_benign_context(file_path, context) {
+        return false;
+    }
     let value = matched_value.to_ascii_lowercase();
     // Database URL regex ends at `@`, so hostname is never in matched_value —
     // inspect the full line for docs/fixture hosts.
     let line_l = line.to_ascii_lowercase();
-    let placeholder_userinfo = value.contains("://username:password@")
+    value.contains("://username:password@")
         || value.contains("://user:pass@")
         || value.contains("${string}:${string}@")
         || value.contains("${string}:${number}")
         || value.contains("<user>:<password>@")
-        || value.contains("@example.invalid")
         || line_l.contains("@example.invalid")
-        || line_l.contains(".invalid/");
-    let validator_context = has_validator_fixture_context(context)
-        || context.contains("connectionstring")
-        || context.contains("template-literal")
-        || file_path
-            .to_ascii_lowercase()
-            .contains("template-literal.test.");
-    // Test / fixture paths only need placeholder userinfo. Validator context
-    // still covers the same shapes in non-test files (zod template literals).
-    placeholder_userinfo && (is_benign_context(file_path, context) || validator_context)
+        || line_l.contains(".invalid/")
 }
 
 /// Tracks whether the line just read sits inside a `#[cfg(test)] mod … { … }`
