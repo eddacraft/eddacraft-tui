@@ -2,6 +2,7 @@
 //!
 //! The word `effective` is banned: it collapses resolved and active.
 
+use anvil_kernel_types::EnforcementMode;
 use serde::{Deserialize, Serialize};
 
 /// Stable namespaced catalogue key (`protection.checks`, `ext.foo.bar`).
@@ -133,13 +134,7 @@ pub enum Posture {
 impl Posture {
     #[must_use]
     pub fn parse(raw: &str) -> Option<Self> {
-        match raw {
-            "off" => Some(Self::Off),
-            "warn" => Some(Self::Warn),
-            "fence" => Some(Self::Fence),
-            "interrupt" | "block" => Some(Self::Interrupt),
-            _ => None,
-        }
+        EnforcementMode::parse(raw).map(Self::from)
     }
 
     #[must_use]
@@ -149,6 +144,52 @@ impl Posture {
             Self::Warn => "warn",
             Self::Fence => "fence",
             Self::Interrupt => "interrupt",
+        }
+    }
+}
+
+impl From<EnforcementMode> for Posture {
+    fn from(mode: EnforcementMode) -> Self {
+        match mode {
+            EnforcementMode::Off => Self::Off,
+            EnforcementMode::Warn => Self::Warn,
+            EnforcementMode::Fence => Self::Fence,
+            EnforcementMode::Interrupt => Self::Interrupt,
+        }
+    }
+}
+
+impl From<Posture> for EnforcementMode {
+    fn from(posture: Posture) -> Self {
+        match posture {
+            Posture::Off => Self::Off,
+            Posture::Warn => Self::Warn,
+            Posture::Fence => Self::Fence,
+            Posture::Interrupt => Self::Interrupt,
+        }
+    }
+}
+
+#[cfg(test)]
+mod posture_conversion_tests {
+    use super::*;
+
+    #[test]
+    fn posture_parse_uses_enforcement_mode_alias_table() {
+        assert_eq!(Posture::parse("enforce"), None);
+        assert_eq!(Posture::parse("  BLOCK  "), Some(Posture::Interrupt));
+        assert_eq!(Posture::parse("advisory"), Some(Posture::Off));
+        assert_eq!(
+            Posture::parse("interrupt").map(EnforcementMode::from),
+            Some(EnforcementMode::Interrupt)
+        );
+        for mode in [
+            EnforcementMode::Off,
+            EnforcementMode::Warn,
+            EnforcementMode::Fence,
+            EnforcementMode::Interrupt,
+        ] {
+            assert_eq!(EnforcementMode::from(Posture::from(mode)), mode);
         }
     }
 }

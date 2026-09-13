@@ -148,17 +148,7 @@ fn apply_one(
             }
             Ok(())
         }
-        Constraint::MinPosture { key, min } => {
-            let row = row_mut(rows, key)?;
-            let Some(current) = row.resolved.as_ref().and_then(as_posture) else {
-                row.resolved = Some(Value::String(posture_name(*min).into()));
-                return Ok(());
-            };
-            if current < *min {
-                row.resolved = Some(Value::String(posture_name(*min).into()));
-            }
-            Ok(())
-        }
+        Constraint::MinPosture { key, min } => apply_min_posture(rows, key, *min),
         Constraint::MaxPosture { key, max } => {
             let row = row_mut(rows, key)?;
             if let Some(current) = row.resolved.as_ref().and_then(as_posture)
@@ -256,6 +246,32 @@ fn row_mut<'a>(
             key: key.to_owned(),
             reason: "missing key".into(),
         })
+}
+
+fn apply_min_posture(
+    rows: &mut [ResolvedSetting],
+    key: &str,
+    min: Posture,
+) -> Result<(), ConstraintError> {
+    let row = row_mut(rows, key)?;
+    match row.resolved.as_ref() {
+        None => {
+            row.resolved = Some(Value::String(posture_name(min).into()));
+            Ok(())
+        }
+        Some(value) => {
+            let Some(current) = as_posture(value) else {
+                return Err(ConstraintError::Violated {
+                    key: key.to_owned(),
+                    reason: "value is not an enforcement posture".into(),
+                });
+            };
+            if current < min {
+                row.resolved = Some(Value::String(posture_name(min).into()));
+            }
+            Ok(())
+        }
+    }
 }
 
 fn as_posture(value: &Value) -> Option<Posture> {
@@ -356,6 +372,33 @@ mod constraints_tests {
         };
         let out = apply_constraints(&requested, Some(&bundle)).unwrap();
         assert_eq!(out[0].resolved, Some(Value::String("interrupt".into())));
+    }
+
+    #[test]
+    fn constraints_min_posture_does_not_rewrite_rule_mode_enforce() {
+        let requested = vec![row(
+            "protection.rules.public-api-expansion",
+            Value::String("enforce".into()),
+            Scope::Project,
+        )];
+        let bundle = PolicyBundle {
+            id: "org-1".into(),
+            verifiable: true,
+            expired: false,
+            compatible: true,
+            constraints: vec![Constraint::MinPosture {
+                key: "protection.rules.public-api-expansion".into(),
+                min: Posture::Fence,
+            }],
+        };
+        let err = apply_constraints(&requested, Some(&bundle)).unwrap_err();
+        match err {
+            ConstraintError::Violated { key, reason } => {
+                assert_eq!(key, "protection.rules.public-api-expansion");
+                assert!(reason.contains("not an enforcement posture"));
+            }
+            other => panic!("expected violated, got {other:?}"),
+        }
     }
 
     #[test]

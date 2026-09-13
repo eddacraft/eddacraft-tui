@@ -11,6 +11,7 @@ name = "anvil_settings"
 
 [dependencies]
 anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["preserve_order"] }
 thiserror = { workspace = true }

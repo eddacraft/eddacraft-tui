@@ -1804,6 +1804,7 @@ version = "0.10.0-beta"
 dependencies = [
  "chrono",
  "eddacraft-anvil-config",
+ "eddacraft-anvil-kernel-types",
  "hex",
  "serde",
  "serde_json",

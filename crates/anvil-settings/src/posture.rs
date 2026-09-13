@@ -100,6 +100,8 @@ pub struct MappingLegend {
     pub scale: [&'static str; 4],
     pub warn_equivalents: [&'static str; 2],
     pub interrupt_equivalents: [&'static str; 2],
+    /// ADR-098 AD-3: `block` aliases the interrupt posture.
+    pub block_alias: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,11 +111,14 @@ pub struct PostureSnapshot {
     pub mapping: MappingLegend,
 }
 
-/// Declared `.anvil.yaml` `enforcement.mode` plus constraint/user raises.
+/// Declared `.anvil.yaml` `enforcement.mode` plus SETCON-resolved value.
+///
+/// `resolved` is the SETCON row after constraints (may still be the catalogue
+/// default). Surface defaults apply only when the key was not declared.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EnforcementSource {
     pub declared: Option<Posture>,
-    pub min: Option<Posture>,
+    pub resolved: Option<Posture>,
     pub intercept_user: Option<Posture>,
 }
 
@@ -164,13 +169,13 @@ pub struct PostureInputs {
 pub fn posture_snapshot(inputs: &PostureInputs) -> PostureSnapshot {
     let mcp_resolved = ladder_resolved(
         inputs.enforcement.declared,
-        inputs.enforcement.min,
+        inputs.enforcement.resolved,
         Posture::Interrupt,
         None,
     );
     let intercept_resolved = ladder_resolved(
         inputs.enforcement.declared,
-        inputs.enforcement.min,
+        inputs.enforcement.resolved,
         Posture::Warn,
         inputs.enforcement.intercept_user,
     );
@@ -196,22 +201,25 @@ pub fn posture_snapshot(inputs: &PostureInputs) -> PostureSnapshot {
             scale: POSTURE_SCALE,
             warn_equivalents: ["warnings-pass", "on_warn"],
             interrupt_equivalents: ["warnings-fail", "on_block"],
+            block_alias: "interrupt",
         },
     }
 }
 
 fn ladder_resolved(
     declared: Option<Posture>,
-    min: Option<Posture>,
-    default: Posture,
+    setcon: Option<Posture>,
+    surface_default: Posture,
     raise: Option<Posture>,
 ) -> Posture {
-    let mut value = declared.unwrap_or(default);
-    if let Some(floor) = min
-        && floor > value
-    {
-        value = floor;
-    }
+    let mut value = if declared.is_some() {
+        setcon.or(declared).unwrap_or(surface_default)
+    } else {
+        match setcon {
+            Some(constrained) if constrained > surface_default => constrained,
+            _ => surface_default,
+        }
+    };
     if let Some(user) = raise
         && user > value
     {
@@ -320,7 +328,7 @@ mod posture_snapshot_tests {
         PostureInputs {
             enforcement: EnforcementSource {
                 declared: None,
-                min: None,
+                resolved: Some(Posture::Warn),
                 intercept_user: None,
             },
             gate: GateSource {
@@ -429,7 +437,7 @@ mod posture_snapshot_tests {
     fn posture_snapshot_min_posture_raises_both_ladder_rows() {
         let mut source = inputs();
         source.enforcement.declared = Some(Posture::Warn);
-        source.enforcement.min = Some(Posture::Interrupt);
+        source.enforcement.resolved = Some(Posture::Interrupt);
         let snapshot = posture_snapshot(&source);
         assert_eq!(
             row(&snapshot, PostureSurface::McpPreWrite)
@@ -451,6 +459,29 @@ mod posture_snapshot_tests {
                 .value
                 .as_deref(),
             Some("warn")
+        );
+    }
+
+    #[test]
+    fn posture_snapshot_user_cannot_lower_intercept() {
+        let mut source = inputs();
+        source.enforcement.declared = Some(Posture::Interrupt);
+        source.enforcement.resolved = Some(Posture::Interrupt);
+        source.enforcement.intercept_user = Some(Posture::Off);
+        let snapshot = posture_snapshot(&source);
+        assert_eq!(
+            row(&snapshot, PostureSurface::Intercept)
+                .resolved
+                .value
+                .as_deref(),
+            Some("interrupt")
+        );
+        assert_eq!(
+            row(&snapshot, PostureSurface::McpPreWrite)
+                .resolved
+                .value
+                .as_deref(),
+            Some("interrupt")
         );
     }
 
@@ -498,6 +529,7 @@ mod posture_snapshot_tests {
     fn posture_snapshot_active_unknown_without_evidence() {
         let mut source = inputs();
         source.enforcement.declared = Some(Posture::Warn);
+        source.enforcement.resolved = Some(Posture::Warn);
         let snapshot = posture_snapshot(&source);
         for cell in &snapshot.rows {
             assert_eq!(cell.active.state, RuntimeState::Unknown);
@@ -509,6 +541,7 @@ mod posture_snapshot_tests {
     fn posture_snapshot_active_uses_injected_evidence_not_resolved() {
         let mut source = inputs();
         source.enforcement.declared = Some(Posture::Warn);
+        source.enforcement.resolved = Some(Posture::Warn);
         source.active[1] = SurfaceActive {
             value: Some("fence".into()),
             state: RuntimeState::Drift,
@@ -542,6 +575,7 @@ mod posture_snapshot_tests {
             snapshot.mapping.interrupt_equivalents,
             ["warnings-fail", "on_block"]
         );
+        assert_eq!(snapshot.mapping.block_alias, "interrupt");
         assert!(snapshot.rows.iter().all(|row| row.last_action.is_none()));
     }
 }
