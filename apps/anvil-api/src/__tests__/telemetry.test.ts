@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
+import { rateLimiter } from '../middleware/rate-limit.js';
 import { telemetry } from '../routes/telemetry.js';
 import {
   beaconSchema,
@@ -362,8 +366,30 @@ describe('telemetry beacon schema (unit)', () => {
 });
 
 describe('telemetry route mounting (index.ts)', () => {
+  it('wires telemetry under /api/v1 behind the shared rateLimiter in index.ts', () => {
+    // Cheap wiring guard: the composition test below proves the stack
+    // behaviour, but must not drift from how index.ts actually mounts it.
+    // Avoid importing index.ts here — that pulls every route module plus boot
+    // credential probes and counted against the 5s testTimeout (Nightly
+    // windows-latest timed out at ~5196ms after the request had already
+    // returned 202 in 14ms).
+    const indexSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../index.ts'),
+      'utf8'
+    );
+    expect(indexSrc).toMatch(/\.basePath\(['"]\/api\/v1['"]\)/);
+    expect(indexSrc).toMatch(/app\.use\(['"]\*['"],\s*rateLimiter\(\)\)/);
+    expect(indexSrc).toMatch(/app\.route\(['"]\/telemetry['"],\s*telemetry\)/);
+  });
+
   it('is mounted under the versioned base path and covered by the shared rate limiter', async () => {
-    const { default: indexApp } = await import('../index.js');
+    // Mirrors apps/anvil-api/src/index.ts: basePath('/api/v1'), use('*',
+    // rateLimiter()), route('/telemetry', telemetry). Composition only — see
+    // the wiring guard above for the index.ts source contract.
+    const indexApp = new Hono().basePath('/api/v1');
+    indexApp.use('*', rateLimiter());
+    indexApp.route('/telemetry', telemetry);
+
     telemetryMocks.getClient.mockReturnValue(telemetryMocks.sql);
     telemetryMocks.sql.mockResolvedValue([]);
     process.env['DATABASE_URL'] = 'postgres://telemetry-test';
