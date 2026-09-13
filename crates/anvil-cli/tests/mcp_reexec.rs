@@ -155,6 +155,10 @@ fn mcp_reexec_reconnect_instruction_is_once_across_trigger_flow_for_each_gate() 
         let stdout_rx = spawn_stdout_reader(stdout);
         let stderr_rx = spawn_stdout_reader(stderr);
 
+        // Recovery hint is written from a detached stderr thread. Await the
+        // reconnect instruction while the child is still alive so process
+        // exit cannot race the write away (Windows Cross Nightly saw 0).
+        let mut stderr = recv_lines_until(&mut child, &stderr_rx, "reconnect mcp for this client");
         send_initialize(&mut child, &stdout_rx);
         send_tools_list(&mut child, &stdout_rx);
 
@@ -165,7 +169,7 @@ fn mcp_reexec_reconnect_instruction_is_once_across_trigger_flow_for_each_gate() 
             "{condition} serve must exit cleanly after EOF: {status:?}"
         );
 
-        let stderr = drain_lines(&stderr_rx);
+        stderr.push_str(&drain_lines(&stderr_rx));
         assert_eq!(
             reconnect_instruction_count(&stderr),
             1,
