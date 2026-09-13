@@ -279,7 +279,9 @@ fn generic_secret_keyword_is_glued(line: Option<&str>, match_start: usize) -> bo
     let Some(prev) = line.as_bytes().get(match_start - 1).copied() else {
         return false;
     };
-    prev == b'-' || prev.is_ascii_alphanumeric()
+    // Hyphenated labels like `stack-secret:` only. Alphanumeric glue would
+    // suppress real assignments such as `mysecret='…'`.
+    prev == b'-'
 }
 
 /// Why a pattern match was withheld. Distinguishes a deliberate *allowlist*
@@ -429,12 +431,17 @@ fn is_placeholder_database_url_fixture(
         return false;
     }
     let value = matched_value.to_ascii_lowercase();
+    // Database URL regex ends at `@`, so hostname is never in matched_value —
+    // inspect the full line for docs/fixture hosts.
+    let line_l = line.to_ascii_lowercase();
     let placeholder_userinfo = value.contains("://username:password@")
         || value.contains("://user:pass@")
         || value.contains("${string}:${string}@")
         || value.contains("${string}:${number}")
         || value.contains("<user>:<password>@")
-        || value.contains("@example.invalid");
+        || value.contains("@example.invalid")
+        || line_l.contains("@example.invalid")
+        || line_l.contains(".invalid/");
     let validator_context = has_validator_fixture_context(context)
         || context.contains("connectionstring")
         || context.contains("template-literal")
@@ -462,6 +469,13 @@ fn is_placeholder_database_url_fixture(
 struct RustCfgTestTracker {
     pending_cfg_test: bool,
     depth: i32,
+    lex: RustLex,
+}
+
+#[derive(Default)]
+struct RustLex {
+    /// `Some(n)` while inside `r#…"` with `n` hashes (`0` is `r"…"`).
+    raw_hashes: Option<u8>,
 }
 
 impl RustCfgTestTracker {
@@ -472,7 +486,7 @@ impl RustCfgTestTracker {
         let mut entered_this_line = false;
         let trimmed = raw.trim_start();
         if self.depth > 0 {
-            self.depth = (self.depth + rust_line_brace_delta(raw)).max(0);
+            self.depth = (self.depth + rust_line_brace_delta(raw, &mut self.lex)).max(0);
         } else if let Some(after_attr) = trimmed.strip_prefix("#[cfg(test)]") {
             self.pending_cfg_test = true;
             entered_this_line = apply_pending_cfg_test_line(
@@ -480,6 +494,7 @@ impl RustCfgTestTracker {
                 after_attr.trim_start(),
                 &mut self.pending_cfg_test,
                 &mut self.depth,
+                &mut self.lex,
             );
         } else if self.pending_cfg_test {
             entered_this_line = apply_pending_cfg_test_line(
@@ -487,6 +502,7 @@ impl RustCfgTestTracker {
                 trimmed,
                 &mut self.pending_cfg_test,
                 &mut self.depth,
+                &mut self.lex,
             );
         }
         inside_before || entered_this_line || self.depth > 0
@@ -498,6 +514,7 @@ fn apply_pending_cfg_test_line(
     trimmed: &str,
     pending_cfg_test: &mut bool,
     depth: &mut i32,
+    lex: &mut RustLex,
 ) -> bool {
     if is_skippable_cfg_test_prefix(trimmed) {
         return false;
@@ -509,14 +526,14 @@ fn apply_pending_cfg_test_line(
         }
         if trimmed.contains('{') {
             *pending_cfg_test = false;
-            *depth = rust_line_brace_delta(raw).max(0);
+            *depth = rust_line_brace_delta(raw, lex).max(0);
             return true;
         }
         return false;
     }
     if trimmed.starts_with('{') {
         *pending_cfg_test = false;
-        *depth = rust_line_brace_delta(raw).max(0);
+        *depth = rust_line_brace_delta(raw, lex).max(0);
         return true;
     }
     *pending_cfg_test = false;
@@ -540,15 +557,31 @@ fn is_rust_mod_item(trimmed: &str) -> bool {
     rest.starts_with("mod ")
 }
 
-fn rust_line_brace_delta(line: &str) -> i32 {
+fn rust_line_brace_delta(line: &str, lex: &mut RustLex) -> i32 {
     let mut delta = 0i32;
     let mut in_string = false;
     let mut in_char = false;
     let mut escaped = false;
     let mut chars = line.chars().peekable();
+    let mut ident = false;
     while let Some(c) = chars.next() {
+        if let Some(hashes) = lex.raw_hashes {
+            if c == '"' {
+                let mut seen = 0u8;
+                while chars.peek() == Some(&'#') && seen < hashes {
+                    chars.next();
+                    seen += 1;
+                }
+                if hashes == 0 || seen == hashes {
+                    lex.raw_hashes = None;
+                }
+            }
+            ident = false;
+            continue;
+        }
         if escaped {
             escaped = false;
+            ident = false;
             continue;
         }
         if in_string || in_char {
@@ -558,6 +591,7 @@ fn rust_line_brace_delta(line: &str) -> i32 {
                 in_string = false;
                 in_char = false;
             }
+            ident = false;
             continue;
         }
         match c {
@@ -566,8 +600,20 @@ fn rust_line_brace_delta(line: &str) -> i32 {
             '\'' => in_char = true,
             '{' => delta += 1,
             '}' => delta -= 1,
+            'r' if !ident => {
+                let mut hashes = 0u8;
+                while chars.peek() == Some(&'#') {
+                    chars.next();
+                    hashes = hashes.saturating_add(1);
+                }
+                if chars.peek() == Some(&'"') {
+                    chars.next();
+                    lex.raw_hashes = Some(hashes);
+                }
+            }
             _ => {}
         }
+        ident = c.is_ascii_alphanumeric() || c == '_';
     }
     delta
 }
@@ -576,7 +622,6 @@ fn is_public_high_entropy_material(pattern_name: &str, line: &str, matched_value
     let lower = line.to_ascii_lowercase();
     if lower.contains("dev_public_key")
         || lower.contains("test_public_key")
-        || lower.contains("dev_key")
         || lower.contains("zero_parent_id")
     {
         return true;
@@ -1438,7 +1483,7 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
             enable_entropy: false,
             ..SecretCheckConfig::default()
         };
-        let content = format!("      DB_{}: <agent-vault:db-password>\n", "PASSWORD",);
+        let content = format!("      DB_{}: <agent-vault:db-password>\n", "PASSWORD");
         let findings = scan_content(
             content.as_str(),
             ".agents/skills/agent-vault/SKILL.md",
@@ -1458,9 +1503,11 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
             enable_entropy: false,
             ..SecretCheckConfig::default()
         };
+        // Non-user:pass userinfo so `.invalid` on the full line is what suppresses
+        // (Database URL regex match ends at `@`).
         let content = format!(
             "const sql = neon('postgres://{}@example.invalid/db');\n",
-            "user:pass",
+            "alice:s3cret",
         );
         let findings = scan_content(
             content.as_str(),
@@ -1476,11 +1523,46 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
     }
 
     #[test]
+    fn dev_key_aws_access_key_still_flags() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = format!(
+            "DEV_KEY=\"{}\"\n",
+            format!("AKIA{}", "IOSFODNN7EXAMPLE"),
+        );
+        let findings = scan_content(content.as_str(), "src/config.rs", &config);
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "AWS Key"),
+            "DEV_KEY with textbook AWS key must still flag: {findings:?}"
+        );
+    }
+
     fn rust_cfg_test_raw_string_corpus_is_not_a_finding() {
         let config = SecretCheckConfig::default();
         let planted = format!("AKIA{}", "IOSFODNN7EXAMPLE");
+        // Plant the credential *after* nested JSON braces inside the raw string
+        // so a brace-blind fold would leave cfg(test) early and false-positive.
         let content = format!(
-            "#[cfg(test)]\nmod tests {{\n    fn lockfile() {{\n        let lock = r#\"{{\n  \\\"packages\\\": {{\n    \\\"left-pad\\\": {{\n      \\\"k\\\": \\\"{planted}\\\"\n    }}\n  }}\n}}\n\"#;\n        let _ = lock;\n    }}\n}}\n",
+            concat!(
+                "#[cfg(test)]\n",
+                "mod tests {{\n",
+                "    fn lockfile() {{\n",
+                "        let lock = r#\"{{\n",
+                "  \\\"packages\\\": {{\n",
+                "    \\\"left-pad\\\": {{\n",
+                "      \\\"k\\\": \\\"noop\\\"\n",
+                "    }}\n",
+                "  }}\n",
+                "}}\n",
+                "\"#;\n",
+                "        let planted = \"{planted}\";\n",
+                "        let _ = (lock, planted);\n",
+                "    }}\n",
+                "}}\n",
+            ),
+            planted = planted
         );
         let findings = scan_content(
             &content,
@@ -1493,7 +1575,7 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
         );
     }
 
-    #[test]
+    
     fn rust_cfg_test_high_entropy_token_is_not_a_finding() {
         let config = SecretCheckConfig::default();
         let token = format!("{}{}", "9xY7qW2vK8mN4pR6", "sT1uV3wX5yZ0abcd");
@@ -1582,6 +1664,22 @@ pub const LIVE_KEY: &str = \"AKIAIOSFODNN7EXAMPLE\";\n";
         assert!(
             !aws_lines.contains(&test_line),
             "cfg(test) corpus must stay suppressed: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn textbook_aws_key_on_dev_key_line_still_flags() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = format!("DEV_KEY=\"AKIA{}\"\n", "IOSFODNN7EXAMPLE");
+        let findings = scan_content(&content, ".github/workflows/release.yml", &config);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.pattern_name == "AWS Key"),
+            "named AWS keys on a DEV_KEY line must still fire: {findings:?}"
         );
     }
 

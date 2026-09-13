@@ -69,8 +69,12 @@ path. Ordinary CLI callers may use the disk-reading wrapper.
   provenance; [`scanner.rs`](src/antipattern/scanner.rs) owns file/content
   evaluation.
 - [`secret/`](src/secret) combines named patterns with shaped entropy checks.
-  [`types.rs`](src/secret/types.rs) carries the per-line size guard and result
-  vocabulary; findings never include the raw secret value.
+  First-run false positives that are not credentials — placeholder tags, dummy
+  test-path database URLs, `#[cfg(test)]` entropy, toolchain env assignments,
+  labelled `not-a-secret` values, and committed minisign development public keys
+  — are allowlisted as benign fixtures; textbook keys outside those shapes still
+  fire. [`types.rs`](src/secret/types.rs) carries the per-line size guard and
+  result vocabulary; findings never include the raw secret value.
   [`vendored.rs`](src/secret/vendored.rs) owns the vendored provider ruleset
   from the generated data under [`vendor/`](src/secret/vendor). It appends to
   `DEFAULT_COMPILED_PATTERNS` for the surfaces that consult that set directly

@@ -139,13 +139,14 @@ pub(crate) fn detect_high_entropy_strings_over_source(
             if crate::secret::patterns::looks_like_structural_code(candidate) {
                 continue;
             }
-            if is_non_secret_entropy_token(line, candidate) {
-                record_benign_entropy(suppressions, &matcher, file, line_number, candidate);
-                continue;
-            }
 
             let entropy = calculate_entropy(candidate);
             if entropy < config.entropy_threshold {
+                continue;
+            }
+
+            if is_non_secret_entropy_token(line, candidate) {
+                record_benign_entropy(suppressions, &matcher, file, line_number, candidate);
                 continue;
             }
 
@@ -636,7 +637,10 @@ fn is_cross_compile_toolchain_token(candidate: &str) -> bool {
 }
 
 fn is_minisign_public_key(candidate: &str) -> bool {
-    candidate.len() >= 40
+    // Minisign public keys are a fixed 56-char unpadded base64 blob starting
+    // with RWR. Private-key payloads also start with RWR but are much longer —
+    // never treat those as public material.
+    candidate.len() == 56
         && candidate.starts_with("RWR")
         && candidate
             .chars()
@@ -1412,6 +1416,42 @@ const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
         assert!(
             findings.is_empty(),
             "committed development minisign keys must not flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn minisign_private_key_payload_still_flags() {
+        let config = SecretCheckConfig::default();
+        let key = format!(
+            "RWR{}{}{}",
+            "TY0IyCUFkD8hQd3/Vrk2gz4V7DQutn80vf4Mf5QN8wiV+GpcAABAAAA",
+            "AAAAAAAAAIAAAAASiOPsQwv1IWnyrsuQVo0py3XL4P8uFtvC4scJFjl",
+            "MUgGPV2M5OMts092iEeEF9DEpYXBKjY0RwqCBwYYmCPfCgUvxxwdF/Ks",
+        );
+        let content = format!("DEV_KEY=\"{key}\"\n");
+        let findings =
+            detect_high_entropy_strings(&content, ".github/workflows/release.yml", &config);
+        assert!(
+            !findings.is_empty(),
+            "minisign private-key payloads must still flag under DEV_KEY: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn labelled_low_entropy_placeholder_is_not_recorded_as_suppression() {
+        let config = SecretCheckConfig::default();
+        let content = "const token = \"ci-preview-not-a-secret\";\n";
+        let mut suppressions = Vec::new();
+        let findings = detect_with_suppressions(
+            content,
+            ".github/workflows/infra.yml",
+            &config,
+            &mut suppressions,
+        );
+        assert!(findings.is_empty(), "labelled placeholder must not flag: {findings:?}");
+        assert!(
+            suppressions.is_empty(),
+            "below-threshold labelled placeholders must not record suppressions: {suppressions:?}"
         );
     }
 
