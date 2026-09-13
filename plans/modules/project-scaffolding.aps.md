@@ -39,6 +39,11 @@ rewriting operator-owned files or claiming inactive protections are on.
 
 ## Out of Scope
 
+- Resolving organisation, engagement, team, or personal governance contexts;
+  selecting/versioning agent baseline packs; or distributing them across a
+  fleet. Those concerns belong to
+  [Agent Baseline Assurance](./agent-baseline-assurance.aps.md) (ABASE), which
+  may later supply desired components to this module's local reconciler.
 - Changing L4 policy evaluation, `l4_or_l3`, Serena's internal-error posture,
   or existing acceptance-policy content.
 - Making direct init install hooks, MCP, workflows, daemon state, witnesses,
@@ -67,6 +72,12 @@ rewriting operator-owned files or claiming inactive protections are on.
   separately evidenced component health.
 - A generated public **Project configuration options** page.
 - Evidence-based L4 activation state.
+
+**Coordinates with:**
+
+- [Agent Baseline Assurance](./agent-baseline-assurance.aps.md) (ABASE) — owns
+  multi-context desired-state resolution and immutable agent baseline packs;
+  PSCAF remains the additive local mutation substrate.
 
 ## Ready Checklist
 

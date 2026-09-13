@@ -18,6 +18,10 @@ nested `CONTEXT.md` files.
 ## Operating Rules
 
 - Use UK English in plans and documentation.
+- Use `eddacraft` and `anvil` lowercase in prose when naming the entities or
+  products, including headings. Preserve exact casing only in code identifiers,
+  external titles, quotations, and legal names. Correct existing prose when it
+  is materially touched; do not create broad casing-only rewrites.
 - Do not leave inline deferred-work markers. Track follow-up work in APS or
   GitHub Issues.
 - Do not create shadow indexes, duplicate module lists, or source-of-truth

@@ -39,6 +39,7 @@
 - [Rust MCP Launch Path](#rust-mcp-launch-path)
 - [Graph Trust Surfaces](#graph-trust-surfaces)
 - [Project Scaffolding](#project-scaffolding)
+- [Agent Baseline Assurance](#agent-baseline-assurance)
 - [Settings Truth Surface](#settings-truth-surface)
 - [Future](#future)
 - [Dormant: Not Yet Scheduled](#dormant-not-yet-scheduled)
@@ -838,6 +839,27 @@ Contract:
 Decision: [ADR-143](./decisions/143-project-scaffold-reconciliation.md).
 PSCAF supersedes ARCHCFG-007 and CIB-415 as implementation authority; CIB-267
 remains the prerequisite Git argv and hook-time PATH closeout.
+
+### Agent Baseline Assurance
+
+Planning intake 2026-09-14 from an enterprise agentic-engineering conversation:
+organisations need versioned, layered agent instructions and skills to remain
+current across many teams without erasing local ownership. The additional
+multi-organisation case recognises that one anvil installation may serve
+personal, consultancy, customer, volunteer, and project contexts without
+leaking authority, credentials, packs, or evidence between them.
+
+| Module | Scope | Status | Programme next |
+| --- | --- | --- | --- |
+| [agent-baseline-assurance](./modules/agent-baseline-assurance.aps.md) | ABASE | Draft | Validate replacement/coexistence demand, accept the governance-context ADR, and define the producer/pack contract before creating executable work items |
+
+ABASE owns explicit governance-context resolution, layered desired state,
+externally produced materialised agent baseline packs, version assurance, and
+receipts. [PSCAF](./modules/project-scaffolding.aps.md) remains the safe local
+reconciler; ORGHIER/POLLC/POLFED own Rego policy hierarchy, lifecycle, and
+federation; SKPKG owns anvil-authored bundled skills; SKOBS supplies observed
+inventory; SETGOV and EXCEPT own governed mutation and exceptions. The full
+dependency and non-overlap map lives in the ABASE module.
 
 ### Settings Truth Surface
 
