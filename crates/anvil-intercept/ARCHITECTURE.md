@@ -167,6 +167,10 @@ owns their cross-component client and capability relationship.
 
 ## Invariants, failure, and fallback
 
+- A non-empty `ANVIL_HOME` re-roots the fence store and its co-located durable
+  worktree-registration store alongside the daemon socket and PID file. An
+  isolated candidate or benchmark must not restore production registrations or
+  spawn their save-time drivers.
 - Membership signals are enqueued while the registry lock is held, so the order
   a consumer observes matches the order the mutations happened and an unregister
   racing a duplicate durable `session.register` cannot be seen in reverse.

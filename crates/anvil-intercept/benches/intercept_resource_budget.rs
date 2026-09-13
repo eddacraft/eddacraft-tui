@@ -96,12 +96,24 @@ mod unix_bench {
         // (0700) to satisfy the daemon's secure-runtime-dir check.
         let home = tempfile::tempdir()?;
         std::fs::set_permissions(home.path(), std::fs::Permissions::from_mode(0o700))?;
+        let state_home = home.path().join("state");
+        let config_home = home.path().join("config");
+        std::fs::create_dir_all(&state_home)?;
+        std::fs::create_dir_all(&config_home)?;
+        std::fs::set_permissions(&state_home, std::fs::Permissions::from_mode(0o700))?;
+        std::fs::set_permissions(&config_home, std::fs::Permissions::from_mode(0o700))?;
         let socket = home.path().join("intercept.sock");
 
         let mut command = Command::new(&bin);
         command
             .args(["intercept", "start", "--foreground"])
             .env("ANVIL_HOME", home.path())
+            // Defence in depth: the resource bench must not inherit either
+            // durable registrations or operator config if a future state
+            // surface accidentally bypasses ANVIL_HOME.
+            .env("HOME", home.path())
+            .env("XDG_STATE_HOME", &state_home)
+            .env("XDG_CONFIG_HOME", &config_home)
             .env("ANVIL_DEV", "1")
             .env("ANVIL_DISABLE_UPDATE_HINT", "1")
             .stdin(Stdio::null())
@@ -212,18 +224,29 @@ mod unix_bench {
     /// loud error rather than a misleadingly-idle measurement.
     async fn sanity_request(socket: &Path) -> Result<()> {
         let response = session_list(socket).await?;
-        if !response_has_result(&response) {
-            return Err(format!("daemon did not return a result: {response}").into());
+        let count = response_session_count(&response)?;
+        if count != 0 {
+            return Err(format!(
+                "resource bench isolation contaminated: daemon restored {count} session(s); check ANVIL_HOME/XDG state isolation"
+            )
+            .into());
         }
         Ok(())
     }
 
-    /// A JSON-RPC reply is a success iff it parses with a top-level `result` and
-    /// no `error` — robust against an error message that mentions "result".
-    fn response_has_result(line: &str) -> bool {
-        serde_json::from_str::<serde_json::Value>(line)
-            .ok()
-            .is_some_and(|v| v.get("result").is_some() && v.get("error").is_none())
+    /// Parse the unauthenticated `session.list` response and return its session
+    /// count. Anything other than a successful array result is a loud protocol
+    /// failure rather than a misleading idle measurement.
+    fn response_session_count(line: &str) -> Result<usize> {
+        let response: serde_json::Value = serde_json::from_str(line)?;
+        if let Some(error) = response.get("error") {
+            return Err(format!("daemon returned JSON-RPC error: {error}").into());
+        }
+        response
+            .get("result")
+            .and_then(serde_json::Value::as_array)
+            .map(Vec::len)
+            .ok_or_else(|| format!("daemon did not return a session array: {response}").into())
     }
 
     async fn wait_for_socket(socket: &Path, timeout: Duration) -> Result<()> {

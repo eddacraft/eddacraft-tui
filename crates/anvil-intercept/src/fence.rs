@@ -864,12 +864,20 @@ fn original_worktree_alias(
 }
 
 pub fn default_fence_state_path() -> Result<PathBuf, FenceStoreError> {
-    default_fence_state_path_from_env(|name| env::var_os(name))
+    default_fence_state_path_from_env(|name| env::var_os(name), env::current_dir().ok())
 }
 
 fn default_fence_state_path_from_env(
     mut get_env: impl FnMut(&str) -> Option<OsString>,
+    current_dir: Option<PathBuf>,
 ) -> Result<PathBuf, FenceStoreError> {
+    // DISTRIB-006 / ACTMO-014: ANVIL_HOME is the complete install/state root.
+    // Keep fences and durable worktree registrations beside the socket and PID
+    // file so an isolated daemon cannot reload production registrations.
+    if let Some(anvil_home) = crate::anvil_home_prefix_from(get_env("ANVIL_HOME"), current_dir) {
+        return Ok(anvil_home.join("intercept-fences.json"));
+    }
+
     if cfg!(windows)
         && let Some(local_app_data) = non_empty_env(&mut get_env, "LOCALAPPDATA")
     {
@@ -1200,14 +1208,36 @@ mod tests {
 
     #[test]
     fn default_path_uses_xdg_state_home_before_home() {
-        let path = default_fence_state_path_from_env(|name| match name {
-            "XDG_STATE_HOME" => Some(OsString::from("/state")),
-            "HOME" => Some(OsString::from("/home/anvil")),
-            _ => None,
-        })
+        let path = default_fence_state_path_from_env(
+            |name| match name {
+                "XDG_STATE_HOME" => Some(OsString::from("/state")),
+                "HOME" => Some(OsString::from("/home/anvil")),
+                _ => None,
+            },
+            None,
+        )
         .expect("default path");
 
         assert_eq!(path, PathBuf::from("/state/anvil/intercept-fences.json"));
+    }
+
+    #[test]
+    fn default_path_uses_anvil_home_before_platform_state_roots() {
+        let path = default_fence_state_path_from_env(
+            |name| match name {
+                "ANVIL_HOME" => Some(OsString::from("isolated-anvil")),
+                "XDG_STATE_HOME" => Some(OsString::from("/state")),
+                "HOME" => Some(OsString::from("/home/anvil")),
+                _ => None,
+            },
+            Some(PathBuf::from("/work")),
+        )
+        .expect("default path");
+
+        assert_eq!(
+            path,
+            PathBuf::from("/work/isolated-anvil/intercept-fences.json")
+        );
     }
 
     /// MLP2-025b: `fence_worktree_for_spoof` records a fence whose

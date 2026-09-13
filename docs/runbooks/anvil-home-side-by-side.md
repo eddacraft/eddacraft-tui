@@ -22,12 +22,14 @@ install). With `ANVIL_HOME` the candidate and prod coexist cleanly.
 `ANVIL_HOME` re-roots only **install-owned** state under the prefix, so the
 candidate never collides with production:
 
-| State                    | Default location                        | Under `ANVIL_HOME=<P>` |
-| ------------------------ | --------------------------------------- | ---------------------- |
-| Daemon socket            | `$XDG_RUNTIME_DIR/anvil/intercept.sock` | `<P>/intercept.sock`   |
-| Daemon PID file          | `$XDG_RUNTIME_DIR/anvil/intercept.pid`  | `<P>/intercept.pid`    |
-| User state (credentials) | `~/.config/anvil/`                      | `<P>/user/`            |
-| Kernel logs (panic log)  | `~/.local/state/anvil/`                 | `<P>/cache/`           |
+| State                          | Default location                                  | Under `ANVIL_HOME=<P>`          |
+| ------------------------------ | ------------------------------------------------- | ------------------------------- |
+| Daemon socket                  | `$XDG_RUNTIME_DIR/anvil/intercept.sock`           | `<P>/intercept.sock`            |
+| Daemon PID file                | `$XDG_RUNTIME_DIR/anvil/intercept.pid`            | `<P>/intercept.pid`             |
+| Fence state                    | `$XDG_STATE_HOME/anvil/intercept-fences.json`     | `<P>/intercept-fences.json`     |
+| Durable worktree registrations | `$XDG_STATE_HOME/anvil/registered-worktrees.json` | `<P>/registered-worktrees.json` |
+| User state (credentials)       | `~/.config/anvil/`                                | `<P>/user/`                     |
+| Kernel logs (panic log)        | `~/.local/state/anvil/`                           | `<P>/cache/`                    |
 
 Because the daemon keys its single-instance rule off the socket/PID path
 ([ADR-036](../../plans/decisions/036-daemon-scope-discovery-and-boundaries.md):
