@@ -110,20 +110,29 @@ fn render_detail(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &E
         .title(" Detail ");
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let lines = state.current_row().map_or_else(Vec::new, |row| {
-        row.detail
-            .lines
-            .iter()
-            .map(|line| Line::from(Span::styled(line.clone(), Style::default().fg(theme.fg()))))
-            .collect()
-    });
+    let lines =
+        state.current_row().map_or_else(Vec::new, |row| {
+            let mut lines = Vec::new();
+            if !row.description.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    row.description.clone(),
+                    Style::default().fg(theme.fg()),
+                )));
+            }
+            lines.extend(row.detail.lines.iter().map(|line| {
+                Line::from(Span::styled(line.clone(), Style::default().fg(theme.fg())))
+            }));
+            lines
+        });
     frame.render_widget(Paragraph::new(lines), inner);
 }
 
 fn detail_panel_height(state: &SettingsState, area: Rect, search_height: u16) -> u16 {
     let lines = state
         .current_row()
-        .map_or(0, |row| row.detail.lines.len())
+        .map_or(0, |row| {
+            usize::from(!row.description.is_empty()) + row.detail.lines.len()
+        })
         .max(1);
     let cap = area
         .height
@@ -212,6 +221,10 @@ mod tests {
             plain.contains("cli: anvil settings explain protection.enforcement.mode"),
             "{plain}"
         );
+        assert!(
+            plain.contains("How anvil treats policy violations"),
+            "{plain}"
+        );
         assert!(plain.contains("affected: intercept"), "{plain}");
         assert!(plain.contains("findings: none"), "{plain}");
         assert!(plain.contains("restart: none"), "{plain}");
@@ -237,7 +250,9 @@ mod tests {
             .groups
             .iter()
             .flat_map(|group| group.rows.iter())
-            .find(|row| row.runtime == RuntimeLabel::Active && row.compact)
+            .find(|row| {
+                row.runtime == RuntimeLabel::Active && row.compact && row.active_display.is_some()
+            })
             .expect("compact active row");
         let rendered = crate::surfaces::settings::format_row_values(compact);
         assert!(!rendered.contains("resolved:"));

@@ -218,7 +218,9 @@ impl SettingsState {
             Action::Down => self.move_selection(true),
             Action::Home => self.jump_first(),
             Action::End => self.jump_last(),
-            Action::Select => self.expanded = !self.expanded,
+            Action::Select => {
+                self.searching = false;
+            }
             Action::Back => {
                 self.searching = false;
                 self.search_query.clear();
@@ -313,14 +315,7 @@ pub fn format_row_values(row: &SettingsRowView) -> String {
         RuntimeLabel::Active if row.compact && displays_agree(row) => {
             format!("{state_word}  {resolved}")
         }
-        RuntimeLabel::Active => {
-            let active = row
-                .active_display
-                .as_deref()
-                .unwrap_or(&row.resolved_display);
-            let src = row.active_source_badge.as_deref().unwrap_or("current");
-            format!("{state_word}  resolved: {resolved}  active: {active} [{src}]")
-        }
+        RuntimeLabel::Active => format_active_values(row, state_word, &resolved),
         RuntimeLabel::Drift => {
             let active = row.active_display.as_deref().unwrap_or("");
             let src = row.active_source_badge.as_deref().unwrap_or("current");
@@ -344,9 +339,29 @@ pub fn format_row_values(row: &SettingsRowView) -> String {
 
 fn displays_agree(row: &SettingsRowView) -> bool {
     match row.active_display.as_deref() {
-        None => true,
+        None => false,
         Some(active) => active == row.resolved_display,
     }
+}
+
+fn format_active_values(row: &SettingsRowView, state_word: &str, resolved: &str) -> String {
+    match row.active_display.as_deref() {
+        Some(active) => {
+            let src = row.active_source_badge.as_deref().unwrap_or("current");
+            format!("{state_word}  resolved: {resolved}  active: {active} [{src}]")
+        }
+        None => match evidence_annotation(row) {
+            Some(evidence) => format!("{state_word}  resolved: {resolved}  {evidence}"),
+            None => format!("{state_word}  resolved: {resolved}  active: (not observed)"),
+        },
+    }
+}
+
+fn evidence_annotation(row: &SettingsRowView) -> Option<&str> {
+    row.detail.lines.iter().find_map(|line| {
+        let trimmed = line.trim();
+        trimmed.starts_with("evidence:").then_some(trimmed)
+    })
 }
 
 fn extra_badges(row: &SettingsRowView) -> String {
@@ -658,6 +673,37 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn settings_view_select_while_searching_leaves_search_without_expanding() {
+        let mut state = sample_state();
+        state.handle_key(Action::Character('/'));
+        for ch in "enforcement".chars() {
+            state.handle_key(Action::Character(ch));
+        }
+        assert!(state.searching);
+        assert!(!state.expanded);
+        state.handle_key(Action::Select);
+        assert!(!state.searching);
+        assert!(!state.expanded);
+        assert_eq!(state.search_query, "enforcement");
+        assert_eq!(
+            state.current_row().map(|row| row.key.as_str()),
+            Some("protection.enforcement.mode")
+        );
+        state.handle_key(Action::Select);
+        assert!(state.expanded);
+        assert!(!state.searching);
+    }
+
+    #[test]
+    fn settings_view_select_empty_search_does_not_open_blank_detail() {
+        let mut state = sample_state();
+        state.handle_key(Action::Character('/'));
+        state.handle_key(Action::Select);
+        assert!(!state.searching);
+        assert!(!state.expanded);
+    }
+
+    #[test]
     fn settings_view_footer_omits_edit_commands() {
         let state = sample_state();
         let footer = state.footer_commands();
@@ -719,6 +765,47 @@ pub(crate) mod tests {
         assert!(rendered.contains("resolved:"), "{rendered}");
         assert!(rendered.contains("warn"), "{rendered}");
         assert!(rendered.contains("block"), "{rendered}");
+    }
+
+    #[test]
+    fn settings_row_active_without_observed_value_does_not_echo_resolved() {
+        let row = sample_state()
+            .groups
+            .iter()
+            .flat_map(|group| group.rows.iter())
+            .find(|row| row.key == "project.schema_version")
+            .cloned()
+            .expect("schema row");
+        assert!(row.active_display.is_none());
+        let rendered = format_row_values(&row);
+        assert!(rendered.contains("resolved: 1.0.0 [default]"), "{rendered}");
+        assert!(!rendered.contains("active: 1.0.0"), "{rendered}");
+        assert!(rendered.contains("active: (not observed)"), "{rendered}");
+    }
+
+    #[test]
+    fn settings_row_active_without_observed_value_shows_evidence() {
+        let mut row = sample_state()
+            .groups
+            .iter()
+            .flat_map(|group| group.rows.iter())
+            .find(|row| row.key == "privacy.api_token")
+            .cloned()
+            .expect("token row");
+        row.runtime = RuntimeLabel::Active;
+        row.compact = false;
+        row.active_display = None;
+        let rendered = format_row_values(&row);
+        assert!(
+            rendered.contains("resolved: [redacted] [env]"),
+            "{rendered}"
+        );
+        assert!(!rendered.contains("active: [redacted]"), "{rendered}");
+        assert!(
+            rendered.contains("evidence: classified digest — lower evidence than a revealed value"),
+            "{rendered}"
+        );
+        assert!(!rendered.contains("active: (not observed)"), "{rendered}");
     }
 
     #[test]
