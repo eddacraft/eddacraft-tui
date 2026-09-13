@@ -30,7 +30,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-001: Agree the continuous command journey and migration contract
 
-- **Status:** Merged 2026-09-10 via PR #4580
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13)
 - **Priority:** P1
 - **Intent:** The simplified journey has one accepted public contract grounded in the repaired product.
 - **Expected Outcome:** A decision record covers first-use bare routing before gated actions, optional welcome learning, shared setup via start, daily ensure, status/doctor roles and action-versus-output semantics. It accounts for ADR-044/080/082/092/103/114 and script compatibility, and records JOURNEY-013 first-user evidence before any additional splash/tutorial-depth choice. Current entitlement and consent policies are not silently overridden. The contract also records whether public `anvil intercept ensure` / `restart` exist as operator verbs, or whether bare `anvil` and `anvil mcp refresh --daemon restart` remain the only names.
@@ -42,7 +42,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-002: Separate actions and consent from output mode
 
-- **Status:** Merged 2026-09-10 via PR #4585
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13)
 - **Priority:** P1
 - **Intent:** Changing presentation cannot silently change intended activation operations.
 - **Expected Outcome:** The accepted JSIMP-001 contract governs TUI/plain/JSON consistently. Verification is explicit and non-mutating; unattended installs require explicit accepted intent; piping does not unexpectedly select new integration choices. Existing start --json semantics migrate explicitly with tested compatibility rather than changing silently.
@@ -54,7 +54,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-003: Share setup and resume across welcome, start and bare
 
-- **Status:** Merged 2026-09-10 via PR #4599
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13)
 - **Priority:** P1
 - **Intent:** New users reach activation continuously and returning users resume without repeated onboarding.
 - **Expected Outcome:** The agreed first-use bare flow offers setup or unsigned discovery without silent installation or premature auth; welcome delegates accepted setup to the same activation service as start. One project context and separate learning/adoption/runtime state persist throughout. Direct start needs no tutorial prerequisite; cancelled or deferred paths resume honestly.
@@ -66,7 +66,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-004: Remember integration intent and keep daily recovery quiet
 
-- **Status:** Merged 2026-09-10 via PR #4604
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13)
 - **Priority:** P1
 - **Intent:** Daily use respects selected coverage while reconfiguration remains deliberate.
 - **Expected Outcome:** Client, scope, executable and optional protection choices have one durable owner. Healthy bare ensure restores chosen coverage without pickers or needless rewrites; intentional omission/disablement stays distinct from failed installation. Start can deliberately reconsider choices. Ordinary recovery uses shared reliability operations and escalates to doctor only for unresolved faults. If JSIMP-001 accepts operator ensure/restart verbs, `doctor --fix` may invoke those shared operations for unresolved daemon-down faults; it is not the daily on-switch.
@@ -78,7 +78,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-005: Prove first value and provide a truthful closing receipt
 
-- **Status:** Merged 2026-09-10 via PR #4607
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13)
 - **Priority:** P1
 - **Intent:** The user finishes setup knowing what works and what to do tomorrow.
 - **Expected Outcome:** Selected MCP coverage is demonstrated through an actual supported client validation action; save-time coverage through a real saved fixture. Clean/no-supported-language outcomes stay honest and demos stay isolated. A persistent closing receipt names project, selected coverage, connected/pending client, policy mode, last proof and bare anvil for next use; incomplete setup names one actionable owner. Status and doctor consume the same facts.
@@ -90,7 +90,7 @@ Presentation consumes the same typed project/component result in TUI, plain and 
 
 ### JSIMP-006: Align public guidance and verify the simplified journey
 
-- **Status:** Merged 2026-09-10 via PR #4611
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13)
 - **Priority:** P1
 - **Intent:** Installation help and everyday command guidance describe the same verified product behaviour.
 - **Expected Outcome:** Installer copy, root help, quickstart, activation-state reference and troubleshooting reflect the accepted contract and identify release availability accurately. Platform/client journeys and new-user observation show completion without hidden developer switches. Navigation/accessibility regressions, terminal restoration, output compatibility and reliability fault tests remain covered. Record residual editorial feedback under its existing owner.

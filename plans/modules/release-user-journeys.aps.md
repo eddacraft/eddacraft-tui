@@ -443,7 +443,7 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 ### JOURNEY-015: Pinned-main journey rehearsal and existing release handoff
 
-- **Status:** Merged — claim #4572. Evidence: [2026-09-10 pinned-main rehearsal](../audits/2026-09-10-journey-015-pinned-main-rehearsal.md) + [identity](../audits/2026-09-10-journey-015-identity.json) + [CI identity](../audits/2026-09-10-journey-015-ci-identity.json) on pinned `3f8890e15`. Required non-upgrade legs passed (local + CI). The 10 September `--require-upgrade` pass is retracted: the previous public binary was not invoked (#4591). Operator platform waiver for macOS/Windows same-pin legs recorded by merge. Release disposition: claim freeze / publication not authorised; simplification permitted. Residual upgrade proof: #4591; correction [2026-09-11-journey-015-upgrade-leg-correction.md](../audits/2026-09-11-journey-015-upgrade-leg-correction.md).
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13)
 - **Intent:** Verify what a user will install without building an internal release system.
 - **Expected Outcome:** Build from a recorded main SHA with the repository's supported build/CI process. Record binary version/hash and supported-platform results for fresh signed-out welcome, entitled start, optional/no MCP, one and multiple configured clients, healthy bare anvil, second repository/worktree, interrupted setup and resume, daemon death/restart, save-time child death, MCP restart/update, machine output and upgrade from the previous public build. Include real client calls and an observed save-time finding; config or PID presence is insufficient. Required failures block handoff. Record the release disposition and evidence in the existing release process; claim freeze, changelog, standing release gates and explicit publication authority remain required. Passing this gate permits simplification even if publication is scheduled later.
 - **Dependencies:** JOURNEY-014
@@ -454,7 +454,7 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 ### JOURNEY-016: Simplified journey acceptance and documentation closeout
 
-- **Status:** Merged 2026-09-10 via PR #4614 (claim #4613; merge `a28033a5c`). Evidence: [2026-09-10 simplified journey acceptance](../audits/2026-09-10-journey-016-simplified-acceptance.md) + [identity](../audits/2026-09-10-journey-016-identity.json) on pinned `5489c6112`. Decision: **pass**. No splash; no publication.
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13)
 - **Intent:** Prove first-time and returning users experience one understandable journey after the reliability repairs.
 - **Expected Outcome:** JSIMP's agreed command/state contract is implemented, documented and verified. Observe a first-time user from installation through first useful proof and a returning user on a later session and second repository. Both can identify current coverage and their next action without undocumented repair steps. Setup resumes, declined integrations stay declined, healthy daily invocation remains quiet, and changed machine contracts have explicit compatibility treatment. Record residual usability issues and resolve blocking ones before making a simplification release claim.
 - **Dependencies:** JOURNEY-015, JSIMP-001, JSIMP-002, JSIMP-003, JSIMP-004, JSIMP-005, JSIMP-006

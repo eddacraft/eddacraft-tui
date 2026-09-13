@@ -1,10 +1,10 @@
 # anvil Roadmap
 
-**Last updated:** 2026-09-12 (`v0.10.0-beta` claim locked — continuous journey
-honesty after `v0.9.7-beta`; minor scope confirmed for the public feature
-additions in the window. Highest-value programme track remains Graph Trust
-Surfaces Wave 0 / CGBDG. See `RELEASE-PLAN.md`. Module status lives in the SOT
-files below; this roadmap stays thematic.)
+**Last updated:** 2026-09-14 (`v0.10.0-beta` shipped — continuous journey
+honesty. Active window rolled to provisional `v0.10.1-beta` (field intake).
+Highest-value programme track remains Graph Trust Surfaces Wave 0 / CGBDG. See
+`RELEASE-PLAN.md`. Module status lives in the SOT files below; this roadmap
+stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -109,11 +109,13 @@ browser surface. Immutable records live under
 | `v0.9.4-beta` | Clearer install advice and quieter FPs    | Install method honesty, membership wait, lean MCP allow, path secret FP + Python DE coverage. Shipped 2026-08-10.                                                         |
 | `v0.9.5-beta` | MCP live-heal and config unification      | After upgrade, owned MCP heals without typical session restart; one canonical project config. Shipped 2026-08-16.                                                         |
 | `v0.9.6-beta` | Beta field fixes and shell command-safety | Hooks/warnings honesty plus shared shell command-safety (pipe-to-shell, eval-dynamic, chmod 777). Shipped 2026-08-18.                                                     |
+| `v0.9.7-beta` | First-session honesty                     | Unsigned welcome names sign-in before gated steps, live gate progress, learning-path picker, audit Next Steps jump to Issues. Shipped 2026-08-21.                         |
 
-**Latest shipped headline:** `v0.9.7-beta` (2026-08-21). Release record:
-[`plans/releases/v0.9.7-beta.md`](./plans/releases/v0.9.7-beta.md).
+**Latest shipped headline:** `v0.10.0-beta` (2026-09-13) — continuous journey
+honesty. Release record:
+[`plans/releases/v0.10.0-beta.md`](./plans/releases/v0.10.0-beta.md).
 
-### Horizon 2 — Daily path + MCP reach — shipped through `v0.9.7-beta`
+### Horizon 2 — Daily path + MCP reach — shipped through `v0.10.0-beta`
 
 **Delivered theme:** Daily path polish, MCP 2.0 support, reconnect, and honesty
 
@@ -125,8 +127,8 @@ behind `dashboard.web` (default-off) for testing only — not a customer claim
 until default-on or a later named window owns it. Graph Trust Surfaces Wave 0
 (CGBDG discovery, CONF-001, …) is a **side programme**, not the active cut.
 
-**Active window:** `v0.10.0-beta` (claim locked — continuous journey honesty).
-Prior shipped: `v0.9.7-beta`. Current state:
+**Active window:** provisional `v0.10.1-beta` (field intake; claim not frozen).
+Prior shipped: `v0.10.0-beta`. Current state:
 [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 

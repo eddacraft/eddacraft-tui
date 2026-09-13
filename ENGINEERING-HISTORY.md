@@ -7,21 +7,27 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased] — Draft — Continuous journey honesty
+## [Unreleased]
 
-> **Draft for `v0.10.0-beta`.** Technical work landed on `main` since
-> `v0.9.7-beta`. Theme locked: continuous journey honesty. Version and date land
-> at the cut.
+> **Draft.** Technical work landed on `main` since `v0.10.0-beta`. Version and
+> date land at the next cut.
 
-Technical work on `main` since `v0.9.7-beta`. The locked `v0.10.0-beta` claim is
-**continuous journey honesty**: first use through daily ensure tells the truth
-about activation, coverage, and protection (JSIMP-001…006; JREL-002 live MCP
-attach; JREL-009 explicit launch overrides; JREL-010 worktree-pinned MCP).
-JOURNEY-015/-016 are Merged evidence gates only — not publication authority.
-Adjacent tip freight (GATT attestation, SDT/GTAO/CONF/SETCON/FLAGCAT, CCTX
-spike, PSCAF, Windows park-and-swap, ensure lock re-probe, CIB-211 pipe/ACL,
-CIB-215 / CLAWREL credential boundaries) ships on the same tip but is not the
-cut headline.
+## [0.10.0-beta] — 2026-09-13 — Continuous journey honesty
+
+Shipped 2026-09-13 on `bd6e4c98b`. Technical work on `main` since `v0.9.7-beta`.
+The locked `v0.10.0-beta` claim was **continuous journey honesty**: first use
+through daily ensure tells the truth about activation, coverage, and protection
+(JSIMP-001…006; JREL-002 live MCP attach; JREL-009 explicit launch overrides;
+JREL-010 worktree-pinned MCP). JOURNEY-015/-016 were Merged evidence gates only
+— not publication authority. Adjacent tip freight (GATT attestation,
+SDT/GTAO/CONF/SETCON/FLAGCAT, CCTX spike, PSCAF, Windows park-and-swap, ensure
+lock re-probe, CIB-211 pipe/ACL, CIB-215 / CLAWREL credential boundaries)
+shipped on the same tip but was not the cut headline.
+
+**Packaging note.** The first Release run for the tag published a hollow
+release; assets were attached by a recovery run (34773735970) **without moving
+the tag**. The workflow repair lands separately in #4674. See
+[`plans/releases/v0.10.0-beta.md`](./plans/releases/v0.10.0-beta.md).
 
 ### Secret-detection truth (SDT, ADR-136)
 
