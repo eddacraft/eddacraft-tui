@@ -1448,7 +1448,10 @@ const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
             &config,
             &mut suppressions,
         );
-        assert!(findings.is_empty(), "labelled placeholder must not flag: {findings:?}");
+        assert!(
+            findings.is_empty(),
+            "labelled placeholder must not flag: {findings:?}"
+        );
         assert!(
             suppressions.is_empty(),
             "below-threshold labelled placeholders must not record suppressions: {suppressions:?}"

@@ -1528,10 +1528,7 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
             enable_entropy: false,
             ..SecretCheckConfig::default()
         };
-        let content = format!(
-            "DEV_KEY=\"{}\"\n",
-            format!("AKIA{}", "IOSFODNN7EXAMPLE"),
-        );
+        let content = format!("DEV_KEY=\"{}\"\n", format!("AKIA{}", "IOSFODNN7EXAMPLE"),);
         let findings = scan_content(content.as_str(), "src/config.rs", &config);
         assert!(
             findings.iter().any(|f| f.pattern_name == "AWS Key"),
@@ -1576,7 +1573,6 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
         );
     }
 
-    
     #[test]
     fn rust_cfg_test_high_entropy_token_is_not_a_finding() {
         let config = SecretCheckConfig::default();
