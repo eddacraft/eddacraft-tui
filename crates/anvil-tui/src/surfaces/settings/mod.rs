@@ -310,7 +310,9 @@ pub fn format_row_values(row: &SettingsRowView) -> String {
     let resolved = format!("{} [{}]", row.resolved_display, row.source_badge);
     let state_word = row.runtime.as_str();
     let body = match row.runtime {
-        RuntimeLabel::Active if row.compact => format!("{state_word}  {resolved}"),
+        RuntimeLabel::Active if row.compact && displays_agree(row) => {
+            format!("{state_word}  {resolved}")
+        }
         RuntimeLabel::Active => {
             let active = row
                 .active_display
@@ -337,6 +339,13 @@ pub fn format_row_values(row: &SettingsRowView) -> String {
         body
     } else {
         format!("{body}  {extras}")
+    }
+}
+
+fn displays_agree(row: &SettingsRowView) -> bool {
+    match row.active_display.as_deref() {
+        None => true,
+        Some(active) => active == row.resolved_display,
     }
 }
 
@@ -691,6 +700,25 @@ pub(crate) mod tests {
         assert!(!rendered.contains("resolved:"), "{rendered}");
         assert!(rendered.contains("active"), "{rendered}");
         assert!(!rendered.contains("DRIFT"), "{rendered}");
+    }
+
+    #[test]
+    fn settings_row_compact_flag_cannot_hide_disagreement() {
+        let mut row = sample_state()
+            .groups
+            .iter()
+            .flat_map(|group| group.rows.iter())
+            .find(|row| row.key == "interface.compact_mode")
+            .cloned()
+            .expect("compact row");
+        row.compact = true;
+        row.runtime = RuntimeLabel::Active;
+        row.resolved_display = "block".into();
+        row.active_display = Some("warn".into());
+        let rendered = format_row_values(&row);
+        assert!(rendered.contains("resolved:"), "{rendered}");
+        assert!(rendered.contains("warn"), "{rendered}");
+        assert!(rendered.contains("block"), "{rendered}");
     }
 
     #[test]

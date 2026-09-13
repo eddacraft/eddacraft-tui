@@ -137,8 +137,9 @@ Change status to **Ready** when:
 
 - **Intent:** Give users one discoverable place to find any setting by name,
   key, description, group or deprecated alias.
-- **Expected Outcome:** The Settings view renders the five catalogue groups in
-  catalogue order; `/` focuses search; arrows and `j/k` navigate; `g/G` jump;
+- **Expected Outcome:** The Settings view renders catalogue groups in catalogue
+  order (SETCON-011 seeds Project plus the five spec §8 groups); `/` focuses
+  search; arrows and `j/k` navigate; `g/G` jump;
   `Esc` backs out without mutation; search matches labels, canonical keys,
   descriptions, groups and deprecated aliases; results retain group, source,
   constraint and state context; the footer shows only commands valid in the

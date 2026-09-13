@@ -8,7 +8,6 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use super::{SettingsState, format_row_values};
 
 const MIN_DETAIL_HEIGHT: u16 = 4;
-const MAX_DETAIL_HEIGHT: u16 = 12;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &EddaCraftTheme) {
     let search_height = u16::from(state.searching || !state.search_query.is_empty());
@@ -131,8 +130,8 @@ fn detail_panel_height(state: &SettingsState, area: Rect, search_height: u16) ->
         .saturating_sub(search_height.saturating_add(6))
         .max(MIN_DETAIL_HEIGHT);
     u16::try_from(lines.saturating_add(2))
-        .unwrap_or(MAX_DETAIL_HEIGHT)
-        .clamp(MIN_DETAIL_HEIGHT, cap.min(MAX_DETAIL_HEIGHT))
+        .unwrap_or(cap)
+        .clamp(MIN_DETAIL_HEIGHT, cap)
 }
 
 #[cfg(test)]
@@ -208,6 +207,14 @@ mod tests {
         }
         state.handle_key(Action::Select);
         insta::assert_snapshot!(draw(&state));
+        let plain = draw_plain(&state);
+        assert!(
+            plain.contains("cli: anvil settings explain protection.enforcement.mode"),
+            "{plain}"
+        );
+        assert!(plain.contains("affected: intercept"), "{plain}");
+        assert!(plain.contains("findings: none"), "{plain}");
+        assert!(plain.contains("restart: none"), "{plain}");
     }
 
     #[test]
