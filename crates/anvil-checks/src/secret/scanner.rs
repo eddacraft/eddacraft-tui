@@ -1528,7 +1528,8 @@ expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
             enable_entropy: false,
             ..SecretCheckConfig::default()
         };
-        let content = format!("DEV_KEY=\"{}\"\n", format!("AKIA{}", "IOSFODNN7EXAMPLE"),);
+        let planted = format!("AKIA{}", "IOSFODNN7EXAMPLE");
+        let content = format!("DEV_KEY=\"{planted}\"\n");
         let findings = scan_content(content.as_str(), "src/config.rs", &config);
         assert!(
             findings.iter().any(|f| f.pattern_name == "AWS Key"),
