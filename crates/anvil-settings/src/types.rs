@@ -118,12 +118,16 @@ pub enum WorkflowState {
 }
 
 /// Ordered enforcement posture used by min/max constraints.
+///
+/// Ladder is `off` < `warn` < `fence` < `interrupt` (ADR-098
+/// `EnforcementMode`). `enforce` is a rule-mode value, not a posture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Posture {
     Off,
     Warn,
-    Enforce,
+    Fence,
+    Interrupt,
 }
 
 impl Posture {
@@ -132,8 +136,19 @@ impl Posture {
         match raw {
             "off" => Some(Self::Off),
             "warn" => Some(Self::Warn),
-            "enforce" => Some(Self::Enforce),
+            "fence" => Some(Self::Fence),
+            "interrupt" | "block" => Some(Self::Interrupt),
             _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Warn => "warn",
+            Self::Fence => "fence",
+            Self::Interrupt => "interrupt",
         }
     }
 }

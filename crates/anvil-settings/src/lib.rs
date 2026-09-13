@@ -11,6 +11,7 @@ pub mod constraints;
 pub mod envelope;
 pub mod exit_codes;
 pub mod health;
+pub mod posture;
 pub mod redaction;
 pub mod resolver;
 pub mod runtime_state;
@@ -24,6 +25,11 @@ pub use constraints::{ApprovalEvidence, Constraint, ConstraintError, PolicyBundl
 pub use envelope::{Envelope, EnvelopeCommand, SCHEMA_VERSION};
 pub use exit_codes::{SettingsOutcome, code_for};
 pub use health::{Health, HealthStatus};
+pub use posture::{
+    AcceptanceSource, AcceptanceVerb, ActiveCell, EnforcementSource, GateSource, LastAction,
+    MappingLegend, POSTURE_SCALE, PostureCell, PostureInputs, PostureRow, PostureSnapshot,
+    PostureSurface, SurfaceActive, VerbFamily, posture_snapshot,
+};
 pub use redaction::{RedactionError, fail_closed, redact_setting_value, redact_value};
 pub use resolver::{
     Declaration, ProvenanceEvent, ResolutionEvent, ResolvedSetting, Resolver, ResolverError,
@@ -34,6 +40,6 @@ pub use runtime_state::{
 pub use seed::first_release_catalogue;
 pub use service::{SettingsError, SettingsService, Snapshot};
 pub use types::{
-    ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, Scope, Sensitivity,
+    ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, Posture, Scope, Sensitivity,
     SettingGroup, SettingKey, ValueType, WorkflowState,
 };

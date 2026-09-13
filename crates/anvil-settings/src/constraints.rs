@@ -263,11 +263,7 @@ fn as_posture(value: &Value) -> Option<Posture> {
 }
 
 fn posture_name(posture: Posture) -> &'static str {
-    match posture {
-        Posture::Off => "off",
-        Posture::Warn => "warn",
-        Posture::Enforce => "enforce",
-    }
+    posture.as_str()
 }
 
 fn list_of(value: Option<Value>) -> Vec<Value> {
@@ -355,11 +351,11 @@ mod constraints_tests {
             compatible: true,
             constraints: vec![Constraint::MinPosture {
                 key: "protection.enforcement.mode".into(),
-                min: Posture::Enforce,
+                min: Posture::Interrupt,
             }],
         };
         let out = apply_constraints(&requested, Some(&bundle)).unwrap();
-        assert_eq!(out[0].resolved, Some(Value::String("enforce".into())));
+        assert_eq!(out[0].resolved, Some(Value::String("interrupt".into())));
     }
 
     #[test]

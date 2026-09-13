@@ -119,7 +119,12 @@ fn first_release_entries() -> Vec<CatalogueEntry> {
             SettingGroup::Protection,
             20,
             ValueType::Enum {
-                allowed: vec!["off".into(), "warn".into(), "enforce".into()],
+                allowed: vec![
+                    "off".into(),
+                    "warn".into(),
+                    "fence".into(),
+                    "interrupt".into(),
+                ],
             },
             Some(json!("warn")),
             MergeSemantics::Replace,
@@ -401,6 +406,109 @@ mod catalogue_seed_tests {
         let secret = cat.get("privacy.license_token").unwrap();
         assert_eq!(secret.consequence_class, ConsequenceClass::D);
         assert_eq!(secret.sensitivity, Sensitivity::Secret);
+    }
+
+    #[test]
+    fn catalogue_seed_enforcement_mode_uses_posture_ladder() {
+        let cat = first_release_catalogue().expect("seed");
+        let entry = cat.get("protection.enforcement.mode").expect("mode");
+        match &entry.value_type {
+            ValueType::Enum { allowed } => {
+                assert_eq!(
+                    allowed,
+                    &vec![
+                        "off".to_string(),
+                        "warn".to_string(),
+                        "fence".to_string(),
+                        "interrupt".to_string(),
+                    ]
+                );
+                assert!(!allowed.iter().any(|value| value == "enforce"));
+            }
+            other => panic!("expected enum, got {other:?}"),
+        }
+        assert_eq!(entry.default, Some(json!("warn")));
+    }
+
+    #[test]
+    fn catalogue_seed_rejects_enforce_and_accepts_ladder_values() {
+        use crate::resolver::{Declaration, ResolutionEvent, Resolver};
+        use crate::types::Scope;
+        use serde_json::Value;
+
+        let cat = first_release_catalogue().expect("seed");
+        let err = Resolver::resolve(
+            &cat,
+            &[Declaration {
+                key: "protection.enforcement.mode".into(),
+                scope: Scope::Project,
+                source_id: "project".into(),
+                event: ResolutionEvent::Set(Value::String("enforce".into())),
+            }],
+        )
+        .expect_err("enforce is a rule-mode value, not a posture");
+        let crate::resolver::ResolverError::InvalidValue { key, .. } = err;
+        assert_eq!(key, "protection.enforcement.mode");
+
+        for value in ["off", "warn", "fence", "interrupt"] {
+            let rows = Resolver::resolve(
+                &cat,
+                &[Declaration {
+                    key: "protection.enforcement.mode".into(),
+                    scope: Scope::Project,
+                    source_id: "project".into(),
+                    event: ResolutionEvent::Set(Value::String(value.into())),
+                }],
+            )
+            .unwrap_or_else(|err| panic!("{value} should be accepted: {err}"));
+            let row = rows
+                .iter()
+                .find(|row| row.key == "protection.enforcement.mode")
+                .expect("row");
+            assert_eq!(row.resolved, Some(Value::String(value.into())));
+        }
+    }
+
+    #[test]
+    fn catalogue_seed_min_posture_uses_enforcement_mode_order() {
+        use crate::constraints::{Constraint, PolicyBundle, apply_constraints};
+        use crate::resolver::{ProvenanceEvent, ResolutionEvent, ResolvedSetting};
+        use crate::types::{Posture, Scope};
+        use serde_json::Value;
+
+        let requested = vec![ResolvedSetting {
+            key: "protection.enforcement.mode".into(),
+            requested: Some(Value::String("warn".into())),
+            resolved: Some(Value::String("warn".into())),
+            provenance: vec![ProvenanceEvent {
+                source_id: "project".into(),
+                scope: Scope::Project,
+                event: ResolutionEvent::Set(Value::String("warn".into())),
+                overridden: false,
+            }],
+        }];
+        let bundle = PolicyBundle {
+            id: "org-1".into(),
+            verifiable: true,
+            expired: false,
+            compatible: true,
+            constraints: vec![Constraint::MinPosture {
+                key: "protection.enforcement.mode".into(),
+                min: Posture::Fence,
+            }],
+        };
+        let out = apply_constraints(&requested, Some(&bundle)).unwrap();
+        assert_eq!(out[0].resolved, Some(Value::String("fence".into())));
+
+        let bundle = PolicyBundle {
+            constraints: vec![Constraint::MinPosture {
+                key: "protection.enforcement.mode".into(),
+                min: Posture::Interrupt,
+            }],
+            ..bundle
+        };
+        let out = apply_constraints(&requested, Some(&bundle)).unwrap();
+        assert_eq!(out[0].resolved, Some(Value::String("interrupt".into())));
     }
 
     #[test]
