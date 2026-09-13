@@ -5,11 +5,12 @@
 
 | ID | Owner | Priority | Status | Progress |
 | --- | --- | --- | --- | --- |
-| PSCAF | @joshuaboys | P1 | In Progress | 0/8 |
+| PSCAF | @joshuaboys | P1 | In Progress | 1/8 |
 
 **Status:** In Progress (2026-09-09). The operator approved the product contract
-and [ADR-143](../decisions/143-project-scaffold-reconciliation.md). PSCAF-001 is
-active; later items execute in dependency order.
+and [ADR-143](../decisions/143-project-scaffold-reconciliation.md). PSCAF-001
+Merged 2026-09-10 via [#4583](https://github.com/eddacraft/anvil-001/pull/4583);
+later items execute in dependency order.
 
 **Origin:** a beta report that L4 never fires exposed the missing acceptance
 policy, followed by an operator review of what `anvil init` and `anvil start`
@@ -80,7 +81,7 @@ rewriting operator-owned files or claiming inactive protections are on.
 
 | ID | Task | Status | Depends on |
 | --- | --- | --- | --- |
-| PSCAF-001 | Catalogue and additive reconciliation kernel | In Progress | — |
+| PSCAF-001 | Catalogue and additive reconciliation kernel | Merged | — |
 | PSCAF-002 | `anvil init` project-scaffold interface | Ready | PSCAF-001 |
 | PSCAF-003 | Checks and enforcement component | Ready | PSCAF-001, PSCAF-002 |
 | PSCAF-004 | Planning-support component | Ready | PSCAF-001, PSCAF-002 |
@@ -91,11 +92,10 @@ rewriting operator-owned files or claiming inactive protections are on.
 
 ### PSCAF-001: Catalogue and additive reconciliation kernel
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-10 via PR
+  [#4583](https://github.com/eddacraft/anvil-001/pull/4583) (`fac3c2d6c`)
 - **Implementation PR:** [#4583](https://github.com/eddacraft/anvil-001/pull/4583)
-  is a draft against `main`. Independent verification remains repair-required;
-  the four blocking findings are recorded in the PR and must be cleared before
-  review-ready or completion claims.
+  merged to `main` (was recorded as a draft with blocking findings).
 - **Intent:** Establish one internal source of component truth and a race-safe,
   additive engine usable by both public commands.
 - **Expected Outcome:** A typed catalogue defines foundation,

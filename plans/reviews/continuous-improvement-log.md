@@ -49,7 +49,7 @@ Full operator guide:
 > the same change as adding one. Prefer `pnpm ci-log:append` /
 > `pnpm ci-log:harvest` over hand-editing.
 
-> **Last triaged:** 2026-09-03
+> **Last triaged:** 2026-09-13
 ## Template
 
 ```md
@@ -7202,4 +7202,354 @@ merge itself failed.
 - **Friction:** Review-triggered commits restarted the exact-head CI matrix several times
 - **Improvement:** Require public wrapper concurrency probes whenever concrete transport cancellation contracts change
 - **Follow-up:** theme:boundary-race-coverage
+
+### 2026-09-11 — grok
+
+- **Task:** Harvest 60 pending CI-log notes and report missing contributors
+- **Outcome:** Harvested 60 notes into tracked log on chore/ci-log-harvest-2026-09-11 (6b924c4ae) plus docs-owed redate (c1b481871); PR #4638. Queue empty. Watermark unchanged.
+- **Worked:** Worktree from origin/main; harvest from worktree after first write landed on main by cwd mistake and was moved; docs:redate cascade; GitHub contributors vs ACK Thanks vs CI-log agents
+- **Failed:** none
+- **Friction:** pnpm ci-log:harvest used the harness cwd (main checkout) instead of the Worktrunk worktree, so the tracked log was written on main until copied across and restored
+- **Improvement:** Harvest commands must be run with cwd set to the bookkeeping worktree; a dry-run plus git status on both trees would have caught the misdirected write
+- **Follow-up:** none
+
+### 2026-09-11 — grok
+
+- **Task:** Credit agent tools in ACK and raise CI-log closeout for Claude/Cursor
+- **Outcome:** PR #4639. Thanks list now includes Cursor, Codex, Grok, Copilot, OpenCode, Sakana AI. Closeout MUST moved to AGENTS.md Operating Rules, CLAUDE.md, and .claude/rules. Did not edit vendored agentic-loop.
+- **Worked:** Harvest evidence: 75 Cursor and 27 Claude commits since 3 Sep vs 0 cursor/claude pending notes. Codex/Grok notes land because AGENTS.md is always-on for those harnesses.
+- **Failed:** none
+- **Friction:** agentic-loop is vendored; .cursor/ is gitignored so Cursor cannot get a repo rule file
+- **Improvement:** Name pnpm ci-log:append as a Reconcile/closeout step in eddacraft/agentic-loop, then eddaskills sync
+- **Follow-up:** promote: CIB
+
+### 2026-09-11 — codex
+
+- **Task:** CIB-416 structural Neon workflow contract rework
+- **Outcome:** Opened review-ready PR #4640 after Council and independent exact-head verification
+- **Worked:** Vertical-slice negative fixtures, Council security review, and post-rebase verify-loop preserved source-pinned evidence
+- **Failed:** none
+- **Friction:** Concurrent main updates required repeated clean rebases and exact-head revalidation
+- **Improvement:** none
+- **Follow-up:** Review and protected CI for PR #4640
+
+### 2026-09-11 — grok
+
+- **Task:** Address Copilot reviews on PR 4640 Neon workflow contract
+- **Outcome:** Pushed 1939850fd; both threads replied and resolved
+- **Worked:** Existing PR worktree; anvil_apply_patch with explicit workspaceRoot; TDD via failing fixtures first
+- **Failed:** none
+- **Friction:** anvil graph not_ready on the PR worktree; write-gate accepted with workspaceRoot override
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — codex
+
+- **Task:** Assess and start pre-release for the active anvil release
+- **Outcome:** Assessment succeeded on origin/main 5d88bddc0; version scope conflict found, so preflight stopped pending release-plan reconciliation.
+- **Worked:** Pinned live Git and hosted release state; compared the assessor heuristic, release policy, locked plan, and curated Unreleased changelog.
+- **Failed:** Initial v0.9.8-beta preflight was interrupted before completion after the version mismatch was questioned; it left no release state or tag.
+- **Friction:** assess.sh always proposes the next minor version, while RELEASE-PLAN.md can lock a patch version; the command does not explain or validate that override.
+- **Improvement:** Make assessment surface the planned release version and flag policy-level semver conflicts using changelog or APS release metadata.
+- **Follow-up:** session: reconcile v0.9.8-beta versus v0.10.0-beta before rerunning preflight
+
+### 2026-09-12 — codex
+
+- **Task:** v0.10.0-beta release preflight
+- **Outcome:** Started the integrated v0.10.0-beta release assessment and pre-prepare preflight; release preparation remains blocked at 10/13 passing gates.
+- **Worked:** Pinned the release worktree to origin/main SHA 72b3178d95f370b703e97ca916ab05bf4e62be1e; assessment selected v0.10.0-beta beta direct; isolated sandbox cache errors from genuine failures; reproduced the telemetry test flake and Nx reference drift.
+- **Failed:** Preflight cannot pass while Nx project references are out of sync; aggregate tests also encounter a live ambient anvil daemon, and one telemetry boundary test failed once then passed on exact rerun.
+- **Friction:** The preflight JSON records gate exit codes but suppresses captured stderr/stdout, requiring individual gate reruns for diagnosis.
+- **Improvement:** Include a bounded tail or evidence path for each failed gate in preflight JSON so release blockers are diagnosable without rerunning expensive suites.
+- **Follow-up:** Fix and review Nx project-reference drift; make release tests hermetic around ambient daemon state; assess the telemetry 24-hour boundary flake before rerunning preflight.
+
+### 2026-09-12 — codex
+
+- **Task:** Diagnose v0.10.0 TypeScript project graph
+- **Outcome:** Narrowed the release fix to seven changed lines after measuring project inference separately from source volume.
+- **Worked:** Nx sync and clean graph checks identified one genuine dashboard reference and a historical Astro inference.
+- **Failed:** Initially conflated full workspace retirement with the minimal TypeScript graph repair, creating unnecessary lockfile churn.
+- **Friction:** Nx's missing-reference report mixes inferred project membership with genuine source dependencies.
+- **Improvement:** When Nx reports many project references, first classify each as active dependency, inferred target, or historical package before regenerating workspace manifests or lockfiles.
+- **Follow-up:** theme:Nx project lifecycle audit
+
+### 2026-09-12 — codex
+
+- **Task:** Audit production JavaScript and TypeScript shipping boundary
+- **Outcome:** Proved that the released CLI ships only the compiled dashboard frontend as first-party TypeScript-derived runtime code; public package-shaped workspaces are not present on npm.
+- **Worked:** Triangulated release workflow, tagged build script, current source map, npm registry, and the published v0.9.7-beta binary.
+- **Failed:** Repository-wide TypeScript project and line counts substantially overstate shipped runtime code.
+- **Friction:** Private flags and publishable manifests do not reliably express whether a package is deployed or publicly released.
+- **Improvement:** Maintain an artefact-reachability inventory separating embedded runtime code, deployed services, operational tooling, CI canaries, and dormant publish-shaped packages.
+- **Follow-up:** promote:CIB
+
+### 2026-09-12 — other
+
+- **Task:** Review v0.10.0 TypeScript graph fix
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — codex
+
+- **Task:** Finish the v0.10.0-beta TypeScript graph pre-release blocker
+- **Outcome:** Opened PR #4643 with a two-file fix; local evidence and Council passed; hosted affected unit tests still running at handoff
+- **Worked:** Kept scope to Nx lint/typecheck inference and the dashboard flags-catalogue reference; preserved the workspace manifest and lockfile
+- **Failed:** none
+- **Friction:** The hosted affected unit-test job outlasted the other CI gates
+- **Improvement:** none
+- **Follow-up:** Audit and retire unnecessary historical JavaScript and TypeScript workspace surfaces after the release
+
+### 2026-09-12 — codex
+
+- **Task:** Start v0.10.0-beta release
+- **Outcome:** Assessment and exact-SHA readiness passed; release preflight exposed and repaired an obsolete JavaScript lint target for the Rust-only CLI; PR #4644 opened before preparation.
+- **Worked:** Use the release readiness workflow to validate the publication credential before prepare, then run preflight with a neutral TMPDIR and the developer daemon stopped as required by identity tests.
+- **Failed:** Nx cache initially hid the inferred eddacraft-anvil ESLint target; the harness also makes /tmp a Git worktree, invalidating tests that require an outside-repository temp directory.
+- **Friction:** preflight.sh suppresses failing gate output, requiring separate reproduction commands.
+- **Improvement:** Make preflight preserve per-gate logs and teach the local test harness to select a non-repository TMPDIR.
+- **Follow-up:** theme:release-preflight-observability
+
+### 2026-09-12 — codex
+
+- **Task:** Address review feedback on PR #4644
+- **Outcome:** Updated direct PR lint routing, added a workflow contract test, refreshed governed documentation metadata, resolved the review thread, and verified the exact infra target after a transient CI timeout.
+- **Worked:** CI-first triage and exact-target reproduction distinguished a load-related timeout from a branch regression.
+- **Failed:** Initial infra test run timed out at five seconds under full affected-workspace concurrency; the exact target passed locally and was rerun in CI.
+- **Friction:** The full affected unit-test job is long-running for a release-path-only workflow change.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — codex
+
+- **Task:** Audit harness binary selection for current-main dogfooding
+- **Outcome:** Confirmed historical journey harnesses used source-built pinned-main binaries, while current interactive harness MCP configs resolve bare anvil to the installed 0.9.7-beta binary.
+- **Worked:** Compared live harness configs, PATH resolution, journey conductor binary selection, and pinned identity evidence.
+- **Failed:** none
+- **Friction:** Source-built main and the public release both report 0.9.7-beta until release preparation bumps workspace metadata, so version output alone cannot prove binary provenance.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — codex
+
+- **Task:** Identify harnesses dogfooding the main-built anvil binary
+- **Outcome:** Recovered the original setup and distinguished confirmed consumers from PATH-eligible clients
+- **Worked:** The install stamp, historical Grok tool calls, harness configs, Codex PATH snapshots, and Claude MCP session evidence established provenance and use
+- **Failed:** Initially mistook the binary's unchanged 0.9.7-beta version string for public-release provenance
+- **Friction:** Bare command configuration hides which executable each harness resolved after launch
+- **Improvement:** Treat executable hash or build stamp as provenance; do not infer provenance from the version string
+- **Follow-up:** Refresh the dogfood binary from current main before release testing
+
+### 2026-09-12 — codex
+
+- **Task:** Audit daemon and MCP environment controls analogous to ANVIL_NO_SAVE_TIME_DRIVER
+- **Outcome:** No active kill switches or persisted MCP pin found; daemon, registration, save-time driver, and live Claude MCP are ready
+- **Worked:** Source-derived control inventory plus zsh, profile, harness, tmux, systemd, process-environment, pin-file, and effective-status checks
+- **Failed:** none
+- **Friction:** Several narrowly scoped controls can look like general daemon failure, while PATH shadowing is outside the ANVIL environment namespace
+- **Improvement:** Expose effective daemon, MCP, graph, binary provenance, and opt-out controls in one diagnostic surface
+- **Follow-up:** Replace implicit ~/.local/bin/anvil shadowing with explicit anvil-main promotion and restore bare anvil to the published release
+
+### 2026-09-12 — other
+
+- **Task:** trim AGENTS.md and CLAUDE.md for agent token load (PR 4649)
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — codex
+
+- **Task:** ad-hoc:rolling-main-dogfood
+- **Outcome:** Implemented an explicit rolling anvil-main promotion channel with isolated state and daemon configuration; updated agent guidance and harness MCP configuration.
+- **Worked:** Immutable per-commit installs, verified provenance, atomic current-link promotion, and hermetic repeat-promotion tests caught the symlink replacement edge case.
+- **Failed:** Full changed validation could not complete its dependency-audit phase because Trivy is not installed locally; preceding lint, typecheck, JavaScript, and Rust checks passed.
+- **Friction:** The original shadow binary had no explicit promotion identity and a repeated promotion can expose symlink-to-directory replacement semantics.
+- **Improvement:** Keep the repeat-promotion and forged-provenance fixtures as mandatory coverage for developer-channel changes.
+- **Follow-up:** none
+
+### 2026-09-12 — codex
+
+- **Task:** ad-hoc:rolling-main-dogfood
+- **Outcome:** Authenticated the isolated candidate home, promoted origin/main e35853744167, restarted the candidate daemon, and dogfooded the promoted CLI against the promotion scripts.
+- **Worked:** The promoted anvil-main CLI verified provenance and authentication, scanned three scripts with zero findings, and reported attached save-time drivers for the registered dogfood worktrees.
+- **Failed:** Activation verification from the isolated feature worktree reports not durably registered until its harness reconnects; the main repository and pane worktrees are already attached.
+- **Friction:** The cold SHA-scoped release build takes several minutes, and an already-running harness cannot replace its MCP process without reconnecting.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — other
+
+- **Task:** Fix Windows CIB-211 nightly failures (missing pipe mapped to wrong-owner)
+- **Outcome:** Committed mapper; PR #4653. Rust ForeignWritable already on main.
+- **Worked:** TDD mapper tests; GetLastError before invalid-handle check
+- **Failed:** none
+- **Friction:** anvil_apply_patch validates but does not write; graph not_ready on new worktree
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — grok
+
+- **Task:** Fix welcome tutorial advancing past a command before its output is shown
+- **Outcome:** command result now dwells until Enter/space
+- **Worked:** TDD: failing stay-on-step test then command_result_dwell distinct from autoplay tick dwell; file-change still auto-advances
+- **Failed:** none
+- **Friction:** clippy collapsible_if on nested retry if-let
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — grok
+
+- **Task:** Fix start TUI tracing bleed and standardise consent keys to space/enter
+- **Outcome:** stderr tracing muted during TUI; Enter next/apply; ADR-146
+- **Worked:** screenshot showed JSON warn overlay; QuietStderr + TerminalGuard; ADR-145 §8 superseded
+- **Failed:** none
+- **Friction:** ADR-145 froze the old a/arrow legend for JSIMP
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — grok
+
+- **Task:** Identify owners of untracked cl-unrel.md and eh-unrel.md and file if needed
+- **Outcome:** Already filed: drafts were stale copies of CHANGELOG.md and ENGINEERING-HISTORY.md Unreleased; tracked files were strictly ahead. Removed leftover root copies; working tree clean.
+- **Worked:** Compared draft bullets against tracked Unreleased sections; CHANGELOG extra Windows pipe/ACL and provenance redaction; EH extra CIB-211, JREL-012, credential redaction, flag snapshots, transport close, preflight.
+- **Failed:** none
+- **Friction:** Scratch unreleased extracts left at repo root with abbreviated names, so git status looked like unowned work.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — claude
+
+- **Task:** Pre-release readiness re-check for v0.10.0-beta (assessment only): verified main SHA, Nightly/Readiness evidence gaps, claim lock, changelog
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — other
+
+- **Task:** Investigate 9 hits from initial anvil scan of anvil-001
+- **Outcome:** The 9 hits are SECRET-DATABASE-URL self-hits: 6 scanner unit-test corpus, 1 Neon dummy URL, 1 bench fixture, 1 streaming integration test. Homebrew 0.9.7-beta reports all 9; dogfood anvil-main cfg(test) skip drops unit-test rows to 3 remaining.
+- **Worked:** anvil check --all --json; targeted re-scan of the 5 files; compared Homebrew anvil vs anvil-main; read Database URL pattern and placeholder/cfg(test) skip.
+- **Failed:** none
+- **Friction:** Homebrew anvil and dogfood anvil-main share version string 0.9.7-beta but differ on cfg(test) secret skip; discovery_repro cargo test broke on piped stdout.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-12 — other
+
+- **Task:** Advise whether to squash 341 secret hits on anvil-001
+- **Outcome:** Do not mass-ignore. CIB-369 already merged; Homebrew 0.9.7-beta still reports 341; dogfood drops cfg(test)/secret::/public-material. Remaining product gaps: GHA SHAs, docs PASSWORD examples, tests/ and benches, duplicate skill copies.
+- **Worked:** Bucketed 341 from check --all JSON; read CIB-369/CIB-080; compared Homebrew vs anvil-main sample.
+- **Failed:** none
+- **Friction:** CIB-369 Merged but published Homebrew binary still reds the corpus; anvil-main behind origin/main.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Close leftover secret-scan first-run false positives after CIB-369
+- **Outcome:** Committed b1e848ac0 on fix/secret-scan-first-run-fps. Skips placeholder tags, dummy test DB URLs, cfg(test) entropy, workflow toolchain tokens, labelled non-secrets, DEV_KEY minisign. 151 secret unit tests + integration tests green. Rebuilt anvil check on the original FP files: 0 secrets.
+- **Worked:** TDD tests then scanner/entropy skips; clippy line-count helpers; cargo test secret::; cargo run anvil check on first-run files.
+- **Failed:** none
+- **Friction:** Pre-write gate blocked planting secret-shaped fixtures in tests; constructed strings at runtime. Clippy too-many-lines after small inserts.
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-369 follow-up via #4657 once PR merges
+
+### 2026-09-13 — other
+
+- **Task:** Audit seven-day token usage across Codex, Claude, Grok, and OpenCode
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Reconcile seven-day AI token usage, Cursor addition, Astra attribution, and chat-app usage routes
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Verify opencode2 seven-day usage and finalise cross-provider token audit
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — grok
+
+- **Task:** Fix CI Nightly tutorial handle_file_change_clears_command_result_dwell on Windows
+- **Outcome:** PR #4659 opened; dunce-normalise watch event paths; fixture joins canonical root
+- **Worked:** Mirrored ordinary_watcher_target fixture; production ordinary_watch_path on both sides
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Assess agent guidance for downstream code diagram-impact updates
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Branch and worktree cleanup via Worktrunk
+- **Outcome:** Removed 3 integrated worktrees, 20 integrated local branches, and 4 extra stale worktrees (branches retained as unmerged). Kept two open-PR worktrees and two unique-WIP worktrees.
+- **Worked:** wt list --branches plus git cherry vs origin/main; wt remove --foreground without force flags; official sweep would have skipped most worktrees because of ignored local caches.
+- **Failed:** none
+- **Friction:** Sweep helper is too conservative for .agent-bus/.anvil/.husky ignored files, so Worktrunk integrated state was the practical deletion oracle. git cherry and wt would_conflict still disagree on several squash-merged leftovers.
+- **Improvement:** Widen wt-cleanup-sweep ignored-cache allowlist to include .agent-bus, .anvil, .antigravitycli, and generated .husky/_ so merged worktrees can be applied without bypassing the helper.
+- **Follow-up:** Ask whether to force-delete remaining would_conflict local branches and the two unique-WIP worktrees with no PRs (fix/cib-416-neon-workflow-structure, fix/cib-417-pid-safe-teardown).
+
+### 2026-09-13 — other — grok
+
+- **Task:** rebase-merge PR 4658 on green (first-run secret FP skips)
+- **Outcome:** merged via rebase auto-merge; 9f5d4a882 is ancestor of origin/main
+- **Worked:** watched CI; Copilot threads already resolved; calibration vacuity on bn-placeholder-db-url/bn-template-literal-db-url fixed by test-path-only DB URL skip; local secret_calibration corpus test passed before merge
+- **Failed:** CI red on earlier SHAs: Format, nested format! Clippy, then calibration vacuity after retrigger
+- **Friction:** Rust Tests queued a long time; parallel commits on the same branch (rustfmt, clippy, retrigger, skip-path fix) while watching
+- **Improvement:** none
+- **Follow-up:** ready to reconcile: CIB-369 → Merged via PR #4658
+
+### 2026-09-13 — other
+
+- **Task:** fix(api): avoid full index import in telemetry mount test (Windows Nightly 5s timeout)
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other — grok
+
+- **Task:** CI-log harvest and APS bookkeeping sweep
+- **Outcome:** Harvested 34 pending notes; reviewed 127 entries since 2026-09-03; CIB-211/212/215/416/417/419 Merged; CIB-369 follow-up via #4658; PSCAF-001 Merged via #4583; filed CIB-420..423 Proposed; watermark 2026-09-03 → 2026-09-13; counts 326/414 → 332/418
+- **Worked:** Clustered follow-ups into promote/absorb/leave; verified merge SHAs on origin/main; pnpm aps:index refreshed CIB and PSCAF counts
+- **Failed:** none
+- **Friction:** Fix PRs are still hard to find from CIB ids; 127-entry window mixed a harvest-only 2026-09-11 pass with this full triage
+- **Improvement:** Keep harvest and triage on the same bookkeeping PR when pending exceeds a week so the watermark cannot lag a harvest
+- **Follow-up:** owned: CIB-420 CIB-421 CIB-422 CIB-423
 

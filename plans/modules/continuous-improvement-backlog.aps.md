@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 326/414  |
+| CIB | —     | In Progress | 332/418  |
 
 ## Purpose
 
@@ -5763,7 +5763,11 @@ archive.
 
 ### CIB-211: Authenticate supported Windows clients and trusted config ACLs
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-11 via PR
+  [#4635](https://github.com/eddacraft/anvil-001/pull/4635) (`50c40cf37`);
+  Windows CI follow-ups [#4648](https://github.com/eddacraft/anvil-001/pull/4648)
+  (`539fa9fb8`) and [#4653](https://github.com/eddacraft/anvil-001/pull/4653)
+  (`01314157c`); was Ready
 - **Intent:** Preserve the supported-surface security work split from CIB-114
   after retirement of the unsupported Node CLI framing.
 - **Expected Outcome:** The TypeScript driver-client authenticates the named-pipe
@@ -5782,7 +5786,9 @@ archive.
 
 ### CIB-212: Enforce real containment for exported APS loader paths
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-11 via PR
+  [#4630](https://github.com/eddacraft/anvil-001/pull/4630) (`ca2c8c2d7`);
+  was Ready
 - **Intent:** Preserve the live APS-loader containment work split from CIB-115
   after retirement of the obsolete Node CLI framing.
 - **Expected Outcome:** Module paths remain inside the plan base after symlink
@@ -5867,7 +5873,9 @@ archive.
 
 ### CIB-215: Remove credential material from provenance persistence
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-11 via PR
+  [#4632](https://github.com/eddacraft/anvil-001/pull/4632) (`391f05421`);
+  was Ready
 - **Intent:** Preserve the supported provenance work split from CIB-116 after
   the unsupported Node admin CLI was archived.
 - **Expected Outcome:** Credential environment variables are never used as
@@ -11640,7 +11648,9 @@ hang before opening a supervisor ticket.
 
 ### CIB-369: Secret detection must not red anvil-001 for its own corpus
 
-- **Status:** Merged 2026-08-27 via PR #4184.
+- **Status:** Merged 2026-08-27 via PR #4184. First-run leftover false
+  positives closed 2026-09-13 via PR
+  [#4658](https://github.com/eddacraft/anvil-001/pull/4658) (`9f5d4a882`).
 - **Priority:** P2 — 304/304 listed errors on `anvil check --all` were
   `SECRET-*` self-hits; none looked like live credentials
 - **Intent:** Scanning this repository with anvil is blocked by the detector
@@ -13876,7 +13886,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-416: Make the Neon workflow contract structural
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-11 via PR
+  [#4620](https://github.com/eddacraft/anvil-001/pull/4620) (`284424de4`);
+  residual evasions closed the same day via PR
+  [#4640](https://github.com/eddacraft/anvil-001/pull/4640) (`5d88bddc0`);
+  was Ready
 - **Priority:** P2 — security-sensitive CI contract; live workflow is currently
   safe. The lock is fail-open around a credentials boundary
 - **Intent:** The credentialed Neon integration workflow cannot lose its
@@ -13912,7 +13926,9 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-417: Stop test teardown from signalling recycled PIDs
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-11 via PR
+  [#4618](https://github.com/eddacraft/anvil-001/pull/4618) (`7011a683b`);
+  was Ready
 - **Priority:** P2 — test-only, but teardown can SIGKILL an unrelated host
   process or process group if a numeric identity is reused between stop and
   cleanup
@@ -14001,7 +14017,9 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-419: Fail the midedit gate when required benchmark input is absent
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-11 via PR
+  [#4621](https://github.com/eddacraft/anvil-001/pull/4621) (`1d51d5183`);
+  was Ready
 - **Priority:** P2 — the missing row can be the sole hard-gated
   `validation.roundtrip` boundary; scanner low severity is not the delivery
   priority
@@ -14032,3 +14050,97 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Coordinates with:** ADR-031 (midedit budget), RTAI-003 (gate origin)
 - **Confidence:** high — the orphan-as-warning path and the all-valid fixture
   suite were read on `main` today.
+
+### CIB-420: Maintain an artefact-reachability inventory for JS/TS surfaces
+
+- **Status:** Proposed
+- **Priority:** P3 — release and retirement decisions currently over-count
+  TypeScript by treating workspace membership as shipping
+- **Intent:** Repository-wide TypeScript project and line counts substantially
+  overstate shipped runtime code. The 2026-09-12 audit proved the released CLI
+  ships only the compiled dashboard frontend as first-party TypeScript-derived
+  runtime; public package-shaped workspaces are not on npm.
+- **Expected Outcome:** A maintained inventory classifies each JS/TS workspace
+  as embedded runtime, deployed service, operational tooling, CI canary, or
+  dormant publish-shaped package. Release and retirement work uses that
+  inventory instead of raw project counts.
+- **Non-scope / do not:** do not reopen **CIB-370** (leftover policy/watch/
+  codemod retirement already Merged). Do not treat Nx graph sync as this item
+  — that landed via [#4643](https://github.com/eddacraft/anvil-001/pull/4643).
+- **Files:** `docs/guides/` or a machine-readable inventory next to the
+  workspace graph; `pnpm nx:graph:check`
+- **Validation:** every `tag:npm:public` / `tag:npm:private` project has a
+  reachability class; a dormant package cannot be listed as shipped runtime
+- **Identified From:** CI-log 2026-09-12 TypeScript shipping-boundary audit
+  (`promote: CIB`)
+- **Coordinates with:** CIB-370 (Merged), ADR-033 / TSRET
+- **Confidence:** high on the shipping fact; medium on the durable inventory
+  home
+
+### CIB-421: Isolate daemon-identity fixtures from a live intercept daemon
+
+- **Status:** Proposed
+- **Priority:** P2 — recurs on every JREL/CLI suite while a developer daemon
+  occupies the implicit runtime endpoint
+- **Intent:** `daemon_identity` integration fixtures require the operator's
+  shared intercept daemon to be stopped even when the changed path is
+  unrelated. Hit on JREL-005, JREL-006, and JREL-007 in the same window.
+- **Expected Outcome:** Daemon-identity fixtures redirect their rendezvous
+  (socket / named pipe / state-home) away from the implicit developer
+  endpoint so a live operator daemon can stay up. Unrelated CLI suites pass
+  without stopping that daemon.
+- **Non-scope / do not:** do not change production save-time lifecycle.
+  Do not reopen archived JREL items.
+- **Files:** `crates/anvil-cli/tests/` daemon-identity fixtures; test
+  harness rendezvous helpers
+- **Validation:** with a live intercept daemon on the default endpoint,
+  `cargo test -p eddacraft-anvil --test <daemon-identity> --no-fail-fast`
+  passes without stopping that daemon
+- **Identified From:** CI-log 2026-09-09 JREL-005..007 (`theme:hermetic-daemon-test-runtime`,
+  `promote: CIB`)
+- **Coordinates with:** JREL-005 (typed readiness), CIB-393
+- **Confidence:** high — three independent sessions named the same fixture
+  isolation gap
+
+### CIB-422: Widen wt-cleanup-sweep ignored-cache allowlist
+
+- **Status:** Proposed
+- **Priority:** P3 — merged worktrees cannot be removed through the official
+  helper because ignored caches look like unique WIP
+- **Intent:** `scripts/dev/wt-cleanup-sweep.sh` is too conservative for
+  `.agent-bus`, `.anvil`, `.antigravitycli`, and generated `.husky/_`, so
+  Worktrunk integrated state is the practical deletion oracle.
+- **Expected Outcome:** Those ignored cache/metadata paths are allowlisted
+  the same way `node_modules` and target dirs already are. A merged worktree
+  whose only extras are those caches is reported as safe to remove.
+- **Non-scope / do not:** do not force-delete unique-WIP worktrees. Do not
+  reopen **CIB-028** (the sweep helper itself is Done).
+- **Files:** `scripts/dev/wt-cleanup-sweep.sh` and its fixture coverage
+- **Validation:** a fixture worktree with only `.agent-bus` / `.anvil` /
+  `.husky/_` extras is classified as integrated, not unique WIP
+- **Identified From:** CI-log 2026-09-13 Worktrunk cleanup session
+- **Coordinates with:** CIB-028 (Done), CIB-210
+- **Confidence:** high — the helper and the ignored paths were named from a
+  live sweep
+
+### CIB-423: Preflight JSON should include failed-gate evidence
+
+- **Status:** Proposed
+- **Priority:** P3 — release blockers are diagnosable only by rerunning
+  expensive suites
+- **Intent:** v0.10.0-beta preflight JSON records gate exit codes but
+  suppresses captured stderr/stdout, so Nx drift and ambient-daemon failures
+  required individual gate reruns.
+- **Expected Outcome:** Each failed preflight gate includes a bounded tail
+  or evidence path in the JSON so the blocker is diagnosable without
+  rerunning the suite.
+- **Non-scope / do not:** do not dump full suite logs into the summary.
+  Do not treat Nx project-reference drift as this item — that landed via
+  [#4643](https://github.com/eddacraft/anvil-001/pull/4643).
+- **Files:** release preflight reporter / `scripts/release/`
+- **Validation:** a forced failing gate produces JSON with a non-empty
+  evidence tail or path; passing gates stay quiet
+- **Identified From:** CI-log 2026-09-12 v0.10.0-beta preflight
+- **Coordinates with:** release-plan preflight, `theme:release-preflight-observability`
+- **Confidence:** high — the missing evidence field was observed on a real
+  preflight run
