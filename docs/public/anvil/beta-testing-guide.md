@@ -12,7 +12,7 @@ upstream:
   - crates/anvil-cli/src/commands/version.rs
   - crates/anvil-cli/src/commands/l4_validate.rs
   - docs/public/anvil/concepts/policy-model.md
-verified_against: 0.9.7-beta
+verified_against: 0.10.0-beta
 ---
 
 # Beta test brief
@@ -28,7 +28,7 @@ This is a **test brief**, not a second setup manual. Setup lives only in the
 [quickstart](quickstart.md). Install or update there, then return here.
 
 **Current published beta:**
-[v0.9.7-beta](https://github.com/eddacraft/anvil/releases/tag/v0.9.7-beta).
+[v0.10.0-beta](https://github.com/eddacraft/anvil/releases/tag/v0.10.0-beta).
 Confirm with `anvil version`. A newer beta is valid.
 
 ## The product under test

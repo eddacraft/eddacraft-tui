@@ -8,11 +8,13 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-> **Draft for `v0.10.0-beta`.** Customer-facing changes on `main` since
-> `v0.9.7-beta`. Theme locked: continuous journey honesty. Version and date land
-> at the cut.
+> **Draft.** This section accumulates customer-relevant changes landed on
+> `main`; the version and date are set at the next release.
 
-## [0.10.0-beta] — 2026-09-13
+## [0.10.0-beta] — 2026-09-13 — Continuous journey honesty
+
+First use through daily ensure tells the truth about activation, coverage, and
+protection after the published 0.9.7-beta run.
 
 ### Fixed
 
