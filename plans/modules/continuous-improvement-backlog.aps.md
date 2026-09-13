@@ -14094,8 +14094,9 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Files:** `crates/anvil-cli/tests/` daemon-identity fixtures; test
   harness rendezvous helpers
 - **Validation:** with a live intercept daemon on the default endpoint,
-  `cargo test -p eddacraft-anvil --test <daemon-identity> --no-fail-fast`
-  passes without stopping that daemon
+  `cargo test -p eddacraft-anvil --test daemon_identity --no-fail-fast`
+  (`crates/anvil-cli/tests/daemon_identity.rs`) passes without stopping
+  that daemon
 - **Identified From:** CI-log 2026-09-09 JREL-005..007 (`theme:hermetic-daemon-test-runtime`,
   `promote: CIB`)
 - **Coordinates with:** JREL-005 (typed readiness), CIB-393
@@ -14108,16 +14109,22 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Priority:** P3 — merged worktrees cannot be removed through the official
   helper because ignored caches look like unique WIP
 - **Intent:** `scripts/dev/wt-cleanup-sweep.sh` is too conservative for
-  `.agent-bus`, `.anvil`, `.antigravitycli`, and generated `.husky/_`, so
-  Worktrunk integrated state is the practical deletion oracle.
-- **Expected Outcome:** Those ignored cache/metadata paths are allowlisted
-  the same way `node_modules` and target dirs already are. A merged worktree
-  whose only extras are those caches is reported as safe to remove.
+  disposable ignored caches (`.anvil` workspace cache, `.antigravitycli`,
+  generated `.husky/_`), so Worktrunk integrated state is the practical
+  deletion oracle. `.agent-bus` is **not** disposable: it holds persistent
+  per-recipient queues and an `all-messages` log.
+- **Expected Outcome:** Disposable ignored cache/metadata paths are
+  allowlisted the same way `node_modules` and target dirs already are. A
+  merged worktree whose only extras are those disposable caches is reported
+  as safe to remove. Live `.agent-bus` state is preserved or migrated; an
+  integrated worktree with a non-empty bus is not treated as cache-only.
 - **Non-scope / do not:** do not force-delete unique-WIP worktrees. Do not
-  reopen **CIB-028** (the sweep helper itself is Done).
+  reopen **CIB-028** (the sweep helper itself is Done). Do not allowlist
+  `.agent-bus` as a disposable cache.
 - **Files:** `scripts/dev/wt-cleanup-sweep.sh` and its fixture coverage
-- **Validation:** a fixture worktree with only `.agent-bus` / `.anvil` /
-  `.husky/_` extras is classified as integrated, not unique WIP
+- **Validation:** a fixture worktree with only `.anvil` / `.husky/_` extras
+  is classified as integrated; a fixture with a live `.agent-bus` queue
+  is not treated as cache-only and the bus files survive cleanup
 - **Identified From:** CI-log 2026-09-13 Worktrunk cleanup session
 - **Coordinates with:** CIB-028 (Done), CIB-210
 - **Confidence:** high — the helper and the ignored paths were named from a
