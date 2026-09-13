@@ -20,9 +20,9 @@ theme, keyboard, shell, animation, widget, and snapshot facilities documented by
 The component exports surfaces through
 [`src/surfaces/mod.rs`](src/surfaces/mod.rs). Current families are activation,
 audit, browser, dashboard, doctor, fix request, gate, init, notifications,
-onboarding, plan dashboard, status, tutorial, update hint, watch, welcome, and
-wizard. The module list is canonical; release-era surface counts are not an
-invariant.
+onboarding, plan dashboard, settings, status, tutorial, update hint, watch,
+welcome, and wizard. The module list is canonical; release-era surface counts
+are not an invariant.
 
 ## Surface contract and dispatch
 

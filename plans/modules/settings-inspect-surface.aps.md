@@ -145,9 +145,10 @@ Change status to **Ready** when:
   current state.
 - **Non-scope:** Row detail panel (SETINS-002); any edit affordance
 - **Dependencies:** SETCON-010
-- **Validation:** `cargo test -p anvil-tui settings_view`
+- **Validation:** `cargo test -p eddacraft-anvil-tui settings_view`
+- **Files:** `crates/anvil-tui/src/surfaces/settings/`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-002: Row honesty and expandable detail
 
@@ -164,9 +165,10 @@ Change status to **Ready** when:
   explain their lower evidence level.
 - **Non-scope:** Editing from the detail panel
 - **Dependencies:** SETINS-001
-- **Validation:** `cargo test -p anvil-tui settings_row`
+- **Validation:** `cargo test -p eddacraft-anvil-tui settings_row`
+- **Files:** `crates/anvil-tui/src/surfaces/settings/`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-003: Status view
 

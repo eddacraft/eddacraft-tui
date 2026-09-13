@@ -12,6 +12,7 @@ pub mod init;
 pub mod notifications;
 pub mod onboarding;
 pub mod plan_dashboard;
+pub mod settings;
 pub mod status;
 pub mod tutorial;
 pub mod update_hint;

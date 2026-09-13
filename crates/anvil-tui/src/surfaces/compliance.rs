@@ -48,6 +48,7 @@ mod tests {
         OnboardingWelcomeState,
     };
     use crate::surfaces::plan_dashboard::{PlanDashboardSnapshot, PlanDashboardState};
+    use crate::surfaces::settings::SettingsState;
     use crate::surfaces::status::{
         GateRunResult, HookStatus, ProfileInfo, StatusData, StatusState,
     };
@@ -65,7 +66,7 @@ mod tests {
     // in comments — including this one — are not counted).
     // Update this constant whenever a new surface is added.
     // ---------------------------------------------------------------------------
-    const EXPECTED_SURFACE_COUNT: usize = 22;
+    const EXPECTED_SURFACE_COUNT: usize = 23;
 
     /// Temp-dir guards (kept alive for the test) plus the labelled surfaces.
     type SurfaceRegistry = (Vec<TempDir>, Vec<(&'static str, Box<dyn Surface>)>);
@@ -288,6 +289,7 @@ mod tests {
                     spec_root,
                 )),
             ),
+            ("SettingsState", Box::new(SettingsState::new(vec![]))),
             ("WizardState", Box::new(WizardState::new(vec![]))),
         ];
 
