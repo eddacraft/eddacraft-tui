@@ -50,6 +50,16 @@ on:
       # (`eddacraft-tui-v*`, …) use their own publish workflows; a broad
       # semver glob would still start this workflow and skip most jobs.
       - 'v*'
+  # Recovery: re-publish an existing tag without moving it. Select this
+  # workflow from a branch that has the CI fix, pass the existing tag, and
+  # checkouts use that tag for source while the workflow YAML comes from the
+  # selected branch (see plan job + checkout ref below).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to (re)publish, e.g. v0.10.0-beta'
+        required: true
+        type: string
 
 jobs:
   # Run 'dist plan' (or host) to determine what tasks we need to do
@@ -57,20 +67,47 @@ jobs:
     # Defense in depth with the `v*` tag filter above: only CLI-style tags
     # should reach this job. Skipping `plan` cascades — every downstream job
     # needs it, and `host` gates on `needs.plan.result == 'success'`.
-    if: ${{ startsWith(github.ref_name, 'v') }}
+    # workflow_dispatch recovery uses inputs.tag (existing tag, not moved).
+    if:
+      ${{ startsWith(github.ref_name, 'v') || (github.event_name == 'workflow_dispatch' &&
+      startsWith(inputs.tag, 'v')) }}
     runs-on: 'ubuntu-22.04'
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ !github.event.pull_request && github.ref_name || '' }}
-      tag-flag: ${{ !github.event.pull_request && format('--tag={0}', github.ref_name) || '' }}
-      publishing: ${{ !github.event.pull_request }}
+      tag: ${{ steps.meta.outputs.tag }}
+      tag-flag: ${{ steps.meta.outputs.tag-flag }}
+      publishing: ${{ steps.meta.outputs.publishing }}
+      source-ref: ${{ steps.meta.outputs.source-ref }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          case "$TAG" in
+            v*) ;;
+            *)
+              echo "::error::Release tag must start with v (got '$TAG')"
+              exit 1
+              ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag-flag=--tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "publishing=true" >> "$GITHUB_OUTPUT"
+          echo "source-ref=$TAG" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ steps.meta.outputs.source-ref }}
           persist-credentials: false
           submodules: recursive
+          fetch-tags: true
+          fetch-depth: 0
       - name: Install dist
         # V041F-001: pin the downloaded installer script by SHA256 before
         # executing it with sh. Without this, a compromise of the upstream script
@@ -110,7 +147,7 @@ jobs:
       # but also really annoying to build CI around when it needs secrets to work right.)
       - id: plan
         run: |
-          dist ${{ (!github.event.pull_request && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --output-format=json > plan-dist-manifest.json
+          dist host --steps=create ${{ steps.meta.outputs.tag-flag }} --output-format=json > plan-dist-manifest.json
           echo "dist ran successfully"
           cat plan-dist-manifest.json
           echo "manifest=$(jq -c '.' plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
@@ -138,6 +175,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.source-ref }}
           persist-credentials: false
       - name: Setup pnpm
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -148,10 +186,13 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      # @eddacraft/render ships only built `dist/` (gitignored). Build the
-      # workspace dependency first or tsc fails with TS2307 on release tags.
+      # @eddacraft/render and flags-catalogue ship only built `dist/` (gitignored).
+      # Build workspace deps first or tsc fails with TS2307/TS6305 on release tags
+      # (dashboard tsconfig project-references flags-catalogue since #4643).
       - name: Build dashboard workspace dependencies
-        run: pnpm --filter @eddacraft/render build
+        run: |
+          pnpm --filter @eddacraft/render build
+          pnpm exec nx run flags-catalogue:build
       - name: Build dashboard UI
         run: pnpm --filter @eddacraft/anvil-dashboard build
       - name: Verify the bundle exists
@@ -219,6 +260,7 @@ jobs:
           git config --global core.longpaths true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.source-ref }}
           persist-credentials: false
           submodules: recursive
       - name: 'DISTRIB-001 preflight: release public key is set and not dev fallback'
@@ -329,6 +371,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.source-ref }}
           persist-credentials: false
           submodules: recursive
       - name: Install cached dist
@@ -387,12 +430,13 @@ jobs:
       - plan
       - build-local-artifacts
       - build-global-artifacts
-    # Only run if we're "publishing", and only if plan, local and global didn't fail (skipped is fine)
+    # Require real artifact builds on publish. Treating `skipped` as success
+    # previously allowed a failed build-dashboard-ui to cascade into a hollow
+    # GitHub Release (metadata only) for v0.10.0-beta.
     if:
       ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' &&
-      (needs.build-global-artifacts.result == 'skipped' || needs.build-global-artifacts.result ==
-      'success') && (needs.build-local-artifacts.result == 'skipped' ||
-      needs.build-local-artifacts.result == 'success') }}
+      needs.build-global-artifacts.result == 'success' && needs.build-local-artifacts.result ==
+      'success' }}
     env:
       # ANVIL_RELEASES_TOKEN has cross-repo write access for homebrew tap publishing
       GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
@@ -402,6 +446,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.source-ref }}
           persist-credentials: false
           submodules: recursive
       - name: Install cached dist
@@ -784,6 +829,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.source-ref }}
           persist-credentials: false
           sparse-checkout: .github/winget
           sparse-checkout-cone-mode: false
@@ -1007,6 +1053,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.source-ref }}
           persist-credentials: false
           sparse-checkout: .github/scoop
           sparse-checkout-cone-mode: false
@@ -1147,6 +1194,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.plan.outputs.source-ref }}
           persist-credentials: false
           submodules: recursive
 
