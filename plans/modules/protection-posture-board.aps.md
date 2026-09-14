@@ -5,9 +5,10 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| POSBRD | —     | medium   | Proposed | 0/5      |
+| POSBRD | —     | medium   | Proposed | 2/5      |
 
-**Last reviewed:** 2026-08-30 — design approved in-thread; spec accepted at
+**Last reviewed:** 2026-09-14 — POSBRD-001/002 Merged via #4680 (status
+reconciled in #4682). Design approved 2026-08-30; spec accepted at
 [`plans/specs/2026-08-30-protection-posture-board.md`](../specs/2026-08-30-protection-posture-board.md).
 Exclusive module. Stored `N/M` is reconciled separately under ADR-053. Not a
 release claim.

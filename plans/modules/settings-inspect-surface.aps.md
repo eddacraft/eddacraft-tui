@@ -5,9 +5,11 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| SETINS | —     | medium   | Proposed | 0/10     |
+| SETINS | —     | medium   | Proposed | 2/10     |
 
-**Last reviewed:** 2026-08-06 — module created from the operator-supplied
+**Last reviewed:** 2026-09-14 — SETINS-001/002 Merged via #4681. SETCON-008/010/011
+Ready-checklist items ticked; CLICT slice and Status-view signal confirmation
+remain open. Module created 2026-08-06 from the operator-supplied
 `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 1). Gated on SETCON; no release window claimed.
@@ -126,8 +128,8 @@ Audit tab would imply historical coverage Anvil cannot evidence.
 
 Change status to **Ready** when:
 
-- [ ] SETCON-008 and SETCON-010 are Done
-- [ ] SETCON-011 seeds enough catalogue entries for a non-trivial surface
+- [x] SETCON-008 and SETCON-010 are Done
+- [x] SETCON-011 seeds enough catalogue entries for a non-trivial surface
 - [ ] Status-view signal sources confirmed against existing diagnostics
 - [ ] A CLICT slice is opened for the `anvil settings` command family
 
@@ -149,7 +151,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-tui settings_view`
 - **Files:** `crates/anvil-tui/src/surfaces/settings/`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-13 via PR #4681
 
 ### SETINS-002: Row honesty and expandable detail
 
@@ -169,7 +171,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-tui settings_row`
 - **Files:** `crates/anvil-tui/src/surfaces/settings/`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-13 via PR #4681
 
 ### SETINS-003: Status view
 
