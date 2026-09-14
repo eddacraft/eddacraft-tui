@@ -122,7 +122,7 @@ Change a work item to **Ready** when:
 - **Status:** In Progress
 - **Intent:** Show the snapshot beside Layers on every `anvil status` surface.
 - **Expected Outcome:** TUI, plain, and `--json` render the same snapshot. JSON adds optional `posture` on `anvil.status.v1` and documents it in `schemas/anvil-status.v1.json`. Layers remain armed/not-armed. No new command name.
-- **Files:** `crates/anvil-cli/src/commands/status.rs`, `crates/anvil-cli/src/commands/status_posture.rs`, `crates/anvil-tui/src/surfaces/status/`, `schemas/anvil-status.v1.json`
+- **Files:** `crates/anvil-cli/src/commands/status.rs`, `crates/anvil-tui/src/surfaces/status/`, `schemas/anvil-status.v1.json`
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast status && cargo test -p eddacraft-anvil-tui -- status`
 - **Dependencies:** POSBRD-002
 - **Confidence:** high
@@ -133,7 +133,7 @@ Change a work item to **Ready** when:
 - **Status:** In Progress
 - **Intent:** Show the last attested intercept decision and interrupt-ladder stage without making kill a posture rung.
 - **Expected Outcome:** Intercept-row detail carries last decision, stage (`sigint` / `sigterm` / `sigkill` / `job_object` / `already_exited`), and timestamp when the daemon attests them. If `query_status` cannot attest, the detail is omitted. Fences alone do not synthesise last-action.
-- **Files:** `crates/anvil-intercept-proto/src/status.rs`, `crates/anvil-intercept/src/last_action.rs`, `crates/anvil-intercept/src/`, `crates/anvil-cli/src/commands/status.rs`
+- **Files:** `crates/anvil-intercept-proto/src/status.rs`, `crates/anvil-intercept/src/`, `crates/anvil-cli/src/commands/status.rs`
 - **Validation:** `cargo test -p eddacraft-anvil-intercept -- last_action`
 - **Dependencies:** POSBRD-002
 - **Confidence:** medium
@@ -144,7 +144,7 @@ Change a work item to **Ready** when:
 - **Status:** In Progress
 - **Intent:** Document the board on the existing `anvil status` surface.
 - **Expected Outcome:** Public CLI status docs name the four rows, the ladder, native gate/acceptance verbs, SETCON-strict Active, and that kill is a ladder stage. They do not claim `anvil settings` exists. POLFIT-006 / DOCDEF-007 remain the key catalogue.
-- **Files:** `docs/public/anvil/reference/status.md`, `docs/public/anvil/reference/cli.md`, `apps/anvil-docs-private/sidebars/anvil.ts`
+- **Files:** `docs/public/anvil/reference/cli.md`
 - **Validation:** `pnpm docs:check && pnpm docs:public:check`
 - **Dependencies:** POSBRD-003
 - **Confidence:** high

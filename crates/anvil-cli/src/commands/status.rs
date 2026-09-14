@@ -101,7 +101,8 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         mcp_inventory.as_ref(),
         graph.as_ref(),
     );
-    attach_posture_board(&mut data, Path::new("."), daemon_snapshot.as_ref());
+    let posture_root = resolve_repo_root().unwrap_or_else(|| Path::new(".").to_path_buf());
+    attach_posture_board(&mut data, &posture_root, daemon_snapshot.as_ref());
 
     // DISTRIB-002: surface an update-available hint when one is
     // detected and the 24h rate-limit gate allows it. `--json` is
@@ -2488,7 +2489,7 @@ fn print_json(
         mcp: mcp.unwrap_or_default(),
         receipt: receipt.to_json(),
         posture: status_posture::posture_json(&status_posture::gather_posture_snapshot(
-            worktree,
+            &resolve_repo_root().unwrap_or_else(|| worktree.to_path_buf()),
             daemon_snapshot,
         )),
     };

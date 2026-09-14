@@ -263,6 +263,7 @@
                 "description": "Present only on the intercept row when the daemon attests a decision. Omit rather than synthesise from fences.",
                 "type": ["object", "null"],
                 "additionalProperties": true,
+                "required": ["decision", "observed_at"],
                 "properties": {
                   "decision": { "type": "string" },
                   "stage": {
