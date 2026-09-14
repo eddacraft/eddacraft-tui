@@ -72,6 +72,11 @@ pub struct DaemonStatus {
     /// DSV-044: telemetry subscriber/drop counters. `None` means no broadcaster
     /// is wired into this status provider.
     pub telemetry: Option<TelemetryStats>,
+    /// POSBRD-003: current intercept enforcement mode. `None` when the
+    /// provider was not given a resolved mode.
+    pub enforcement_mode: Option<String>,
+    /// POSBRD-004: last attested intercept decision. `None` when unattested.
+    pub last_action: Option<anvil_intercept_proto::status::LastActionV1>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -239,6 +244,8 @@ impl DaemonStatus {
                 .map(|t| u32::try_from(t.subscriber_count).unwrap_or(u32::MAX)),
             telemetry_dropped_envelopes: self.telemetry.map(|t| t.dropped_envelopes),
             generated_at_unix: self.generated_at_unix,
+            enforcement_mode: self.enforcement_mode.clone(),
+            last_action: self.last_action.clone(),
         }
     }
 }
@@ -347,6 +354,8 @@ pub fn build_status(
         in_flight_evaluations,
         generated_at_unix,
         telemetry: None,
+        enforcement_mode: None,
+        last_action: None,
     }
 }
 
@@ -413,6 +422,10 @@ pub struct DaemonStatusProvider {
     /// overlays each worktree's `save_time_driver` state from the supervisor's
     /// live snapshot.
     save_time_supervisor: Option<crate::save_time_driver::SaveTimeDriverSupervisor>,
+    /// POSBRD-003: resolved intercept enforcement mode.
+    enforcement_mode: Option<String>,
+    /// POSBRD-004: attested last-action store.
+    last_action: Option<std::sync::Arc<crate::last_action::LastActionStore>>,
 }
 
 impl std::fmt::Debug for DaemonStatusProvider {
@@ -443,7 +456,27 @@ impl DaemonStatusProvider {
             scan_buffer: None,
             broadcaster: None,
             save_time_supervisor: None,
+            enforcement_mode: None,
+            last_action: None,
         }
+    }
+
+    /// POSBRD-003: surface the daemon's resolved intercept mode on
+    /// `query_status`.
+    #[must_use]
+    pub fn with_enforcement_mode(mut self, mode: crate::config::Mode) -> Self {
+        self.enforcement_mode = Some(mode.as_str().to_owned());
+        self
+    }
+
+    /// POSBRD-004: attach the attested last-action store.
+    #[must_use]
+    pub fn with_last_action_store(
+        mut self,
+        store: std::sync::Arc<crate::last_action::LastActionStore>,
+    ) -> Self {
+        self.last_action = Some(store);
+        self
     }
 
     /// MLP2-058: attach the daemon's resolved-rule-set cache.
@@ -571,6 +604,8 @@ impl DaemonStatusProvider {
                 }
             }
         }
+        status.enforcement_mode.clone_from(&self.enforcement_mode);
+        status.last_action = self.last_action.as_ref().and_then(|store| store.snapshot());
         status
     }
 }
@@ -1264,6 +1299,81 @@ mod tests {
         assert_eq!(json["health"]["version"], "0.5.1-beta");
         assert_eq!(json["health"]["ipc_state"], "serving");
         assert_eq!(json["sessions"].as_array().unwrap().len(), 1);
+        assert!(
+            json.get("last_action").is_none(),
+            "unattested last_action must omit, not synthesise: {json}"
+        );
+    }
+
+    #[test]
+    fn last_action_query_status_omits_when_unattested() {
+        let provider = DaemonStatusProvider::new(
+            Arc::new(crate::registry::SessionRegistry::new()),
+            Arc::new(crate::fence::FenceStore::at_path(
+                std::env::temp_dir().join(format!("anvil-last-action-omit-{}", std::process::id())),
+            )),
+            crate::latency::LatencyAggregator::new(),
+            Instant::now(),
+            "0.10.0-beta",
+        );
+        let wire = provider.query_status().to_wire();
+        assert!(wire.last_action.is_none());
+        assert!(wire.enforcement_mode.is_none());
+    }
+
+    #[test]
+    fn last_action_query_status_reports_attested_interrupt() {
+        let store = crate::last_action::LastActionStore::new();
+        store.record("interrupt", Some("sigkill"));
+        let provider = DaemonStatusProvider::new(
+            Arc::new(crate::registry::SessionRegistry::new()),
+            Arc::new(crate::fence::FenceStore::at_path(
+                std::env::temp_dir()
+                    .join(format!("anvil-last-action-attest-{}", std::process::id())),
+            )),
+            crate::latency::LatencyAggregator::new(),
+            Instant::now(),
+            "0.10.0-beta",
+        )
+        .with_enforcement_mode(crate::config::Mode::Warn)
+        .with_last_action_store(store);
+        let wire = provider.query_status().to_wire();
+        let action = wire.last_action.expect("attested");
+        assert_eq!(action.decision, "interrupt");
+        assert_eq!(action.stage.as_deref(), Some("sigkill"));
+        assert_eq!(wire.enforcement_mode.as_deref(), Some("warn"));
+    }
+
+    #[test]
+    fn last_action_fences_alone_do_not_synthesise() {
+        let started = Instant::now();
+        let session = sample_session("sess-1", "/tmp/wt-1");
+        let fence = FenceRecord {
+            worktree: PathBuf::from("/tmp/wt-1"),
+            aliases: Vec::new(),
+            reason: "secret-detection".to_owned(),
+            fenced_at_unix: 1_700_000_500,
+        };
+        let status = build_status(
+            vec![session],
+            std::slice::from_ref(&fence),
+            &[],
+            None,
+            started,
+            started,
+            "0.10.0-beta",
+            IpcState::Serving,
+            None,
+            None,
+            0,
+        );
+        assert!(!status.fences.is_empty());
+        assert!(
+            status.last_action.is_none(),
+            "fences listed on the snapshot are not last-action evidence"
+        );
+        let json = serde_json::to_value(status.to_wire()).expect("serialise");
+        assert!(json.get("last_action").is_none());
     }
 
     /// MLP2-026: cascade fields on `WorktreeStatusV1` round-trip

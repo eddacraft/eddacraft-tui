@@ -11,6 +11,8 @@ use anvil_kernel_types::protection_claim::{ProtectionClaim, WorktreeClaimState};
 use anvil_tui::surfaces::status::{
     GateRunResult, HookStatus, ProfileInfo, StatusData, StatusState,
 };
+
+use crate::commands::status_posture;
 use clap::Args;
 use serde::Serialize;
 
@@ -99,6 +101,7 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         mcp_inventory.as_ref(),
         graph.as_ref(),
     );
+    attach_posture_board(&mut data, Path::new("."), daemon_snapshot.as_ref());
 
     // DISTRIB-002: surface an update-available hint when one is
     // detected and the 24h rate-limit gate allows it. `--json` is
@@ -790,6 +793,7 @@ fn gather_status_data(root: &str) -> StatusData {
         // UJ-010: populated by caller (status run) after gather, same
         // pattern as the hints above.
         whats_new_hint: None,
+        posture: None,
     }
 }
 
@@ -1111,6 +1115,11 @@ fn run_status_tui(
     Ok(())
 }
 
+fn attach_posture_board(data: &mut StatusData, root: &Path, daemon: Option<&DaemonStatusV1>) {
+    let snapshot = status_posture::gather_posture_snapshot(root, daemon);
+    data.posture = Some(status_posture::tui_board(&snapshot, SystemTime::now()));
+}
+
 fn print_plain(
     data: &StatusData,
     activation_diag: &activation::ActivationDiagnostic,
@@ -1126,6 +1135,11 @@ fn print_plain(
     // the wrong tree.
     let root = resolve_repo_root().unwrap_or_else(|| Path::new(".").to_path_buf());
     let mut snapshot = build_legible_snapshot(data, activation_diag, &root, save_time);
+    let posture = status_posture::gather_posture_snapshot(&root, context.daemon_snapshot);
+    snapshot.posture = Some(status_posture::render_plain_posture(
+        &posture,
+        SystemTime::now(),
+    ));
     if let Some(next) = status_readiness_action(context.readiness) {
         snapshot.next_action = next;
     }
@@ -1538,6 +1552,8 @@ struct LegibleSnapshot {
     posture_facts: Vec<String>,
     /// ACTTUI-019 meaning when claim ≠ start protection word.
     posture_meaning: Option<String>,
+    /// POSBRD-003: sibling Posture section, already rendered.
+    posture: Option<String>,
 }
 
 /// One-word layer status for the L0–L5 block.
@@ -1628,6 +1644,13 @@ fn render_plain_legible(s: &LegibleSnapshot) -> String {
     let _ = writeln!(out, "    L4 push       {}", s.layers.l4_push.label());
     let _ = writeln!(out, "    L5 audit      {}", s.layers.l5_audit.label());
     out.push('\n');
+    if let Some(posture) = &s.posture {
+        out.push_str(posture);
+        if !posture.ends_with('\n') {
+            out.push('\n');
+        }
+        out.push('\n');
+    }
     match &s.daemon {
         DaemonSummary::Running {
             pid: Some(pid),
@@ -1739,6 +1762,7 @@ fn build_legible_snapshot(
         next_action,
         posture_facts,
         posture_meaning,
+        posture: None,
     }
 }
 
@@ -2336,6 +2360,9 @@ struct StatusOutput {
 
     /// JSIMP-005: persistent closing receipt. Additive (`additionalProperties`).
     receipt: serde_json::Value,
+
+    /// POSBRD-003: protection posture board. Additive optional object.
+    posture: status_posture::PostureJson,
 }
 
 #[derive(Serialize)]
@@ -2460,6 +2487,10 @@ fn print_json(
             .map(save_time_driver_evidence_str),
         mcp: mcp.unwrap_or_default(),
         receipt: receipt.to_json(),
+        posture: status_posture::posture_json(&status_posture::gather_posture_snapshot(
+            worktree,
+            daemon_snapshot,
+        )),
     };
 
     let json = serde_json::to_string_pretty(&output)?;
@@ -2985,6 +3016,7 @@ mod tests {
             update_hint: None,
             insights_hint: None,
             whats_new_hint: None,
+            posture: None,
         }
     }
 
@@ -3443,6 +3475,7 @@ mod tests {
                 "save-time: not attached".into(),
             ],
             posture_meaning: None,
+            posture: None,
         }
     }
 
@@ -3553,6 +3586,7 @@ mod tests {
             posture_meaning: Some(
                 "status claim may differ from start; subordinate facts listed above".into(),
             ),
+            posture: None,
         }
     }
 
@@ -3911,6 +3945,7 @@ mod tests {
             update_hint: None,
             insights_hint: None,
             whats_new_hint: None,
+            posture: None,
         };
         let layers = derive_layers(&data, &diag, Path::new("."));
         let claim = derive_protection(&diag, &layers);
@@ -4139,6 +4174,8 @@ mod tests {
             telemetry_subscriber_count: None,
             telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
+            enforcement_mode: None,
+            last_action: None,
         }
     }
 
@@ -4849,6 +4886,10 @@ mod tests {
             save_time_driver_evidence: None,
             mcp,
             receipt: serde_json::json!({}),
+            posture: status_posture::posture_json(&status_posture::gather_posture_snapshot(
+                Path::new("."),
+                None,
+            )),
         }
     }
 

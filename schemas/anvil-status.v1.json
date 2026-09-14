@@ -213,6 +213,80 @@
         }
       }
     },
+    "posture": {
+      "description": "POSBRD-003: protection posture board. Four projection rows with configured / resolved / active cells. Additive under additionalProperties; keep schema_version anvil.status.v1. YAML is never proof of Active. last_action is intercept-row detail only when attested.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["scale", "rows"],
+      "properties": {
+        "scale": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "enum": ["off", "warn", "fence", "interrupt"]
+          }
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["id", "verbs", "configured", "resolved", "active"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "enum": ["mcp_pre_write", "intercept", "gate", "acceptance"]
+              },
+              "verbs": {
+                "type": "string",
+                "enum": ["ladder", "native"]
+              },
+              "configured": { "$ref": "#/$defs/postureCell" },
+              "resolved": { "$ref": "#/$defs/postureCell" },
+              "active": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["state"],
+                "properties": {
+                  "value": { "type": ["string", "null"] },
+                  "state": {
+                    "type": "string",
+                    "enum": ["unknown", "stale", "failed", "drift", "active"]
+                  }
+                }
+              },
+              "last_action": {
+                "description": "Present only on the intercept row when the daemon attests a decision. Omit rather than synthesise from fences.",
+                "type": ["object", "null"],
+                "additionalProperties": true,
+                "properties": {
+                  "decision": { "type": "string" },
+                  "stage": {
+                    "type": ["string", "null"],
+                    "enum": ["sigint", "sigterm", "sigkill", "job_object", "already_exited", null]
+                  },
+                  "observed_at": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "mapping": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "scale": { "type": "array", "items": { "type": "string" } },
+            "warn": { "type": "array", "items": { "type": "string" } },
+            "interrupt": { "type": "array", "items": { "type": "string" } },
+            "block_alias": { "type": "string", "const": "interrupt" }
+          }
+        }
+      }
+    },
     "save_time_driver": {
       "description": "DSV-049: the current worktree's headless save-time driver state from the daemon snapshot. Present only when a daemon answered AND the current worktree is registered, so consumers can distinguish 'no daemon evidence' (key omitted) from an explicit 'absent'. `unknown` is the forward-compat fallback a consumer surfaces for a driver state emitted by a newer daemon; treat it fail-safe as 'absent' (no attachment evidence). Additive-optional under `additionalProperties: true`; a renamed or removed value requires a schema-version bump.",
       "type": "string",
@@ -291,6 +365,15 @@
     }
   },
   "$defs": {
+    "postureCell": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["source"],
+      "properties": {
+        "value": { "type": ["string", "null"] },
+        "source": { "type": "string" }
+      }
+    },
     "readinessComponent": {
       "type": "object",
       "required": ["state", "detail"],

@@ -53,6 +53,7 @@ const sidebars: SidebarsConfig = {
         'reference/checks',
         'reference/config',
         'reference/cli-reference',
+        'reference/status',
         'reference/rule-reference',
         'reference/policy',
         'reference/support-reference',

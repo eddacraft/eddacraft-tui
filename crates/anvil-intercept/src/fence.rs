@@ -286,6 +286,9 @@ pub struct FenceStore {
     /// constraint row even when the cross-session telemetry fan-out is
     /// not wired. `None` (the default) keeps fence engages silent.
     observation: Arc<Mutex<Option<FenceObservation>>>,
+    /// POSBRD-004: attested last-action sink. Independent of the fence
+    /// list — listing a fence is not itself last-action evidence.
+    last_action: Arc<Mutex<Option<Arc<crate::last_action::LastActionStore>>>>,
 }
 
 struct FenceTelemetry {
@@ -316,7 +319,16 @@ impl FenceStore {
             cascade_windows: Arc::new(Mutex::new(HashMap::new())),
             telemetry: Arc::new(Mutex::new(None)),
             observation: Arc::new(Mutex::new(None)),
+            last_action: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// POSBRD-004: record attested fence decisions onto the last-action store.
+    pub fn set_last_action_store(&self, store: Arc<crate::last_action::LastActionStore>) {
+        *self
+            .last_action
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(store);
     }
 
     /// DPO-002: inject the Kindling sink (and daemon session id) so every
@@ -607,6 +619,14 @@ impl FenceStore {
 
         self.save(&state)?;
         self.emit_fence_transition(&canonical, FenceTransition::ActiveToFenced);
+        if let Some(store) = self
+            .last_action
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+        {
+            store.record("fence", None);
+        }
         Ok(record)
     }
 

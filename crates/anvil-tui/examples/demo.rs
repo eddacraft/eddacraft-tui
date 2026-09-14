@@ -252,6 +252,7 @@ fn mock_status_data() -> StatusData {
         update_hint: None,
         insights_hint: None,
         whats_new_hint: None,
+        posture: None,
     }
 }
 

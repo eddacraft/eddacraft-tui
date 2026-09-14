@@ -38,6 +38,20 @@ pub enum InterruptStage {
     JobObjectTerminated,
 }
 
+impl InterruptStage {
+    /// POSBRD-004 wire token. Kill is a ladder stage, not a posture.
+    #[must_use]
+    pub const fn as_wire(self) -> &'static str {
+        match self {
+            Self::AlreadyExited => "already_exited",
+            Self::Sigint => "sigint",
+            Self::Sigterm => "sigterm",
+            Self::Sigkill => "sigkill",
+            Self::JobObjectTerminated => "job_object",
+        }
+    }
+}
+
 /// Why the daemon decided to fence rather than (or in addition to)
 /// signalling. Surfaced in telemetry so operators can audit what
 /// happened.

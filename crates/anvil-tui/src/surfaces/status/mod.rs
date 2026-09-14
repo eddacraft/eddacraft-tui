@@ -29,12 +29,30 @@ pub struct GateRunResult {
     pub duration_ms: u64,
 }
 
+/// POSBRD-003: display-ready protection posture board.
+#[derive(Debug, Clone)]
+pub struct StatusPostureBoard {
+    pub rows: Vec<StatusPostureRow>,
+    pub last_action: Option<String>,
+    pub scale_lines: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StatusPostureRow {
+    pub surface: String,
+    pub configured: String,
+    pub resolved: String,
+    pub active: String,
+}
+
 /// All data needed by the status dashboard.
 #[derive(Debug, Clone)]
 pub struct StatusData {
     pub hooks: Vec<HookStatus>,
     pub profile: ProfileInfo,
     pub recent_runs: Vec<GateRunResult>,
+    /// POSBRD-003: sibling of Layers on the TUI status surface.
+    pub posture: Option<StatusPostureBoard>,
     /// DISTRIB-002: one-line "update available" hint set by anvil-cli
     /// when a newer release is detected and the 24h rate-limit allows
     /// rendering. `None` when no update is available, the probe was
@@ -283,6 +301,7 @@ mod tests {
             update_hint: None,
             insights_hint: None,
             whats_new_hint: None,
+            posture: None,
         }
     }
 

@@ -88,6 +88,7 @@ pub mod interrupt;
 pub mod ipc;
 pub mod kernel_cache;
 pub mod kindling_observation;
+pub mod last_action;
 pub mod latency;
 pub mod midedit;
 pub mod overlay_scan;
@@ -2403,6 +2404,10 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // `scan_buffer` calls. The provider is built BEFORE the
         // listener so the listener gets a status feed wired in from
         // the first connection.
+        let last_action = last_action::LastActionStore::new();
+        daemon_state
+            .fence_store
+            .set_last_action_store(Arc::clone(&last_action));
         let mut status_provider_impl = status::DaemonStatusProvider::new(
             Arc::clone(&daemon_state.registry),
             Arc::clone(&daemon_state.fence_store),
@@ -2416,7 +2421,9 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // lands its production cache wire-up — the optional
         // wire shape preserves forward-compat.
         .with_scan_buffer(scan_buffer.clone())
-        .with_broadcaster(Arc::clone(&daemon_state.broadcaster));
+        .with_broadcaster(Arc::clone(&daemon_state.broadcaster))
+        .with_enforcement_mode(opts.enforcement_config.mode)
+        .with_last_action_store(last_action);
         // DSV-049: overlay per-worktree save-time driver state from the
         // supervisor when one is running (opt-in via
         // `ForegroundOpts::with_save_time_drivers`). Absent supervisor ⇒

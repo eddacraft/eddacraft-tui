@@ -122,6 +122,27 @@ pub struct DaemonStatusV1 {
     /// contract test in `anvil-intercept`.
     #[serde(default)]
     pub generated_at_unix: u64,
+    /// POSBRD-003: current intercept enforcement mode while IPC is live.
+    /// Absent on older daemons; consumers treat missing as no attested
+    /// intercept active cell.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enforcement_mode: Option<String>,
+    /// POSBRD-004: last attested intercept decision. Omit when the daemon
+    /// cannot attest. Fences listed on this snapshot are not a substitute.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_action: Option<LastActionV1>,
+}
+
+/// POSBRD-004: last attested intercept decision and interrupt-ladder stage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LastActionV1 {
+    /// `warn` / `fence` / `interrupt` / `block`.
+    pub decision: String,
+    /// Interrupt-ladder stage when `decision` is `interrupt`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage: Option<String>,
+    /// Unix seconds at which the daemon attested the decision.
+    pub observed_at_unix: u64,
 }
 
 impl DaemonStatusV1 {
@@ -322,6 +343,8 @@ mod tests {
             telemetry_subscriber_count: None,
             telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
+            enforcement_mode: None,
+            last_action: None,
         };
         let line = serde_json::to_string(&status).expect("serialise");
         let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
@@ -347,6 +370,8 @@ mod tests {
             telemetry_subscriber_count: None,
             telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
+            enforcement_mode: None,
+            last_action: None,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
         // mid_edit must be either absent or null — never zero.
@@ -475,6 +500,8 @@ mod tests {
             telemetry_subscriber_count: Some(2),
             telemetry_dropped_envelopes: Some(8),
             generated_at_unix: 0,
+            enforcement_mode: None,
+            last_action: None,
         };
         let line = serde_json::to_string(&status).expect("serialise");
         let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
@@ -513,6 +540,8 @@ mod tests {
             telemetry_subscriber_count: None,
             telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
+            enforcement_mode: None,
+            last_action: None,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
         assert!(
@@ -579,6 +608,8 @@ mod tests {
             telemetry_subscriber_count: None,
             telemetry_dropped_envelopes: None,
             generated_at_unix: 1_716_336_000,
+            enforcement_mode: None,
+            last_action: None,
         };
         let line = serde_json::to_string(&status).expect("serialise");
         let back: DaemonStatusV1 = serde_json::from_str(&line).expect("deserialise");
@@ -615,6 +646,8 @@ mod tests {
             telemetry_subscriber_count: None,
             telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
+            enforcement_mode: None,
+            last_action: None,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
         assert!(

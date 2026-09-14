@@ -46,6 +46,17 @@ impl PostureSurface {
         }
     }
 
+    /// Human label on the board. Not numbered L0–L5.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::McpPreWrite => "mcp pre-write",
+            Self::Intercept => "intercept",
+            Self::Gate => "gate",
+            Self::Acceptance => "acceptance",
+        }
+    }
+
     const fn source(self) -> &'static str {
         match self {
             Self::McpPreWrite | Self::Intercept => "enforcement.mode",
@@ -162,6 +173,8 @@ pub struct PostureInputs {
     pub gate: GateSource,
     pub acceptance: AcceptanceSource,
     pub active: [SurfaceActive; 4],
+    /// POSBRD-004: intercept-row detail only, when attested.
+    pub last_action: Option<LastAction>,
 }
 
 /// Compute the four-row board. Does not read files or invent active evidence.
@@ -186,12 +199,13 @@ pub fn posture_snapshot(inputs: &PostureInputs) -> PostureSnapshot {
         mcp_resolved,
         &inputs.active[0],
     );
-    let intercept = ladder_row(
+    let mut intercept = ladder_row(
         PostureSurface::Intercept,
         configured,
         intercept_resolved,
         &inputs.active[1],
     );
+    intercept.last_action.clone_from(&inputs.last_action);
     let gate = gate_row(inputs.gate, &inputs.active[2]);
     let acceptance = acceptance_row(inputs.acceptance, &inputs.active[3]);
     PostureSnapshot {
@@ -339,6 +353,7 @@ mod posture_snapshot_tests {
                 verb: None,
             },
             active: unknown_actives(),
+            last_action: None,
         }
     }
 
@@ -577,5 +592,27 @@ mod posture_snapshot_tests {
         );
         assert_eq!(snapshot.mapping.block_alias, "interrupt");
         assert!(snapshot.rows.iter().all(|row| row.last_action.is_none()));
+    }
+
+    #[test]
+    fn posture_snapshot_last_action_is_intercept_row_only() {
+        let mut source = inputs();
+        source.last_action = Some(LastAction {
+            decision: "interrupt".into(),
+            stage: Some("sigkill".into()),
+            observed_at: "2026-09-14T12:00:00Z".into(),
+        });
+        let snapshot = posture_snapshot(&source);
+        let intercept = row(&snapshot, PostureSurface::Intercept);
+        let action = intercept.last_action.as_ref().expect("attested");
+        assert_eq!(action.decision, "interrupt");
+        assert_eq!(action.stage.as_deref(), Some("sigkill"));
+        assert!(
+            snapshot
+                .rows
+                .iter()
+                .filter(|row| row.id != PostureSurface::Intercept)
+                .all(|row| row.last_action.is_none())
+        );
     }
 }

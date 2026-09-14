@@ -36,6 +36,22 @@ pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCr
         body_area
     };
 
+    let body_area = if let Some(posture) = &state.data.posture {
+        let line_count = 2
+            + posture.rows.len()
+            + usize::from(posture.last_action.is_some())
+            + posture.scale_lines.len();
+        let sections = Layout::vertical([
+            Constraint::Length(u16::try_from(line_count).unwrap_or(u16::MAX)),
+            Constraint::Min(0),
+        ])
+        .split(body_area);
+        render_posture(frame, sections[0], posture, theme);
+        sections[1]
+    } else {
+        body_area
+    };
+
     // Zoom mode: only the focused panel renders, taking the full area.
     // Press `z` to toggle, `esc` exits zoom before navigating back.
     if state.zoomed {
@@ -122,6 +138,51 @@ fn render_readiness(
     for row in &readiness.receipt_lines {
         lines.push(Line::from(Span::styled(
             row.clone(),
+            Style::default().fg(theme.muted()),
+        )));
+    }
+    frame.render_widget(Paragraph::new(Text::from(lines)), area);
+}
+
+fn render_posture(
+    frame: &mut Frame,
+    area: Rect,
+    posture: &super::StatusPostureBoard,
+    theme: &EddaCraftTheme,
+) {
+    let mut lines = vec![
+        Line::from(Span::styled(
+            "Posture",
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::styled(
+            format!(
+                "  {:<15} {:<14} {:<15} {}",
+                "surface", "configured", "resolved", "active"
+            ),
+            Style::default().fg(theme.muted()),
+        )),
+    ];
+    for row in &posture.rows {
+        lines.push(Line::from(Span::styled(
+            format!(
+                "  {:<15} {:<14} {:<15} {}",
+                row.surface, row.configured, row.resolved, row.active
+            ),
+            Style::default().fg(theme.fg()),
+        )));
+    }
+    if let Some(last) = &posture.last_action {
+        lines.push(Line::from(Span::styled(
+            format!("  {last}"),
+            Style::default().fg(theme.fg()),
+        )));
+    }
+    for scale in &posture.scale_lines {
+        lines.push(Line::from(Span::styled(
+            format!("  {scale}"),
             Style::default().fg(theme.muted()),
         )));
     }
@@ -352,7 +413,64 @@ mod tests {
             update_hint: None,
             insights_hint: None,
             whats_new_hint: None,
+            posture: None,
         })
+    }
+
+    #[test]
+    fn posture_board_renders_four_rows() {
+        use super::super::{StatusPostureBoard, StatusPostureRow};
+
+        let backend = TestBackend::new(100, 28);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.data.posture = Some(StatusPostureBoard {
+            rows: vec![
+                StatusPostureRow {
+                    surface: "mcp pre-write".into(),
+                    configured: "(unset)".into(),
+                    resolved: "interrupt".into(),
+                    active: "unknown".into(),
+                },
+                StatusPostureRow {
+                    surface: "intercept".into(),
+                    configured: "(unset)".into(),
+                    resolved: "warn".into(),
+                    active: "unknown".into(),
+                },
+                StatusPostureRow {
+                    surface: "gate".into(),
+                    configured: "(unset)".into(),
+                    resolved: "warnings-pass".into(),
+                    active: "unknown".into(),
+                },
+                StatusPostureRow {
+                    surface: "acceptance".into(),
+                    configured: "(none)".into(),
+                    resolved: "(none)".into(),
+                    active: "unknown".into(),
+                },
+            ],
+            last_action: None,
+            scale_lines: vec!["scale: off < warn < fence < interrupt".into()],
+        });
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("Posture"),
+            "TUI must name the Posture section:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("mcp pre-write"),
+            "TUI must show mcp pre-write:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("interrupt"),
+            "TUI must show the MCP absent-key default:\n{rendered}"
+        );
     }
 
     #[test]
@@ -537,6 +655,7 @@ mod tests {
             update_hint: None,
             insights_hint: None,
             whats_new_hint: None,
+            posture: None,
         });
         let theme = EddaCraftTheme;
 

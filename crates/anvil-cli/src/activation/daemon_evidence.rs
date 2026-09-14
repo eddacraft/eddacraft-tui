@@ -858,6 +858,8 @@ mod tests {
             telemetry_subscriber_count: None,
             telemetry_dropped_envelopes: None,
             generated_at_unix,
+            enforcement_mode: None,
+            last_action: None,
         }
     }
 
