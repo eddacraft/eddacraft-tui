@@ -20,8 +20,32 @@ pub struct SettingsTelemetryEvent {
     pub signal: SettingsSignal,
 }
 
-/// Emit a coarse signal. Failures are swallowed so inspection still works.
+/// Env-level collection gate (SETINS-009). Honour `DO_NOT_TRACK` and
+/// `ANVIL_TELEMETRY=off` even when a caller has no CLI consent store.
+#[must_use]
+pub fn env_allows_collection(anvil_telemetry: Option<&str>, do_not_track: Option<&str>) -> bool {
+    if do_not_track.is_some_and(|value| {
+        let value = value.trim();
+        !value.is_empty() && !matches!(value.to_ascii_lowercase().as_str(), "0" | "false")
+    }) {
+        return false;
+    }
+    !anvil_telemetry.is_some_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "off" | "0" | "false"
+        )
+    })
+}
+
+/// Emit a coarse signal when env collection is allowed. Failures are
+/// swallowed so inspection still works.
 pub fn emit(signal: SettingsSignal) {
+    let anvil_telemetry = std::env::var("ANVIL_TELEMETRY").ok();
+    let do_not_track = std::env::var("DO_NOT_TRACK").ok();
+    if !env_allows_collection(anvil_telemetry.as_deref(), do_not_track.as_deref()) {
+        return;
+    }
     let event = SettingsTelemetryEvent { signal };
     tracing::info!(target: "anvil.settings", signal = ?event.signal, "settings_inspect");
     let _ = event;
@@ -79,5 +103,17 @@ mod settings_telemetry_tests {
     fn settings_telemetry_emit_does_not_panic() {
         emit(SettingsSignal::SearchUsed);
         emit(SettingsSignal::ValidationFailed);
+    }
+
+    #[test]
+    fn settings_telemetry_env_gate_honours_opt_out() {
+        assert!(env_allows_collection(None, None));
+        assert!(env_allows_collection(Some("on"), None));
+        assert!(!env_allows_collection(Some("off"), None));
+        assert!(!env_allows_collection(Some("0"), None));
+        assert!(!env_allows_collection(None, Some("1")));
+        assert!(!env_allows_collection(Some("on"), Some("true")));
+        assert!(env_allows_collection(None, Some("0")));
+        assert!(env_allows_collection(None, Some("false")));
     }
 }

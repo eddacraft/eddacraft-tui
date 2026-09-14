@@ -624,7 +624,7 @@ the registration and persistence details for operators.
 | 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Done**        | Canonical check-name vocabulary reconciled                                                                        |
 | 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Done**        | Runbook daemon/workspace subcommands reconciled                                                                   |
 | 7   | Tier 2 runbook alignment (36 families) | CLICT-007  | **Proposed**    | Spot-check remaining families; fix runbook-only gaps                                                              |
-| 8   | `anvil settings`                       | SETINS     | **Auditing**    | Family registered by SETINS-005/006. Re-audit `--help` after land. No public-docs claim until this slice is Done. |
+| 8   | `anvil settings`                       | CLICT-008  | **Auditing**    | Family registered by SETINS-005/006. Re-audit `--help` after land. No public-docs claim until this slice is Done. |
 
 ---
 

@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::io::IsTerminal;
 use std::path::Path;
 
-use anvil_observability::settings_telemetry::{SettingsSignal, emit as emit_settings_signal};
+use anvil_observability::settings_telemetry::{SettingsSignal, emit as emit_settings_trace};
 use anvil_settings::exit_codes::{SettingsOutcome, code_for};
 use anvil_settings::{
     Catalogue, CatalogueEntry, Declaration, EnvelopeCommand, HealthStatus, ResolutionEvent,
@@ -97,6 +97,13 @@ fn print_slash_explanation() {
          Equivalent CLI: `anvil settings` (TUI) or `anvil settings show` (text/json).\n\
          Subcommands: show, explain <key>, status, sources."
     );
+}
+
+fn emit_settings_signal(signal: SettingsSignal) {
+    if !crate::telemetry::send_allowed() {
+        return;
+    }
+    emit_settings_trace(signal);
 }
 
 pub fn run(args: &SettingsArgs, global: &GlobalArgs) -> anyhow::Result<()> {

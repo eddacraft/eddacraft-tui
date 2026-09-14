@@ -101,6 +101,7 @@ fn render_list(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &Edd
 
     let mut lines: Vec<Line> = Vec::new();
     let mut last_group: Option<usize> = None;
+    let mut selected_line = 0usize;
     for (visible_idx, (group_idx, row_idx)) in visible.iter().copied().enumerate() {
         if last_group != Some(group_idx) {
             if let Some(group) = state.groups.get(group_idx) {
@@ -130,8 +131,14 @@ fn render_list(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &Edd
             Style::default().fg(theme.fg())
         };
         lines.push(Line::from(Span::styled(content, style)));
+        if selected {
+            selected_line = lines.len().saturating_sub(1);
+        }
     }
-    frame.render_widget(Paragraph::new(lines), inner);
+    frame.render_widget(
+        Paragraph::new(window_lines(lines, inner.height, selected_line)),
+        inner,
+    );
 }
 
 fn render_detail(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &EddaCraftTheme) {
@@ -164,28 +171,37 @@ fn render_narrow_list(
     state: &SettingsState,
     theme: &EddaCraftTheme,
 ) {
-    let lines: Vec<Line> = state
-        .visible_rows()
-        .into_iter()
-        .enumerate()
-        .filter_map(|(visible_idx, (group_idx, row_idx))| {
-            let row = state.groups.get(group_idx)?.rows.get(row_idx)?;
-            let selected = visible_idx == state.selected;
-            let indicator = if selected { ">> " } else { "   " };
-            let content = format!("{indicator}{}  {}", row.label, row.runtime.as_str());
-            Some(Line::from(Span::styled(
-                content,
-                if selected {
-                    Style::default()
-                        .fg(theme.accent())
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(theme.fg())
-                },
-            )))
-        })
-        .collect();
-    frame.render_widget(Paragraph::new(lines), area);
+    let mut selected_line = 0usize;
+    let mut lines = Vec::new();
+    for (visible_idx, (group_idx, row_idx)) in state.visible_rows().into_iter().enumerate() {
+        let Some(row) = state
+            .groups
+            .get(group_idx)
+            .and_then(|group| group.rows.get(row_idx))
+        else {
+            continue;
+        };
+        let selected = visible_idx == state.selected;
+        if selected {
+            selected_line = lines.len();
+        }
+        let indicator = if selected { ">> " } else { "   " };
+        let content = format!("{indicator}{}  {}", row.label, row.runtime.as_str());
+        lines.push(Line::from(Span::styled(
+            content,
+            if selected {
+                Style::default()
+                    .fg(theme.accent())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.fg())
+            },
+        )));
+    }
+    frame.render_widget(
+        Paragraph::new(window_lines(lines, area.height, selected_line)),
+        area,
+    );
 }
 
 fn render_status(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &EddaCraftTheme) {
@@ -262,6 +278,22 @@ fn kv(label: &str, value: &str, theme: &EddaCraftTheme) -> Line<'static> {
         Span::styled(format!("{label}: "), Style::default().fg(theme.muted())),
         Span::styled(value.to_owned(), Style::default().fg(theme.fg())),
     ])
+}
+
+fn window_lines(
+    lines: Vec<Line<'static>>,
+    height: u16,
+    selected_line: usize,
+) -> Vec<Line<'static>> {
+    let height = usize::from(height);
+    if height == 0 || lines.len() <= height {
+        return lines;
+    }
+    let max_start = lines.len() - height;
+    let start = selected_line
+        .saturating_sub(height.saturating_sub(1))
+        .min(max_start);
+    lines.into_iter().skip(start).take(height).collect()
 }
 
 fn detail_panel_height(state: &SettingsState, area: Rect, search_height: u16) -> u16 {
@@ -378,6 +410,60 @@ mod tests {
         assert!(buffer.contains("locked"));
         assert!(buffer.contains("[redacted]"));
         assert!(!buffer.contains("s3cret"));
+    }
+
+    #[test]
+    fn settings_window_keeps_selected_line_visible() {
+        let lines: Vec<Line> = (0..20).map(|i| Line::from(format!("row-{i}"))).collect();
+        let window = window_lines(lines, 5, 12);
+        let text: String = window
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains("row-12"), "{text}");
+        assert!(!text.contains("row-0"), "{text}");
+        assert!(!text.contains("row-6"), "{text}");
+    }
+
+    #[test]
+    fn settings_narrow_list_keeps_selected_visible() {
+        let mut state = sample_state();
+        state.handle_key(Action::Character('G'));
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    "Settings",
+                    state.footer_commands(),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+        let buf = terminal.backend().buffer();
+        let area = buf.area;
+        let mut output = String::new();
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                output.push_str(buf[(x, y)].symbol());
+            }
+            output.push('\n');
+        }
+        assert!(
+            output.contains("Compact mode"),
+            "selected last row must remain visible:\n{output}"
+        );
+        assert!(output.contains(">> "), "{output}");
     }
 
     #[test]
