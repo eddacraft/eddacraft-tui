@@ -224,9 +224,9 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 - **Expected Outcome:** A council/privacy review (PV-style, modelled on PV-9)
   approves the caller-egress surface, confirming identity-only default and the
   redaction choke point; conditions folded into the GCTX-014 acceptance criteria.
-- **Validation:** Verdict filed under `plans/reviews/`; conditions reflected in
+- **Validation:** Verdict filed under `plans/archive/reviews/`; conditions reflected in
   GCTX-014.
-- **Files:** `plans/reviews/`
+- **Files:** `plans/archive/reviews/`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** GCALL-003

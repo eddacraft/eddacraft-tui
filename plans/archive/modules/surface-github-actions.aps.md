@@ -133,7 +133,7 @@ registration + flag, then validation.
   positives) + `BurntSushi/ripgrep` (7 true-positive unpinned `@master` refs),
   **0 false positives → PASS**. Evidence:
   `plans/archive/reviews/2026-06-18-surface-validation.md`.
-- **Validation:** FP report committed under `plans/reviews/`.
+- **Validation:** FP report committed under `plans/archive/reviews/`.
 - **Dependencies:** SURFGHA-002, SURFGHA-006
 - **Confidence:** high
 

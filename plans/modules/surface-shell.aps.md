@@ -208,7 +208,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
   `plans/archive/reviews/2026-06-18-surface-validation.md`. (No dangerous-command
   corpus in either repo — external true-positive confirmation is light; unit
   tests cover detection.)
-- **Validation:** FP report committed under `plans/reviews/`.
+- **Validation:** FP report committed under `plans/archive/reviews/`.
 - **Dependencies:** SURFSH-002, SURFSH-005
 - **Confidence:** medium
 

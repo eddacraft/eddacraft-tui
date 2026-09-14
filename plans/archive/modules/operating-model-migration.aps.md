@@ -474,7 +474,7 @@ This module is Complete when:
   OPMODEL-005, OPMODEL-006, OPMODEL-007, OPMODEL-008, OPMODEL-010,
   OPMODEL-011 — all Complete at cutover time; callouts resolved.
 - **Action plan:**
-  [`plans/execution/opmodel-012.steps.md`](../execution/opmodel-012.steps.md)
+  [`plans/archive/execution/opmodel-012.steps.md`](../execution/opmodel-012.steps.md)
 - **Phase 0 outputs (PR #1410):**
   [`plans/archive/audits/2026-05-11-opmodel-012-workflow-audit.md`](../audits/2026-05-11-opmodel-012-workflow-audit.md),
   [`docs/runbooks/main-first-cutover.md`](../../docs/runbooks/main-first-cutover.md)

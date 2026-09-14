@@ -135,7 +135,7 @@ shipped via v0.9.0-beta (`6b0ed1d1`, 2026-07-12):
 - [x] LTW2-005 (doc reconciliation) **Merged via #3006** — `overview.md`
       language-profile copy reconciled.
 - [x] LTW2-004 (external-corpus smoke) **Merged via #3014** — ~2,527 real OSS
-      files, 0 panics; evidence under `plans/reviews/`.
+      files, 0 panics; evidence under `plans/archive/reviews/`.
 
 ## Work Items
 
@@ -205,7 +205,7 @@ than per-language PRs.
   panicking and appears in the graph via `architecture-validate`.
 - **Expected Outcome:** All included-language fixtures green; an external-corpus
   smoke run (the LANGTAIL-008 equivalent) shows 0 panics; evidence recorded
-  under `plans/reviews/`.
+  under `plans/archive/reviews/`.
 - **Met 2026-06-30:** the in-harness half landed with the wiring; the external
   smoke ran the production kernel path over ~2,527 real OSS files (zls +
   zig-stdlib; wasm-tools `.wat` + the WebAssembly testsuite `.wast`) — **0
@@ -222,8 +222,8 @@ than per-language PRs.
 - **Note:** the in-harness half landed with the wiring — `calc.wat` + `greeter.zig`
   join the shared `langtail_wave_acceptance` corpus (parse-clean + graph
   inclusion via the production embedded scan), and the `ltw2_grammars_bind_and_parse`
-  guard is pinned. **Remaining:** the external real-OSS-corpus smoke (0 panics)
-  with evidence under `plans/reviews/`.
+  guard is pinned. External real-OSS-corpus smoke completed (0 panics) with evidence under
+  `plans/archive/reviews/`.
 
 ### LTW2-005 — Reconcile public language-profile copy
 
