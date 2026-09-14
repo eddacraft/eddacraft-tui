@@ -5,11 +5,11 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| SETINS | —     | medium   | Proposed | 2/10     |
+| SETINS | —     | medium   | Done     | 10/10     |
 
-**Last reviewed:** 2026-09-14 — SETINS-001/002 Merged via #4681. SETCON-008/010/011
-Ready-checklist items ticked; CLICT slice and Status-view signal confirmation
-remain open. Module created 2026-08-06 from the operator-supplied
+**Last reviewed:** 2026-09-14 — SETINS-003..010 Merged via #4696 after SETINS-001/002
+via #4681. CLICT-008 remains Auditing; no public-docs claim that `anvil settings`
+is a released product until that re-audit. Module created 2026-08-06 from the operator-supplied
 `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 1). Gated on SETCON; no release window claimed.
@@ -130,7 +130,7 @@ Change status to **Ready** when:
 
 - [x] SETCON-008 and SETCON-010 are Done
 - [x] SETCON-011 seeds enough catalogue entries for a non-trivial surface
-- [ ] Status-view signal sources confirmed against existing diagnostics
+- [x] Status-view signal sources confirmed against existing diagnostics
 - [x] A CLICT slice is opened for the `anvil settings` command family
 
 ## Work Items
@@ -185,8 +185,9 @@ Change status to **Ready** when:
 - **Non-scope:** New health computation (SETCON-007 owns it)
 - **Dependencies:** SETCON-007, SETINS-001
 - **Validation:** `cargo test -p eddacraft-anvil-tui settings_status`
+- **Files:** `crates/anvil-tui/src/surfaces/settings/mod.rs`, `crates/anvil-tui/src/surfaces/settings/render.rs`, `crates/anvil-cli/src/commands/settings.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4696
 
 ### SETINS-004: Sources view
 
@@ -202,8 +203,9 @@ Change status to **Ready** when:
 - **Non-scope:** Editing or reset from this view
 - **Dependencies:** SETCON-004, SETINS-001
 - **Validation:** `cargo test -p eddacraft-anvil-tui settings_sources`
+- **Files:** `crates/anvil-tui/src/surfaces/settings/mod.rs`, `crates/anvil-tui/src/surfaces/settings/render.rs`, `crates/anvil-cli/src/commands/settings.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4696
 
 ### SETINS-005: Entry points and deep links
 
@@ -218,8 +220,9 @@ Change status to **Ready** when:
 - **Non-scope:** Non-interactive output formats (SETINS-006)
 - **Dependencies:** SETINS-001
 - **Validation:** `cargo test -p eddacraft-anvil settings_entry`
+- **Files:** `crates/anvil-cli/src/commands/settings.rs`, `crates/anvil-cli/src/main.rs`
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4696
 
 ### SETINS-006: Non-interactive CLI inspection
 
@@ -235,8 +238,9 @@ Change status to **Ready** when:
 - **Non-scope:** `set`/`unset` or any apply command; `anvil settings audit`
 - **Dependencies:** SETCON-008, SETCON-009
 - **Validation:** `cargo test -p eddacraft-anvil settings_cli`
+- **Files:** `crates/anvil-cli/src/commands/settings.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4696
 
 ### SETINS-007: Read-only MCP inspection
 
@@ -248,8 +252,9 @@ Change status to **Ready** when:
 - **Non-scope:** Audit inspection (SETGOV); any write tool
 - **Dependencies:** SETINS-006
 - **Validation:** `cargo test -p eddacraft-anvil settings_mcp`
+- **Files:** `crates/anvil-cli/src/mcp/tools/settings.rs`, `crates/anvil-cli/src/mcp/tools/registry.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4696
 
 ### SETINS-008: Accessibility and terminal degradation
 
@@ -263,8 +268,9 @@ Change status to **Ready** when:
 - **Non-scope:** Editing accessibility preferences (SETPREF)
 - **Dependencies:** SETINS-002
 - **Validation:** `cargo test -p eddacraft-anvil-tui settings_a11y`
+- **Files:** `crates/anvil-tui/src/surfaces/settings/render.rs`, `crates/anvil-tui/src/surfaces/settings/mod.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4696
 
 ### SETINS-009: Telemetry guardrails
 
@@ -279,8 +285,9 @@ Change status to **Ready** when:
 - **Non-scope:** Telemetry transport or backend changes
 - **Dependencies:** SETINS-001
 - **Validation:** `cargo test -p eddacraft-anvil-observability settings_telemetry`
+- **Files:** `crates/anvil-observability/src/settings_telemetry.rs`, `crates/anvil-cli/src/commands/settings.rs`
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4696
 
 ### SETINS-010: Inspect-surface test suite
 
@@ -295,5 +302,6 @@ Change status to **Ready** when:
 - **Non-scope:** Mutation-path tests (SETPREF / SETGOV)
 - **Dependencies:** SETINS-002, SETINS-006, SETINS-007
 - **Validation:** `cargo test -p eddacraft-anvil-tui settings_`; `cargo test -p eddacraft-anvil settings_`
+- **Files:** `crates/anvil-tui/src/surfaces/settings/`, `crates/anvil-cli/src/commands/settings.rs`, `crates/anvil-cli/src/mcp/tools/settings.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4696

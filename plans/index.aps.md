@@ -888,8 +888,8 @@ Not a release claim.
 | ------ | ----- | ----- | ------ | -------- | -------------- |
 | [settings-truth-contract](./archive/modules/settings-truth-contract.aps.md) | SETCON | 0 — truth contract | Complete | 12/12 | **archived 2026-08-31.** All 12 SETCON work items are Merged via PR #4140 and PR #4216. SETINS remains gated on a named release window. |
 | [protection-posture-board](./modules/protection-posture-board.aps.md) | POSBRD | Status panel — v1 `anvil status` | Proposed | 5/5 | POSBRD-001/-002 Merged via #4680; POSBRD-003/-004/-005 Merged via #4697. SETINS Status later consumes the snapshot. |
-| [settings-inspect-surface](./modules/settings-inspect-surface.aps.md) | SETINS | 1 — inspect | Proposed | 2/10 | SETINS-001/-002 Merged via #4681. Next: SETINS-005 entry or SETINS-003 Status. Open a [CLICT](./modules/cli-command-truth.aps.md) slice before public docs claim `anvil settings` exists |
-| [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Proposed | 0/6 | Gated on SETINS; introduces the single authorised write path (Class A only) |
+| [settings-inspect-surface](./modules/settings-inspect-surface.aps.md) | SETINS | 1 — inspect | Done | 10/10 | SETINS-001/-002 Merged via #4681; SETINS-003..010 Merged via #4696. [CLICT-008](./modules/cli-command-truth.aps.md) Auditing before public docs claim `anvil settings`. Next: SETPREF |
+| [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Proposed | 0/6 | SETINS Done via #4696; introduces the single authorised write path (Class A only) |
 | [settings-governed-changes](./modules/settings-governed-changes.aps.md) | SETGOV | 3 — governed changes and audit | Draft | 0/9 | Post-v0.1; needs the audit-store reuse decision and an approval-authority model with [ORGHIER](./modules/org-policy-hierarchy.aps.md)/[POLLC](./modules/policy-lifecycle.aps.md) |
 | [settings-nl-proposals](./modules/settings-nl-proposals.aps.md) | SETNL | 4 — natural-language proposals | Draft | 0/4 | Horizon; authoring input only, never an authority or mutation path |
 
