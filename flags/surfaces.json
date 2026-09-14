@@ -983,6 +983,24 @@
       }
     },
     {
+      "key": "settings",
+      "name": "anvil settings inspect",
+      "groupKey": "foundational",
+      "owner": "SETINS",
+      "status": "active",
+      "requires": [],
+      "flagLinkage": {
+        "disposition": "unflagged",
+        "reason": "Inspect-only control centre; no operational rollout, entitlement, or kill-switch currently controls this feature."
+      },
+      "planAvailability": {
+        "plan-free": "undecided",
+        "plan-beta": "undecided",
+        "plan-pro": "undecided",
+        "plan-enterprise": "undecided"
+      }
+    },
+    {
       "key": "impact",
       "name": "Change impact",
       "groupKey": "governance",
