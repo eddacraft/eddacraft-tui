@@ -131,7 +131,7 @@ Change status to **Ready** when:
 - [x] SETCON-008 and SETCON-010 are Done
 - [x] SETCON-011 seeds enough catalogue entries for a non-trivial surface
 - [ ] Status-view signal sources confirmed against existing diagnostics
-- [ ] A CLICT slice is opened for the `anvil settings` command family
+- [x] A CLICT slice is opened for the `anvil settings` command family
 
 ## Work Items
 
@@ -184,9 +184,9 @@ Change status to **Ready** when:
   and source — all from the same status model as existing diagnostics.
 - **Non-scope:** New health computation (SETCON-007 owns it)
 - **Dependencies:** SETCON-007, SETINS-001
-- **Validation:** `cargo test -p anvil-tui settings_status`
+- **Validation:** `cargo test -p eddacraft-anvil-tui settings_status`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-004: Sources view
 
@@ -201,9 +201,9 @@ Change status to **Ready** when:
   states the revision used to generate the view.
 - **Non-scope:** Editing or reset from this view
 - **Dependencies:** SETCON-004, SETINS-001
-- **Validation:** `cargo test -p anvil-tui settings_sources`
+- **Validation:** `cargo test -p eddacraft-anvil-tui settings_sources`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-005: Entry points and deep links
 
@@ -217,9 +217,9 @@ Change status to **Ready** when:
   plus the equivalent CLI command.
 - **Non-scope:** Non-interactive output formats (SETINS-006)
 - **Dependencies:** SETINS-001
-- **Validation:** `cargo test -p anvil-cli settings_entry`
+- **Validation:** `cargo test -p eddacraft-anvil settings_entry`
 - **Confidence:** high
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-006: Non-interactive CLI inspection
 
@@ -234,9 +234,9 @@ Change status to **Ready** when:
   invocation starts an alternate screen; a redaction failure emits no payload.
 - **Non-scope:** `set`/`unset` or any apply command; `anvil settings audit`
 - **Dependencies:** SETCON-008, SETCON-009
-- **Validation:** `cargo test -p anvil-cli settings_cli`
+- **Validation:** `cargo test -p eddacraft-anvil settings_cli`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-007: Read-only MCP inspection
 
@@ -247,9 +247,9 @@ Change status to **Ready** when:
   transport envelope differs; no MCP mutation tool exists in v0.1.
 - **Non-scope:** Audit inspection (SETGOV); any write tool
 - **Dependencies:** SETINS-006
-- **Validation:** `cargo test -p anvil-cli settings_mcp`
+- **Validation:** `cargo test -p eddacraft-anvil settings_mcp`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-008: Accessibility and terminal degradation
 
@@ -262,9 +262,9 @@ Change status to **Ready** when:
   surface degrades to a structured text listing rather than failing.
 - **Non-scope:** Editing accessibility preferences (SETPREF)
 - **Dependencies:** SETINS-002
-- **Validation:** `cargo test -p anvil-tui settings_a11y`
+- **Validation:** `cargo test -p eddacraft-anvil-tui settings_a11y`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-009: Telemetry guardrails
 
@@ -278,9 +278,9 @@ Change status to **Ready** when:
   prevent local inspection.
 - **Non-scope:** Telemetry transport or backend changes
 - **Dependencies:** SETINS-001
-- **Validation:** `cargo test -p anvil-observability settings_telemetry`
+- **Validation:** `cargo test -p eddacraft-anvil-observability settings_telemetry`
 - **Confidence:** high
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETINS-010: Inspect-surface test suite
 
@@ -294,6 +294,6 @@ Change status to **Ready** when:
   can render `active` without accepted current evidence.
 - **Non-scope:** Mutation-path tests (SETPREF / SETGOV)
 - **Dependencies:** SETINS-002, SETINS-006, SETINS-007
-- **Validation:** `cargo test -p anvil-tui`; `cargo test -p anvil-cli settings`
+- **Validation:** `cargo test -p eddacraft-anvil-tui settings_`; `cargo test -p eddacraft-anvil settings_`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress

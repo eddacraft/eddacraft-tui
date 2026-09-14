@@ -68,6 +68,7 @@ const PRODUCT_CLI_PATHS: &[&str] = &[
     "ember",
     "exception",
     "status",
+    "settings",
     "impact",
     "telemetry",
     "lsp",

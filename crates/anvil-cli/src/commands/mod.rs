@@ -50,6 +50,7 @@ pub mod plan;
 pub mod policy;
 pub mod protection_claim_section;
 pub mod report_fp;
+pub mod settings;
 pub mod skill;
 pub mod skill_state;
 pub mod start;

@@ -5,31 +5,62 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use super::{SettingsState, format_row_values};
+use super::{SettingsState, SettingsTab, format_row_values};
 
 const MIN_DETAIL_HEIGHT: u16 = 4;
+const NARROW_WIDTH: u16 = 60;
 
 pub fn render(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &EddaCraftTheme) {
-    let search_height = u16::from(state.searching || !state.search_query.is_empty());
-    let detail_height = if state.expanded {
+    let search_height = u16::from(
+        state.tab == SettingsTab::Settings && (state.searching || !state.search_query.is_empty()),
+    );
+    let detail_height = if state.tab == SettingsTab::Settings && state.expanded {
         detail_panel_height(state, area, search_height)
     } else {
         0
     };
     let chunks = Layout::vertical([
+        Constraint::Length(1),
         Constraint::Length(search_height),
         Constraint::Min(4),
         Constraint::Length(detail_height),
     ])
     .split(area);
 
+    render_tabs(frame, chunks[0], state, theme);
     if search_height > 0 {
-        render_search(frame, chunks[0], state, theme);
+        render_search(frame, chunks[1], state, theme);
     }
-    render_list(frame, chunks[1], state, theme);
-    if detail_height > 0 {
-        render_detail(frame, chunks[2], state, theme);
+    match state.tab {
+        SettingsTab::Settings => {
+            if area.width < NARROW_WIDTH {
+                render_narrow_list(frame, chunks[2], state, theme);
+            } else {
+                render_list(frame, chunks[2], state, theme);
+            }
+            if detail_height > 0 {
+                render_detail(frame, chunks[3], state, theme);
+            }
+        }
+        SettingsTab::Status => render_status(frame, chunks[2], state, theme),
+        SettingsTab::Sources => render_sources(frame, chunks[2], state, theme),
     }
+}
+
+fn render_tabs(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &EddaCraftTheme) {
+    let mut spans = Vec::new();
+    for tab in SettingsTab::ALL {
+        let active = tab == state.tab;
+        let style = if active {
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+        } else {
+            Style::default().fg(theme.muted())
+        };
+        spans.push(Span::styled(format!(" {} ", tab.label()), style));
+    }
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 fn render_search(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &EddaCraftTheme) {
@@ -125,6 +156,112 @@ fn render_detail(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &E
             lines
         });
     frame.render_widget(Paragraph::new(lines), inner);
+}
+
+fn render_narrow_list(
+    frame: &mut Frame,
+    area: Rect,
+    state: &SettingsState,
+    theme: &EddaCraftTheme,
+) {
+    let lines: Vec<Line> = state
+        .visible_rows()
+        .into_iter()
+        .enumerate()
+        .filter_map(|(visible_idx, (group_idx, row_idx))| {
+            let row = state.groups.get(group_idx)?.rows.get(row_idx)?;
+            let selected = visible_idx == state.selected;
+            let indicator = if selected { ">> " } else { "   " };
+            let content = format!("{indicator}{}  {}", row.label, row.runtime.as_str());
+            Some(Line::from(Span::styled(
+                content,
+                if selected {
+                    Style::default()
+                        .fg(theme.accent())
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(theme.fg())
+                },
+            )))
+        })
+        .collect();
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
+fn render_status(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &EddaCraftTheme) {
+    let s = &state.status;
+    let mut lines = vec![
+        kv("version", &s.version, theme),
+        kv("runtime", &s.runtime, theme),
+        kv("project", &s.project, theme),
+        kv("worktree", &s.worktree, theme),
+        kv("session", &s.session, theme),
+        kv("resolved posture", &s.resolved_posture, theme),
+        kv("attested posture", &s.attested_posture, theme),
+        kv("health", &s.health, theme),
+        kv("validation", &s.validation, theme),
+        kv("attestation age", &s.attestation_age, theme),
+        kv("attestation source", &s.attestation_source, theme),
+    ];
+    for reason in &s.health_reasons {
+        lines.push(kv("health reason", reason, theme));
+    }
+    for item in &s.non_healthy {
+        lines.push(kv("non-healthy", item, theme));
+    }
+    for item in &s.integrations {
+        lines.push(kv("integration", item, theme));
+    }
+    for item in &s.adapters {
+        lines.push(kv("adapter", item, theme));
+    }
+    if let Some(pending) = &s.pending {
+        lines.push(kv("pending", pending, theme));
+    }
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
+fn render_sources(frame: &mut Frame, area: Rect, state: &SettingsState, theme: &EddaCraftTheme) {
+    let src = &state.sources;
+    let mut lines = vec![kv("revision", &src.revision, theme)];
+    for source in &src.sources {
+        let writable = if source.writable {
+            "writable"
+        } else {
+            "locked"
+        };
+        lines.push(kv(
+            "source",
+            &format!(
+                "{} {} {} [{writable}]",
+                source.kind, source.scope, source.path_display
+            ),
+            theme,
+        ));
+    }
+    for item in &src.overridden {
+        lines.push(kv("overridden", item, theme));
+    }
+    for item in &src.winning {
+        lines.push(kv("winning", item, theme));
+    }
+    for item in &src.field_provenance {
+        lines.push(kv("field", item, theme));
+    }
+    for item in &src.unknown_keys {
+        lines.push(kv("unknown", item, theme));
+    }
+    for item in &src.deprecated_keys {
+        lines.push(kv("deprecated", item, theme));
+    }
+    frame.render_widget(Paragraph::new(lines), area);
+}
+
+fn kv(label: &str, value: &str, theme: &EddaCraftTheme) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(format!("{label}: "), Style::default().fg(theme.muted())),
+        Span::styled(value.to_owned(), Style::default().fg(theme.fg())),
+    ])
 }
 
 fn detail_panel_height(state: &SettingsState, area: Rect, search_height: u16) -> u16 {
@@ -241,6 +378,81 @@ mod tests {
         assert!(buffer.contains("locked"));
         assert!(buffer.contains("[redacted]"));
         assert!(!buffer.contains("s3cret"));
+    }
+
+    #[test]
+    fn settings_status_snapshot() {
+        let mut state = sample_state().with_status(crate::surfaces::settings::SettingsStatusView {
+            version: "0.10.0-beta".into(),
+            runtime: "linux".into(),
+            project: "demo".into(),
+            worktree: "main".into(),
+            session: "s1".into(),
+            resolved_posture: "warn".into(),
+            attested_posture: "unknown".into(),
+            health: "indeterminate".into(),
+            health_reasons: vec!["checks unknown".into()],
+            non_healthy: vec!["protection.checks unknown".into()],
+            integrations: vec!["mcp".into()],
+            adapters: vec!["grok".into()],
+            pending: None,
+            validation: "ok".into(),
+            attestation_age: "n/a".into(),
+            attestation_source: "none".into(),
+        });
+        state.handle_key(Action::Right);
+        insta::assert_snapshot!(draw(&state));
+    }
+
+    #[test]
+    fn settings_sources_snapshot() {
+        let mut state =
+            sample_state().with_sources(crate::surfaces::settings::SettingsSourcesView {
+                revision: "rev-1".into(),
+                sources: vec![crate::surfaces::settings::SettingsSourceRow {
+                    scope: "project".into(),
+                    path_display: ".anvil.yaml".into(),
+                    writable: true,
+                    kind: "precedence".into(),
+                }],
+                overridden: vec![],
+                winning: vec!["project block".into()],
+                field_provenance: vec![],
+                unknown_keys: vec!["legacy.foo".into()],
+                deprecated_keys: vec![],
+            });
+        state.handle_key(Action::Right);
+        state.handle_key(Action::Right);
+        insta::assert_snapshot!(draw(&state));
+    }
+
+    #[test]
+    fn settings_a11y_narrow_keeps_textual_state() {
+        let state = sample_state();
+        let backend = TestBackend::new(40, 16);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let buf = terminal.backend().buffer();
+        let area = buf.area;
+        let mut plain = String::new();
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                plain.push_str(buf[(x, y)].symbol());
+            }
+            plain.push('\n');
+        }
+        assert!(plain.contains("DRIFT") || plain.contains("Enforcement"));
+        assert!(plain.contains("Settings"));
+    }
+
+    #[test]
+    fn settings_a11y_reduced_motion_is_honoured() {
+        let state = sample_state().with_reduced_motion(true);
+        assert!(state.reduced_motion);
+        let _ = draw(&state);
     }
 
     #[test]

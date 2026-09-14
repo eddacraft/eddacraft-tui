@@ -2,7 +2,7 @@ use serde_json::Value;
 
 use super::{
     affected_tests, apply_patch, check, find_callers, find_dependents, fix, gate, impact_of_change,
-    query_boundary, search_symbols, status, suppress, symbol_context, validate_write,
+    query_boundary, search_symbols, settings, status, suppress, symbol_context, validate_write,
 };
 
 pub struct ToolDefinition {
@@ -49,6 +49,34 @@ static TOOLS: &[ToolDefinition] = &[
         charges_graph_egress: false,
         descriptor: status::descriptor,
         call: status::call,
+    },
+    ToolDefinition {
+        name: settings::SHOW,
+        requires_auth: false,
+        charges_graph_egress: false,
+        descriptor: settings::show_descriptor,
+        call: settings::show_call,
+    },
+    ToolDefinition {
+        name: settings::EXPLAIN,
+        requires_auth: false,
+        charges_graph_egress: false,
+        descriptor: settings::explain_descriptor,
+        call: settings::explain_call,
+    },
+    ToolDefinition {
+        name: settings::STATUS,
+        requires_auth: false,
+        charges_graph_egress: false,
+        descriptor: settings::status_descriptor,
+        call: settings::status_call,
+    },
+    ToolDefinition {
+        name: settings::SOURCES,
+        requires_auth: false,
+        charges_graph_egress: false,
+        descriptor: settings::sources_descriptor,
+        call: settings::sources_call,
     },
     ToolDefinition {
         name: check::TOOL_NAME,

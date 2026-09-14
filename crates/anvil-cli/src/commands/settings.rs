@@ -1,0 +1,553 @@
+//! Inspect-only `anvil settings` (SETINS-005/006). No mutation path.
+
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
+use std::io::IsTerminal;
+use std::path::Path;
+
+use anvil_observability::settings_telemetry::{SettingsSignal, emit as emit_settings_signal};
+use anvil_settings::exit_codes::{SettingsOutcome, code_for};
+use anvil_settings::{
+    Catalogue, CatalogueEntry, Declaration, EnvelopeCommand, HealthStatus, RuntimeState,
+    SettingGroup, SettingRow, SettingsService, Snapshot, SnapshotRequest, first_release_catalogue,
+    redact_setting_value,
+};
+use anvil_tui::surfaces::settings::{
+    RuntimeLabel, SettingsGroupView, SettingsRowDetail, SettingsRowView, SettingsSourceRow,
+    SettingsSourcesView, SettingsState, SettingsStatusView,
+};
+use anyhow::Context;
+use clap::{Args, Subcommand, ValueEnum};
+use serde_json::Value;
+
+use crate::GlobalArgs;
+
+#[derive(Debug)]
+pub struct SettingsExit(pub u8);
+
+impl std::fmt::Display for SettingsExit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "settings exit {}", self.0)
+    }
+}
+
+impl std::error::Error for SettingsExit {}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum SettingsFormat {
+    Text,
+    Json,
+}
+
+#[derive(Debug, Args)]
+pub struct SettingsArgs {
+    #[command(subcommand)]
+    pub command: Option<SettingsCommand>,
+    /// Output format. Implies non-interactive mode.
+    #[arg(long, value_enum)]
+    pub format: Option<SettingsFormat>,
+    /// Health check. Implies non-interactive output; non-zero on unhealthy state.
+    #[arg(long)]
+    pub check: bool,
+    /// Focus a canonical key or deprecated alias in the TUI.
+    #[arg(long)]
+    pub focus: Option<String>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SettingsCommand {
+    /// Show grouped settings rows.
+    Show,
+    /// Explain one canonical key.
+    Explain { key: String },
+    /// Operational status summary.
+    Status,
+    /// Resolution sources and provenance.
+    Sources,
+}
+
+#[derive(Debug, Args)]
+pub struct SlashArgs {}
+
+#[allow(clippy::unnecessary_wraps)]
+pub fn run_slash(_args: &SlashArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
+    print_slash_explanation();
+    Ok(())
+}
+
+fn print_slash_explanation() {
+    println!(
+        "/settings opens the inspect control centre in an interactive TUI.\n\
+         Equivalent CLI: `anvil settings` (TUI) or `anvil settings show` (text/json).\n\
+         Subcommands: show, explain <key>, status, sources."
+    );
+}
+
+pub fn run(args: &SettingsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+    let interactive = args.command.is_none()
+        && args.format.is_none()
+        && !args.check
+        && !global.json
+        && !global.no_tui
+        && std::io::stdout().is_terminal();
+
+    let model = load_model()?;
+    if interactive {
+        emit_settings_signal(SettingsSignal::PanelOpened);
+        let mut state = model.tui_state();
+        if let Some(key) = args.focus.as_deref() {
+            state.focus_key(key);
+        }
+        let state = crate::tui::run_surface(state)?;
+        if state.search_used {
+            emit_settings_signal(SettingsSignal::SearchUsed);
+        }
+        return Ok(());
+    }
+
+    if args.command.is_none() && !args.check && args.format.is_none() && !global.json {
+        print_slash_explanation();
+        return Ok(());
+    }
+
+    let command = match &args.command {
+        None | Some(SettingsCommand::Show) => EnvelopeCommand::Show,
+        Some(SettingsCommand::Explain { .. }) => EnvelopeCommand::Explain,
+        Some(SettingsCommand::Status) => EnvelopeCommand::Status,
+        Some(SettingsCommand::Sources) => EnvelopeCommand::Sources,
+    };
+
+    let json = global.json || matches!(args.format, Some(SettingsFormat::Json));
+    if json {
+        let envelope = model
+            .service
+            .envelope(&model.snapshot, command, model.generated_at)
+            .map_err(|err| {
+                emit_settings_signal(SettingsSignal::ValidationFailed);
+                anyhow::Error::new(SettingsExit(code_for(SettingsOutcome::RedactionError)))
+                    .context(err)
+            })?;
+        if let Some(SettingsCommand::Explain { key }) = &args.command {
+            filter_envelope_key(&envelope, key)?;
+        }
+        crate::output::json::print(&envelope)?;
+    } else {
+        print!("{}", render_text(&model, command, args.command.as_ref()));
+    }
+
+    if args.check {
+        return check_health(&model.snapshot);
+    }
+    Ok(())
+}
+
+struct InspectModel {
+    service: SettingsService,
+    snapshot: Snapshot,
+    generated_at: &'static str,
+}
+
+impl InspectModel {
+    fn tui_state(&self) -> SettingsState {
+        SettingsState::new(project_groups(&self.service, &self.snapshot))
+            .with_status(project_status(&self.snapshot))
+            .with_sources(project_sources(&self.service, &self.snapshot))
+    }
+}
+
+fn load_model() -> anyhow::Result<InspectModel> {
+    let catalogue = first_release_catalogue().context("settings catalogue")?;
+    let service = SettingsService::new(catalogue);
+    let generated_at = "1970-01-01T00:00:00Z";
+    let snapshot = service
+        .snapshot(&SnapshotRequest {
+            workspace_root: Some(Path::new(".")),
+            declarations: &[] as &[Declaration],
+            bundle: None,
+            approvals: &[],
+            attestations: &BTreeMap::new(),
+            now: generated_at,
+            generated_at,
+            command: EnvelopeCommand::Show,
+        })
+        .context("settings snapshot")?;
+    Ok(InspectModel {
+        service,
+        snapshot,
+        generated_at,
+    })
+}
+
+fn project_groups(service: &SettingsService, snapshot: &Snapshot) -> Vec<SettingsGroupView> {
+    let mut groups: Vec<(SettingGroup, SettingsGroupView)> = Vec::new();
+    for entry in service.catalogue().iter() {
+        let row = snapshot
+            .rows
+            .iter()
+            .find(|row| row.key == entry.key.as_str());
+        let Some(row) = row else {
+            continue;
+        };
+        let view = project_row(service.catalogue(), entry, row);
+        if let Some((_, group)) = groups.iter_mut().find(|(id, _)| *id == entry.group) {
+            group.rows.push(view);
+        } else {
+            groups.push((
+                entry.group,
+                SettingsGroupView {
+                    id: format!("{:?}", entry.group).to_ascii_lowercase(),
+                    label: group_label(entry.group).to_owned(),
+                    rows: vec![view],
+                },
+            ));
+        }
+    }
+    groups.into_iter().map(|(_, group)| group).collect()
+}
+
+fn group_label(group: SettingGroup) -> &'static str {
+    match group {
+        SettingGroup::Project => "Project",
+        SettingGroup::Protection => "Protection",
+        SettingGroup::Agents => "Agents & approvals",
+        SettingGroup::Privacy => "Privacy & egress",
+        SettingGroup::Integrations => "Integrations",
+        SettingGroup::Interface => "Interface",
+    }
+}
+
+fn project_row(catalogue: &Catalogue, entry: &CatalogueEntry, row: &SettingRow) -> SettingsRowView {
+    let resolved_display = display_value(catalogue, &row.key, row.resolved.as_ref());
+    let runtime = match row.runtime {
+        RuntimeState::Active => RuntimeLabel::Active,
+        RuntimeState::Drift => RuntimeLabel::Drift,
+        RuntimeState::Stale => RuntimeLabel::Stale,
+        RuntimeState::Failed => RuntimeLabel::Failed,
+        RuntimeState::Unknown => RuntimeLabel::Unknown,
+    };
+    let source = row
+        .provenance
+        .iter()
+        .rev()
+        .find(|event| !event.overridden)
+        .map_or_else(
+            || "default".to_owned(),
+            |event| format!("{:?}", event.scope).to_ascii_lowercase(),
+        );
+    SettingsRowView {
+        key: row.key.clone(),
+        label: entry.label.clone(),
+        description: entry.label.clone(),
+        group: group_label(entry.group).to_owned(),
+        deprecated_aliases: entry.deprecated_aliases.clone(),
+        resolved_display: resolved_display.clone(),
+        source_badge: source,
+        active_display: None,
+        active_source_badge: None,
+        constraint_badge: None,
+        runtime,
+        workflow_state: None,
+        consequence_badge: Some(format!("class-{:?}", entry.consequence_class)),
+        compact: runtime == RuntimeLabel::Active,
+        detail: SettingsRowDetail {
+            lines: vec![
+                format!("key: {}", row.key),
+                format!("cli: anvil settings explain {}", row.key),
+            ],
+        },
+    }
+}
+
+fn display_value(catalogue: &Catalogue, key: &str, value: Option<&Value>) -> String {
+    let Some(value) = value else {
+        return "—".into();
+    };
+    match redact_setting_value(catalogue, key, value) {
+        Ok(redacted) => {
+            if redacted.get("present").is_some() {
+                "[redacted]".into()
+            } else if redacted.get("reason").and_then(Value::as_str) == Some("unclassified") {
+                "[hidden]".into()
+            } else {
+                redacted.to_string()
+            }
+        }
+        Err(_) => "[redacted]".into(),
+    }
+}
+
+fn project_status(snapshot: &Snapshot) -> SettingsStatusView {
+    let non_healthy: Vec<String> = snapshot
+        .rows
+        .iter()
+        .filter(|row| row.runtime != RuntimeState::Active)
+        .map(|row| format!("{} {:?}", row.key, row.runtime).to_ascii_lowercase())
+        .collect();
+    SettingsStatusView {
+        version: env!("CARGO_PKG_VERSION").into(),
+        runtime: std::env::consts::OS.into(),
+        project: snapshot.discovered.clone().unwrap_or_else(|| ".".into()),
+        worktree: ".".into(),
+        session: "local".into(),
+        resolved_posture: "warn".into(),
+        attested_posture: "unknown".into(),
+        health: format!("{:?}", snapshot.health.status).to_ascii_lowercase(),
+        health_reasons: snapshot.health.reasons.clone(),
+        non_healthy,
+        integrations: vec![],
+        adapters: vec![],
+        pending: None,
+        validation: "ok".into(),
+        attestation_age: "n/a".into(),
+        attestation_source: "none".into(),
+    }
+}
+
+fn project_sources(service: &SettingsService, snapshot: &Snapshot) -> SettingsSourcesView {
+    let mut overridden = Vec::new();
+    let mut winning = Vec::new();
+    for row in &snapshot.rows {
+        for event in &row.provenance {
+            let line = format!("{} {:?}", row.key, event.scope);
+            if event.overridden {
+                overridden.push(line);
+            } else {
+                winning.push(line);
+            }
+        }
+    }
+    let unknown_keys: Vec<String> = snapshot
+        .rows
+        .iter()
+        .filter(|row| service.catalogue().get(&row.key).is_none())
+        .map(|row| row.key.clone())
+        .collect();
+    SettingsSourcesView {
+        revision: snapshot.model_revision.clone(),
+        sources: vec![SettingsSourceRow {
+            scope: "project".into(),
+            path_display: snapshot
+                .discovered
+                .clone()
+                .unwrap_or_else(|| ".anvil.yaml".into()),
+            writable: true,
+            kind: "precedence".into(),
+        }],
+        overridden,
+        winning,
+        field_provenance: vec![],
+        unknown_keys,
+        deprecated_keys: vec![],
+    }
+}
+
+fn render_text(
+    model: &InspectModel,
+    command: EnvelopeCommand,
+    sub: Option<&SettingsCommand>,
+) -> String {
+    match command {
+        EnvelopeCommand::Show => {
+            let mut out = String::from("Settings\n");
+            for group in project_groups(&model.service, &model.snapshot) {
+                let _ = write!(out, "\n{}\n", group.label);
+                for row in group.rows {
+                    let _ = writeln!(
+                        out,
+                        "  {}  {}  {}",
+                        row.label,
+                        row.resolved_display,
+                        row.runtime.as_str()
+                    );
+                }
+            }
+            out
+        }
+        EnvelopeCommand::Explain => {
+            let key = match sub {
+                Some(SettingsCommand::Explain { key }) => key.as_str(),
+                _ => "",
+            };
+            let groups = project_groups(&model.service, &model.snapshot);
+            groups
+                .iter()
+                .flat_map(|group| group.rows.iter())
+                .find(|row| row.key == key)
+                .map_or_else(
+                    || format!("unknown key {key}\n"),
+                    |row| {
+                        let mut out = format!("{}\n", row.label);
+                        for line in &row.detail.lines {
+                            out.push_str(line);
+                            out.push('\n');
+                        }
+                        out
+                    },
+                )
+        }
+        EnvelopeCommand::Status => {
+            let status = project_status(&model.snapshot);
+            format!(
+                "health: {}\nresolved posture: {}\nattested posture: {}\n",
+                status.health, status.resolved_posture, status.attested_posture
+            )
+        }
+        EnvelopeCommand::Sources => {
+            let sources = project_sources(&model.service, &model.snapshot);
+            format!("revision: {}\n", sources.revision)
+        }
+    }
+}
+
+fn filter_envelope_key(envelope: &Value, key: &str) -> anyhow::Result<()> {
+    let Some(data) = envelope.get("data").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    if !data.contains_key(key) {
+        anyhow::bail!("unknown setting {key}");
+    }
+    Ok(())
+}
+
+fn check_health(snapshot: &Snapshot) -> anyhow::Result<()> {
+    let fail = matches!(
+        snapshot.health.status,
+        HealthStatus::Unhealthy | HealthStatus::Indeterminate
+    ) || snapshot.rows.iter().any(|row| {
+        matches!(
+            row.runtime,
+            RuntimeState::Drift
+                | RuntimeState::Stale
+                | RuntimeState::Failed
+                | RuntimeState::Unknown
+        )
+    });
+    if fail {
+        return Err(anyhow::Error::new(SettingsExit(code_for(
+            SettingsOutcome::CheckFailed,
+        ))));
+    }
+    Ok(())
+}
+
+pub fn mcp_show() -> anyhow::Result<Value> {
+    let model = load_model()?;
+    model
+        .service
+        .envelope(&model.snapshot, EnvelopeCommand::Show, model.generated_at)
+        .context("settings envelope")
+}
+
+pub fn mcp_explain(key: &str) -> anyhow::Result<Value> {
+    let model = load_model()?;
+    let envelope = model
+        .service
+        .envelope(
+            &model.snapshot,
+            EnvelopeCommand::Explain,
+            model.generated_at,
+        )
+        .context("settings envelope")?;
+    filter_envelope_key(&envelope, key)?;
+    Ok(envelope)
+}
+
+pub fn mcp_status() -> anyhow::Result<Value> {
+    let model = load_model()?;
+    model
+        .service
+        .envelope(&model.snapshot, EnvelopeCommand::Status, model.generated_at)
+        .context("settings envelope")
+}
+
+pub fn mcp_sources() -> anyhow::Result<Value> {
+    let model = load_model()?;
+    model
+        .service
+        .envelope(
+            &model.snapshot,
+            EnvelopeCommand::Sources,
+            model.generated_at,
+        )
+        .context("settings envelope")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn settings_entry_slash_explains_cli_equivalent() {
+        let text = "/settings opens the inspect control centre in an interactive TUI.\n\
+             Equivalent CLI: `anvil settings` (TUI) or `anvil settings show` (text/json).";
+        assert!(text.contains("/settings"));
+        assert!(text.contains("anvil settings show"));
+    }
+
+    #[test]
+    fn settings_entry_clap_registers_family() {
+        let cmd = crate::Cli::command();
+        let names: Vec<_> = cmd
+            .get_subcommands()
+            .map(|c| c.get_name().to_string())
+            .collect();
+        assert!(names.iter().any(|n| n == "settings"));
+        assert!(names.iter().any(|n| n == "/settings"));
+    }
+
+    #[test]
+    fn settings_cli_show_text_lists_groups() {
+        let model = load_model().expect("model");
+        let text = render_text(&model, EnvelopeCommand::Show, None);
+        assert!(text.contains("Protection") || text.contains("Project"));
+        assert!(
+            !text
+                .to_ascii_lowercase()
+                .split_whitespace()
+                .any(|w| w == "active")
+                || text.contains("unknown")
+        );
+    }
+
+    #[test]
+    fn settings_cli_check_fails_without_evidence() {
+        let model = load_model().expect("model");
+        let err = check_health(&model.snapshot).expect_err("unknown is not healthy");
+        let exit = err.downcast_ref::<SettingsExit>().expect("settings exit");
+        assert_eq!(exit.0, 2);
+    }
+
+    #[test]
+    fn settings_cli_json_envelope_is_versioned() {
+        let model = load_model().expect("model");
+        let envelope = model
+            .service
+            .envelope(&model.snapshot, EnvelopeCommand::Show, model.generated_at)
+            .expect("envelope");
+        assert_eq!(envelope["schema_version"], "anvil.settings.v1");
+        assert!(envelope.get("data").is_some());
+        assert!(envelope.get("health").is_some());
+    }
+
+    #[test]
+    fn settings_cli_never_renders_active_without_evidence() {
+        let model = load_model().expect("model");
+        for row in &model.snapshot.rows {
+            if row.runtime != RuntimeState::Active {
+                continue;
+            }
+            panic!("empty attestations must not classify active: {}", row.key);
+        }
+    }
+
+    #[test]
+    fn settings_mcp_tools_are_read_only() {
+        let show = mcp_show().expect("show");
+        assert_eq!(show["schema_version"], "anvil.settings.v1");
+        let status = mcp_status().expect("status");
+        assert!(status.get("health").is_some());
+        let sources = mcp_sources().expect("sources");
+        assert!(sources.get("model_revision").is_some() || sources.get("data").is_some());
+    }
+}

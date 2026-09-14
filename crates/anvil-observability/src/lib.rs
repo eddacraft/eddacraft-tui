@@ -27,6 +27,7 @@
 #![forbid(unsafe_code)]
 
 pub mod redaction;
+pub mod settings_telemetry;
 pub mod traceparent;
 
 pub use traceparent::{TraceContext, TraceContextError};

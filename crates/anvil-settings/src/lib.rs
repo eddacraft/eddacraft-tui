@@ -38,7 +38,7 @@ pub use runtime_state::{
     Attestation, EvidenceChannel, EvidenceTrust, RuntimeState, classify_runtime_state,
 };
 pub use seed::first_release_catalogue;
-pub use service::{SettingsError, SettingsService, Snapshot};
+pub use service::{SettingRow, SettingsError, SettingsService, Snapshot, SnapshotRequest};
 pub use types::{
     ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, Posture, Scope, Sensitivity,
     SettingGroup, SettingKey, ValueType, WorkflowState,

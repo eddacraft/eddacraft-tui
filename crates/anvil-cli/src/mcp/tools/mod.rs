@@ -13,6 +13,7 @@ pub mod registry;
 #[cfg(test)]
 pub mod schema_catalogue;
 pub mod search_symbols;
+pub mod settings;
 pub mod shared;
 pub mod status;
 pub mod suppress;

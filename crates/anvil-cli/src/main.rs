@@ -274,6 +274,11 @@ enum Commands {
     Exception(commands::exception::ExceptionArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
+    /// Inspect configured, resolved and evidenced-active settings.
+    Settings(commands::settings::SettingsArgs),
+    /// Slash-command alias for `settings` when invoked outside a TUI.
+    #[command(name = "/settings", hide = true)]
+    SettingsSlash(commands::settings::SlashArgs),
     /// Activate anvil in this repository. Writes `.anvil.yaml` if missing
     /// (or `.anvil.<ext>` with `--format`) and offers MCP install for every
     /// supported client (interactive consent; nothing is written until you
@@ -428,6 +433,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Exception(_) => "exception",
         Commands::Start(_) => "start",
         Commands::Status(_) => "status",
+        Commands::Settings(_) | Commands::SettingsSlash(_) => "settings",
         Commands::Tutorial(_) => "tutorial",
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
@@ -524,6 +530,7 @@ fn command_requests_structured_output(cmd: &Commands) -> bool {
         Commands::Conformance(args) => args.wants_structured_output(),
         Commands::Audit(args) => args.wants_structured_output(),
         Commands::Gate(args) => args.wants_structured_output(),
+        Commands::Settings(args) => args.format.is_some() || args.check,
         _ => false,
     }
 }
@@ -588,7 +595,10 @@ fn is_auth_state_probe(cmd: &Commands) -> bool {
 /// unactivated repo (CIB-169). The `--verify` read-only probes on
 /// `status` / `start` bypass the auth wall entirely and never reach here.
 fn is_read_only_auth_surface(cmd: &Commands) -> bool {
-    matches!(cmd, Commands::Status(_))
+    matches!(
+        cmd,
+        Commands::Status(_) | Commands::Settings(_) | Commands::SettingsSlash(_)
+    )
 }
 
 /// Decide the exit code and (optional) JSON envelope for the
@@ -1237,6 +1247,8 @@ fn is_invalid_project_config(err: &(dyn std::error::Error + 'static)) -> bool {
 fn command_error_exit_code(err: &anyhow::Error) -> u8 {
     if err.is::<output::AuthRequired>() {
         EXIT_AUTH_REQUIRED
+    } else if let Some(exit) = err.downcast_ref::<commands::settings::SettingsExit>() {
+        exit.0
     } else if err.chain().any(is_invalid_project_config) {
         EXIT_CONFIG_ERROR
     } else {
@@ -1478,6 +1490,8 @@ fn main() -> ExitCode {
         Some(Commands::Exception(args)) => commands::exception::run(args, &cli.global),
         Some(Commands::Start(args)) => commands::start::run(args, &cli.global),
         Some(Commands::Status(args)) => commands::status::run(args, &cli.global),
+        Some(Commands::Settings(args)) => commands::settings::run(args, &cli.global),
+        Some(Commands::SettingsSlash(args)) => commands::settings::run_slash(args, &cli.global),
         Some(Commands::Tutorial(args)) => commands::tutorial::run(args, &cli.global),
         Some(Commands::Welcome(args)) => commands::welcome::run(args, &cli.global),
         Some(Commands::Init(args)) => commands::init::run(args, &cli.global),

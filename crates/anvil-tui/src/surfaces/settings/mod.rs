@@ -32,6 +32,80 @@ impl RuntimeLabel {
     }
 }
 
+/// First-release inspect tabs (spec §8). `Audit` is SETGOV.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsTab {
+    Settings,
+    Status,
+    Sources,
+}
+
+impl SettingsTab {
+    pub(crate) const ALL: [Self; 3] = [Self::Settings, Self::Status, Self::Sources];
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Settings => "Settings",
+            Self::Status => "Status",
+            Self::Sources => "Sources",
+        }
+    }
+
+    fn shift(self, next: bool) -> Self {
+        let idx = Self::ALL.iter().position(|tab| *tab == self).unwrap_or(0);
+        let next_idx = if next {
+            (idx + 1) % Self::ALL.len()
+        } else {
+            idx.checked_sub(1).unwrap_or(Self::ALL.len() - 1)
+        };
+        Self::ALL[next_idx]
+    }
+}
+
+/// Command-supplied Status tab (SETINS-003). The surface formats; it does not
+/// recompute health or posture.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SettingsStatusView {
+    pub version: String,
+    pub runtime: String,
+    pub project: String,
+    pub worktree: String,
+    pub session: String,
+    pub resolved_posture: String,
+    pub attested_posture: String,
+    pub health: String,
+    pub health_reasons: Vec<String>,
+    pub non_healthy: Vec<String>,
+    pub integrations: Vec<String>,
+    pub adapters: Vec<String>,
+    pub pending: Option<String>,
+    pub validation: String,
+    pub attestation_age: String,
+    pub attestation_source: String,
+}
+
+/// One discovered configuration source (SETINS-004).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettingsSourceRow {
+    pub scope: String,
+    pub path_display: String,
+    pub writable: bool,
+    pub kind: String,
+}
+
+/// Command-supplied Sources tab.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SettingsSourcesView {
+    pub revision: String,
+    pub sources: Vec<SettingsSourceRow>,
+    pub overridden: Vec<String>,
+    pub winning: Vec<String>,
+    pub field_provenance: Vec<String>,
+    pub unknown_keys: Vec<String>,
+    pub deprecated_keys: Vec<String>,
+}
+
 /// One catalogue group in the Settings view.
 #[derive(Debug, Clone)]
 pub struct SettingsGroupView {
@@ -97,6 +171,11 @@ pub struct SettingsState {
     pub searching: bool,
     pub search_query: String,
     pub expanded: bool,
+    pub tab: SettingsTab,
+    pub status: SettingsStatusView,
+    pub sources: SettingsSourcesView,
+    pub reduced_motion: bool,
+    pub search_used: bool,
     pub should_quit: bool,
     pub wants_back: bool,
 }
@@ -110,8 +189,45 @@ impl SettingsState {
             searching: false,
             search_query: String::new(),
             expanded: false,
+            tab: SettingsTab::Settings,
+            status: SettingsStatusView::default(),
+            sources: SettingsSourcesView::default(),
+            reduced_motion: false,
+            search_used: false,
             should_quit: false,
             wants_back: false,
+        }
+    }
+
+    #[must_use]
+    pub fn with_status(mut self, status: SettingsStatusView) -> Self {
+        self.status = status;
+        self
+    }
+
+    #[must_use]
+    pub fn with_sources(mut self, sources: SettingsSourcesView) -> Self {
+        self.sources = sources;
+        self
+    }
+
+    #[must_use]
+    pub fn with_reduced_motion(mut self, reduced: bool) -> Self {
+        self.reduced_motion = reduced;
+        self
+    }
+
+    pub fn focus_key(&mut self, key: &str) {
+        self.tab = SettingsTab::Settings;
+        if let Some(idx) = self.visible_rows().iter().position(|&(g, r)| {
+            self.groups
+                .get(g)
+                .and_then(|group| group.rows.get(r))
+                .is_some_and(|row| {
+                    row.key == key || row.deprecated_aliases.iter().any(|a| a == key)
+                })
+        }) {
+            self.selected = idx;
         }
     }
 
@@ -145,12 +261,15 @@ impl SettingsState {
 
     #[must_use]
     pub fn footer_commands(&self) -> &'static str {
-        if self.searching {
-            "type to filter  up/down results  esc cancel  ctrl+c quit"
-        } else if self.expanded {
-            "j/k navigate  enter collapse  esc close  q quit"
-        } else {
-            "/ search  j/k navigate  g/G jump  esc back  q quit"
+        match self.tab {
+            SettingsTab::Settings if self.searching => {
+                "type to filter  up/down results  esc cancel  ctrl+c quit"
+            }
+            SettingsTab::Settings if self.expanded => {
+                "h/l tabs  j/k navigate  enter collapse  esc close  q quit"
+            }
+            SettingsTab::Settings => "h/l tabs  / search  j/k navigate  g/G jump  esc back  q quit",
+            SettingsTab::Status | SettingsTab::Sources => "h/l tabs  esc back  q quit",
         }
     }
 
@@ -233,8 +352,19 @@ impl SettingsState {
 
     fn handle_browse_key(&mut self, action: Action) {
         match action {
-            Action::Character('/') => {
+            Action::Left => {
+                self.tab = self.tab.shift(false);
+                self.expanded = false;
+                self.searching = false;
+            }
+            Action::Right => {
+                self.tab = self.tab.shift(true);
+                self.expanded = false;
+                self.searching = false;
+            }
+            Action::Character('/') if self.tab == SettingsTab::Settings => {
                 self.searching = true;
+                self.search_used = true;
                 self.search_query.clear();
                 self.expanded = false;
             }
@@ -889,7 +1019,7 @@ pub(crate) mod tests {
         );
         assert_eq!(
             state.footer_commands(),
-            "j/k navigate  enter collapse  esc close  q quit"
+            "h/l tabs  j/k navigate  enter collapse  esc close  q quit"
         );
         state.handle_key(Action::Back);
         assert!(!state.expanded);
@@ -908,6 +1038,80 @@ pub(crate) mod tests {
         );
         assert_eq!(row.resolved_display, "[redacted]");
         assert!(!format_row_values(row).contains("s3cret"));
+    }
+
+    #[test]
+    fn settings_status_reports_health_and_posture() {
+        let state = sample_state().with_status(SettingsStatusView {
+            version: "0.10.0-beta".into(),
+            runtime: "linux".into(),
+            project: "anvil-001".into(),
+            worktree: "feat/setins".into(),
+            session: "sess-1".into(),
+            resolved_posture: "warn".into(),
+            attested_posture: "unknown".into(),
+            health: "indeterminate".into(),
+            health_reasons: vec!["protection.checks is unknown".into()],
+            non_healthy: vec!["protection.checks unknown".into()],
+            integrations: vec!["mcp: anvil".into()],
+            adapters: vec!["grok".into()],
+            pending: Some("restart intercept".into()),
+            validation: "ok".into(),
+            attestation_age: "n/a".into(),
+            attestation_source: "none".into(),
+        });
+        assert_eq!(state.status.health, "indeterminate");
+        assert_eq!(state.status.resolved_posture, "warn");
+        assert_eq!(state.status.attested_posture, "unknown");
+        assert!(
+            state
+                .status
+                .non_healthy
+                .iter()
+                .any(|row| row.contains("unknown"))
+        );
+    }
+
+    #[test]
+    fn settings_sources_lists_revision_and_precedence() {
+        let state = sample_state().with_sources(SettingsSourcesView {
+            revision: "rev-1".into(),
+            sources: vec![
+                SettingsSourceRow {
+                    scope: "org".into(),
+                    path_display: "[redacted]".into(),
+                    writable: false,
+                    kind: "constraint".into(),
+                },
+                SettingsSourceRow {
+                    scope: "project".into(),
+                    path_display: ".anvil.yaml".into(),
+                    writable: true,
+                    kind: "precedence".into(),
+                },
+            ],
+            overridden: vec!["org warn".into()],
+            winning: vec!["project block".into()],
+            field_provenance: vec!["checks[0]=project".into()],
+            unknown_keys: vec!["legacy.foo".into()],
+            deprecated_keys: vec!["ui.compact".into()],
+        });
+        assert_eq!(state.sources.revision, "rev-1");
+        assert_eq!(state.sources.sources[0].kind, "constraint");
+        assert!(state.sources.sources[1].writable);
+        assert!(state.sources.unknown_keys.contains(&"legacy.foo".into()));
+    }
+
+    #[test]
+    fn settings_status_h_l_switches_tabs() {
+        let mut state = sample_state();
+        assert_eq!(state.tab, SettingsTab::Settings);
+        state.handle_key(Action::Right);
+        assert_eq!(state.tab, SettingsTab::Status);
+        state.handle_key(Action::Right);
+        assert_eq!(state.tab, SettingsTab::Sources);
+        state.handle_key(Action::Left);
+        assert_eq!(state.tab, SettingsTab::Status);
     }
 
     impl SettingsState {

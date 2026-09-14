@@ -615,12 +615,22 @@ the registration and persistence details for operators.
 
 ## Slice queue
 
-| #   | Command family                         | CLICT item | Status          | Notes                                                     |
-| --- | -------------------------------------- | ---------- | --------------- | --------------------------------------------------------- |
-| 1   | `anvil architecture`                   | CLICT-001  | **Reconciling** | PR #3209 — guide redirects, completed-index fixes         |
-| 2   | `anvil policy` + `anvil exception`     | CLICT-002  | **Reconciling** | PR #3209 — public tutorial, runbook, beta guide           |
-| 3   | `anvil drift`                          | CLICT-003  | **Reconciling** | PR #3209 — tutorial snapshot paths, `--overwrite` removed |
-| 4   | `anvil watch`                          | CLICT-004  | **Done**        | Watch command/default-action docs reconciled              |
-| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Done**        | Canonical check-name vocabulary reconciled                |
-| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Done**        | Runbook daemon/workspace subcommands reconciled           |
-| 7   | Tier 2 runbook alignment (36 families) | CLICT-007  | **Proposed**    | Spot-check remaining families; fix runbook-only gaps      |
+| #   | Command family                         | CLICT item | Status          | Notes                                                                                                             |
+| --- | -------------------------------------- | ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 1   | `anvil architecture`                   | CLICT-001  | **Reconciling** | PR #3209 — guide redirects, completed-index fixes                                                                 |
+| 2   | `anvil policy` + `anvil exception`     | CLICT-002  | **Reconciling** | PR #3209 — public tutorial, runbook, beta guide                                                                   |
+| 3   | `anvil drift`                          | CLICT-003  | **Reconciling** | PR #3209 — tutorial snapshot paths, `--overwrite` removed                                                         |
+| 4   | `anvil watch`                          | CLICT-004  | **Done**        | Watch command/default-action docs reconciled                                                                      |
+| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Done**        | Canonical check-name vocabulary reconciled                                                                        |
+| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Done**        | Runbook daemon/workspace subcommands reconciled                                                                   |
+| 7   | Tier 2 runbook alignment (36 families) | CLICT-007  | **Proposed**    | Spot-check remaining families; fix runbook-only gaps                                                              |
+| 8   | `anvil settings`                       | SETINS     | **Auditing**    | Family registered by SETINS-005/006. Re-audit `--help` after land. No public-docs claim until this slice is Done. |
+
+---
+
+## Slice 8: `anvil settings` (2026-09-14)
+
+New inspect-only family owned by SETINS. Runtime (this change): `anvil settings`
+with `show`, `explain <key>`, `status`, `sources`; hidden `/settings` alias
+explains the CLI equivalent outside a TUI. No `set`/`unset`. JSON envelope
+`anvil.settings.v1`. Re-audit after merge against `anvil settings --help`.

@@ -1,0 +1,32 @@
+---
+source: crates/anvil-tui/src/surfaces/settings/render.rs
+expression: draw(&state)
+---
+[[fg:#D95A00,bold]‡[fg:#D95A00,bold]][fg:#D95A00,bold] a[fg:#D95A00,bold]n[fg:#D95A00,bold]v[fg:#D95A00,bold]i[fg:#D95A00,bold]l[fg:#D95A00,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]S[fg:#EBEBEB]e[fg:#EBEBEB]t[fg:#EBEBEB]t[fg:#EBEBEB]i[fg:#EBEBEB]n[fg:#EBEBEB]g[fg:#EBEBEB]s[fg:#EBEBEB]                                                                                
+ [fg:#85858A]S[fg:#85858A]e[fg:#85858A]t[fg:#85858A]t[fg:#85858A]i[fg:#85858A]n[fg:#85858A]g[fg:#85858A]s[fg:#85858A] [fg:#85858A] [fg:#85858A]S[fg:#85858A]t[fg:#85858A]a[fg:#85858A]t[fg:#85858A]u[fg:#85858A]s[fg:#85858A] [fg:#85858A] [fg:#D95A00,bold,underlined]S[fg:#D95A00,bold,underlined]o[fg:#D95A00,bold,underlined]u[fg:#D95A00,bold,underlined]r[fg:#D95A00,bold,underlined]c[fg:#D95A00,bold,underlined]e[fg:#D95A00,bold,underlined]s[fg:#D95A00,bold,underlined] [fg:#D95A00,bold,underlined]                                                                         
+r[fg:#85858A]e[fg:#85858A]v[fg:#85858A]i[fg:#85858A]s[fg:#85858A]i[fg:#85858A]o[fg:#85858A]n[fg:#85858A]:[fg:#85858A] [fg:#85858A]r[fg:#EBEBEB]e[fg:#EBEBEB]v[fg:#EBEBEB]-[fg:#EBEBEB]1[fg:#EBEBEB]                                                                                     
+s[fg:#85858A]o[fg:#85858A]u[fg:#85858A]r[fg:#85858A]c[fg:#85858A]e[fg:#85858A]:[fg:#85858A] [fg:#85858A]p[fg:#EBEBEB]r[fg:#EBEBEB]e[fg:#EBEBEB]c[fg:#EBEBEB]e[fg:#EBEBEB]d[fg:#EBEBEB]e[fg:#EBEBEB]n[fg:#EBEBEB]c[fg:#EBEBEB]e[fg:#EBEBEB] [fg:#EBEBEB]p[fg:#EBEBEB]r[fg:#EBEBEB]o[fg:#EBEBEB]j[fg:#EBEBEB]e[fg:#EBEBEB]c[fg:#EBEBEB]t[fg:#EBEBEB] [fg:#EBEBEB].[fg:#EBEBEB]a[fg:#EBEBEB]n[fg:#EBEBEB]v[fg:#EBEBEB]i[fg:#EBEBEB]l[fg:#EBEBEB].[fg:#EBEBEB]y[fg:#EBEBEB]a[fg:#EBEBEB]m[fg:#EBEBEB]l[fg:#EBEBEB] [fg:#EBEBEB][[fg:#EBEBEB]w[fg:#EBEBEB]r[fg:#EBEBEB]i[fg:#EBEBEB]t[fg:#EBEBEB]a[fg:#EBEBEB]b[fg:#EBEBEB]l[fg:#EBEBEB]e[fg:#EBEBEB]][fg:#EBEBEB]                                                   
+w[fg:#85858A]i[fg:#85858A]n[fg:#85858A]n[fg:#85858A]i[fg:#85858A]n[fg:#85858A]g[fg:#85858A]:[fg:#85858A] [fg:#85858A]p[fg:#EBEBEB]r[fg:#EBEBEB]o[fg:#EBEBEB]j[fg:#EBEBEB]e[fg:#EBEBEB]c[fg:#EBEBEB]t[fg:#EBEBEB] [fg:#EBEBEB]b[fg:#EBEBEB]l[fg:#EBEBEB]o[fg:#EBEBEB]c[fg:#EBEBEB]k[fg:#EBEBEB]                                                                              
+u[fg:#85858A]n[fg:#85858A]k[fg:#85858A]n[fg:#85858A]o[fg:#85858A]w[fg:#85858A]n[fg:#85858A]:[fg:#85858A] [fg:#85858A]l[fg:#EBEBEB]e[fg:#EBEBEB]g[fg:#EBEBEB]a[fg:#EBEBEB]c[fg:#EBEBEB]y[fg:#EBEBEB].[fg:#EBEBEB]f[fg:#EBEBEB]o[fg:#EBEBEB]o[fg:#EBEBEB]                                                                                 
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+h[fg:#85858A]/[fg:#85858A]l[fg:#85858A] [fg:#85858A]t[fg:#85858A]a[fg:#85858A]b[fg:#85858A]s[fg:#85858A] [fg:#85858A] [fg:#85858A]e[fg:#85858A]s[fg:#85858A]c[fg:#85858A] [fg:#85858A]b[fg:#85858A]a[fg:#85858A]c[fg:#85858A]k[fg:#85858A] [fg:#85858A] [fg:#85858A]q[fg:#85858A] [fg:#85858A]q[fg:#85858A]u[fg:#85858A]i[fg:#85858A]t[fg:#85858A]                                                     [[fg:#85858A]‡[fg:#85858A]][fg:#85858A] [fg:#85858A]a[fg:#85858A] [fg:#85858A]n[fg:#85858A] [fg:#85858A]v[fg:#85858A] [fg:#85858A]i[fg:#85858A] [fg:#85858A]l[fg:#85858A] [fg:#85858A] [fg:#85858A]v[fg:#85858A]X[fg:#85858A].[fg:#85858A]Y[fg:#85858A].[fg:#85858A]Z[fg:#85858A]
