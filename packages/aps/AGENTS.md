@@ -40,23 +40,23 @@ packages/aps/src/
 Rules emitted by `validator/index.ts`. Severity is per-issue (`error` or
 `warning`) — see the source for the exact threshold of each rule.
 
-| Rule                       | Purpose                                                   |
-| -------------------------- | --------------------------------------------------------- |
-| `file-readable`            | Target file exists and is readable                        |
-| `plan-loadable`            | Document parses without error                             |
-| `required-sections`        | Index has `## Modules`, leaf has `## Tasks`, both have H1 |
-| `task-format`              | Task ID matches `TASK_ID_REGEX` (`SCOPE-NNN`)             |
-| `task-intent`              | Tasks declare a non-empty `Intent:`                       |
-| `missing-expected-outcome` | Warn when a task omits `Expected Outcome:`                |
-| `missing-validation`       | Warn when a task omits `Validation:` (alias: `Test:`)     |
-| `missing-confidence`       | Warn when a task omits `Confidence:`                      |
-| `broken-links`             | References to missing modules or task IDs                 |
-| `duplicate-ids`            | No duplicate task or module IDs                           |
-| `circular-dependencies`    | Detect circular module dependencies                       |
-| `scope-mismatch`           | Task ID prefix matches the owning module's scope          |
-| `orphan-modules`           | Modules must be referenced from an index                  |
-| `orphan-scan-depth`        | Warn when orphan scan can't traverse the full plan graph  |
-| `path-containment`         | Relative paths stay inside the planning root              |
+| Rule                       | Purpose                                                                             |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| `file-readable`            | Target file exists and is readable                                                  |
+| `plan-loadable`            | Document parses without error                                                       |
+| `required-sections`        | Index has `## Modules`, leaf has `## Work Items` or legacy `## Tasks`, both have H1 |
+| `task-format`              | Task ID matches `TASK_ID_REGEX` (`SCOPE-NNN`)                                       |
+| `task-intent`              | Tasks declare a non-empty `Intent:`                                                 |
+| `missing-expected-outcome` | Warn when a task omits `Expected Outcome:`                                          |
+| `missing-validation`       | Warn when a task omits `Validation:` (alias: `Test:`)                               |
+| `missing-confidence`       | Warn when a task omits `Confidence:`                                                |
+| `broken-links`             | References to missing modules or task IDs                                           |
+| `duplicate-ids`            | No duplicate task or module IDs                                                     |
+| `circular-dependencies`    | Detect circular module dependencies                                                 |
+| `scope-mismatch`           | Task ID prefix matches the owning module's scope                                    |
+| `orphan-modules`           | Modules must be referenced from an index                                            |
+| `orphan-scan-depth`        | Warn when orphan scan can't traverse the full plan graph                            |
+| `path-containment`         | Relative paths stay inside the planning root                                        |
 
 ## Adding a Validation Rule
 

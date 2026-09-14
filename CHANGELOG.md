@@ -11,6 +11,18 @@ engineering maintenance are recorded in the
 > **Draft.** This section accumulates customer-relevant changes landed on
 > `main`; the version and date are set at the next release.
 
+### Fixed
+
+- **Windows readiness treats `\\?\` and ordinary drive paths as one worktree.**
+  A registered save-time driver no longer looks failed because the daemon stored
+  the NT-extended form while status compared the plain `C:\...` path.
+  `anvil doctor` now reports the same readiness aggregate, so it cannot pass
+  over a failed journey receipt.
+
+- **`anvil validate` accepts current APS module files.** Canonical
+  `## Work Items` is required; `## Tasks` remains a legacy alias. This is a
+  structural check, not full `aps lint` parity.
+
 ## [0.10.0-beta] — 2026-09-13 — Continuous journey honesty
 
 First use through daily ensure tells the truth about activation, coverage, and

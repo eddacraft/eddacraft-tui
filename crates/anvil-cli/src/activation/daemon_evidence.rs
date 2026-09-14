@@ -270,21 +270,18 @@ fn worktree_driver_attached(snapshot: &DaemonStatusV1, worktree: &Path) -> bool 
     snapshot
         .worktrees
         .iter()
-        .filter(|w| w.worktree == worktree)
+        .filter(|w| crate::display_path::same_path(&w.worktree, worktree))
         .any(|w| w.save_time_driver == SaveTimeDriverStatusV1::Attached)
 }
 
-/// Canonicalise `worktree` using the same `std::fs::canonicalize` +
-/// warn-on-failure pattern as `commands::protection_claim_section::
-/// fetch_protection_claim_for_cwd`. The daemon canonicalises at
-/// register-time inside `DriverManifest::validate_workspace_roots`
-/// (`crates/anvil-intercept/src/auth.rs`); the activation surface must
-/// produce a path that compares byte-equal against whatever the
-/// daemon stored. Mismatch → `build_protection_claim_from_wire`
-/// returns `Unprotected` → promotion silently no-ops, reproducing the
-/// exact #1831 failure mode on a different path.
+/// Canonicalise `worktree` with dunce so Windows `\\?\` and ordinary drive
+/// paths share one identity with the registry (CIB-419). Warn-on-failure
+/// matches `commands::protection_claim_section::fetch_protection_claim_for_cwd`.
+/// Mismatch against the daemon snapshot used to return `Unprotected` and
+/// silently no-op promotion (#1831); `same_path` on the snapshot lookup
+/// is the remaining defence for a still-verbatim on-disk record.
 fn canonicalise_for_activation(worktree: &Path) -> PathBuf {
-    std::fs::canonicalize(worktree).unwrap_or_else(|err| {
+    crate::display_path::canonicalise(worktree).unwrap_or_else(|err| {
         tracing::warn!(
             error = %err,
             worktree = %worktree.display(),
@@ -469,7 +466,7 @@ fn live_surface_identifiers(
     snapshot
         .worktrees
         .iter()
-        .filter(|w| w.worktree == worktree)
+        .filter(|w| crate::display_path::same_path(&w.worktree, worktree))
         .filter_map(|w| snapshot.sessions.iter().find(|s| s.id == w.session_id))
         .filter(|session| !session_is_durable_membership(session))
         .filter(|session| within_window(session.last_heartbeat_unix, now))
@@ -660,7 +657,7 @@ fn heartbeat_within_freshness_window(
     let session_ids: Vec<_> = snapshot
         .worktrees
         .iter()
-        .filter(|w| w.worktree == worktree)
+        .filter(|w| crate::display_path::same_path(&w.worktree, worktree))
         .map(|w| &w.session_id)
         .collect();
 

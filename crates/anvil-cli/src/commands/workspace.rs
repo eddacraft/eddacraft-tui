@@ -750,6 +750,11 @@ fn run_list(json: bool) -> Result<()> {
     // unregistered this session) — these re-register on every daemon startup.
     if file.register_on_start.is_empty() {
         println!("Register on start: (none)");
+        if matches!(&registered, RegisteredSet::Known(set) if !set.is_empty()) {
+            println!(
+                "  Auto-rejoin on daemon start is empty; live membership is the Registered worktrees list above. Add with `anvil workspace register --persist`."
+            );
+        }
     } else {
         println!("Register on start:");
         for worktree in &file.register_on_start {

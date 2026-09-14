@@ -214,8 +214,9 @@ fn detect_format(content: &str, format_override: Option<&str>) -> DetectedFormat
 
     let mut confidence: u8 = 0;
 
-    // Check for APS indicators.
-    if content.contains("## Tasks") || content.contains("## Modules") {
+    // Check for APS indicators. Canonical leaf heading is `## Work Items`;
+    // `## Tasks` remains a legacy alias (APSCAN-003 / public APS E002).
+    if has_aps_leaf_section(content) || content.contains("## Modules") {
         confidence += 15;
     }
     // SCOPE-NNN pattern in headings.
@@ -357,12 +358,17 @@ fn validate_index_structure(content: &str, file: &str, issues: &mut Vec<Validati
     }
 }
 
+fn has_aps_leaf_section(content: &str) -> bool {
+    content.contains("## Work Items") || content.contains("## Tasks")
+}
+
 fn validate_leaf_structure(content: &str, file: &str, issues: &mut Vec<ValidationIssue>) {
-    // Leaf specs should have a ## Tasks section.
-    if !content.contains("## Tasks") {
+    if !has_aps_leaf_section(content) {
         issues.push(ValidationIssue {
             severity: IssueSeverity::Error,
-            message: "Leaf spec missing required '## Tasks' section".to_string(),
+            message:
+                "Leaf spec missing required '## Work Items' section (legacy alias: '## Tasks')"
+                    .to_string(),
             rule: "required-sections".to_string(),
             path: Some(file.to_string()),
             line: None,
@@ -678,6 +684,15 @@ mod tests {
     }
 
     #[test]
+    fn detect_aps_leaf_with_work_items() {
+        let content = "# My Plan\n\n## Work Items\n\n### TEST-001: first task\n\n- **Intent:** Do something\n";
+        let detected = detect_format(content, None);
+        assert_eq!(detected.format, FORMAT_APS);
+        assert_eq!(detected.document_type, DocumentType::Leaf);
+        assert!(detected.confidence >= 45);
+    }
+
+    #[test]
     fn detect_aps_index_with_modules() {
         let content =
             "# Plan Index\n\n## Modules\n\n### auth\n- **Path:** [./auth.aps.md](./auth.aps.md)\n";
@@ -741,6 +756,34 @@ mod tests {
         let mut issues = Vec::new();
         validate_leaf_structure("# Plan\n\n## Overview\n", "plan.aps.md", &mut issues);
         assert!(issues.iter().any(|i| i.rule == "required-sections"));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.message.contains("## Work Items") && i.message.contains("## Tasks"))
+        );
+    }
+
+    #[test]
+    fn leaf_accepts_work_items_section() {
+        let mut issues = Vec::new();
+        validate_leaf_structure(
+            "# Plan\n\n## Work Items\n\n### TEST-001: task\n\n- **Intent:** A\n",
+            "plan.aps.md",
+            &mut issues,
+        );
+        assert!(
+            !issues.iter().any(|i| i.rule == "required-sections"),
+            "{issues:?}"
+        );
+    }
+
+    #[test]
+    fn validates_well_formed_work_items() {
+        let content = "# Plan\n\n## Work Items\n\n### TEST-001: first task\n\n- **Intent:** Do something\n\n### TEST-002: second task\n\n- **Intent:** Do another thing\n";
+        let mut issues = Vec::new();
+        let count = validate_tasks(content, "plan.aps.md", &mut issues);
+        assert_eq!(count, 2);
+        assert!(issues.is_empty());
     }
 
     #[test]

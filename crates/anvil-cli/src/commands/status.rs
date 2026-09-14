@@ -58,7 +58,8 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let activation = activation::verify(Path::new("."));
     let registerable_worktree = crate::registration::registerable_worktree(Path::new(".")).ok();
     let worktree = registerable_worktree.clone().unwrap_or_else(|| {
-        std::fs::canonicalize(".").unwrap_or_else(|_| Path::new(".").to_path_buf())
+        crate::display_path::canonicalise(Path::new("."))
+            .unwrap_or_else(|_| Path::new(".").to_path_buf())
     });
     let daemon_snapshot = match crate::commands::intercept::query_daemon_status() {
         Ok(snapshot) => Some(snapshot),
@@ -457,7 +458,7 @@ fn status_save_time_readiness(
             snapshot
                 .registered_worktrees()
                 .iter()
-                .any(|registered| registered == worktree)
+                .any(|registered| crate::display_path::same_path(registered, worktree))
         })
     });
     let worktree_state = if !dependency_selected {
@@ -476,7 +477,7 @@ fn status_save_time_readiness(
             snapshot
                 .worktrees
                 .iter()
-                .find(|entry| entry.worktree == worktree)
+                .find(|entry| crate::display_path::same_path(&entry.worktree, worktree))
         })
     });
     let driver_state = if !save_time_selected {
@@ -671,7 +672,10 @@ fn current_mcp_sessions(
                 .iter()
                 .map(move |session| (snapshot, session))
         })
-        .filter(|(_, session)| worktree.is_some_and(|worktree| session.worktree == worktree))
+        .filter(|(_, session)| {
+            worktree
+                .is_some_and(|worktree| crate::display_path::same_path(&session.worktree, worktree))
+        })
         .filter_map(|(snapshot, session)| {
             let tag = session.agent_tag.as_ref()?;
             (tag.driver_id == crate::registration::MCP_SESSION_DRIVER_ID).then(|| {
@@ -1257,7 +1261,7 @@ fn driver_segment_with_opt_out(
     let overlay = snapshot
         .worktrees
         .iter()
-        .find(|entry| entry.worktree == worktree);
+        .find(|entry| crate::display_path::same_path(&entry.worktree, worktree));
     overlay.map_or_else(
         || " driver: failed (no evidence)".to_owned(),
         |entry| {
@@ -1325,7 +1329,7 @@ fn membership_label(snapshot: &DaemonStatusV1, worktree: &Path) -> &'static str 
     let overlay = snapshot
         .worktrees
         .iter()
-        .find(|entry| entry.worktree == worktree);
+        .find(|entry| crate::display_path::same_path(&entry.worktree, worktree));
     match overlay {
         Some(entry) if entry.cascaded => "cascaded",
         Some(entry) if entry.fenced => "fenced",
@@ -2424,7 +2428,7 @@ fn print_json(
         snapshot
             .worktrees
             .iter()
-            .find(|entry| entry.worktree == worktree)
+            .find(|entry| crate::display_path::same_path(&entry.worktree, worktree))
     });
     let readiness_next = status_readiness_action(&readiness);
     let receipt = activation::ClosingReceipt::capture(
@@ -4574,6 +4578,47 @@ mod tests {
         assert_eq!(readiness.daemon.state, EnsureReadinessState::Starting);
         assert_eq!(readiness.worktree.state, EnsureReadinessState::Starting);
         assert_eq!(readiness.driver.state, EnsureReadinessState::Starting);
+    }
+
+    /// Matt 0.10.0-beta: daemon status stores `\\?\C:\...` while cwd is the
+    /// ordinary drive path. Membership and driver lookup must treat those as
+    /// one worktree so readiness can reach ready when the driver is attached.
+    #[test]
+    fn readiness_equates_plain_and_verbatim_windows_worktree_paths() {
+        use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
+
+        let plain = Path::new(r"C:\Users\matt-\source\repos\hplan");
+        let verbatim = Path::new(r"\\?\C:\Users\matt-\source\repos\hplan");
+        let mut snapshot = snapshot_with_session_at(verbatim, false, false);
+        snapshot.sessions[0].agent_tag = Some(AgentTag::new(
+            "anvil-start",
+            ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            0,
+        ));
+        snapshot.worktrees[0].save_time_driver = SaveTimeDriverStatusV1::Attached;
+        snapshot.worktrees[0].save_time_driver_evidence =
+            Some(SaveTimeDriverEvidenceV1::WatchesInstalled);
+
+        let readiness = status_save_time_readiness(
+            Some(&snapshot),
+            Some(plain),
+            true,
+            false,
+            EnsureReadinessState::Disabled,
+        );
+        assert_eq!(
+            readiness.worktree.state,
+            EnsureReadinessState::Ready,
+            "worktree={}",
+            readiness.worktree.detail
+        );
+        assert_eq!(
+            readiness.driver.state,
+            EnsureReadinessState::Ready,
+            "driver={}",
+            readiness.driver.detail
+        );
+        assert_eq!(readiness.worktree.detail, "durably registered");
     }
 
     #[test]

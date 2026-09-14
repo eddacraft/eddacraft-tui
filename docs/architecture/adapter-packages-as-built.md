@@ -419,7 +419,7 @@ The validator is the load-bearing surface — `anvil validate` (Rust CLI) and
 | -------------------------- | -------- | ---------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `file-readable`            | error    | Target file exists and is readable                                     | `validatePlanningDoc`; emits `validator/index.ts:121`       |
 | `plan-loadable`            | error    | Plan graph loads without error                                         | `validatePlanningDoc`; emits `validator/index.ts:182`       |
-| `required-sections`        | error    | `## Modules` for index, `## Tasks` for leaf                            | `validateIndexStructure`, `validateLeafStructure`           |
+| `required-sections`        | error    | `## Modules` for index, `## Work Items` or legacy `## Tasks` for leaf  | `validateIndexStructure`, `validateLeafStructure`           |
 | `task-format`              | error    | `SCOPE-NNN` task ID pattern (1-10 upper alphanumeric, hyphen, 3-digit) | `validateTaskFormat`; regex `types/index.ts:30`             |
 | `task-intent`              | error    | Task must declare `**Intent:**`                                        | `validateTaskContent`                                       |
 | `missing-expected-outcome` | warning  | Task should declare `**Expected Outcome:**` (alias `Outcome:`)         | `validateTaskContent`; emits `validator/index.ts:589`       |

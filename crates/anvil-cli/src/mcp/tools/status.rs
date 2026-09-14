@@ -82,7 +82,8 @@ fn status_payload(arguments: &Value) -> Result<Value, String> {
     );
     let requesting_session = daemon_snapshot.as_ref().and_then(|snapshot| {
         snapshot.sessions.iter().find(|session| {
-            (session.worktree == identity || session.worktree == workspace_path)
+            (crate::display_path::same_path(&session.worktree, &identity)
+                || crate::display_path::same_path(&session.worktree, &workspace_path))
                 && session.pid == Some(std::process::id())
                 && session
                     .agent_tag

@@ -2113,7 +2113,7 @@ impl SessionDispatcher for SessionRegistry {
 }
 
 fn canonicalise(path: &Path) -> Result<PathBuf, RegistryError> {
-    std::fs::canonicalize(path).map_err(|source| RegistryError::WorktreePathInvalid {
+    dunce::canonicalize(path).map_err(|source| RegistryError::WorktreePathInvalid {
         path: path.to_path_buf(),
         source,
     })

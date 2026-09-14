@@ -152,7 +152,67 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_mcp_orphans(),
         check_produce_locks(),
         check_graph_platform(),
+        probe_journey_readiness(),
     ]
+}
+
+/// Read-only journey readiness (ADR-145: doctor consumes the same facts as
+/// status). Never starts the daemon, registers a worktree, or writes MCP.
+fn probe_journey_readiness() -> DiagnosticCheck {
+    let activation = crate::activation::verify(Path::new("."));
+    let registerable = crate::registration::registerable_worktree(Path::new(".")).ok();
+    let snapshot = crate::commands::intercept::query_daemon_status().ok();
+    let readiness = crate::commands::status::measured_readiness(
+        &activation,
+        snapshot.as_ref(),
+        registerable.as_deref(),
+        crate::commands::status::ReadinessSelection::from_environment(),
+    );
+    journey_readiness_check(&readiness)
+}
+
+fn journey_readiness_check(
+    readiness: &crate::commands::ensure::EnsureReadiness,
+) -> DiagnosticCheck {
+    if readiness.failed() {
+        let component = readiness.failing_component.unwrap_or("coverage");
+        let detail = match component {
+            "config" => readiness.components.config.detail.clone(),
+            "daemon" => readiness.components.daemon.detail.clone(),
+            "worktree" => readiness.components.worktree.detail.clone(),
+            "save_time" => readiness.components.save_time.detail.clone(),
+            "mcp" => readiness.components.mcp.detail.clone(),
+            other => other.to_owned(),
+        };
+        DiagnosticCheck {
+            name: "journey-readiness".to_string(),
+            category: "Protection".to_string(),
+            status: CheckStatus::Fail,
+            message: format!("Readiness: failed ({component})"),
+            details: Some(format!(
+                "{detail} — components: {}",
+                readiness.component_summary()
+            )),
+            auto_fixable: false,
+            remediation: Remediation {
+                summary: format!(
+                    "status names a failed {component} component; inspect `anvil status --verify`"
+                ),
+                command: Some("anvil status --verify".to_owned()),
+                doc_url: None,
+            },
+        }
+    } else {
+        DiagnosticCheck {
+            name: "journey-readiness".to_string(),
+            category: "Protection".to_string(),
+            status: CheckStatus::Pass,
+            message: format!("Readiness: {}", readiness.state.label()),
+            details: Some(readiness.component_summary()),
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        }
+    }
 }
 
 fn check_git_available() -> DiagnosticCheck {
@@ -3347,6 +3407,69 @@ fn print_json(
 mod tests {
     use super::*;
     use anvil_tui::surfaces::doctor::DiagnosticSummary;
+
+    #[test]
+    fn journey_readiness_fails_when_worktree_component_failed() {
+        use crate::commands::ensure::{
+            EnsureComponentReadiness, EnsureReadiness, EnsureReadinessComponents,
+            EnsureReadinessState,
+        };
+
+        let ready = || EnsureComponentReadiness::new(EnsureReadinessState::Ready, "ok");
+        let readiness = EnsureReadiness::from_components(EnsureReadinessComponents {
+            config: ready(),
+            daemon: ready(),
+            worktree: EnsureComponentReadiness::new(
+                EnsureReadinessState::Failed,
+                "not durably registered",
+            ),
+            save_time: EnsureComponentReadiness::new(
+                EnsureReadinessState::Failed,
+                "no save-time driver evidence",
+            ),
+            mcp: EnsureComponentReadiness::new(EnsureReadinessState::Disabled, "not selected"),
+        });
+        let check = journey_readiness_check(&readiness);
+        assert_eq!(check.name, "journey-readiness");
+        assert_eq!(check.status, CheckStatus::Fail);
+        assert!(
+            check.message.contains("worktree"),
+            "must name the failing component: {}",
+            check.message
+        );
+        let details = check.details.expect("details");
+        assert!(
+            details.contains("not durably registered"),
+            "must carry the component detail: {details}"
+        );
+        assert_eq!(
+            check.remediation.command.as_deref(),
+            Some("anvil status --verify")
+        );
+    }
+
+    #[test]
+    fn journey_readiness_passes_when_selected_coverage_is_ready() {
+        use crate::commands::ensure::{
+            EnsureComponentReadiness, EnsureReadiness, EnsureReadinessComponents,
+            EnsureReadinessState,
+        };
+
+        let ready = || EnsureComponentReadiness::new(EnsureReadinessState::Ready, "ok");
+        let readiness = EnsureReadiness::from_components(EnsureReadinessComponents {
+            config: ready(),
+            daemon: ready(),
+            worktree: ready(),
+            save_time: EnsureComponentReadiness::new(
+                EnsureReadinessState::Ready,
+                "watches-installed",
+            ),
+            mcp: EnsureComponentReadiness::new(EnsureReadinessState::Disabled, "not selected"),
+        });
+        let check = journey_readiness_check(&readiness);
+        assert_eq!(check.status, CheckStatus::Pass);
+        assert!(check.message.contains("ready"), "{}", check.message);
+    }
 
     #[test]
     fn compile_check_passes_when_no_diagnostics() {

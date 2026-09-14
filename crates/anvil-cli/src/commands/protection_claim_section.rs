@@ -81,7 +81,7 @@ pub fn fetch_protection_claim_for_cwd() -> ProtectionClaim {
             None
         }
     };
-    let worktree = std::fs::canonicalize(".").unwrap_or_else(|err| {
+    let worktree = crate::display_path::canonicalise(Path::new(".")).unwrap_or_else(|err| {
         tracing::warn!(
             error = %err,
             "anvil doctor: cwd canonicalise failed; protection claim will not match any daemon-registered session",

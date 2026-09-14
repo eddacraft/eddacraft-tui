@@ -378,7 +378,7 @@ pub trait StatusProvider: Send + Sync {
     /// lookup: canonicalize when the path exists so a non-canonical
     /// caller path cannot empty a successful scoped snapshot.
     fn query_status_for_worktree(&self, worktree: &Path) -> DaemonStatus {
-        let filter_key = std::fs::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
+        let filter_key = dunce::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
         filter_status_to_worktree(self.query_status(), &filter_key)
     }
 }
@@ -621,7 +621,7 @@ impl StatusProvider for DaemonStatusProvider {
         // sessions_for_worktree matches on canonicalize(worktree); stored
         // paths are canonical. Filter with the same key so a non-canonical
         // caller path cannot empty a successful lookup.
-        let filter_key = std::fs::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
+        let filter_key = dunce::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
         filter_status_to_worktree(snapshot, &filter_key)
     }
 }
