@@ -635,6 +635,41 @@ $ anvil status --json | jq .protection_state
 
 ---
 
+## anvil settings
+
+**Class:** User-explicit **Purpose:** Inspect configured, resolved, and
+evidenced-active settings without mutation. **When to use:** When you need to
+see what Anvil is configured to do, what it resolved after policy, and what the
+running system can prove it is enforcing. Prefer `show` / `explain` / `status` /
+`sources` for non-interactive output; bare `anvil settings` opens the inspect
+TUI on a supported terminal.
+
+**Synopsis:**
+`anvil settings [show|explain <key>|status|sources] [--format text|json] [--check] [--focus <key>]`
+
+**Flags:**
+
+| Flag            | Description                                               |
+| --------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| `--format text  | json`                                                     | Non-interactive output format (implies no TUI). |
+| `--check`       | Health check; non-zero when settings health is unhealthy. |
+| `--focus <key>` | Focus a canonical key or deprecated alias in the TUI.     |
+
+**Exit codes:** 0 (success), 1 (error), 8 (settings redaction/health failure)
+
+**Examples:**
+
+```
+$ anvil settings
+$ anvil settings show --format text
+$ anvil settings explain gate.checks
+$ anvil settings status --json
+$ anvil settings sources
+$ anvil settings --check
+```
+
+---
+
 ## bare `anvil` (no subcommand)
 
 **Class:** Setup / daily **Purpose:** Daily ensure surface — turn protection on

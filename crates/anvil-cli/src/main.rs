@@ -1918,6 +1918,7 @@ mod tests {
             "exception" => vec!["exception", "list"],
             "start" => vec!["start"],
             "status" => vec!["status"],
+            "settings" => vec!["settings"],
             "telemetry" => vec!["telemetry"],
             "tutorial" => vec!["tutorial"],
             "welcome" => vec!["welcome"],

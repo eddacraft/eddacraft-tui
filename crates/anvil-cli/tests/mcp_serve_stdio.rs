@@ -215,7 +215,21 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let tools = parsed["result"]["tools"]
         .as_array()
         .expect("tools/list result must include a tools array");
-    assert_eq!(tools.len(), 14);
+    assert_eq!(tools.len(), 18);
+    for settings_tool in [
+        "anvil_settings_show",
+        "anvil_settings_explain",
+        "anvil_settings_status",
+        "anvil_settings_sources",
+    ] {
+        let tool = tools
+            .iter()
+            .find(|tool| tool["name"] == settings_tool)
+            .unwrap_or_else(|| panic!("tools/list includes {settings_tool}"));
+        assert_eq!(tool["inputSchema"]["type"], "object");
+        assert_eq!(tool["annotations"]["readOnlyHint"], true);
+    }
+
     let validate_write = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_validate_write")

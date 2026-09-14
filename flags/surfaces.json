@@ -2119,6 +2119,48 @@
       "status": "active"
     },
     {
+      "key": "cli.settings",
+      "featureKey": "settings",
+      "locator": { "kind": "cli", "commandPath": ["settings"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "cli.settings-slash-alias",
+      "featureKey": "settings",
+      "locator": { "kind": "cli", "commandPath": ["/settings"] },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.settings-show",
+      "featureKey": "settings",
+      "locator": { "kind": "mcp-tool", "name": "anvil_settings_show" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.settings-explain",
+      "featureKey": "settings",
+      "locator": { "kind": "mcp-tool", "name": "anvil_settings_explain" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.settings-status",
+      "featureKey": "settings",
+      "locator": { "kind": "mcp-tool", "name": "anvil_settings_status" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
+      "key": "mcp-tool.settings-sources",
+      "featureKey": "settings",
+      "locator": { "kind": "mcp-tool", "name": "anvil_settings_sources" },
+      "posture": { "invocation": "user", "mustAlwaysBeOpen": false, "access": "open" },
+      "status": "active"
+    },
+    {
       "key": "api.health",
       "featureKey": "status",
       "locator": { "kind": "api-route", "method": "GET", "path": "/api/v1/health" },
