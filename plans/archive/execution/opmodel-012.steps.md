@@ -17,7 +17,7 @@
   re-run `gh pr list --base dev --state open` immediately before Phase 2.
 - 15 CI workflows in `.github/workflows/` total; 1 is cutover-blocking
   (`pr-base-guard.yml`), 6 need post-cutover cleanup, 8 need no change. See
-  [`workflow audit`](../../audits/2026-05-11-opmodel-012-workflow-audit.md).
+  [`workflow audit`](../audits/2026-05-11-opmodel-012-workflow-audit.md).
 - The four cutover docs (`branching-strategy.md`, `worktree-policy.md`,
   `release-runbook.md`, `SKILL.md`) already carry dual-mode structure with
   explicit "Current Compatibility Model" / "Target Model" sections — Phase 3
@@ -32,7 +32,7 @@
 Outputs in this PR:
 
 1. **Workflow audit** — produce a checked-in inventory at
-   `plans/audits/2026-05-11-opmodel-012-workflow-audit.md` listing each of the
+   `plans/archive/audits/2026-05-11-opmodel-012-workflow-audit.md` listing each of the
    15 workflows under `.github/workflows/`, its current `dev`/`main` triggers,
    and what (if anything) needs to change for cutover. Anything that needs a
    code change before cutover gets a follow-up task in OPMODEL-012's row

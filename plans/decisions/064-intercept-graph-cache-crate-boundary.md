@@ -6,9 +6,9 @@
 after an independent architecture review returned SOUND-WITH-FIXES and the fixes
 were folded in). Resolves council blocker **B5** (the hard predecessor to B1)
 from the
-[daemon-graph review verdict](../reviews/2026-06-01-daemon-graph-council-verdict.md);
+[daemon-graph review verdict](../archive/reviews/2026-06-01-daemon-graph-council-verdict.md);
 gates the start of
-[daemon save-time sub-phase A](../execution/2026-06-01-daemon-save-time-subphase-a.md)
+[daemon save-time sub-phase A](../archive/execution/2026-06-01-daemon-save-time-subphase-a.md)
 Tasks 6/7/8.
 
 ## Date
@@ -20,7 +20,7 @@ Tasks 6/7/8.
 [ADR-061](061-save-time-daemon-delta-validation.md) makes the intercept daemon
 the save-time validation authority: `validate_paths` certifies changed paths
 against a warm per-`WorktreeKey` graph cache. The
-[sub-phase A plan](../execution/2026-06-01-daemon-save-time-subphase-a.md) Tasks
+[sub-phase A plan](../archive/execution/2026-06-01-daemon-save-time-subphase-a.md) Tasks
 6–8 need the daemon (`anvil-intercept`) to hold a `SymbolGraph` +
 `DependencyGraph`, apply deltas to it, and run a net-new `certify` over its
 reverse-impact closure.
@@ -254,14 +254,14 @@ Both options are cycle-free, so the decision turns on **build weight** and
   [ADR-036](036-daemon-scope-discovery-and-boundaries.md) (daemon scope &
   boundaries)
 - Council verdict: B5 + Action 1
-  ([`plans/reviews/2026-06-01-daemon-graph-council-verdict.md`](../reviews/2026-06-01-daemon-graph-council-verdict.md))
+  ([`plans/archive/reviews/2026-06-01-daemon-graph-council-verdict.md`](../archive/reviews/2026-06-01-daemon-graph-council-verdict.md))
 - Independent architecture review (2026-06-02): verdict **SOUND-WITH-FIXES** —
   cycle audit, parse-free-layer, and petgraph-already-in-tree claims verified
   against code; the four fixes (write-path-parse promoted to a binding decision;
   module-alias re-export pinned; `GraphDelta` policy-baggage + `eprintln!` notes)
   are folded into this revision.
 - Execution plan:
-  [`plans/execution/2026-06-01-daemon-save-time-subphase-a.md`](../execution/2026-06-01-daemon-save-time-subphase-a.md)
+  [`plans/archive/execution/2026-06-01-daemon-save-time-subphase-a.md`](../archive/execution/2026-06-01-daemon-save-time-subphase-a.md)
   (Tasks 6/7/8; correction §B5)
 - APS modules: RLB (resource-load-benchmarking), GV2 (graph-v2-foundation)
 - Evidence: `crates/anvil-intercept/src/watcher.rs:28`;

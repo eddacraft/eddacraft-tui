@@ -29,7 +29,7 @@ real PTY restoration and all-phase snapshots; verdict/evidence models are built
 from typed activation data. Targeted Rust, Clippy, PTY, snapshot, and activation
 e2e checks pass locally. ACTTUI-012 has since Merged via PR #3284. The earlier
 post-ACTTUI first-run council review
-([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
+([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 blocked the TTY-default flip because the opt-in `--tui` consent path was then a
 dead end; ACTTUI-009..012 tracked that remediation wave and all Merged.
 ACTTUI-000 planning gate merged (PR #3232); ACTTUI-001 activation-surface
@@ -57,7 +57,7 @@ consent pickers, collapsible diagnostics, and a visible activation spine — usi
 
 Closes the re-run verbosity and picker-scaling gaps from the 2026-07-04
 welcome/start user-journey audit
-([`plans/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../../audits/2026-07-04-anvil-start-welcome-user-journey.md))
+([`plans/archive/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../audits/2026-07-04-anvil-start-welcome-user-journey.md))
 and realises the operator investment in `eddacraft-tui` for end-user wow.
 
 ## Strategic sequencing
@@ -389,7 +389,7 @@ tutorial story changes (WOW owns narrative).
 
 - **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-10 via PR #3263
 - **Source:** First-run council review C-001, C-002, C-003, C-005
-  ([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
+  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-004
 - **Intent:** The opt-in `anvil start --tui` path can actually collect consent
   and perform selected MCP/workflow writes, without silently skipping install or
@@ -420,7 +420,7 @@ tutorial story changes (WOW owns narrative).
 - **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-10 via PR #3263 — CIB-182's existing repair-hint
   fixture change is accepted as the sanctioned contract.
 - **Source:** First-run council review C-006, C-007, C-011, C-012
-  ([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
+  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-009
 - **Intent:** The rollout/default-flip contract is backed by executable fixtures
   and PTY coverage rather than README-only fixture intent.
@@ -447,7 +447,7 @@ tutorial story changes (WOW owns narrative).
   verdict/evidence panes with `from_typed_with_progress` from a typed
   `VerdictModel` and typed `LogEntry` rows.
 - **Source:** First-run council review C-004, C-010
-  ([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
+  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-009
 - **Intent:** Activation TUI sections and tier evidence do not depend on
   substring-parsing the human plain-output copy.
@@ -474,7 +474,7 @@ tutorial story changes (WOW owns narrative).
   story, dead consent helpers removed, `ANVIL_NO_TUI=` semantics documented as
   aligned, `celebrate()`/`big-text` deferred with the unused dependency dropped.
 - **Source:** First-run council review C-013, C-014, C-015, C-017, C-018
-  ([`2026-07-09-acttui-first-run-journeys.md`](../../reviews/2026-07-09-acttui-first-run-journeys.md))
+  ([`2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md))
 - **Dependencies:** ACTTUI-010
 - **Intent:** Clear the remaining low-risk inconsistencies before making the
   activation TUI the default terminal path.

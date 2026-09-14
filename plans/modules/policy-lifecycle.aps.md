@@ -10,7 +10,7 @@
 **Last reviewed:** 2026-08-23 — POLFIT-009 posture pass: the module carries an
 explicit **Posture** block below stating that nothing here is scheduled and
 what promoting it would take. No scope change. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: grace-period
+`plans/archive/reviews/2026-07-11-polreset-downstream-coherence.md`: grace-period
 vocabulary restated in the shipped two-axis terms, EXCEPT relationship pinned,
 work items retargeted per ADR-098 AD-2).
 

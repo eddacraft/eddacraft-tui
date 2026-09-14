@@ -4,7 +4,7 @@
 |-------|-------|
 | Status | Accepted 2026-07-04 (operator, planning council plan-18c47503) |
 | Planning Council | plan-18c47503 |
-| Input Brief | [POLRESET-001 ADR Reconciliation Brief](../brainstorms/2026-07-03-polreset-001-adr-reconciliation-brief.md) |
+| Input Brief | [POLRESET-001 ADR Reconciliation Brief](../archive/brainstorms/2026-07-03-polreset-001-adr-reconciliation-brief.md) |
 | Date | 2026-07-04 |
 | Participants | architect, pragmatic-lead, adversarial-reviewer |
 
@@ -335,7 +335,7 @@ Stated as non-negotiable during the operator interrogation:
   [036](036-daemon-scope-discovery-and-boundaries.md),
   [096](096-diagnostic-severity-category-forward-compat.md)
 - Input brief:
-  [POLRESET-001 ADR Reconciliation Brief](../brainstorms/2026-07-03-polreset-001-adr-reconciliation-brief.md)
+  [POLRESET-001 ADR Reconciliation Brief](../archive/brainstorms/2026-07-03-polreset-001-adr-reconciliation-brief.md)
 - Modules: [POLRESET](../archive/modules/policy-value-enforcement-reset.aps.md),
   [EXCEPT](../modules/git-native-exceptions.aps.md),
   [POLVAL](../archive/modules/policy-pack-validation.aps.md),

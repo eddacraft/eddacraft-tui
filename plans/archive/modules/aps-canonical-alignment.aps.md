@@ -167,7 +167,7 @@ Migrate in waves:
 - **Validation:** Active-scope APS lint passes after each migrated batch.
 - **Files:** `plans/modules/*.aps.md`, `plans/index.aps.md`,
   `plans/archive/modules/adversarial-testing-catalog.aps.md`,
-  `plans/execution/ATC.actions.md` (renamed from `ATC.steps.md` per APSCAN-005)
+  `plans/archive/execution/ATC.actions.md` (renamed from `ATC.steps.md` per APSCAN-005)
 - **Dependencies:** APSCAN-001, APSCAN-003
 - **Closeout:** First active-module migration landed on
   `adversarial-testing-catalog.aps.md` (ATC) — `## Tasks` → `## Work Items`,
@@ -348,6 +348,6 @@ Migrate in waves:
   `crates/anvil-tui/src/surfaces/plan_dashboard/event_adapter.rs`
 - **Dependencies:** APSCAN-001
 - **Spec:** `plans/specs/2026-05-24-aps-tui-dashboard.md`
-- **Execution Plan:** `plans/execution/2026-05-24-aps-tui-dashboard.md`
+- **Execution Plan:** `plans/archive/execution/2026-05-24-aps-tui-dashboard.md`
 - **Closeout:** PR #1906 merged 2026-05-24 at `4c6e1e2a`.
 - **Confidence:** medium

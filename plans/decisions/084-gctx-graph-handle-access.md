@@ -25,7 +25,7 @@ target as the Rust `anvil mcp serve` (RMCPF) surface. The
 [GCTX-001 contract](../../docs/architecture/graph-context-delivery-spec.md) fixed
 the egress *rules* (identity-only default, sealed egress DTO, single
 `GctxProjector` choke point, CE-1..CE-12 from the
-[PV-9 egress review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)).
+[PV-9 egress review](../archive/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)).
 Neither answered the wiring question the Phase 1 tools depend on: the MCP server
 holds no graph, so where does an identity-only graph query actually run?
 
@@ -250,7 +250,7 @@ no new transitive parser deps.
 - [ADR-069](069-graph-v2-persistence.md) — graph snapshot persistence (Sub-phase B, unshipped)
 - [ADR-031](031-validation-latency-rubric.md) — save-time latency budget
 - [GCTX-001 projection contract](../../docs/architecture/graph-context-delivery-spec.md) — CE-1..CE-12, sealed egress DTO, `GctxProjector`
-- [PV-9 context-egress privacy review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+- [PV-9 context-egress privacy review](../archive/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 - [graph-v2-foundation-spec.md](../../docs/architecture/graph-v2-foundation-spec.md) — GV2-020 registry + GV2-023 consumer query contract
 - [`graph-context-delivery.aps.md`](../archive/modules/graph-context-delivery.aps.md) — GCTX module + work items
 - [daemon-lifecycle (DLIFE)](../archive/modules/daemon-lifecycle.aps.md) — makes daemon-backed protection the normal user path; GCTX's daemon-required posture depends on it

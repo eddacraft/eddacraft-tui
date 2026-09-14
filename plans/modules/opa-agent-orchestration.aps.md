@@ -5,7 +5,7 @@
 | OPAG | @aneki | Proposed |
 
 **Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped so a
+`plans/archive/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped so a
 pickup does not re-plan merged work; TS-era `OPAG.steps.md` deleted).
 
 > **Reset posture (POLRESET-010 / ADR-098, 2026-07-04; gates restated

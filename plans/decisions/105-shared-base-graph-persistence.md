@@ -315,7 +315,7 @@ events makes every routing decision observable.
   O(worktrees)→O(1) production), herd-miss single-flight (48-wide, exactly one
   producer), corrupt-shared-base (cold-serve + heal, no poison), claim-production
   p95 → `STALE_CLAIM_MAX_AGE` reasoned keep — is recorded in
-  [`plans/audits/2026-07-12-gbase-graduation-gate.md`](../audits/2026-07-12-gbase-graduation-gate.md).
+  [`plans/archive/audits/2026-07-12-gbase-graduation-gate.md`](../archive/audits/2026-07-12-gbase-graduation-gate.md).
   The opt-out `ANVIL_PERSIST_GRAPH=0` must be set in the **daemon's spawn
   environment** (a login-shell rc does not reach a systemd-user- or IDE-launched
   daemon); disk pressure is relieved on demand via `anvil graph-base gc

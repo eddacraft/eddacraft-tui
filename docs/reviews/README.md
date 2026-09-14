@@ -20,10 +20,7 @@ Use `docs/reviews/` for:
 - shipped product code-review map and session tracker
   (`shipped-codebase-review-checklist.md`): chunked checklist over the pure-Rust
   binary and related surfaces
-- GCTX dogfood failure points (2026-08-16) —
-  (`2026-08-16-gctx-dogfood-failure-points.md`): measured `not_ready` /
-  scan-timeout / graph-base spawn / two-client handshake leftovers; executable
-  follow-up is CIB-341..344
 
 Move review documents to `docs/archive/reviews/` once their follow-up work is
-merged, superseded, or no longer actionable.
+merged, superseded, or no longer actionable. The 2026-08-16 GCTX dogfood failure
+points note now lives under `docs/archive/reviews/` (CIB-341..344 shipped).

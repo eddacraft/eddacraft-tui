@@ -24,7 +24,7 @@ and not selectable; #4107 landed the same day and superseded that.
 **CPACKS-011** Merged via #4137.
 The first-wave residue is closed; the module is not. Any statement below dated
 before 2026-08-24 that calls CPACKS-006/-007 "the live residue" is historical. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
+`plans/archive/reviews/2026-07-11-polreset-downstream-coherence.md`: re-scoped. The
 previous revision was last reviewed 2026-07-02, two days **before** the
 starter pack it plans shipped, and still framed it as future work.)
 

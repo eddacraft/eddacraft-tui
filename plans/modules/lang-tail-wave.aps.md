@@ -146,7 +146,7 @@ cleaner than per-language PRs. All eight items **Merged 2026-06-18 via PR
   (≤1.2% error-trees), C# 6.9%, C/C++ 31–57% (validates the C-005 at-risk flag:
   un-preprocessed macro/template syntax → partial parses, recovery still
   extracts symbols). Evidence:
-  `plans/reviews/2026-06-18-langtail-008-external-validation.md`.
+  `plans/archive/reviews/2026-06-18-langtail-008-external-validation.md`.
 
 Supporting change (outside the numbered items, required for graph inclusion):
 the kernel parseable-extension gate (`FileFilter::is_parseable`) and the

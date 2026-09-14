@@ -59,7 +59,7 @@ instead of **file → file**. The forces:
   call-site walking to the existing parse must stay inside that envelope, and the
   hot certify path must not grow (ADR-063: the hot path does no graph traversal).
 - **Egress privacy.** The PV-9 context-egress review
-  (`plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md`) made
+  (`plans/archive/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md`) made
   GCTX egress **identity-only by default** through a single sealed-DTO choke
   point (CE-5), with source text a gated escalation (CE-1). "Who calls this"
   exposes a new relationship and needs the same posture before any assistant sees
@@ -341,7 +341,7 @@ problems (overloads, dynamic dispatch) out of the budget-sensitive save path.
   egress spine), ADR-085 (full-scan executor — the background-warm fallback path)
 - APS modules: GCALL-001 (this ADR), GCALL-002..007 (`plans/archive/modules/symbol-call-graph.aps.md`),
   GCTX-014 (`anvil_find_callers`, the consumer), GV2-026 (reverse-impact depth lever)
-- Reviews: `plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md`
+- Reviews: `plans/archive/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md`
   (PV-9 / CE-1..CE-12 — the caller-egress posture GCALL-007 ratifies)
 - Substrate: `crates/anvil-kernel-types/src/graph.rs` (`FileSymbols`, `EdgeType`,
   `SymbolIdentity`), `crates/anvil-graph-cache/src/incremental.rs` (`update_file`,

@@ -476,7 +476,7 @@ This module is Complete when:
 - **Action plan:**
   [`plans/execution/opmodel-012.steps.md`](../execution/opmodel-012.steps.md)
 - **Phase 0 outputs (PR #1410):**
-  [`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../audits/2026-05-11-opmodel-012-workflow-audit.md),
+  [`plans/archive/audits/2026-05-11-opmodel-012-workflow-audit.md`](../audits/2026-05-11-opmodel-012-workflow-audit.md),
   [`docs/runbooks/main-first-cutover.md`](../../docs/runbooks/main-first-cutover.md)
 - **Files:** `docs/guides/branching-strategy.md`,
   `docs/guides/worktree-policy.md`, `docs/guides/release-runbook.md`,

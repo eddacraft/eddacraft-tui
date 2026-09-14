@@ -19,7 +19,7 @@ Verified: <!-- filled by cleanup agent -->
       licensed environment (beta auth wall, exit 3 unauthenticated); covered
       structurally by unit tests, end-to-end by the DSV-051 E2E matrix
       (human/DSV-051)
-- [ ] Windows leg — see `plans/execution/DSV-051.windows.actions.md` §1–2; runs
+- [ ] Windows leg — see `plans/archive/execution/DSV-051.windows.actions.md` §1–2; runs
       after DSV-047..050 merge (human required)
 
 ## Notes

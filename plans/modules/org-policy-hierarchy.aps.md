@@ -10,7 +10,7 @@
 **Last reviewed:** 2026-08-23 — POLFIT-009 posture pass: the module carries an
 explicit **Posture** block below stating that nothing here is scheduled and
 what promoting it would take. No scope change. Prior review 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: activation gate
+`plans/archive/reviews/2026-07-11-polreset-downstream-coherence.md`: activation gate
 restated, work items retargeted off the AD-2 deletion-slated crate, exemption
 semantics bound to the EXCEPT store).
 

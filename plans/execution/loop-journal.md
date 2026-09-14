@@ -626,7 +626,7 @@ never with feature work.
   entry). The plan now selects Axum 0.8, deterministic Rust OpenAPI output,
   `openapi-typescript`/`openapi-fetch`, same-origin Vite proxying, and explicit
   contract-first ownership for the Protection Overview and Plan Driver DTOs.
-- Plan changes: refreshed `plans/execution/DASH-wave-1.actions.md`; marked
+- Plan changes: refreshed `plans/archive/execution/DASH-wave-1.actions.md`; marked
   DASH-002/003/004 In Progress without changing aggregate counters; kept shipped
   binary packaging and a public `anvil dashboard` command behind a later
   architecture/public-contract checkpoint.
@@ -653,7 +653,7 @@ never with feature work.
   amended (unticked picker default); two deliberate deferrals recorded
   (O_NOFOLLOW read hardening; real-clock 150 ms e2e).
 - Plan changes: rehearsal record added
-  (plans/audits/2026-07-12-journey-005-linux-rehearsal.md); escalation
+  (plans/archive/audits/2026-07-12-journey-005-linux-rehearsal.md); escalation
   queue created (ESC-001 macOS/Windows manual legs, ESC-002 cut approval,
   ESC-003 ADR-105 acceptance); cross-platform CI dispatched on the
   candidate (runs 29161637384 / 29161638249).

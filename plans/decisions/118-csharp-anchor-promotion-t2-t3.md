@@ -158,4 +158,4 @@ The alternative framings were considered and rejected:
 - Spec: [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
   §5.1 (tiers), §6 (scoring), §8.1 (anchors), §8.2 (tail + promotion levers),
   §13 (cut list), §16.5 #9 (FP bar)
-- Evidence: [`plans/reviews/2026-06-18-langtail-008-external-validation.md`](../reviews/2026-06-18-langtail-008-external-validation.md)
+- Evidence: [`plans/archive/reviews/2026-06-18-langtail-008-external-validation.md`](../archive/reviews/2026-06-18-langtail-008-external-validation.md)

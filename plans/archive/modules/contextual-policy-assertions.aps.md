@@ -5,7 +5,7 @@
 | CPOL | @aneki | Complete |
 
 **Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all three items
+`plans/archive/reviews/2026-07-11-polreset-downstream-coherence.md`: all three items
 were delivered via POLRESET-004 / PR #3139, so the module advances to Done).
 
 2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
@@ -62,4 +62,4 @@ richer runtime context while preserving Anvil policy-pack semantics.
 
 ## Execution
 
-Action plan: [../../execution/CPOL.actions.md](../../execution/CPOL.actions.md)
+Action plan: [../../execution/CPOL.actions.md](../execution/CPOL.actions.md)

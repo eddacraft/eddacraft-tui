@@ -266,13 +266,13 @@ they do not reopen or transfer ownership into this programme.
   `apps/anvil-api/README.md`, `apps/anvil-api/ARCHITECTURE.md`,
   `apps/docs-shell/README.md`, `apps/docs-shell/ARCHITECTURE.md`,
   `apps/docs-shell/AGENTS.md`, `CONTEXT.md`,
-  `plans/reviews/2026-08-20-docrb-004-pilot-findings.md`,
+  `plans/archive/reviews/2026-08-20-docrb-004-pilot-findings.md`,
   `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`
 - **Evidence:** PR #4031 merged after fresh hosted CI with zero unresolved
   review threads. Its final head `1840551a74238b832e1478e8d62bae5539ae31fc`
   and rebase-merge commit share tree
   `e2df831181db1004968e66ea9f0f88078f345817`. The single
-  `plans/reviews/2026-08-20-docrb-004-pilot-findings.md` report records
+  `plans/archive/reviews/2026-08-20-docrb-004-pilot-findings.md` report records
   source-pinned navigation, manual Mermaid render/trace, ownership,
   source-link, and duplication evidence plus follow-on recommendations.
 - **Scope:** The exact DOCRB-002 pilot roots `crates/anvil-kernel`,
@@ -299,12 +299,12 @@ they do not reopen or transfer ownership into this programme.
   owners/upstreams; central as-built material is reduced or reshaped without
   losing decision history; redirects and links preserve discovery; no concern
   retains two apparent authorities.
-- **Files:** 46 exact paths: `plans/execution/DOCRB-005.actions.md`,
+- **Files:** 46 exact paths: `plans/archive/execution/DOCRB-005.actions.md`,
   `plans/index.aps.md`, the
   fourteen central move/merge as-builts, eighteen bounded component-local
   authority/discovery paths, documentation authority/discovery records, four
   generated documentation indexes, two binding file-level docs-owed repairs,
-  `plans/reviews/2026-08-20-docrb-005-component-truth-migration.md`, and this
+  `plans/archive/reviews/2026-08-20-docrb-005-component-truth-migration.md`, and this
   item record
 - **Scope:** Component `README.md`/`ARCHITECTURE.md`,
   `docs/architecture/**`, generated documentation indexes, and only the two
@@ -335,7 +335,7 @@ they do not reopen or transfer ownership into this programme.
   EDDA, Rust, adapter, and component-local details remain in their owning
   documents; obsolete central duplicates are retired.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
-  `plans/execution/DOCRB-006.actions.md`,
+  `plans/archive/execution/DOCRB-006.actions.md`,
   `plans/specs/2026-08-17-docrb-corpus-disposition.md`, `CONTEXT.md`,
   `docs/README.md`,
   `docs/guides/documentation-governance.md`,
@@ -352,7 +352,7 @@ they do not reopen or transfer ownership into this programme.
   `docs/architecture/pptx-workflow.drawio`,
   `docs/indexes/by-authority.md`, `docs/indexes/by-owner.md`,
   `docs/indexes/by-status.md`, `docs/indexes/by-type.md`, and
-  `plans/reviews/2026-08-20-docrb-006-central-views.md`
+  `plans/archive/reviews/2026-08-20-docrb-006-central-views.md`
 - **Evidence:** The action plan fixes the execution order and authority
   boundaries. The final review records per-view source-edge traces, temporary
   pinned Mermaid 11.16.0 render outputs, link resolution, duplicate-authority
@@ -395,8 +395,8 @@ they do not reopen or transfer ownership into this programme.
   surface, adversarial fixture tests exercise failure modes, and both production
   Docusaurus renderers build to prove mount integration at the system boundary.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
-  `plans/execution/DOCRB-007.actions.md`,
-  `plans/reviews/2026-08-20-docrb-007-public-svg-pipeline.md`,
+  `plans/archive/execution/DOCRB-007.actions.md`,
+  `plans/archive/reviews/2026-08-20-docrb-007-public-svg-pipeline.md`,
   `package.json`, `scripts/docs/docs-check.mjs`,
   `scripts/docs/docs-check.test.sh`,
   `scripts/docs/check-public-diagrams.mjs`,
@@ -456,8 +456,8 @@ they do not reopen or transfer ownership into this programme.
   `docs/README.md`,
   `plans/index.aps.md`,
   `plans/specs/2026-08-17-docrb-corpus-disposition.md`,
-  `plans/execution/DOCRB-008.actions.md`, and
-  `plans/reviews/2026-08-21-docrb-008-public-ia.md`
+  `plans/archive/execution/DOCRB-008.actions.md`, and
+  `plans/archive/reviews/2026-08-21-docrb-008-public-ia.md`
 - **Evidence:** PR #4068 merged from final reviewed head
   `294a93234ae511de4d7f6f91aebd7a4fffa63d23` after all required hosted
   checks passed and unresolved review threads were zero. Rebase-merge receipt
@@ -539,8 +539,8 @@ they do not reopen or transfer ownership into this programme.
   `scripts/validate/local.sh`, `scripts/validate/local.test.sh`,
   `.github/actions/detect-changes/action.yml`, `.github/workflows/ci.yml`,
   `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
-  `plans/execution/DOCRB-009.actions.md`, and
-  `plans/reviews/2026-08-21-docrb-009-diagram-enforcement.md`
+  `plans/archive/execution/DOCRB-009.actions.md`, and
+  `plans/archive/reviews/2026-08-21-docrb-009-diagram-enforcement.md`
 - **Evidence:** PR #4099 merged from final reviewed head
   `cf145163f2f5c26624bf7f972bad3c376c0bb5ec` after all required hosted
   checks passed and unresolved review threads were zero. Rebase-merge receipt
@@ -583,8 +583,8 @@ they do not reopen or transfer ownership into this programme.
   pass paths; records residual gaps as new APS or GitHub work rather than
   silently accepting them.
 - **Files:** `plans/modules/docs-rebaseline.aps.md`, `plans/index.aps.md`,
-  `plans/execution/DOCRB-010.actions.md`, and
-  `plans/reviews/2026-08-23-docrb-010-clean-room-verification.md`
+  `plans/archive/execution/DOCRB-010.actions.md`, and
+  `plans/archive/reviews/2026-08-23-docrb-010-clean-room-verification.md`
 - **Scope:** Read-only clean-room verification of the whole documentation
   system and representative code/contract upstreams, recorded in exactly four
   repository paths

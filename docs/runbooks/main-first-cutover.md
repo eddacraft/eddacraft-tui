@@ -11,7 +11,7 @@
 > **Owner:** Operator (Josh) + Release council **Scope:** One-shot cutover from
 > the current `dev -> main` promotion model to the target main-first model.
 > Implements OPMODEL-012. **Inputs:**
-> [`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../../plans/audits/2026-05-11-opmodel-012-workflow-audit.md),
+> [`plans/archive/audits/2026-05-11-opmodel-012-workflow-audit.md`](../../plans/archive/audits/2026-05-11-opmodel-012-workflow-audit.md),
 > [`plans/archive/execution/opmodel-012.steps.md`](../../plans/archive/execution/opmodel-012.steps.md).
 > **Companion playbooks:**
 > [`branch-reconciliation.md`](./branch-reconciliation.md) (one-time divergence
@@ -177,7 +177,7 @@ Do this **before** Step 5 — if branch protection lands first and
 ### 5. Add branch protection on `main`
 
 Use the required-check list from the Phase 0 audit
-([`workflow audit`](../../plans/audits/2026-05-11-opmodel-012-workflow-audit.md#required-ci-checks-for-main-branch-protection)).
+([`workflow audit`](../../plans/archive/audits/2026-05-11-opmodel-012-workflow-audit.md#required-ci-checks-for-main-branch-protection)).
 Confirm the canonical list against a recent code PR before applying.
 
 **Required checks rule:** only include checks that **always run** for the shape

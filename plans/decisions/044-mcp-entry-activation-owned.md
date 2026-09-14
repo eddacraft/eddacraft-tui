@@ -354,6 +354,6 @@ ticked writes no MCP config. Everything else in this ADR is
 unchanged: single ownership, the non-interactive auto-install policy,
 the `UnsafeDrift` refusal, `--keep-mcp`, and the heavy-reset path.
 
-References: `plans/reviews/2026-07-09-acttui-first-run-journeys.md`
+References: `plans/archive/reviews/2026-07-09-acttui-first-run-journeys.md`
 (C-009), `plans/specs/2026-07-11-release-user-journeys-conductor.md`
 (consent constraints), CIB-165 owner decision 2026-07-04.

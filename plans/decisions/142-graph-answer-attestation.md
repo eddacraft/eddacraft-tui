@@ -240,7 +240,7 @@ estimator already exists, the counts are already partly there.
 - APS module: GATT (`plans/modules/graph-answer-attestation.aps.md`), GATT-001..006
 - Spec: [`docs/architecture/graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)
   (CE-1, CE-3, CE-5, CE-6, CE-7, CE-11)
-- Review: [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+- Review: [context-egress privacy review (PV-9)](../archive/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 - Origin: [ripwire borrow assessment](../brainstorms/2026-09-07-ripwire-borrow-assessment.md)
 - Upstream sequencing: CIB-341 / CIB-342 (full-scan timeout, cold serve) —
-  [GCTX dogfood failure points](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md)
+  [GCTX dogfood failure points](../../docs/archive/reviews/2026-08-16-gctx-dogfood-failure-points.md)

@@ -6,7 +6,7 @@
 | Status | APS module In Progress (MCP26-001..011 Merged; MCP26-012 Ready; MCP26-013 In Progress) |
 | Module | [mcp-dual-era-support](../modules/mcp-dual-era-support.aps.md) (MCP26) |
 | Branch | `main` for merged implementation; MCP26-013 on `fix/mcp26-013-request-metadata` |
-| Gate audit | [2026-07-27-mcp26-001-ratification-gate](../audits/2026-07-27-mcp26-001-ratification-gate.md) |
+| Gate audit | [2026-07-27-mcp26-001-ratification-gate](../archive/audits/2026-07-27-mcp26-001-ratification-gate.md) |
 | ADR | [113](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md) (Accepted) |
 | Proposed ID | MCP26 |
 | Owner | anvil CLI / MCP |

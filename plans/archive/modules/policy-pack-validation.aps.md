@@ -8,7 +8,7 @@
 | POLVAL | —     | high     | Complete |
 
 **Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all five items
+`plans/archive/reviews/2026-07-11-polreset-downstream-coherence.md`: all five items
 Done, module advances to Done. The open gate-preflight acceptance criterion is
 resolved as satisfied: install-time admission (OPAE-004) plus the gate's
 fail-fast compile admission (ADR-098 AD-1 PR-B) deliver its intent; a

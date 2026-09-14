@@ -186,7 +186,7 @@ Before cutover:
 Cutover evidence:
 
 - Phase 0 audit:
-  [`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../../plans/audits/2026-05-11-opmodel-012-workflow-audit.md)
+  [`plans/archive/audits/2026-05-11-opmodel-012-workflow-audit.md`](../../plans/archive/audits/2026-05-11-opmodel-012-workflow-audit.md)
 - Phase 2 playbook:
   [`docs/runbooks/main-first-cutover.md`](../runbooks/main-first-cutover.md)
 - Cutover SHA: `b6f236e90dbc03338f17767202acf93f1449f8d2`

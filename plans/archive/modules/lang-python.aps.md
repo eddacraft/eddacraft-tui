@@ -307,7 +307,7 @@ item below), so the module is Done.
   PY-005 allowlists `**/__init__.py` (re-export idiom), PY-007 uses a
   subscript-context `Any` match (no `from typing import Any` FP), and PY-004
   joins the comment/string-masked view (`rule_is_code_scoped`). Evidence:
-  [`plans/reviews/2026-06-18-pylan-009-external-validation.md`](../../reviews/2026-06-18-pylan-009-external-validation.md).
+  [`plans/archive/reviews/2026-06-18-pylan-009-external-validation.md`](../reviews/2026-06-18-pylan-009-external-validation.md).
   **N = 1%** (accepted; observed 0.0%). NOTE: Anvil itself has ~no Python, so the
   "own repo" half of the bar is discharged via the public-OSS external run.
 - **Intent:** Demonstrate the full Python T3 stack on real-world code at an
@@ -321,7 +321,7 @@ item below), so the module is Done.
   `PY-005.anvil`, `PY-007.anvil`, `patterns/compiled/registry.json`,
   `crates/anvil-checks/src/antipattern/scanner.rs`,
   `crates/anvil-checks/tests/python_antipatterns.rs`,
-  `plans/reviews/2026-06-18-pylan-009-external-validation.md`
+  `plans/archive/reviews/2026-06-18-pylan-009-external-validation.md`
 - **Module closeout (not for this item):** all nine work items are
   Released/Shipped via v0.9.0-beta (`6b0ed1d1`, 2026-07-12), so the module is Done,
   per the APS lifecycle. Still-open governance

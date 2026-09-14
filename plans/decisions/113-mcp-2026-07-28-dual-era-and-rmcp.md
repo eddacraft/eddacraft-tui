@@ -33,7 +33,7 @@ initialise-era protocol over stdio, while accepting modern clients. The
 module specification is
 [`plans/specs/2026-07-27-mcp-2026-07-28-dual-era-support.md`](../specs/2026-07-27-mcp-2026-07-28-dual-era-support.md)
 (MCP26). Gate evidence lives in
-[`plans/audits/2026-07-27-mcp26-001-ratification-gate.md`](../audits/2026-07-27-mcp26-001-ratification-gate.md).
+[`plans/archive/audits/2026-07-27-mcp26-001-ratification-gate.md`](../archive/audits/2026-07-27-mcp26-001-ratification-gate.md).
 
 This ADR records the implementation path so MCP26 does not expand the
 hand-written dispatcher by default and does not pin a pre-release SDK without
@@ -158,7 +158,7 @@ ratification, without normalising permanent protocol ownership inside anvil.
 
 - APS module: [MCP26](../modules/mcp-dual-era-support.aps.md)
 - Spec: [2026-07-27 dual-era support](../specs/2026-07-27-mcp-2026-07-28-dual-era-support.md)
-- Gate audit: [2026-07-27 MCP26-001](../audits/2026-07-27-mcp26-001-ratification-gate.md)
+- Gate audit: [2026-07-27 MCP26-001](../archive/audits/2026-07-27-mcp26-001-ratification-gate.md)
 - Related ADRs: [033](033-park-ide-mcp-retire-ts-scanner.md),
   [044](044-mcp-entry-activation-owned.md),
   [083](083-gctx-mcp-delivery-target.md),

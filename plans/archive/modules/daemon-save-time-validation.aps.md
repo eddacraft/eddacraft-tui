@@ -64,9 +64,9 @@ persistence) without consumers re-integrating.
   client + MCP re-point, backed by an interim per-`WorktreeKey` `SymbolGraph`
   cache (rebuild-on-restart, no persistence). Authorised to start
   (GO-WITH-CONDITIONS — see the
-  [holistic re-review verdict](../../reviews/2026-06-02-b-corrections-holistic-verdict.md)).
+  [holistic re-review verdict](../reviews/2026-06-02-b-corrections-holistic-verdict.md)).
   Action plan:
-  [`execution/2026-06-01-daemon-save-time-subphase-a.md`](../../execution/2026-06-01-daemon-save-time-subphase-a.md)
+  [`execution/2026-06-01-daemon-save-time-subphase-a.md`](../execution/2026-06-01-daemon-save-time-subphase-a.md)
   (Tasks 0–17).
 - **Sub-phase A-W — Windows + cross-platform parity.** Bring the Sub-phase A
   save-time surface (daemon verbs + `watch`/`status` clients) to the other
@@ -180,7 +180,7 @@ persistence) without consumers re-integrating.
 
 - ADR-061, ADR-063, ADR-064 accepted (done 2026-06-01/-02)
 - The B-corrections holistic re-review applied (done — verdict
-  [`2026-06-02-b-corrections-holistic-verdict.md`](../../reviews/2026-06-02-b-corrections-holistic-verdict.md))
+  [`2026-06-02-b-corrections-holistic-verdict.md`](../reviews/2026-06-02-b-corrections-holistic-verdict.md))
 - For A′: the GV2 hot-/non-hot-path boundary gate agreed with INTD/DRVR owners
 - For B: the GV2-021 persistence ADR accepted (**done**; ADR-069 Accepted,
   GV2-021 Released/Shipped, DSV-030 Merged)
@@ -1352,7 +1352,7 @@ requirement). Architecture decided by
   E2E cases use small fixture worktrees and serialise on the Linux leg (known
   inotify-exhaustion risk on shared runners); (c) the Windows operator
   verification checklist lives at
-  [`execution/DSV-051.windows.actions.md`](../../execution/DSV-051.windows.actions.md).
+  [`execution/DSV-051.windows.actions.md`](../execution/DSV-051.windows.actions.md).
 - **Validation evidence (2026-07-06):**
   `pnpm --filter @eddacraft/anvil-e2e exec vitest run smoke/save-time-driver.e2e.test.ts`
   passes (3/3 DSV-051 driver tests); `pnpm run aps:index:check`,

@@ -41,7 +41,7 @@ repository at commit dated 2026-09-06 and cross-checked against
 [`docs/architecture/graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md),
 [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md),
 [`docs/guides/ai-context-delivery.md`](../../docs/guides/ai-context-delivery.md),
-[`docs/reviews/2026-08-16-gctx-dogfood-failure-points.md`](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md),
+[`docs/archive/reviews/2026-08-16-gctx-dogfood-failure-points.md`](../../docs/archive/reviews/2026-08-16-gctx-dogfood-failure-points.md),
 `crates/anvil-gctx-types/src/lib.rs`, and `crates/anvil-bench/src/scenarios/token_reduction.rs`.
 
 No shared module file is edited (CIB is multi-writer — see
@@ -466,6 +466,6 @@ multi-writer and is reconciled on a bookkeeping branch only
 - Anvil: [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md),
   [`graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md),
   [`ai-context-delivery.md`](../../docs/guides/ai-context-delivery.md),
-  [`2026-08-16-gctx-dogfood-failure-points.md`](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md),
+  [`2026-08-16-gctx-dogfood-failure-points.md`](../../docs/archive/reviews/2026-08-16-gctx-dogfood-failure-points.md),
   `crates/anvil-gctx-types/src/lib.rs`, `crates/anvil-cli/src/mcp/tools/`,
   `crates/anvil-bench/src/scenarios/token_reduction.rs`.

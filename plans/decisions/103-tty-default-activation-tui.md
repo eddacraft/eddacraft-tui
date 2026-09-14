@@ -23,7 +23,7 @@ remain non-mutating.
 activation dossier on stderr and drives consent through `demand` pickers, then
 prints one literal `ProtectionState`. The 2026-07-04 welcome/start user-journey
 audit
-([`plans/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../audits/2026-07-04-anvil-start-welcome-user-journey.md))
+([`plans/archive/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../archive/audits/2026-07-04-anvil-start-welcome-user-journey.md))
 found two structural gaps: re-run verbosity (the full dossier reprints on every
 `protecting` re-run) and picker scaling (hand-rolled `demand::MultiSelect`
 overlays do not scale to many MCP clients / workflows). The
@@ -171,4 +171,4 @@ lands.
 - [ADR-060](060-anvil-home-install-root-override.md) — `ANVIL_HOME` gated posture
 - Downstream: first-run-wow WOW-005 / WOW-006 design gates (PR #3231);
   [`first-run-wow`](../archive/modules/first-run-wow.aps.md)
-- Audit: [`plans/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../audits/2026-07-04-anvil-start-welcome-user-journey.md)
+- Audit: [`plans/archive/audits/2026-07-04-anvil-start-welcome-user-journey.md`](../archive/audits/2026-07-04-anvil-start-welcome-user-journey.md)

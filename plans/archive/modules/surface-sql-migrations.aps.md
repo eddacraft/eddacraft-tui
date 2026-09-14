@@ -213,7 +213,7 @@ hygiene, gate/catalogue registration, drift, and validation.
   raw → **0** after one `anvil drift snapshot`, while a newly added unguarded
   `CREATE TABLE` still warns (**1** new-edge). An established repo sees zero
   noise after baselining; new DDL is still surfaced. Evidence:
-  `plans/reviews/2026-06-18-surface-validation.md`.
+  `plans/archive/reviews/2026-06-18-surface-validation.md`.
 - **Validation:** FP report committed under `plans/reviews/` showing < 1% on Anvil + ≥1 external repo
 - **Dependencies:** SURFSQL-002, SURFSQL-005, SURFSQL-008 (dogfood leg),
   SURFSQL-006 (external leg — the baseline that absorbs idiomatic pre-existing

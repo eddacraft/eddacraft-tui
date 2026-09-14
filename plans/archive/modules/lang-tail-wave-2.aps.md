@@ -212,7 +212,7 @@ than per-language PRs.
   panics**; ~26k symbols extracted; Zig 6.7% error-trees, WAT/WAST higher
   (script syntax + newer proposals + invalid-by-design fixtures, like LANGTAIL-008
   C/C++). Evidence:
-  `plans/reviews/2026-06-30-ltw2-004-external-validation.md`.
+  `plans/archive/reviews/2026-06-30-ltw2-004-external-validation.md`.
 - **Validation:** `cargo test -p anvil-kernel` (wave-2 acceptance test) + smoke
   evidence file present
 - **Dependencies:** LTW2-002 (Merged), LTW2-003 (Merged)

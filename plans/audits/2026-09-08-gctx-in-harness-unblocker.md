@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| [CCTX-003 comparison](./2026-09-08-cctx-003-baseline-comparison.md), [Context Compiler spec](../specs/2026-09-08-context-compiler.md) §12.2 / §12.7, [AI context delivery](../../docs/guides/ai-context-delivery.md), [ADR-083](../decisions/083-gctx-mcp-delivery-target.md), [ADR-084](../decisions/084-gctx-graph-handle-access.md), [ADR-095](../decisions/095-gctx-cli-secondary-surface.md), [ADR-082](../decisions/082-daemon-lifecycle-user-startup.md), [ADR-114](../decisions/114-bare-anvil-ensure-surface.md), [GCTX dogfood failure points](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md) | [CCTX module](../modules/context-compiler.aps.md) CCTX-005, [eval fixtures README](../evals/context-compiler/2026-09-08/README.md) |
+| [CCTX-003 comparison](./2026-09-08-cctx-003-baseline-comparison.md), [Context Compiler spec](../specs/2026-09-08-context-compiler.md) §12.2 / §12.7, [AI context delivery](../../docs/guides/ai-context-delivery.md), [ADR-083](../decisions/083-gctx-mcp-delivery-target.md), [ADR-084](../decisions/084-gctx-graph-handle-access.md), [ADR-095](../decisions/095-gctx-cli-secondary-surface.md), [ADR-082](../decisions/082-daemon-lifecycle-user-startup.md), [ADR-114](../decisions/114-bare-anvil-ensure-surface.md), [GCTX dogfood failure points](../../docs/archive/reviews/2026-08-16-gctx-dogfood-failure-points.md) | [CCTX module](../modules/context-compiler.aps.md) CCTX-005, [eval fixtures README](../evals/context-compiler/2026-09-08/README.md) |
 
 Internal evaluation harness note. **No product ships.** This does not authorise
 a compiler, knowledge store, crate, feature flag, GCTX DTO change, GATT fork,

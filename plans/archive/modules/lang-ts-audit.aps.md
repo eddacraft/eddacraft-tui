@@ -319,7 +319,7 @@ K1 ADR) were resolved inline above.
   family; `Function.prototype.constructor` deferred to follow-up to
   avoid false positives on legitimate `.constructor` access without an
   AST-aware filter.** *Identified from
-  [2026-05-21 new-user journey audit](../../audits/2026-05-21-new-user-journey-audit.md)
+  [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
   finding #7 — a planted `export function unsafe(input:any){ return eval(input); }`
   was not caught by any of `check`, `audit`, `gate`, `watch`, or MCP, even
   though `antipattern-scan` is wired and PASSes under `gate` on the same

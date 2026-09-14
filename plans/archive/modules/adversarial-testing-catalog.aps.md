@@ -85,4 +85,4 @@ validate prompt safety, data handling, and model behaviour regressions.
 
 ## Execution
 
-Action plan: [../../execution/ATC.actions.md](../../execution/ATC.actions.md)
+Action plan: [../../execution/ATC.actions.md](../execution/ATC.actions.md)

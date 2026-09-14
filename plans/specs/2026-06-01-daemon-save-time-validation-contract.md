@@ -176,7 +176,7 @@ index (`dependents_of(F)`, 1-hop) and the `update_file` `GraphDelta`:
 > index is **net-new**, not "existing / O(1)". The type exists but no production
 > path populates it; Sub-phase A's cache must hold and maintain a
 > `(SymbolGraph, DependencyGraph)` pair, and `certify` must take both. See
-> `plans/reviews/2026-06-01-daemon-graph-council-verdict.md`.
+> `plans/archive/reviews/2026-06-01-daemon-graph-council-verdict.md`.
 
 1. `ContentModify` with **no export-surface change** → validate F only →
    `certified`.
@@ -198,7 +198,7 @@ index (`dependents_of(F)`, 1-hop) and the `update_file` `GraphDelta`:
 > `dependents_of` **exclusively**: `GraphDelta.removed_edges` is **always empty**
 > (`update_file` at `incremental.rs:150`, `remove_file` at `incremental.rs:291-298`),
 > so certify logic must never read it.
-> See `plans/reviews/2026-06-01-daemon-graph-council-verdict.md`.
+> See `plans/archive/reviews/2026-06-01-daemon-graph-council-verdict.md`.
 
 No parse / resolve / transitive traversal on the hot path. This is strictly more
 precise than "any file with importers is never certified".

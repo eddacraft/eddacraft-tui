@@ -4,7 +4,7 @@
 
 **Accepted** — 2026-06-15, Josh. The two ADR-075 entry gates for the
 assistant-facing surface are now both landed: this decision (GCTX-002 — the MCP
-delivery target) and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+delivery target) and the [context-egress privacy review (PV-9)](../archive/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 (APPROVE-WITH-CONDITIONS, 4/4). Records that GCTX context delivery rides the Rust
 `anvil mcp serve` (RMCPF) surface; the egress conditions CE-1..CE-12 from the PV-9
 review fold into GCTX-001.

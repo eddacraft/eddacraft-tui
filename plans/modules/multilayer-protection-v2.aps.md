@@ -78,7 +78,7 @@ exist yet). Module total advances 81 → 82; done-count unchanged at
 
 Earlier 2026-05-21 (Group R added — MLP2-074 daemon-side
 `session.report_process` IPC handler. Filed against the
-[v0.7.0-beta pre-tag release council](../reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md)
+[v0.7.0-beta pre-tag release council](../archive/reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md)
 action A2 and tracked at GH
 [#1827](https://github.com/eddacraft/anvil-001/issues/1827); does not block
 the `v0.7.0-beta` tag (launcher absorbs the gap, ships as Known Gap).
@@ -86,7 +86,7 @@ Module total advances 80 → 81; done-count unchanged at 62.)
 
 Earlier 2026-05-21: Group Q added — MLP2-072 MCP auth-gate
 shape + MLP2-073 pre-write summary dedupe. Both filed against the
-[2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+[2026-05-21 new-user journey audit](../archive/audits/2026-05-21-new-user-journey-audit.md)
 and tracked at GH [#1796](https://github.com/eddacraft/anvil-001/issues/1796)
 and [#1799](https://github.com/eddacraft/anvil-001/issues/1799); neither
 blocks the `v0.7.0-beta` tag. Module total advances 78 → 80; done-count
@@ -4169,7 +4169,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-067: Daemon-hosted graph cache with narrow evaluator RPC
 
-- **Status:** Superseded 2026-06-30 — **delivered by DSV-004** and closed here as a now-completed origin pointer. The interim per-`WorktreeKey` graph cache shipped as the daemon `KernelGraphCache` (`crates/anvil-intercept/src/kernel_cache.rs`) and the narrow `kernel.evaluate` RPC was generalised into the shipped `validate_paths` wire — **DSV-004 Released/Shipped via v0.8.0-beta, Merged 2026-06-03 via #2273**. The delivery lives and counts under the DSV module; this record is retained as a frozen pointer (no MLP2 done-count change — the work was never delivered *in* MLP2). Originally folded into ADR-061 sub-phase A 2026-06-01 (council `plan-5768ae0c`; `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9, `plans/execution/2026-06-01-daemon-save-time-subphase-a.md` Task 7).
+- **Status:** Superseded 2026-06-30 — **delivered by DSV-004** and closed here as a now-completed origin pointer. The interim per-`WorktreeKey` graph cache shipped as the daemon `KernelGraphCache` (`crates/anvil-intercept/src/kernel_cache.rs`) and the narrow `kernel.evaluate` RPC was generalised into the shipped `validate_paths` wire — **DSV-004 Released/Shipped via v0.8.0-beta, Merged 2026-06-03 via #2273**. The delivery lives and counts under the DSV module; this record is retained as a frozen pointer (no MLP2 done-count change — the work was never delivered *in* MLP2). Originally folded into ADR-061 sub-phase A 2026-06-01 (council `plan-5768ae0c`; `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9, `plans/archive/execution/2026-06-01-daemon-save-time-subphase-a.md` Task 7).
 - **Delivery home (2026-06-03):** the daemon save-time effort is now a tracked module — [`daemon-save-time-validation`](../archive/modules/daemon-save-time-validation.aps.md) (DSV). MLP2-067 is the *originating interim-backing record*; the delivery is DSV Sub-phase A (DSV-001–009; DSV-004 carries the interim `(SymbolGraph, DependencyGraph)` cache specifically). This item stays in MLP2 as the origin pointer — no status/count change.
 - **Intent:** `anvil check` and `anvil watch` currently rebuild the
   `anvil_kernel::graph::SymbolGraph` fresh per CLI invocation. The
@@ -4428,7 +4428,7 @@ to redesign once GV2-001..-023 land.
   MLP2-023 (composite session key), MLP2-025 (spoof cross-check
   primitives, Merged), INTD-002 (peer-credential plumbing).
 - **Source:** Release council pass 1, 2026-05-20
-  ([`plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`](../reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md))
+  ([`plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`](../archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md))
   ship-with-doc verdict on DeepSec
   [#1674](https://github.com/eddacraft/anvil-001/issues/1674)
   ("IPC clients can mint trusted lineage tags"). Operator
@@ -4569,7 +4569,7 @@ to redesign once GV2-001..-023 land.
   HMAC salt tracked in `v0.6.0-beta-security-note.md` §H2
   follow-up.
 - **Source:** Release council pass 1, 2026-05-20
-  ([`plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`](../reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md))
+  ([`plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`](../archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md))
   defer-with-issue verdict on
   [#1722](https://github.com/eddacraft/anvil-001/issues/1722)
   ("INTD-015 — Fanout cross-session policy unreachable").
@@ -4623,7 +4623,7 @@ protection-claim contract.
 ### Q. New-user journey audit follow-ups (2026-05-21)
 
 Two MCP-surface findings raised by the
-[2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md).
+[2026-05-21 new-user journey audit](../archive/audits/2026-05-21-new-user-journey-audit.md).
 Neither blocks the `v0.7.0-beta` tag — they document discrepancies between
 the marketed pre-write catch path and what a brand-new install actually
 experiences.
@@ -4672,7 +4672,7 @@ experiences.
   defensively by `(rule_id, location)`) before the summary is
   computed; a single planted `sk-…` literal returns `summary.total = 1`.
 - **Repro:** See the audit harness in
-  [`plans/audits/2026-05-21-new-user-journey-audit.md`](../audits/2026-05-21-new-user-journey-audit.md)
+  [`plans/archive/audits/2026-05-21-new-user-journey-audit.md`](../archive/audits/2026-05-21-new-user-journey-audit.md)
   — call `anvil_validate_write` with `operation: "update"` against
   `src/smelly.ts` containing one hardcoded API key.
 - **Validation:** Regression pin in
@@ -4689,7 +4689,7 @@ experiences.
 - **Tracking:** GH issue [#1827](https://github.com/eddacraft/anvil-001/issues/1827)
 - **Source:** v0.7.0-beta pre-tag release council `council-a1e2648f`
   (2026-05-21) action A2; council verdict at
-  [`plans/reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md`](../reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md).
+  [`plans/archive/reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md`](../archive/reviews/release-council/2026-05-21-v0.7.0-beta-pre-tag.md).
 - **Intent:** `anvil-run` invokes the daemon JSON-RPC method
   `session.report_process` to report the child process's PID and start
   time after launch. The daemon dispatch table at

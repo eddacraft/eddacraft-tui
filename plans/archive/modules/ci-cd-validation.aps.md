@@ -15,7 +15,7 @@ Plan / Build / Release operating model. See: plans/aps-rules.md
 **Operating model:** [2026-05-09 Plan / Build / Release Operating Model](../../specs/2026-05-09-plan-build-release-operating-model.md)
 **Execution architecture:** [2026-05-09 Agentic Execution Ecosystem Architecture](../../specs/2026-05-09-agentic-execution-ecosystem-architecture.md)
 **Review architecture:** [2026-05-09 Council Agent And Skill Change Proposal](../../specs/2026-05-09-council-agent-skill-change-proposal.md)
-**Council review:** [2026-05-10 CICD Validation Council Review](../../reviews/2026-05-10-cicd-validation-council.md) — converged, no open findings.
+**Council review:** [2026-05-10 CICD Validation Council Review](../reviews/2026-05-10-cicd-validation-council.md) — converged, no open findings.
 
 ## Purpose
 

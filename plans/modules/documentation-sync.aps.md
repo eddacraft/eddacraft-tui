@@ -189,7 +189,7 @@ surface is extended instead of duplicated.
   lowercase naming.
 - **Dependencies:** DOCSYNC-027 is Done. Coordinate host changes with DSITE-001
   and validation changes with DOCGOV's existing `docs:check` authority.
-- **Validation:** See `plans/execution/DOCSYNC-028.actions.md`.
+- **Validation:** See `plans/archive/execution/DOCSYNC-028.actions.md`.
 
 ## Approved APS New-User Rebuild
 
@@ -226,7 +226,7 @@ snapshot of the upstream CLI contract.
 - **Dependencies:** DOCSYNC-024 is Done and DOCSYNC-028 is Merged. Coordinate
   host changes with DSITE and validation changes with the existing DOCGOV
   `docs:check` authority.
-- **Validation:** See `plans/execution/DOCSYNC-029.actions.md`.
+- **Validation:** See `plans/archive/execution/DOCSYNC-029.actions.md`.
 - **Results:** Rebuilt all 15 public APS pages and the sidebar around one
   install-to-first-plan journey; corrected the native CLI, platform, migration,
   scaffold, agent, and monorepo contracts against anvil-plan-spec v0.6.0 at

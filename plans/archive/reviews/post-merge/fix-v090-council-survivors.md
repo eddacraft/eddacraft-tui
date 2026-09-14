@@ -48,8 +48,8 @@ it out):
 
 - This branch fixes the v0.9.0-beta release-council survivors (CIB-091..095) plus
   net-new items N1–N6, N8 from the `anvil:2.1` cross-ref
-  (`plans/audits/2026-06-21-v090-netnew-crossref.md`). Full per-item status:
-  `plans/audits/2026-06-21-v090-council-survivors.md`.
+  (`plans/archive/audits/2026-06-21-v090-netnew-crossref.md`). Full per-item status:
+  `plans/archive/audits/2026-06-21-v090-council-survivors.md`.
 - **CE-3 (091a)** is the v0.9.0-beta cut-blocker and is closed + council-verified.
 - **095b** closed a real privilege-certify hole (restore→reconcile window).
 - Local gates green at PR time: `cargo fmt --all --check`,

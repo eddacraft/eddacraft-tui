@@ -5,7 +5,7 @@
 | IORISK | @aneki | Complete |
 
 **Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: all three items
+`plans/archive/reviews/2026-07-11-polreset-downstream-coherence.md`: all three items
 were delivered via POLRESET-004 / PR #3139, so the module advances to Done.
 Concrete heavyweight scanners remain later intake — file them as new work
 items, e.g. under ACTAX risk-score fusion, when prioritised).
@@ -62,4 +62,4 @@ Introduce provider-agnostic input/output risk controls for prompt injection, sen
 
 ## Execution
 
-Action plan: [../../execution/IORISK.actions.md](../../execution/IORISK.actions.md)
+Action plan: [../../execution/IORISK.actions.md](../execution/IORISK.actions.md)

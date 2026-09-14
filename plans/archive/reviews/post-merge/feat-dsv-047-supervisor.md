@@ -26,7 +26,7 @@ Verified: <!-- filled by cleanup agent -->
       licence (exit 3 unauthenticated); covered structurally by the fake
       launcher/process seams, end-to-end by the DSV-051 E2E matrix
       (human/DSV-051)
-- [ ] Windows leg — see `plans/execution/DSV-051.windows.actions.md` §1 and
+- [ ] Windows leg — see `plans/archive/execution/DSV-051.windows.actions.md` §1 and
       §3 (headless spawn discipline; taskkill → `failed`, no auto-respawn);
       runs after DSV-049..050 merge (human required)
 

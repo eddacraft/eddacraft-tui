@@ -467,7 +467,7 @@ default-on.
   (warm-start latency / herd-miss single-flight / corrupt-shared-base) plus the
   standing correctness/GC criteria are green, evidenced by committed harnesses and
   the gate document
-  [`plans/audits/2026-07-12-gbase-graduation-gate.md`](../../audits/2026-07-12-gbase-graduation-gate.md).
+  [`plans/archive/audits/2026-07-12-gbase-graduation-gate.md`](../audits/2026-07-12-gbase-graduation-gate.md).
   `ANVIL_PERSIST_GRAPH` flipped **default-on with an explicit opt-out**
   (`persist_graph_enabled`: absence ⇒ enabled, `0`/`false`/`no`/`off` ⇒ disabled;
   `flags/manifest.json` `daemon.persist-graph` `defaultVariant: enabled`). The gate

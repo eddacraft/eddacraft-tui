@@ -22,7 +22,7 @@ decision is frozen by an ADR, this spec points at the ADR and does not restate
 its reasoning. The taxonomy was ratified 2026-06-08 by council `plan-ec495f8b`
 (RATIFY-WITH-FIXES); the corrections it required are folded in below and tracked
 in
-[the ratification verdict](../../plans/reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md).
+[the ratification verdict](../../plans/archive/reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md).
 
 **In scope:** the five-graph taxonomy and what each graph owns; the cross-graph
 identity model; the join model and a worked join trace; the query/registry API
@@ -585,7 +585,7 @@ INTD and DRVR share the enforcement class by design — ADR-063's single admissi
 rule is the point. GCTX (context projection) and WEAVE (diagnostic/provenance)
 both read the non-hot background tier; the privacy boundary that governs GCTX's
 egress is specified in the
-[context-egress privacy review (PV-9)](../../plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+[context-egress privacy review (PV-9)](../../plans/archive/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 and absorbed by GCTX-001 (conditions CE-1..CE-12), not re-specified here.
 
 > Scope: this contract fixes the consumer read boundary only. The registry and
@@ -771,9 +771,9 @@ longer make the export-diff silently under-fire (regression-tested in
 - Module plan:
   [`plans/archive/modules/graph-v2-foundation.aps.md`](../../plans/archive/modules/graph-v2-foundation.aps.md)
 - Ratification verdict:
-  [`plans/reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md`](../../plans/reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md)
+  [`plans/archive/reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md`](../../plans/archive/reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md)
 - Wave verdict:
-  [`plans/reviews/2026-06-05-gv2-wave-planning-council-verdict.md`](../../plans/reviews/2026-06-05-gv2-wave-planning-council-verdict.md)
+  [`plans/archive/reviews/2026-06-05-gv2-wave-planning-council-verdict.md`](../../plans/archive/reviews/2026-06-05-gv2-wave-planning-council-verdict.md)
 - ADRs: [061](../../plans/decisions/061-save-time-daemon-delta-validation.md),
   [063](../../plans/decisions/063-gv2-hot-path-boundary.md),
   [064](../../plans/decisions/064-intercept-graph-cache-crate-boundary.md),

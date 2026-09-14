@@ -214,7 +214,7 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 #### GCALL-007: Caller-egress privacy review
 
 - **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-17 via #2710 — verdict filed
-  ([2026-06-17 caller-egress privacy review](../../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md),
+  ([2026-06-17 caller-egress privacy review](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md),
   APPROVE-WITH-CONDITIONS): caller egress is identity-only and equivalent-risk to
   the PV-9-approved `find_dependents`; conditions CALL-1..CALL-5 folded into
   GCTX-014 (Merged #2715). The one new substrate condition (CALL-1,

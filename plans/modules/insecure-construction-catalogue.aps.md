@@ -240,4 +240,4 @@ New registry `prefixes` entries (one per family), mirroring `GS`/`DD`/`PY`:
       clear it; WC-001 stays default-on `warning` (MD5-as-checksum findings are
       suppressible true positives via `@anvil-ignore`, hard-FP rate 0%), not
       downgraded to opt-in. Evidence:
-      [`plans/reviews/2026-07-01-insec-external-validation.md`](../reviews/2026-07-01-insec-external-validation.md).
+      [`plans/archive/reviews/2026-07-01-insec-external-validation.md`](../archive/reviews/2026-07-01-insec-external-validation.md).

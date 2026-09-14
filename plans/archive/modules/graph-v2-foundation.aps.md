@@ -4,7 +4,7 @@
 | --- | ----- | ------ |
 | GV2 | —     | Complete |
 
-**Last reviewed:** 2026-06-15 (**GV2-031 Merged via #2627** — the last internal GV2 item, leaving GV2 20/20; **GV2-020 + GV2-023 promoted Draft → Ready then Merged** once the ADR-075 entry decisions landed — [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged. **GV2-023 consumer query contract authored** in the foundation spec ("The consumer query contract (GV2-023)") — four read classes with one mapped scenario each for INTD/DRVR (live), GCTX (in flight), and WEAVE (planned, Draft 0/21); the registry impl (GV2-020) and assistant projection rules (GCTX-001) remain downstream.)
+**Last reviewed:** 2026-06-15 (**GV2-031 Merged via #2627** — the last internal GV2 item, leaving GV2 20/20; **GV2-020 + GV2-023 promoted Draft → Ready then Merged** once the ADR-075 entry decisions landed — [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged. **GV2-023 consumer query contract authored** in the foundation spec ("The consumer query contract (GV2-023)") — four read classes with one mapped scenario each for INTD/DRVR (live), GCTX (in flight), and WEAVE (planned, Draft 0/21); the registry impl (GV2-020) and assistant projection rules (GCTX-001) remain downstream.)
 
 2026-07-13: all Merged items confirmed in the v0.9.0-beta tag (record:
 plans/releases/v0.9.0-beta.md) and advanced to Released/Shipped; module
@@ -54,7 +54,7 @@ ready to archive per the archive cascade.
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../../docs/architecture/graph-v2-foundation-spec.md)
 > (GV2-001, merged via PR #2350) and the
-> [2026-06-05 wave planning-council verdict](../../reviews/2026-06-05-gv2-wave-planning-council-verdict.md).
+> [2026-06-05 wave planning-council verdict](../reviews/2026-06-05-gv2-wave-planning-council-verdict.md).
 > Three owner decisions are folded in: **grow the wave** (GV2-012/013/014 pulled
 > in so GV2-020 is the full multi-graph registry), **graduate GV2-002** (real
 > stable identity + export-diff, in-wave critical), and **claim privilege
@@ -190,7 +190,7 @@ Change status to **Ready** when:
 - [x] Graph taxonomy ratified by a formal architecture-review council —
       **ratified 2026-06-08** (council `plan-ec495f8b`, RATIFY-WITH-FIXES;
       conditions C-1..C-6 folded into the spine spec, now `Live`). Verdict:
-      [2026-06-08-gv2-taxonomy-ratification-verdict](../../reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md)
+      [2026-06-08-gv2-taxonomy-ratification-verdict](../reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md)
 - [x] Hot-path/non-hot-path boundary agreed with INTD and DRVR owners —
       ratified in [ADR-063](../../decisions/063-gv2-hot-path-boundary.md) (Accepted
       2026-06-01)
@@ -208,7 +208,7 @@ Change status to **Ready** when:
       field persists in v1** — the `SnapshotPayload` covers semantic +
       dependency only, and the per-field-class table feeds the GV2-030
       allowlist. Verdict:
-      [2026-06-08-gv2-privacy-review-verdict](../../reviews/2026-06-08-gv2-privacy-review-verdict.md)
+      [2026-06-08-gv2-privacy-review-verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md)
 - [x] GCTX module updated to depend on GV2 rather than owning foundation work —
       [graph-context-delivery](graph-context-delivery.aps.md) declares GV2 as a
       dependency and lists schemas, stable IDs, deltas, hot indexes, and
@@ -246,7 +246,7 @@ Change status to **Ready** when:
 #### GV2-002: Stable graph identity + export-diff primitive
 
 - **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2387 — privacy-review gate cleared the
-  same day ([verdict](../../reviews/2026-06-08-gv2-privacy-review-verdict.md));
+  same day ([verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md));
   full-pack council `council-f33ee5ef` converged pre-merge
 - **Intent:** Replace the position-conflated `symbol_baseline_key`
   (`file::kind::name`) and the session-local `SymbolNode.id` counter with a
@@ -274,7 +274,7 @@ Change status to **Ready** when:
 - **Dependencies:** GV2-001
 - **Note:** Privacy review completed 2026-06-08 — implement under conditions
   PV-1..PV-5 of the
-  [privacy verdict](../../reviews/2026-06-08-gv2-privacy-review-verdict.md):
+  [privacy verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md):
   (PV-1) overload disambiguator is structural only (kind/arity/type-identity
   refs or fixed-width hash, and/or source-offset ordinal) — never parameter
   source text or default-value expressions; (PV-2) the stable-id hash is a
@@ -351,7 +351,7 @@ Change status to **Ready** when:
 - **Priority:** Critical
 - **Dependencies:** GV2-002, GV2-003
 - **Note:** Privacy review completed 2026-06-08
-  ([verdict](../../reviews/2026-06-08-gv2-privacy-review-verdict.md)) — the
+  ([verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md)) — the
   persistable schema subset is bounded by the verdict's per-field-class table;
   source spans stay no-text `ByteRange` (structurally incapable of holding
   spanned text) and the GCTX-projection fields never persist raw bodies.
@@ -484,7 +484,7 @@ Change status to **Ready** when:
 
 #### GV2-020: Multi-graph registry and typed query traits
 
-- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via PR #2622 — `GraphRegistry` + typed query traits over the real graphs (semantic/dependency/trust), with **trait-stub** `ControlJoin`/`ProvenanceJoin` seams for the contract-only control/session + plan/provenance graphs (GV2-013/014 named-not-frozen contracts; live resolvers land with consumers, ADR-064), the `WorkspaceRoot` worktree-root→file relativiser (`anvil-kernel-types`), and `KernelGraphCache::with_hot_registry`. Sealed hot-read surface preserved (compile_fail proof); e2e certifies a non-vacuous verdict through the registry path, verdict-equal to the direct hot-read path. Local Council ran pre-PR (all CRITICAL/MAJOR addressed). Promoted Draft → Ready 2026-06-15 (deps GV2-010/011/012/013/014 all Merged) alongside the ADR-075 entry decisions ([ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) Accepted + [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed).
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via PR #2622 — `GraphRegistry` + typed query traits over the real graphs (semantic/dependency/trust), with **trait-stub** `ControlJoin`/`ProvenanceJoin` seams for the contract-only control/session + plan/provenance graphs (GV2-013/014 named-not-frozen contracts; live resolvers land with consumers, ADR-064), the `WorkspaceRoot` worktree-root→file relativiser (`anvil-kernel-types`), and `KernelGraphCache::with_hot_registry`. Sealed hot-read surface preserved (compile_fail proof); e2e certifies a non-vacuous verdict through the registry path, verdict-equal to the direct hot-read path. Local Council ran pre-PR (all CRITICAL/MAJOR addressed). Promoted Draft → Ready 2026-06-15 (deps GV2-010/011/012/013/014 all Merged) alongside the ADR-075 entry decisions ([ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) Accepted + [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed).
 - **Intent:** Provide one typed in-process entry point for querying joined graph
   state without coupling consumers to storage or `petgraph` internals.
 - **Expected Outcome:** Registry exposes graph handles and join queries for
@@ -558,7 +558,7 @@ Change status to **Ready** when:
 
 #### GV2-023: Consumer query contract for daemon, drivers, MCP, and weave
 
-- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via PR #2621 — contract authored in the GV2 foundation spec ("The consumer query contract (GV2-023)"): four read classes (enforcement / diagnostic / provenance / context projection) with one mapped query scenario each for INTD (live), DRVR (wired by design, not yet built), GCTX (in flight), and WEAVE (planned, Draft 0/21). This contract is the consumer-facing face of the GV2-020 registry, authored ahead of the registry impl like the GV2-013/014 contracts (deps GV2-022 Merged; GV2-020 Ready). The MCP/assistant projection path it defines is governed by the [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md): assistant queries are projections over the same trusted substrate, identity-only by default.
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via PR #2621 — contract authored in the GV2 foundation spec ("The consumer query contract (GV2-023)"): four read classes (enforcement / diagnostic / provenance / context projection) with one mapped query scenario each for INTD (live), DRVR (wired by design, not yet built), GCTX (in flight), and WEAVE (planned, Draft 0/21). This contract is the consumer-facing face of the GV2-020 registry, authored ahead of the registry impl like the GV2-013/014 contracts (deps GV2-022 Merged; GV2-020 Ready). The MCP/assistant projection path it defines is governed by the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md): assistant queries are projections over the same trusted substrate, identity-only by default.
 - **Intent:** Define the graph query boundary downstream consumers use so GCTX,
   DRVR, INTD, and WEAVE do not grow incompatible graph adapters.
 - **Expected Outcome:** Query contract separates enforcement reads, diagnostic
@@ -812,7 +812,7 @@ Change status to **Ready** when:
 - **Priority:** High
 - **Dependencies:** GV2-002, GV2-003
 - **Note:** Implement under conditions PV-6..PV-12 of the 2026-06-08
-  [privacy verdict](../../reviews/2026-06-08-gv2-privacy-review-verdict.md):
+  [privacy verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md):
   (PV-6) the v1 DTO covers semantic + dependency only — zero
   session/attribution/provenance fields; GV2-013/GV2-014 need their own privacy
   ADRs before persisting (spec condition C-6); (PV-7) the no-leak test asserts
@@ -930,7 +930,7 @@ Change status to **Ready** when:
   GV2-032 batch Council (adversarial), 2026-06-24.
 - **Source:** Filed 2026-06-23 via planning-workflow to unblock the GCTX snippet
   line (GCTX-021..023); see the [graph-context-delivery](graph-context-delivery.aps.md)
-  module and the [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  module and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
   CE-7 freshness condition.
 
 ---
@@ -946,7 +946,7 @@ Change status to **Ready** when:
 | Backing swap silently changes verdicts | Medium | High | GV2-027 parity property test asserts verdict-identical Certifiability vs the interim backing |
 | Privilege containment claimed but inert in prod | Medium | High | GV2-029 wires `annotate_trust` + a `node:fs` test, and blocks the GV2-027 swap until green |
 | Stable identity wrong for rename-heavy work | Medium | Medium | GV2-002 includes rename/delete/recreate + overload validation before implementation |
-| Persisted session/provenance data captures too much private context | Medium | High | GV2-030 sealed-DTO + no-leak test; [privacy verdict](../../reviews/2026-06-08-gv2-privacy-review-verdict.md) pins v1 payload to semantic+dependency only (PV-6) with conditions PV-1..PV-12 folded into GV2-002/030 |
+| Persisted session/provenance data captures too much private context | Medium | High | GV2-030 sealed-DTO + no-leak test; [privacy verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md) pins v1 payload to semantic+dependency only (PV-6) with conditions PV-1..PV-12 folded into GV2-002/030 |
 | Slice ships as an uncalled library (zero-callers) | Medium | High | GV2-020 e2e-through-registry test + GV2-028 parser feed prove the backing is live in `validate_paths` |
 
 ## Decisions

@@ -16,7 +16,7 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] Close GH issue #1650 if it does not auto-close from the
       `Closes #1650` trailer (agent: yes)
 - [ ] Re-confirm that the release-council pass-2 obligation list in
-      `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`
+      `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`
       (§"Tag-blocking obligations remaining" item 2) shows CLAWP-008
       patch landed; cross-link this PR (agent: yes)
 
@@ -47,6 +47,6 @@ Verified: <!-- filled by cleanup agent -->
   holds for `scan_artifact_json` too.
 - This PR is the second of the three docs-unrelated residual
   obligations listed in
-  `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`
+  `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`
   §"Tag-blocking obligations remaining" (item 2). CLAWP-028 (item 3)
   remains open under PR #1741.

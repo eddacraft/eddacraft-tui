@@ -218,7 +218,7 @@ family):
   surface change). The export fast-path graduates from conservative-partial only
   once GV2-002 stable identity exists; no dedicated `export_surface_changed()`
   helper is mandated for Sub-phase A. See
-  `plans/reviews/2026-06-01-daemon-graph-council-verdict.md` (B4).
+  `plans/archive/reviews/2026-06-01-daemon-graph-council-verdict.md` (B4).
 - An export-surface change, a `Delete`, or a `Rename` can make an **unchanged
   importer** illegal. The affected set is exactly `dependents_of(file)` — the
   1-hop importer set, read from the daemon's `DependencyGraph.reverse` index.
@@ -231,7 +231,7 @@ family):
   but no production path builds it today — `add_dependency`/`dependents_of` have
   zero non-test callers, and the daemon cache holds only `SymbolGraph`. Sub-phase A
   **must build and incrementally maintain** this index; it is not a free "existing
-  / O(1)" read. See `plans/reviews/2026-06-01-daemon-graph-council-verdict.md` (B1).
+  / O(1)" read. See `plans/archive/reviews/2026-06-01-daemon-graph-council-verdict.md` (B1).
   The daemon validates the file **plus that bounded reverse closure** inline
   (re-exports recurse, bounded by budget) and stays `certified` if clean.
 - If the impact closure exceeds budget → `coverage: partial` →
@@ -302,7 +302,7 @@ traversal on the hot path.
   the existing daemon-side resolver. The allowlist must be read **only** through
   that operator-home resolver, **never** from a repo `.anvil.yaml` (the confined
   agent must not be able to grant itself access). See
-  `plans/reviews/2026-06-01-daemon-graph-council-verdict.md` (§4, item 8).
+  `plans/archive/reviews/2026-06-01-daemon-graph-council-verdict.md` (§4, item 8).
   **This is a policy guardrail for well-behaved agent tooling, not an OS jail:**
   it constrains everything that goes through Anvil (validation and the
   enforcement-participating write gate), but cannot stop raw shell file

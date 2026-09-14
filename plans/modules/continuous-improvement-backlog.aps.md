@@ -1078,7 +1078,7 @@ archive.
   the command was deliberately added to the auth-bypass set
   (`bypass_auth_plan_dashboard`) so it could be dogfooded locally while
   `anvil auth` was unavailable; the execution plan
-  (`plans/execution/2026-05-24-aps-tui-dashboard.md` §104/§110) recorded that
+  (`plans/archive/execution/2026-05-24-aps-tui-dashboard.md` §104/§110) recorded that
   workaround as an "unauthenticated classification matching local planning
   commands". Feature-flagging was never considered in the spec, module, or
   ADR-055. Bring the surface under the FLAGCAT catalogue as an
@@ -2225,7 +2225,7 @@ archive.
   `SECRET-HIGH-ENTROPY-STRING` / `SECRET-DATABASE-URL` / `SECRET-JWT-TOKEN`
   counts drop while real-credential fixtures still fire.
 - **Identified From:** the 2026-06-18 external-codebase FP dogfood
-  ([plans/reviews/2026-06-18-langts-external-fp.md](../reviews/2026-06-18-langts-external-fp.md)
+  ([plans/archive/reviews/2026-06-18-langts-external-fp.md](../archive/reviews/2026-06-18-langts-external-fp.md)
   cross-cutting secret-detection section).
 - **Confidence:** medium — the gating patterns are well understood, but
   balancing test-vector suppression against issue #1800's "textbook keys must
@@ -2247,7 +2247,7 @@ archive.
   `crates/anvil-checks-ast/src/lib.rs`, `crates/anvil-checks-ast/src/tests.rs`.
 - **Validation:** `cargo test -p eddacraft-anvil-checks-ast`.
 - **Identified From:** the 2026-06-18 external-codebase FP dogfood
-  ([plans/reviews/2026-06-18-rstlan-external-fp.md](../reviews/2026-06-18-rstlan-external-fp.md))
+  ([plans/archive/reviews/2026-06-18-rstlan-external-fp.md](../archive/reviews/2026-06-18-rstlan-external-fp.md))
   — tokio `process/mod.rs` / `macros/*.rs` doc-only stubs.
 - **Confidence:** medium — small, well-scoped; mostly a policy decision on
   whether doc-only configs count as shipped code.
@@ -2270,7 +2270,7 @@ archive.
   confirm `anvil-ast-parse-skip` count drops to 0 (or the rate stays logged
   under the bar).
 - **Identified From:** the 2026-06-18 external-codebase FP dogfood
-  ([plans/reviews/2026-06-18-rstlan-external-fp.md](../reviews/2026-06-18-rstlan-external-fp.md)
+  ([plans/archive/reviews/2026-06-18-rstlan-external-fp.md](../archive/reviews/2026-06-18-rstlan-external-fp.md)
   parse-skips section).
 - **Confidence:** low — depends on upstream tree-sitter-rust grammar coverage;
   may resolve to a documented limitation rather than a code fix.
@@ -2418,7 +2418,7 @@ archive.
 - **Validation:** egress is off by default and requires explicit opt-in; the
   air-gap test harness still passes for `report-fp` and the default path.
 - **Identified From:** OPSUP milestone Council review
-  (`plans/reviews/2026-06-21-opsup-council.md`, pragmatic-lead MAJOR); deferred
+  (`plans/archive/reviews/2026-06-21-opsup-council.md`, pragmatic-lead MAJOR); deferred
   by ADR-089.
 - **Confidence:** medium — destination/transport is a product + privacy
   decision that the ADR must settle first.
@@ -2535,7 +2535,7 @@ archive.
 - **Validation:** structural test that sensitive paths never appear in any
   projection; `InvalidQuery` classification test; impact-path latency unchanged.
 - **Identified From:** v0.9.0-beta release council (CE-3 verifier-confirmed high;
-  details in `plans/audits/2026-06-21-v090-council-survivors.md`).
+  details in `plans/archive/audits/2026-06-21-v090-council-survivors.md`).
 - **Confidence:** high — CE-3 is well-scoped; 091d may be deferred with a note.
 
 ### CIB-092: Persistence / warm-start wire-integrity & observability (v0.9.0 council)
@@ -2561,7 +2561,7 @@ archive.
 - **Validation:** committed wire-bytes fixture + drift test; counter-emission
   test; orphan-sweep test; verdict-gate restore-window test.
 - **Identified From:** v0.9.0-beta release council (092a/092b verifier-confirmed
-  high; details in `plans/audits/2026-06-21-v090-council-survivors.md`).
+  high; details in `plans/archive/audits/2026-06-21-v090-council-survivors.md`).
 - **Confidence:** high for 092a/092b/092c/092e; medium for the rest.
 
 ### CIB-093: GV2 substrate hot-path & trust correctness (v0.9.0 council)
@@ -2583,7 +2583,7 @@ archive.
 - **Validation:** trust-gate test covering the new privileged modules;
   micro-benchmark/parity unchanged; snapshot-version independence test.
 - **Identified From:** v0.9.0-beta release council (all medium; details in
-  `plans/audits/2026-06-21-v090-council-survivors.md`).
+  `plans/archive/audits/2026-06-21-v090-council-survivors.md`).
 - **Confidence:** high — 093a is a product call + list edit; the rest are
   localised hot-path swaps.
 
@@ -2605,7 +2605,7 @@ archive.
 - **Validation:** kill-switch test; non-UTF-8 mid-file trim test; full-coverage
   conformance iteration; daemon-down row test.
 - **Identified From:** v0.9.0-beta release council (all medium; details in
-  `plans/audits/2026-06-21-v090-council-survivors.md`).
+  `plans/archive/audits/2026-06-21-v090-council-survivors.md`).
 - **Confidence:** high — small, well-scoped CLI changes.
 
 ### CIB-095: Intercept hot-path follow-through (v0.9.0 council)
@@ -2627,7 +2627,7 @@ archive.
 - **Validation:** UNC-rejection test for `search_symbols`; restore-window
   verdict test; listener-failure persist test.
 - **Identified From:** v0.9.0-beta release council (all medium/low; details in
-  `plans/audits/2026-06-21-v090-council-survivors.md`).
+  `plans/archive/audits/2026-06-21-v090-council-survivors.md`).
 - **Confidence:** high — localised, each with a clear test.
 
 ### CIB-096: Wire the orphan `.snap` startup sweep into the daemon (092c follow-up)
@@ -4830,7 +4830,7 @@ archive.
   intercept status`; verify recipe and `anvil check` agree; non-interactive
   recovery copy leads with "run `anvil start` in a terminal".
 - **Validation:** Re-run the audit repro in
-  [`plans/audits/2026-07-07-local-cli-first-user-test.md`](../audits/2026-07-07-local-cli-first-user-test.md);
+  [`plans/archive/audits/2026-07-07-local-cli-first-user-test.md`](../archive/audits/2026-07-07-local-cli-first-user-test.md);
   each linked GitHub issue closes with an integration or transcript check;
   `cargo test -p eddacraft-anvil-intercept --lib tighten` and
   `ensure_dir_` filters green for #3220.
@@ -4876,7 +4876,7 @@ archive.
 - **Validation:** `cargo test -p eddacraft-anvil start` with fixture or snapshot
   coverage for first run, repeat `protecting`, and repair-state output.
 - **Identified From:** First-run council review C-008 in
-  [`plans/reviews/2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md)
+  [`plans/archive/reviews/2026-07-09-acttui-first-run-journeys.md`](../archive/reviews/2026-07-09-acttui-first-run-journeys.md)
   and the earlier welcome/start user-journey audit.
 - **Coordinates with:** CIB-166 (one next-step arbiter), ACTTUI-010 (plain/TUI
   contract fixtures).
@@ -4900,7 +4900,7 @@ archive.
   demand-picker initial selection, Enter-without-tick no-write, and
   non-interactive policy parity.
 - **Identified From:** First-run council review C-009 in
-  [`plans/reviews/2026-07-09-acttui-first-run-journeys.md`](../reviews/2026-07-09-acttui-first-run-journeys.md).
+  [`plans/archive/reviews/2026-07-09-acttui-first-run-journeys.md`](../archive/reviews/2026-07-09-acttui-first-run-journeys.md).
 - **Coordinates with:** CIB-165 (workflow picker default-unticked), ACTTUI-009
   (TUI consent wiring), ADR-044 (pinned the pre-selected picker; amended
   2026-07-11 to the unticked default by this item).
@@ -5723,8 +5723,8 @@ archive.
   31 GB `/tmp` tmpfs (`mcp26-013-reverify-target`, `codex-mcp26-security-target`,
   `kfit006-verify.OgDbNF`, `verify-p7-target` and similar) took `/tmp` to 100%
   and broke unrelated tooling until cleared by hand. The same ad-hoc pattern is
-  recorded inline in `plans/reviews/2026-06-27-cib-079-rust-ast-rules.md` and
-  `plans/reviews/2026-06-26-cib-080-secret-fp-tuning.md`.
+  recorded inline in `plans/archive/reviews/2026-06-27-cib-079-rust-ast-rules.md` and
+  `plans/archive/reviews/2026-06-26-cib-080-secret-fp-tuning.md`.
 - **Coordinates with:** CIB-032 (stale global oxfmt on fresh worktrees),
   CIB-048 (shared Cargo target disk oversubscription — related but about
   capacity sharing, not path selection / sandbox writability). Sits directly on
@@ -9238,7 +9238,7 @@ CIB-251/255 only.
   evidence.
 - **Identified From:** clawpatch finding
   `fnd_sig-feat-library-6e67a08850-1a15_694419522e` (high/confirmed-bug);
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** CIB-191 (CI-log durability),
   `docs/guides/continuous-improvement-log.md`
 - **Confidence:** high — read-modify-write and fixed temp path verified on
@@ -9269,7 +9269,7 @@ CIB-251/255 only.
   usual test command.
 - **Identified From:** clawpatch finding
   `fnd_sig-feat-library-29f5ad5751-a39f_f78ae60e6f` (medium/security);
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** ADR-066 (GitHub device/OAuth broker), prior
   2026-07-18 auth-session race fixes on the same surface family.
 - **Confidence:** high — fire-and-forget call site verified in source.
@@ -9299,7 +9299,7 @@ CIB-251/255 only.
   regeneration still updates.
 - **Identified From:** clawpatch finding
   `fnd_sig-feat-library-eb4f39f539-6c08_3028b92c7b` (medium/data-loss);
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** CIB-278 (tooling vs content exit codes), DOCGOV-012
 - **Confidence:** high — regenerate loop verified not to check verdict.
 
@@ -9324,7 +9324,7 @@ CIB-251/255 only.
   touched target.
 - **Identified From:** clawpatch finding
   `fnd_sig-feat-library-541f4a982e-7ac8_d4fc3823f6`;
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** CIB-309, CIB-310 (same dashboard overview/warnings
   surface family)
 - **Confidence:** high — overwrite-without-timestamp-check verified.
@@ -9354,7 +9354,7 @@ CIB-251/255 only.
 - **Identified From:** clawpatch findings
   `fnd_sig-feat-library-94c8d5ed25-eff0_763636acad`,
   `fnd_sig-feat-library-3cb93f01c3-0c33_f3977e8e40`;
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** CIB-308, CIB-310
 - **Confidence:** high — fallback paths verified in source.
 
@@ -9378,7 +9378,7 @@ CIB-251/255 only.
 - **Identified From:** clawpatch findings
   `fnd_sig-feat-library-bdc1ea4fc8-6035_f6d885024a`,
   `fnd_sig-feat-library-541f4a982e-8349_414283bb1e`;
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** CIB-309
 - **Confidence:** high — enum/selector mismatch verified.
 
@@ -9402,7 +9402,7 @@ CIB-251/255 only.
   accepts valid ISO dates.
 - **Identified From:** clawpatch finding
   `fnd_sig-feat-library-6e67a08850-b0b1_bd7ec898d8`;
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** CIB-305 (same `scripts/ci-log` surface)
 - **Confidence:** high — validation gap verified in helpers.
 
@@ -9426,7 +9426,7 @@ CIB-251/255 only.
   creates, non-404 fails before PUT.
 - **Identified From:** clawpatch finding
   `fnd_sig-feat-config-a8e510e779-3d9d4_9217185311`;
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** release public-contents path used by ACKNOWLEDGEMENTS
   / public publish
 - **Confidence:** high — `else existing_sha=""` on any failure verified.
@@ -9454,7 +9454,7 @@ CIB-251/255 only.
   both tokenOnly modes.
 - **Identified From:** clawpatch finding
   `fnd_sig-feat-library-29f5ad5751-38ea_d1239890ce`;
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** ADR-066 invite/login model, admin invite path
 - **Confidence:** high — default tx path verified without scope insert.
 
@@ -9479,7 +9479,7 @@ CIB-251/255 only.
   workspace fallback still works.
 - **Identified From:** clawpatch finding
   `fnd_sig-feat-library-34bc4660c0-8fd1_880725ade1`;
-  triage `plans/reviews/2026-08-07-clawpatch-triage.md`.
+  triage `plans/archive/reviews/2026-08-07-clawpatch-triage.md`.
 - **Coordinates with:** release public-reference generation, docs:public
   surfaces
 - **Confidence:** medium-high — logic described in finding; confirm on
@@ -10607,7 +10607,7 @@ Severity and PATTERN-C framing are theirs. **B7** here is not pack-06 B7
   that later drifted). Daemon log has no repeating 60s
   `scan-timeout` for that workspace in a quiet minute after warm-up.
 - **Identified From:** 2026-08-16 Grok dogfood session; evidence in
-  [`docs/reviews/2026-08-16-gctx-dogfood-failure-points.md`](../../docs/reviews/2026-08-16-gctx-dogfood-failure-points.md).
+  [`docs/archive/reviews/2026-08-16-gctx-dogfood-failure-points.md`](../../docs/archive/reviews/2026-08-16-gctx-dogfood-failure-points.md).
 - **Coordinates with:** CIB-342, GBASE, DSV, MCPLH (large-repo graph
   warm called out of that module)
 - **Confidence:** high — measured live; log line and 60s const match.

@@ -34,7 +34,7 @@ is one closed question with a marked default. Move cleared items to
   29171614019 (post PR #3297, which fixed the macOS/APFS `base_store` claim
   races [CIB-194] and the Windows test harnesses; PR #3290 had cleared the
   accumulated non-unix dead-code drift). Linux interactive rehearsal:
-  `plans/audits/2026-07-12-journey-005-linux-rehearsal.md`.
+  `plans/archive/audits/2026-07-12-journey-005-linux-rehearsal.md`.
 - consequence: JOURNEY-005 flipped Merged; the residual PR-CI cross-lint gap
   stays tracked as CIB-193 (Ready, non-blocking).
 
@@ -64,13 +64,13 @@ stale read of the shared checkout.
 - blocking-since: 2026-07-11T17:45Z
 - what I tried (≤3):
   - full Linux rehearsal on candidate `d6d3aa39c`
-    ([record](../audits/2026-07-12-journey-005-linux-rehearsal.md)) — all
+    ([record](../archive/audits/2026-07-12-journey-005-linux-rehearsal.md)) — all
     eight journeys pass
   - dispatched `ci-nightly.yml` (run 29161637384) and `rust.yml` (run
     29161638249) on the candidate for automated cross-platform evidence
   - no macOS/Windows machine is reachable from this session for the
     interactive TTY/consent/reboot journeys
-- evidence: `plans/audits/2026-07-12-journey-005-linux-rehearsal.md`; the two
+- evidence: `plans/archive/audits/2026-07-12-journey-005-linux-rehearsal.md`; the two
   workflow runs above
 - THE DECISION I NEED: Accept CI matrix runs as sufficient macOS/Windows
   evidence for this cut, or run the manual rehearsals yourself?
@@ -96,7 +96,7 @@ stale read of the shared checkout.
   - recorded the Linux outcome metrics (time-to-value 0.34 s first run /
     0.026 s repeat, one-next-action compliance, byte-stable contracts,
     redaction green)
-- evidence: `plans/audits/2026-07-12-journey-005-linux-rehearsal.md`
+- evidence: `plans/archive/audits/2026-07-12-journey-005-linux-rehearsal.md`
   (metrics table); module statuses in
   `plans/modules/release-user-journeys.aps.md`
 - THE DECISION I NEED: Approve cutting v0.9.0-beta from `d6d3aa39c` (or a

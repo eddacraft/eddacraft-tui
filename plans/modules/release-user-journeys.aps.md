@@ -187,7 +187,7 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
 
 - **Status:** Released/Shipped via v0.9.0-beta (6b0ed1d1 · 2026-07-12). Merged 2026-07-12 — Linux interactive rehearsal complete on
   candidate `d6d3aa39c`
-  ([rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md)):
+  ([rehearsal record](../archive/audits/2026-07-12-journey-005-linux-rehearsal.md)):
   fresh welcome, first/repeat start, `--verify`/`--json` byte contracts,
   no-MCP, daemon stop/restart with durable-registration reload, and a
   repair path all pass. macOS/Windows evidence per the operator's ESC-001
@@ -219,13 +219,13 @@ also requires JOURNEY-016. Unrelated urgent hotfixes retain their existing proce
   [#3305](https://github.com/eddacraft/anvil-001/issues/3305)). The operator
   approved the cut (ESC-002 **approve**, 2026-07-12) on the assembled evidence
   matrix (Linux metrics in the
-  [rehearsal record](../audits/2026-07-12-journey-005-linux-rehearsal.md):
+  [rehearsal record](../archive/audits/2026-07-12-journey-005-linux-rehearsal.md):
   first run 0.34 s, healthy repeat 0.026 s / 6 lines, one-next-action
   compliance on every observed terminal state, byte-stable machine contracts,
   redaction green; cross matrix green on main run 29171614019). Released/
   Shipped via v0.9.0-beta (2026-07-12); record:
   [`plans/releases/v0.9.0-beta.md`](../releases/v0.9.0-beta.md); execution
-  journal: [`plans/execution/JOURNEY-006.actions.md`](../execution/JOURNEY-006.actions.md).
+  journal: [`plans/archive/execution/JOURNEY-006.actions.md`](../archive/execution/JOURNEY-006.actions.md).
 - **Intent:** Decide the cut from reproducible journey outcomes rather than the
   completion of disconnected feature lists.
 - **Expected Outcome:** The candidate records time to first value, activation

@@ -128,7 +128,7 @@ gate registration + flag, then validation.
   pinned base images, at **0% FP**. A `SudoInRun` false positive (sudo installed
   as an apt package, not invoked) was found and fixed in the same PR; the Anvil
   leg is vacuously clean (no in-scope files), with the external corpus carrying
-  the evidence. Evidence: `plans/reviews/2026-06-18-surface-validation.md`.
+  the evidence. Evidence: `plans/archive/reviews/2026-06-18-surface-validation.md`.
 - **Validation:** FP report committed under `plans/reviews/`.
 - **Dependencies:** SURFDOCK-002, SURFDOCK-005
 - **Confidence:** medium

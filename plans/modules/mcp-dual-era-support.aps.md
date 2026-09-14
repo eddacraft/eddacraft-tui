@@ -37,7 +37,7 @@ workspace behaviour behind that boundary.
 - Spec:
   [`plans/specs/2026-07-27-mcp-2026-07-28-dual-era-support.md`](../specs/2026-07-27-mcp-2026-07-28-dual-era-support.md)
 - Gate evidence:
-  [`plans/audits/2026-07-27-mcp26-001-ratification-gate.md`](../audits/2026-07-27-mcp26-001-ratification-gate.md)
+  [`plans/archive/audits/2026-07-27-mcp26-001-ratification-gate.md`](../archive/audits/2026-07-27-mcp26-001-ratification-gate.md)
 - ADR (Accepted):
   [`plans/decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md`](../decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md)
 - [Ratified MCP `2026-07-28`](https://modelcontextprotocol.io/specification/2026-07-28)
@@ -182,7 +182,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
 - **Files:**
   - `plans/decisions/113-mcp-2026-07-28-dual-era-and-rmcp.md`
   - `plans/decisions/DECISION-LOG.md`
-  - `plans/audits/2026-07-27-mcp26-001-ratification-gate.md`
+  - `plans/archive/audits/2026-07-27-mcp26-001-ratification-gate.md`
   - `plans/specs/2026-07-27-mcp-2026-07-28-dual-era-support.md`
   - `Cargo.toml` / `crates/anvil-cli/Cargo.toml` (pins only if SDK adopted at close)
 - **Dependencies:** Final MCP `2026-07-28` publication; crates.io `rmcp` v3
@@ -378,7 +378,7 @@ MCP26-012 must preserve its real-client-shaped regression fixtures.
   - `crates/anvil-bench/benches/`
   - `apps/e2e/src/smoke/smoke.e2e.test.ts`
   - conformance harness wiring as required
-  - `plans/audits/2026-07-29-mcp26-conformance-applicability.md`
+  - `plans/archive/audits/2026-07-29-mcp26-conformance-applicability.md`
 - **Dependencies:** MCP26-003, MCP26-004, MCP26-005, MCP26-006, MCP26-007,
   MCP26-008, MCP26-009
 - **Validation:** Official applicable server scenarios pass; no open supported

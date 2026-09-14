@@ -690,7 +690,7 @@ Status promoted Draft → **Ready** 2026-05-28.
   returns 0 while `init` / `start` return 3 for the same auth condition.
   (The exit-code inconsistency is a latent nit worth tracking regardless
   of the GA membership decision.)
-- **Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+- **Identified From:** [2026-05-21 new-user journey audit](../archive/audits/2026-05-21-new-user-journey-audit.md)
   finding #1 (raised as a planless-first concern; reframed beta-intentional 2026-06-01).
 - **Evidence pointers:**
   - `crates/anvil-cli/src/feature_flags.rs:38` (gated-command list).

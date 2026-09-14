@@ -425,7 +425,7 @@ The slice must NOT:
 
 - [#1722](https://github.com/eddacraft/anvil-001/issues/1722) — origin
   issue + verdict.
-- [`plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`](../reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md)
+- [`plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`](../archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md)
   — defer-with-issue verdict.
 - [`plans/modules/multilayer-protection-v2.aps.md`](../modules/multilayer-protection-v2.aps.md)
   MLP2-071 — Blocked → Ready after this artefact lands.

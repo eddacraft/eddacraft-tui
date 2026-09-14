@@ -3435,7 +3435,7 @@ Triage cadence: weekly (or when picking NBI / draining CIB). Use
 
 - **Task:** Document GCTX dogfood failure points and file CIB-341..344
 - **Outcome:** Review note plus four Ready CIB items on bookkeeping branch docs/cib-gctx-dogfood-failures
-- **Worked:** Isolated bookkeeping worktree; evidence note at docs/reviews/2026-08-16-gctx-dogfood-failure-points.md; CIB-341 scan-timeout, CIB-342 graph-base ENOENT, CIB-343 12-client vs Claude/Cursor handshake leftover, CIB-344 stale MCP/lock reap
+- **Worked:** Isolated bookkeeping worktree; evidence note at docs/archive/reviews/2026-08-16-gctx-dogfood-failure-points.md; CIB-341 scan-timeout, CIB-342 graph-base ENOENT, CIB-343 12-client vs Claude/Cursor handshake leftover, CIB-344 stale MCP/lock reap
 - **Failed:** none
 - **Friction:** anvil_validate_write from Grok rejects worktree workspaceRoot (expected untrusted-workspace-root); content-mode against main checkout
 - **Improvement:** Live handshake still only Cursor+Claude despite MCPX twelve-client install

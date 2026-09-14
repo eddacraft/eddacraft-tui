@@ -8,7 +8,7 @@
 | ACTAX | —     | medium   | Proposed |
 
 **Last reviewed:** 2026-07-11 (post-POLRESET downstream coherence review —
-`plans/reviews/2026-07-11-polreset-downstream-coherence.md`: Phases A–C gate
+`plans/archive/reviews/2026-07-11-polreset-downstream-coherence.md`: Phases A–C gate
 restated now the first slice has shipped; IORISK dependency corrected; Phase B
 retargeted per ADR-098 AD-2; ACTAX-022 reframed over the shipped routing).
 

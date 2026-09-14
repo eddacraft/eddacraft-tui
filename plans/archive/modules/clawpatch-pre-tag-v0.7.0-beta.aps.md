@@ -40,7 +40,7 @@ grep linkage. Status lifecycle follows `plans/aps-rules.md`.
 
 ## Council verdict map (release council pass 1 + pass 2, 2026-05-20)
 
-Canonical artefact: `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`.
+Canonical artefact: `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`.
 Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contract.
 
 **Fix-before-tag (3):**
@@ -99,7 +99,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_cf04c15e28` — Rust library eddacraft-anvil-policy-engine
 - **Severity / Triage / Category:** medium / contract-mismatch / api-contract
 - **Confidence:** medium
-- **Status:** Ship (release-council verdict 2026-05-20, kernel-maintainer; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Status:** Ship (release-council verdict 2026-05-20, kernel-maintainer; see `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
 - **Verdict rationale:** `Engine::eval` has zero external callers (workspace grep returns only in-module test invocations at `crates/anvil-policy-engine/src/lib.rs:136, :163, :169`). All current callers pass single-expression queries. Module doc at `:6` explicitly scopes this as a skeleton; multi-result shape is deferred to POLENG-002..006. The `.first().first()` collapse is consistent with the current contract.
 - **Recommendation:** Either narrow the API contract by validating/rejecting multi-result, multi-expression, or binding queries, or change EvalResult to expose the full query result shape needed by downstream callers.
 - **Evidence:** `crates/anvil-policy-engine/src/lib.rs:81` (`Engine::eval`), `crates/anvil-policy-engine/src/lib.rs:94` (`Engine::eval`), `crates/anvil-policy-engine/src/lib.rs:120` (`tests`)
@@ -111,7 +111,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_library_ea87528a72` — Rust library eddacraft-anvil-intercept-proto
 - **Severity / Triage / Category:** medium / contract-mismatch / api-contract
 - **Confidence:** high
-- **Status:** Ship (release-council verdict 2026-05-20, kernel-maintainer; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Status:** Ship (release-council verdict 2026-05-20, kernel-maintainer; see `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
 - **Verdict rationale:** The `QueryStatus` variant is reachable on the NDJSON command-envelope path but the daemon returns a deliberate redirect error at `crates/anvil-intercept/src/ipc.rs:3018` ("query_status is a JSON-RPC-only method; use the query_status JSON-RPC frame"). All live traffic uses the documented JSON-RPC `query-status` method (`ipc.rs:2016-2034`, `cli/commands/intercept.rs:511`). The asymmetry is documented at `anvil-intercept-proto/src/lib.rs:117-118` — intentional, not silent.
 - **Recommendation:** Do not expose QueryStatus through the serializable command-envelope enum unless the daemon accepts that wire shape. Either remove/split the variant from the serde wire enum, add a custom serde implementation that rejects command-envelope QueryStatus, or add an explicit supported route and tests for the `query-status` command form.
 - **Evidence:** `crates/anvil-intercept-proto/src/lib.rs:62` (`IpcCommand`), `crates/anvil-intercept-proto/src/lib.rs:115` (`IpcCommand::QueryStatus`)
@@ -329,7 +329,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_5e2d518d88` — Rust integration test eddacraft-anvil/status_verify
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
 - **Verdict rationale:** Workdir snapshot before+after is the actual contract; exit status is intentionally discarded.
 - **Recommendation:** Assert both invocations succeed and still render the expected state, then snapshot the isolated home directory as well as the workdir before and after the verify runs.
 - **Evidence:** `crates/anvil-cli/tests/status_verify.rs:183` (`status_verify_is_idempotent_and_does_not_mutate_workdir`), `crates/anvil-cli/tests/status_verify.rs:190` (`status_verify_is_idempotent_and_does_not_mutate_workdir`), `crates/anvil-cli/tests/status_verify.rs:213` (`status_verify_is_idempotent_and_does_not_mutate_workdir`)
@@ -352,7 +352,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_73ba6156c4` — Rust integration test eddacraft-anvil/update_resolution_chain
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
 - **Verdict rationale:** Covered by CLAWP-001 PR #1732 rewrite; integration file documents the new location.
 - **Recommendation:** Add deterministic tests for the strategy order itself. If full integration is impractical because `current_exe()` is hard to spoof, extract a small strategy resolver that accepts the executable path and sidecar lookup inputs, then test package-manager precedence, adjacent sidecar precedence over PATH sidecar, and library fallback when neither is...
 - **Evidence:** `crates/anvil-cli/tests/update_resolution_chain.rs:1`, `crates/anvil-cli/tests/update_resolution_chain.rs:24`, `crates/anvil-cli/tests/update_resolution_chain.rs:122` (`signature_fixture_public_key_matches_dev_constant`)
@@ -390,7 +390,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_b0175af8f6` — Rust integration test eddacraft-anvil/mcp_config
 - **Severity / Triage / Category:** medium / test-gap / test-gap
 - **Confidence:** high
-- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
 - **Verdict rationale:** Audit misread verify semantics — the test asserts the correct failure mode.
 - **Recommendation:** Make the fixture command match the default expected command, or pass --command /tmp/fake/anvil during verification, so the only failing condition is the missing type field.
 - **Evidence:** `crates/anvil-cli/tests/mcp_config.rs:636` (`mcp_install_verify_claude_code_requires_stdio_type`), `crates/anvil-cli/tests/mcp_config.rs:651` (`mcp_install_verify_claude_code_requires_stdio_type`)
@@ -630,7 +630,7 @@ Every CLAWP-NNN now carries an explicit verdict satisfying the runbook §2 contr
 - **Feature:** `feat_test-suite_e6f2772c8e` — Rust integration test eddacraft-anvil-intercept/midedit_contract
 - **Severity / Triage / Category:** low / risk / concurrency
 - **Confidence:** medium
-- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
+- **Status:** Ship (release-council verdict 2026-05-20, pass 2; see `plans/archive/reviews/release-council/2026-05-20-v0.7.0-beta-pre-tag.md`)
 - **Verdict rationale:** Barrier inside Tokio task; runtime tear-down on panic cancels the task.
 - **Recommendation:** Wrap the blocking sections in a guard that releases the barrier on drop, or structure the tests so cleanup runs even when assertions panic. For async tests, a small RAII guard plus explicit disarm after normal release is enough.
 - **Evidence:** `crates/anvil-intercept/tests/midedit_contract.rs:946` (`rust_consumer_surfaces_transport_timeout`), `crates/anvil-intercept/tests/midedit_contract.rs:983` (`rust_consumer_surfaces_server_busy`), `crates/anvil-intercept/tests/midedit_contract.rs:1101` (`rust_consumer_busy_response_satisfies_envelope_invariant`)

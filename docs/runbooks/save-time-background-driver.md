@@ -227,7 +227,7 @@ disable the driver itself.
 Windows uses the same driver contract over the named-pipe transport, but the
 manual smoke still needs a real Windows session for detached-process and console
 window observations. Use
-[`plans/execution/DSV-051.windows.actions.md`](../../plans/execution/DSV-051.windows.actions.md)
+[`plans/archive/execution/DSV-051.windows.actions.md`](../../plans/archive/execution/DSV-051.windows.actions.md)
 for the operator checklist.
 
 The Windows daemon runs parser-less at this cut-line. Plant an

@@ -132,7 +132,7 @@ registration + flag, then validation.
 - **Expected Outcome:** Validated 2026-06-18 — Anvil (27 workflows, 2 true
   positives) + `BurntSushi/ripgrep` (7 true-positive unpinned `@master` refs),
   **0 false positives → PASS**. Evidence:
-  `plans/reviews/2026-06-18-surface-validation.md`.
+  `plans/archive/reviews/2026-06-18-surface-validation.md`.
 - **Validation:** FP report committed under `plans/reviews/`.
 - **Dependencies:** SURFGHA-002, SURFGHA-006
 - **Confidence:** high

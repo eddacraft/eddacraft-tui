@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                                                                                                                                                                                         | Downstream                                                     |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| [KFIT plan](../../../plans/modules/kindling-product-fit.aps.md), [standard profile](../../../plans/audits/2026-08-03-kindling-standard-profile.json), [stress profile](../../../plans/audits/2026-08-03-kindling-stress-profile.json), [Criterion summary](../../../plans/audits/2026-08-03-kindling-criterion-summary.json) | KFIT-005, KFIT-006, KFIT-007, KFIT-010, release/package review |
+| [KFIT plan](../../../plans/modules/kindling-product-fit.aps.md), [standard profile](../../../plans/archive/audits/2026-08-03-kindling-standard-profile.json), [stress profile](../../../plans/archive/audits/2026-08-03-kindling-stress-profile.json), [Criterion summary](../../../plans/archive/audits/2026-08-03-kindling-criterion-summary.json) | KFIT-005, KFIT-006, KFIT-007, KFIT-010, release/package review |
 
 ## Decision
 
@@ -36,9 +36,9 @@ not an activated anvil dependency or release compatibility floor.
 | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------ |
 | [`benchmarks/history/kindling/2026-08-03.json`](../../../benchmarks/history/kindling/2026-08-03.json)            | Normalised history row (workloads, budgets, verdicts)   | Filed              |
 | [`docs/testing/benchmark-results.md`](../../testing/benchmark-results.md) (Kindling section)                     | Human historical tables                                 | Filed              |
-| [`2026-08-03-kindling-standard-profile.json`](../../../plans/audits/2026-08-03-kindling-standard-profile.json)   | Release-mode 20k-row workload and resource profile      | Filed (+ raw copy) |
-| [`2026-08-03-kindling-stress-profile.json`](../../../plans/audits/2026-08-03-kindling-stress-profile.json)       | 200k-row reads and 100k-row outage/replay profile       | Filed (+ raw copy) |
-| [`2026-08-03-kindling-criterion-summary.json`](../../../plans/audits/2026-08-03-kindling-criterion-summary.json) | Thirteen Criterion cases and confidence intervals       | Filed (+ raw copy) |
+| [`2026-08-03-kindling-standard-profile.json`](../../../plans/archive/audits/2026-08-03-kindling-standard-profile.json)   | Release-mode 20k-row workload and resource profile      | Filed (+ raw copy) |
+| [`2026-08-03-kindling-stress-profile.json`](../../../plans/archive/audits/2026-08-03-kindling-stress-profile.json)       | 200k-row reads and 100k-row outage/replay profile       | Filed (+ raw copy) |
+| [`2026-08-03-kindling-criterion-summary.json`](../../../plans/archive/audits/2026-08-03-kindling-criterion-summary.json) | Thirteen Criterion cases and confidence intervals       | Filed (+ raw copy) |
 | [`benchmarks/history/kindling/raw/`](../../../benchmarks/history/kindling/raw/)                                  | Compact raw extracts (profiles, Criterion, query plans) | Filed              |
 | `benchmark-results/manual-20260803T062924Z-kindling/`                                                         | Full HTML reports, source snapshot, diff                | Local, gitignored  |
 

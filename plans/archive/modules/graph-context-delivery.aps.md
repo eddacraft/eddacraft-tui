@@ -33,7 +33,7 @@ consumes.
 > **Entry gates landed (2026-06-15).** Both ADR-075 entry decisions are now
 > resolved: [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) (Accepted)
 > fixes the MCP delivery target as the Rust `anvil mcp serve` (RMCPF) surface,
-> and the [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+> and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 > (APPROVE-WITH-CONDITIONS, 4/4) discharges the egress-privacy prerequisite. Its
 > conditions **CE-1..CE-12** fold into GCTX-001 (contract) and the named per-item
 > targets; **CE-1** (snippet egress opt-in, identity-only default) and **CE-5**
@@ -125,7 +125,7 @@ enforcement/provenance requirements conflict, GV2 wins and this module adapts.
   CE-1/CE-2/CE-3/CE-5). Sensitive diagnostics, secret content, and private
   provenance fields are redacted by default before crossing MCP boundaries; the
   full conditions are recorded in the
-  [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 - MCP tools are additive and must not break existing tool contracts
 - This module must not introduce schema requirements that belong in GV2
 - Benchmarks must be reproducible and checked in before marketing claims are made
@@ -153,7 +153,7 @@ Module promoted to **Ready** 2026-06-15 (both ADR-075 entry gates landed):
       [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) Accepted (Rust RMCPF
       `anvil mcp serve`)
 - [x] Redaction rules for graph context are reviewed by security —
-      [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md),
+      [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md),
       APPROVE-WITH-CONDITIONS (CE-1..CE-12 fold into GCTX-001)
 
 All entry-gate readiness criteria are satisfied. The items below are
@@ -175,7 +175,7 @@ blockers — they are resolved during execution, not before promotion:
 - **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via #2628 — sole dependency GV2-023 **Merged
   2026-06-15 via #2621**, and both ADR-075 entry gates landed
   ([ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) Accepted +
-  [PV-9 egress review](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  [PV-9 egress review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
   filed). The contract spec is authored in
   [`graph-context-delivery-spec.md`](../../../docs/architecture/graph-context-delivery-spec.md)
   (identity-only default, sealed egress DTO + single `GctxProjector` choke point,
@@ -187,7 +187,7 @@ blockers — they are resolved during execution, not before promotion:
 - **Expected Outcome:** Contract maps assistant tasks to graph projections,
   redaction rules, warming/stale-state behaviour, pagination, and deterministic
   ordering. It **must absorb the egress conditions CE-1..CE-12** from the
-  [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md):
+  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md):
   identity-only default with opt-in source-text egress behind `gctx.egress`
   (CE-1); deny-by-default secret scanning (CE-2) and sensitive-path / gitignore
   filtering (CE-3) on snippets; an egress field allowlist + named residual table
@@ -213,7 +213,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-002: MCP delivery target decision
 
-- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via #2619 — discharged by [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) **Accepted 2026-06-15** (Josh): primary target is the Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP; additive registration of GCTX tools/resources. Both ADR-075 entry gates are now landed (this decision + the [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)). RMCPF defers GCTX work by design (rust-mcp-full-port Out of Scope: "Creating new graph-context tools beyond what GCTX explicitly owns"), so the decision needs no edit there. Acceptance criteria CE-8 (session-pinned root; stdio-only — a networked RMCPF transport needs a new egress review before GCTX registers there) carry into implementation.
+- **Status:** Released/Shipped via v0.9.0-beta (2026-07-12). Merged 2026-06-15 via #2619 — discharged by [ADR-083](../../decisions/083-gctx-mcp-delivery-target.md) **Accepted 2026-06-15** (Josh): primary target is the Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP; additive registration of GCTX tools/resources. Both ADR-075 entry gates are now landed (this decision + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)). RMCPF defers GCTX work by design (rust-mcp-full-port Out of Scope: "Creating new graph-context tools beyond what GCTX explicitly owns"), so the decision needs no edit there. Acceptance criteria CE-8 (session-pinned root; stdio-only — a networked RMCPF transport needs a new egress review before GCTX registers there) carry into implementation.
 - **Intent:** Decide whether graph context tools first land on the interim TS MCP
   server, the Rust RMCPF server, or both.
 - **Expected Outcome:** Decision records the target server, compatibility stance,
@@ -564,7 +564,7 @@ blockers — they are resolved during execution, not before promotion:
   now owned by the **[symbol-call-graph (GCALL)](symbol-call-graph.aps.md)**
   module (filed 2026-06-17). **GCALL-003** (resident call edges + `callers_of`
   read API) Merged 2026-06-17 via #2708; **GCALL-007** (caller-egress privacy
-  review) APPROVE-WITH-CONDITIONS 2026-06-17 ([verdict](../../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md);
+  review) APPROVE-WITH-CONDITIONS 2026-06-17 ([verdict](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md);
   CALL-1..CALL-5 folded below). The **CALL-1 substrate prerequisite** is met:
   `callers_of` now carries the per-caller `heuristic` (overload fan-out) marker
   (GCALL-003 follow-up); the report-level `partial` (unresolved callers) is
@@ -681,7 +681,7 @@ blockers — they are resolved during execution, not before promotion:
 - **Status:** Done on branch (pending merge) 2026-06-24 (`feat/gctx-021-snippet-extractor`;
   GV2-032 substrate on branch; secret-scan wiring = injected redactor per ADR-064, not a direct
   `anvil-checks` dep on the leaf projector). **Both privacy gaps from the 2026-06-24 deep review
-  ([record](../../reviews/2026-06-24-gctx-snippet-line-review.md)) are now closed:** **CE-3 gitignore
+  ([record](../reviews/2026-06-24-gctx-snippet-line-review.md)) are now closed:** **CE-3 gitignore
   omission is implemented** — the daemon injects an `ignore::Gitignore` matcher (built from the
   admitted root) into `resolve_snippet_location` + `collect_context_candidates`, so gitignored
   files are omitted entirely (tests in `anvil-gctx-egress`); and **CE-2 redaction now handles
@@ -694,7 +694,7 @@ blockers — they are resolved during execution, not before promotion:
   graceful, documented limitation until tail-language span population lands. — architecture
   settled by [ADR-084](../../decisions/084-gctx-graph-handle-access.md)
   (daemon-side projection) and the snippet gates fully specified by the
-  [context-egress privacy review (PV-9)](../../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
   (CE-1/CE-2/CE-3/CE-5/CE-7). Substrate prerequisite **[GV2-032](graph-v2-foundation.aps.md)**
   (Ready) supplies the byte span to locate and the content hash to freshness-check;
   without it there is no producer for spans. Extraction runs **daemon-side** in

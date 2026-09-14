@@ -398,7 +398,7 @@ patterns, not as a replacement; the addition is named patterns layered on
 top so high-recognition / lower-entropy tokens (the EXAMPLE-style AWS keys
 in particular) stop sliding past the gate.
 
-**Identified From:** [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+**Identified From:** [2026-05-21 new-user journey audit](../archive/audits/2026-05-21-new-user-journey-audit.md)
 finding #6. The canonical AWS example pair
 (`AKIAIOSFODNN7EXAMPLE` + `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`) was
 **allowed** by the MCP pre-write gate with 0 diagnostics, while a

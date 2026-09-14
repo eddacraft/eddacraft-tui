@@ -23,7 +23,7 @@ and should see anvil's value on their own findings, not generic copy.
 
 Complements — does not overlap — the 2026-07-04 welcome/start user-journey
 repair items (CIB-162..179,
-[audit](../../audits/2026-07-04-anvil-start-welcome-user-journey.md)): those fix
+[audit](../audits/2026-07-04-anvil-start-welcome-user-journey.md)): those fix
 honesty and navigation defects in the existing flow; this module adds
 evidence affordances and personalization on top of the repaired baseline.
 
