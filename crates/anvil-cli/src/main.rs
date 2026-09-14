@@ -530,7 +530,7 @@ fn command_requests_structured_output(cmd: &Commands) -> bool {
         Commands::Conformance(args) => args.wants_structured_output(),
         Commands::Audit(args) => args.wants_structured_output(),
         Commands::Gate(args) => args.wants_structured_output(),
-        Commands::Settings(args) => args.format.is_some() || args.check,
+        Commands::Settings(args) => args.format.is_some(),
         _ => false,
     }
 }

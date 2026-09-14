@@ -198,7 +198,7 @@ mod tests {
     fn registry_lists_registered_tools() {
         let tools = all();
 
-        assert_eq!(tools.len(), 14);
+        assert_eq!(tools.len(), 18);
         let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
         assert_eq!(
             names,
@@ -206,6 +206,10 @@ mod tests {
                 validate_write::TOOL_NAME,
                 apply_patch::TOOL_NAME,
                 status::TOOL_NAME,
+                settings::SHOW,
+                settings::EXPLAIN,
+                settings::STATUS,
+                settings::SOURCES,
                 check::TOOL_NAME,
                 gate::TOOL_NAME,
                 query_boundary::TOOL_NAME,

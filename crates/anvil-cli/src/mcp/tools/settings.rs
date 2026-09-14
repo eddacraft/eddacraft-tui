@@ -84,16 +84,16 @@ pub fn sources_descriptor() -> Value {
     })
 }
 
-fn admit(arguments: &Value) -> Result<(), String> {
+fn admit(arguments: &Value) -> Result<std::path::PathBuf, String> {
     let server_root = crate::mcp::tools::shared::mcp_server_root()?;
     let workspace_root = arguments
         .get("workspaceRoot")
         .and_then(Value::as_str)
         .ok_or_else(|| "workspaceRoot is required".to_string())?;
     let workspace_path = std::path::Path::new(workspace_root);
-    let _ = validate_workspace_root(workspace_path, &server_root)?;
-    let _ = redact_workspace_root(workspace_path, &server_root);
-    Ok(())
+    let (server_root, workspace_path) = validate_workspace_root(workspace_path, &server_root)?;
+    let _ = redact_workspace_root(&workspace_path, &server_root);
+    Ok(workspace_path)
 }
 
 fn wrap(result: anyhow::Result<Value>) -> Value {
@@ -104,32 +104,34 @@ fn wrap(result: anyhow::Result<Value>) -> Value {
 }
 
 pub fn show_call(arguments: &Value) -> Value {
-    if let Err(error) = admit(arguments) {
-        return json!({ "error": error, "isError": true });
+    match admit(arguments) {
+        Ok(root) => wrap(settings_cmd::mcp_show(&root)),
+        Err(error) => json!({ "error": error, "isError": true }),
     }
-    wrap(settings_cmd::mcp_show())
 }
 
 pub fn explain_call(arguments: &Value) -> Value {
-    if let Err(error) = admit(arguments) {
-        return json!({ "error": error, "isError": true });
+    match admit(arguments) {
+        Ok(root) => {
+            let key = arguments.get("key").and_then(Value::as_str).unwrap_or("");
+            wrap(settings_cmd::mcp_explain(&root, key))
+        }
+        Err(error) => json!({ "error": error, "isError": true }),
     }
-    let key = arguments.get("key").and_then(Value::as_str).unwrap_or("");
-    wrap(settings_cmd::mcp_explain(key))
 }
 
 pub fn status_call(arguments: &Value) -> Value {
-    if let Err(error) = admit(arguments) {
-        return json!({ "error": error, "isError": true });
+    match admit(arguments) {
+        Ok(root) => wrap(settings_cmd::mcp_status(&root)),
+        Err(error) => json!({ "error": error, "isError": true }),
     }
-    wrap(settings_cmd::mcp_status())
 }
 
 pub fn sources_call(arguments: &Value) -> Value {
-    if let Err(error) = admit(arguments) {
-        return json!({ "error": error, "isError": true });
+    match admit(arguments) {
+        Ok(root) => wrap(settings_cmd::mcp_sources(&root)),
+        Err(error) => json!({ "error": error, "isError": true }),
     }
-    wrap(settings_cmd::mcp_sources())
 }
 
 #[cfg(test)]
