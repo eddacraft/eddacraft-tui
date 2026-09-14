@@ -5,10 +5,11 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| POSBRD | —     | medium   | Proposed | 2/5      |
+| POSBRD | —     | medium   | Proposed | 5/5      |
 
-**Last reviewed:** 2026-09-14 — POSBRD-001/002 Merged via #4680 (status
-reconciled in #4682). Design approved 2026-08-30; spec accepted at
+**Last reviewed:** 2026-09-14 — POSBRD-003/004/005 Merged via #4697.
+POSBRD-001/002 Merged via #4680 (status reconciled in #4682). Design
+approved 2026-08-30; spec accepted at
 [`plans/specs/2026-08-30-protection-posture-board.md`](../specs/2026-08-30-protection-posture-board.md).
 Exclusive module. Stored `N/M` is reconciled separately under ADR-053. Not a
 release claim.
@@ -119,7 +120,7 @@ Change a work item to **Ready** when:
 
 ### POSBRD-003: `anvil status` Posture section
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4697
 - **Intent:** Show the snapshot beside Layers on every `anvil status` surface.
 - **Expected Outcome:** TUI, plain, and `--json` render the same snapshot. JSON adds optional `posture` on `anvil.status.v1` and documents it in `schemas/anvil-status.v1.json`. Layers remain armed/not-armed. No new command name.
 - **Files:** `crates/anvil-cli/src/commands/status.rs`, `crates/anvil-tui/src/surfaces/status/`, `schemas/anvil-status.v1.json`
@@ -130,7 +131,7 @@ Change a work item to **Ready** when:
 
 ### POSBRD-004: Intercept last-action evidence
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4697
 - **Intent:** Show the last attested intercept decision and interrupt-ladder stage without making kill a posture rung.
 - **Expected Outcome:** Intercept-row detail carries last decision, stage (`sigint` / `sigterm` / `sigkill` / `job_object` / `already_exited`), and timestamp when the daemon attests them. If `query_status` cannot attest, the detail is omitted. Fences alone do not synthesise last-action.
 - **Files:** `crates/anvil-intercept-proto/src/status.rs`, `crates/anvil-intercept/src/`, `crates/anvil-cli/src/commands/status.rs`
@@ -141,7 +142,7 @@ Change a work item to **Ready** when:
 
 ### POSBRD-005: Public status docs for the Posture section
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-14 via PR #4697
 - **Intent:** Document the board on the existing `anvil status` surface.
 - **Expected Outcome:** Public CLI status docs name the four rows, the ladder, native gate/acceptance verbs, SETCON-strict Active, and that kill is a ladder stage. They do not claim `anvil settings` exists. POLFIT-006 / DOCDEF-007 remain the key catalogue.
 - **Files:** `docs/public/anvil/reference/cli.md`
