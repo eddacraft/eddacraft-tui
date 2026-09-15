@@ -2152,7 +2152,11 @@ fn prune_registrations(
     let survivors: Vec<_> = store
         .load()?
         .into_iter()
-        .filter(|record| !reaped.contains(&record.worktree))
+        .filter(|record| {
+            !reaped
+                .iter()
+                .any(|path| path_identity::same_path(&record.worktree, path))
+        })
         .collect();
     store.replace_all(&survivors)
 }

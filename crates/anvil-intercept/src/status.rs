@@ -288,29 +288,24 @@ pub fn build_status(
     in_flight_evaluations: Option<usize>,
     generated_at_unix: u64,
 ) -> DaemonStatus {
-    let mut fenced_set: std::collections::HashSet<std::path::PathBuf> =
-        fence_records.iter().map(|f| f.worktree.clone()).collect();
-    // Aliases (alternative canonical paths the fence layer recognises)
-    // also count as fenced for the worktree overlay below.
-    for fence in fence_records {
-        for alias in &fence.aliases {
-            fenced_set.insert(alias.clone());
-        }
-    }
-
-    // MLP2-026: map cascade engaged-state by canonical worktree
-    // path so the per-session overlay below can pick up
-    // `cascaded` / `cascade_since`.
-    let cascade_map: std::collections::HashMap<std::path::PathBuf, u64> = cascade_records
-        .iter()
-        .map(|c| (c.worktree.clone(), c.since_unix))
-        .collect();
-
     let worktrees = sessions
         .iter()
         .map(|session| {
-            let fenced = fenced_set.contains(&session.worktree);
-            let cascade_since = cascade_map.get(&session.worktree).copied();
+            // Fence.rs still persists `std::fs::canonicalize` keys (`\\?\`
+            // on Windows) while the registry now stores dunce-plain paths.
+            // PathBuf set/map equality misses that pair; same_path does not
+            // (CIB-419).
+            let fenced = fence_records.iter().any(|fence| {
+                path_identity::same_path(&fence.worktree, &session.worktree)
+                    || fence
+                        .aliases
+                        .iter()
+                        .any(|alias| path_identity::same_path(alias, &session.worktree))
+            });
+            let cascade_since = cascade_records.iter().find_map(|cascade| {
+                path_identity::same_path(&cascade.worktree, &session.worktree)
+                    .then_some(cascade.since_unix)
+            });
             WorktreeStatus {
                 worktree: session.worktree.clone(),
                 session_id: session.id.clone(),
@@ -588,7 +583,11 @@ impl DaemonStatusProvider {
         if let Some(supervisor) = &self.save_time_supervisor {
             let snapshot = supervisor.status_snapshot();
             for worktree in &mut status.worktrees {
-                if let Some(driver) = snapshot.get(&worktree.worktree) {
+                if let Some(driver) = snapshot
+                    .iter()
+                    .find(|(wt, _)| path_identity::same_path(wt, &worktree.worktree))
+                    .map(|(_, driver)| driver)
+                {
                     // JREL-003: the evidence rides alongside the state so a
                     // consumer can tell a freshly spawned child from one
                     // whose watches are installed or that just served a save.
@@ -1024,6 +1023,25 @@ mod tests {
         ));
         assert_eq!(scoped.fences.len(), 1);
         assert!(path_identity::same_path(&scoped.fences[0].worktree, plain));
+    }
+
+    #[test]
+    fn build_status_overlays_legacy_verbatim_fence_onto_plain_session() {
+        let plain = r"C:\Users\runner\work\proj";
+        let verbatim = r"\\?\C:\Users\runner\work\proj";
+        let snapshot = sample_status(
+            vec![sample_session("sess-fence", plain)],
+            &[fence_record(verbatim)],
+            IpcState::Serving,
+        );
+        assert_eq!(snapshot.worktrees.len(), 1);
+        assert!(
+            snapshot.worktrees[0].fenced,
+            "dunce session must pick up leftover verbatim fence: {snapshot:?}"
+        );
+        let claim = build_protection_claim_from_wire(&snapshot.to_wire(), Path::new(plain));
+        assert_eq!(claim.worktree_state, WorktreeClaimState::DegradedProtection);
+        assert_eq!(claim.surfaces[0].state, SurfaceClaimState::Quarantined);
     }
 
     #[test]
