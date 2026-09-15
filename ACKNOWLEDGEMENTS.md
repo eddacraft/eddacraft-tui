@@ -3738,7 +3738,7 @@ Used by:
 
 - `hyper-rustls` 0.27.9
 - `rustls-native-certs` 0.8.4
-- `rustls` 0.23.43
+- `rustls` 0.23.45
 
 <details>
 <summary>Licence text</summary>
@@ -9615,7 +9615,7 @@ the following restrictions:
 | `utf8parse` | 0.2.2 | MIT License | https://github.com/alacritty/vte |
 | `hyper-rustls` | 0.27.9 | MIT License | https://github.com/rustls/hyper-rustls |
 | `rustls-native-certs` | 0.8.4 | MIT License | https://github.com/rustls/rustls-native-certs |
-| `rustls` | 0.23.43 | MIT License | https://github.com/rustls/rustls |
+| `rustls` | 0.23.45 | MIT License | https://github.com/rustls/rustls |
 | `httpdate` | 1.0.3 | MIT License | https://github.com/pyfisch/httpdate |
 | `streaming-iterator` | 0.1.9 | MIT License | https://github.com/sfackler/streaming-iterator |
 | `lock_api` | 0.4.14 | MIT License | https://github.com/Amanieu/parking_lot |
