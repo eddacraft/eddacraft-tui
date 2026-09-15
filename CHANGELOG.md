@@ -11,7 +11,7 @@ engineering maintenance are recorded in the
 > **Draft.** This section accumulates customer-relevant changes landed on
 > `main`; the version and date are set at the next release.
 
-## [0.11.0-beta] — 2026-09-15
+## [0.11.0-beta] — 2026-09-15 — Windows readiness and inspect surfaces
 
 ### Added
 

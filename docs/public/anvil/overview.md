@@ -6,7 +6,7 @@ sidebar_position: 1
 owner: DOCSYNC
 upstream:
   - crates/anvil-cli/src/main.rs
-verified_against: 0.10.0-beta
+verified_against: 0.11.0-beta
 ---
 
 # What anvil does

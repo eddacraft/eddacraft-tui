@@ -7,7 +7,7 @@ owner: DOCSYNC
 upstream:
   - CHANGELOG.md
   - RELEASE-PLAN.md
-verified_against: 0.10.0-beta
+verified_against: 0.11.0-beta
 ---
 
 # Current release notes
@@ -17,7 +17,7 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
-## 0.11.0-beta — 15 September 2026
+## 0.11.0-beta — 15 September 2026 — Windows readiness and inspect surfaces
 
 ### Added
 
