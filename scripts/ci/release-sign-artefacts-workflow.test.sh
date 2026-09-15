@@ -89,6 +89,11 @@ assert_contains "announcement_tag"
 assert_contains "push|workflow_dispatch"
 assert_contains 'gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq '\''.sha'\'''
 assert_contains 'actions/runs/${RELEASE_RUN_ID}'
+# cargo-dist sets run-name to the tag, so identify Release by workflow path
+# (not Actions API .name) — otherwise v* tag pushes fail like v0.11.0-beta.
+assert_contains 'run_path=$(jq -r '\''.path'\'' <<< "$run_json")'
+assert_contains '[ "$run_path" = ".github/workflows/release.yml" ]'
+assert_not_contains '[ "$run_name" = "Release" ]'
 assert_contains 'if [ "$tag_sha" != "$commit_sha" ]'
 assert_contains "Dispatch run head_sha"
 assert_not_contains "TAG: \${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}"
