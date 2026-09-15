@@ -1284,8 +1284,7 @@ fn dispatch_unblock_cascade(_worktree: &std::path::Path) -> Result<bool> {
     // path but the daemon-side win32 plumbing under MLP2-028 has
     // not landed yet; surface a clear error rather than panic.
     anyhow::bail!(
-        "anvil intercept unblock --acknowledge-cascade is not yet supported on Windows; \
-         see MLP2-028 for peer-credential support"
+        "anvil intercept unblock --acknowledge-cascade is not yet supported on Windows"
     );
 }
 
@@ -1372,8 +1371,7 @@ fn dispatch_unblock_worktree(worktree: &std::path::Path) -> Result<bool> {
 #[cfg(windows)]
 fn dispatch_unblock_worktree(_worktree: &std::path::Path) -> Result<bool> {
     anyhow::bail!(
-        "anvil intercept unblock --worktree is not yet supported on Windows; \
-         see MLP2-028 for peer-credential support"
+        "anvil intercept unblock --worktree is not yet supported on Windows"
     );
 }
 

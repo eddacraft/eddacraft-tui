@@ -85,7 +85,7 @@ pub fn plan_prune(
     if keep_last == 0 {
         return Err(CapsuleError::Prune(
             "--keep-last 0 is refused: deleting every capsule is a manual `git rm` \
-             decision, not a prune invocation (ADR-078)"
+             decision, not a prune invocation"
                 .to_string(),
         ));
     }
@@ -122,7 +122,7 @@ pub fn plan_prune(
         if meta.file_type().is_symlink() {
             plan.skipped.push(SkippedEntry {
                 path,
-                reason: "symlink — never followed (ADR-078)".to_string(),
+                reason: "symlink — never followed".to_string(),
             });
             continue;
         }

@@ -1180,7 +1180,7 @@ fn validate_prune_root(repo_root: &Path, root: &Path) -> Result<PathBuf> {
         if !normalized.starts_with(&canonical_repo) && !normalized.starts_with(repo_root) {
             bail!(
                 "--root {} resolves outside the repository working tree; prune only \
-                 manages in-repo staging (ADR-078)",
+                 manages in-repo staging",
                 root.display()
             );
         }
@@ -1189,7 +1189,7 @@ fn validate_prune_root(repo_root: &Path, root: &Path) -> Result<PathBuf> {
     if !resolved.starts_with(&canonical_repo) {
         bail!(
             "--root {} resolves outside the repository working tree; prune only manages \
-             in-repo staging (ADR-078) — external capsule directories are yours to manage \
+             in-repo staging — external capsule directories are yours to manage \
              directly",
             root.display()
         );
