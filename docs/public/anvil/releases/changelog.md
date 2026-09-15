@@ -17,6 +17,29 @@ paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
 
+## 0.11.0-beta — 15 September 2026
+
+### Added
+
+- **`anvil settings` inspects resolved configuration.** CLI and TUI show
+  catalogue rows, sources, and health without a mutation path.
+
+- **Status shows a protection posture board.** Declared enforcement, gate, last
+  action, and runtime sit on one ladder so live protection is visible next to
+  what the repository declared.
+
+### Fixed
+
+- **Windows readiness treats `\\?\` and ordinary drive paths as one worktree.**
+  A registered save-time driver no longer looks failed because the daemon stored
+  the NT-extended form while status compared the plain `C:\...` path.
+  `anvil doctor` now reports the same readiness aggregate, so it cannot pass
+  over a failed journey receipt.
+
+- **`anvil validate` accepts current APS module files.** Canonical
+  `## Work Items` is required; `## Tasks` remains a legacy alias. This is a
+  structural check, not full `aps lint` parity.
+
 ## 0.10.0-beta — 13 September 2026 — Continuous journey honesty
 
 First use through daily ensure tells the truth about activation, coverage, and
