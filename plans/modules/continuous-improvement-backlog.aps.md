@@ -14197,7 +14197,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   under `anvil/kindling/`) is written under `.anvil/kindling/`, next to
   `.anvil/kindling.db`, so consumer repos never grow runtime files in the
   durable `anvil/` tree.
-- **Expected Outcome:** `anvil audit-chain run` appends
+- **Expected Outcome:** `anvil audit-chain` appends
   `.anvil/kindling/audit-chain.ndjson` and does not create `anvil/kindling/`.
   `anvil init` already gitignores `.anvil/` wholesale, so the new path is
   ignored without a consumer gitignore rule. Witness chain under
