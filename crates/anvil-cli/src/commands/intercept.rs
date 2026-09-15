@@ -1283,9 +1283,7 @@ fn dispatch_unblock_cascade(_worktree: &std::path::Path) -> Result<bool> {
     // Windows CLI surface follows the same pattern as the Unix
     // path but the daemon-side win32 plumbing under MLP2-028 has
     // not landed yet; surface a clear error rather than panic.
-    anyhow::bail!(
-        "anvil intercept unblock --acknowledge-cascade is not yet supported on Windows"
-    );
+    anyhow::bail!("anvil intercept unblock --acknowledge-cascade is not yet supported on Windows");
 }
 
 /// RCLI3-017b: send `IpcCommand::UnblockWorktree` to the daemon and
@@ -1370,9 +1368,7 @@ fn dispatch_unblock_worktree(worktree: &std::path::Path) -> Result<bool> {
 
 #[cfg(windows)]
 fn dispatch_unblock_worktree(_worktree: &std::path::Path) -> Result<bool> {
-    anyhow::bail!(
-        "anvil intercept unblock --worktree is not yet supported on Windows"
-    );
+    anyhow::bail!("anvil intercept unblock --worktree is not yet supported on Windows");
 }
 
 #[cfg(unix)]
