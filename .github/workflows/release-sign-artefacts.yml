@@ -97,15 +97,17 @@ jobs:
           }
 
           run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_RUN_ID}")
-          run_name=$(jq -r '.name' <<< "$run_json")
+          # Prefer path over .name: cargo-dist sets run-name to the tag
+          # (e.g. v0.11.0-beta), so Actions API .name is not "Release".
+          run_path=$(jq -r '.path' <<< "$run_json")
           run_event=$(jq -r '.event' <<< "$run_json")
           run_conclusion=$(jq -r '.conclusion' <<< "$run_json")
           run_head_branch=$(jq -r '.head_branch' <<< "$run_json")
           run_head_sha=$(jq -r '.head_sha' <<< "$run_json")
           run_display=$(jq -r '.display_title // empty' <<< "$run_json")
 
-          [ "$run_name" = "Release" ] || {
-            echo "::error::Run ${RELEASE_RUN_ID} is '${run_name}', not the Release workflow."
+          [ "$run_path" = ".github/workflows/release.yml" ] || {
+            echo "::error::Run ${RELEASE_RUN_ID} path is '${run_path}', not .github/workflows/release.yml (Release workflow)."
             exit 1
           }
           [ "$run_conclusion" = "success" ] || {
