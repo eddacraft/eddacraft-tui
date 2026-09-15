@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 332/418  |
+| CIB | —     | In Progress | 332/419  |
 
 ## Purpose
 
@@ -7266,7 +7266,8 @@ needs no engine work.
 - **Identified From:** Dave pack-02 GATE-1, CHECK-1, GATE-2; RETRACT-1 Anchor B
   absorbed 2026-08-04 (CIB-250 left free — reserved by concurrent Claude lane).
 - **Coordinates with:** CIB-234, CIB-239, CIB-251 (RETRACT-1 Anchor A), CIB-254
-  (same release-honesty theme; independent defect)
+  (same release-honesty theme; independent defect). Domain **expansion** is
+  **CIB-424** (disclosure here stays shipped).
 - **Confidence:** **high on GATE-1/CHECK-1 root cause** (raised 2026-08-05 —
   mechanism traced to source, see below); medium on GATE-2 mechanism.
 
@@ -11247,7 +11248,7 @@ contracts. Do not merge three exit-0 surfaces into one ticket.
 | DOC-3 `--web` help | Confirmed fixed on 0.9.7 | Closed. No CIB |
 | HOMEBREW-1 | Notes only. Install was not broken; live 0.9.7 notes say `anvil` | Closed. No CIB |
 | B31 UTF-8 panic | Real crash in `ends_with_regex_keyword` (`rfind` + `i + 1`) | **CIB-359** Ready P1 |
-| B33 gate secrets skip `.py`/`.tsx`/`.go`/`.sh` | Documented domain. Pack-02 GATE-1. CIB-255 chose disclosure over parity | **Won't file.** **CIB-255** |
+| B33 gate secrets skip `.py`/`.tsx`/`.go`/`.sh` | Documented domain. Pack-02 GATE-1. CIB-255 shipped disclosure. Reopened 2026-09-15 after Matt's React staff-portal report (ANVILGOV-013) | **CIB-424** Ready |
 | B28 `l4-validate` silent / `--json` empty | Designed silent CI admit (`json_surface_audit` class `silent`). Already replied | **Won't file.** |
 | B28 garbage policy still exit 0 | **Retracted by Dave 2026-08-22** (empty-`ANVIL_HOME` harness artifact). Under resolved identity, malformed policy exits 1 with a YAML parse error and a `--json` error document. Remaining silent no-op (no rule commits) is the designed silent class | **Retracted.** No CIB |
 | B32 `status` authRequired exit 0 | Read-only state surface. Action commands exit 3 | **Won't file.** **CIB-169** |
@@ -14151,3 +14152,36 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Coordinates with:** release-plan preflight, `theme:release-preflight-observability`
 - **Confidence:** high — the missing evidence field was observed on a real
   preflight run
+
+### CIB-424: Expand gate secret-detection onto source types the commit gate currently skips
+
+- **Status:** Ready
+- **Priority:** P1 — the commit-blocking surface can PASS over live credentials
+  in `.tsx` / `.jsx` / `.py` / `.go` / `.sh`
+- **Intent:** `anvil gate` and `check --all` secret-detection scan the source
+  types a React, Python, Go, or shell repository actually commits, instead of
+  only disclosing that they do not.
+- **Expected Outcome:** A planted credential in `.tsx`, `.jsx`, `.py`, `.go`,
+  or `.sh` fails `anvil gate --only-checks secret-detection`.
+  `GATE_SECRET_SCAN_DOMAIN` names the expanded list. Tests that currently pin
+  those extensions outside the gate domain flip. Domain disclosure remains;
+  it describes the new list.
+- **Non-scope / do not:** do not scan binaries, ignored directories, or files
+  at/over `MAX_FILE_SIZE`. Do not drop the domain sentence. Do not force
+  per-file `anvil check <path>` file-count identity with gate. Do not reopen
+  CIB-255's disclosure work. Do not treat harvest B33 "Won't file" as still
+  current.
+- **Files:** `crates/anvil-cli/src/util.rs` (`SECRET_SCAN_EXTS`);
+  `crates/anvil-cli/src/commands/gate.rs` (`GATE_SECRET_SCAN_DOMAIN` and
+  domain tests); shared audit/gate lock-step helpers
+- **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast` covering gate
+  secret-domain tests, plus a fixture tree with a planted key in each of
+  `.tsx` `.jsx` `.py` `.go` `.sh` that fails
+  `anvil gate --only-checks secret-detection` and is named in the domain
+  sentence
+- **Identified From:** Matt 0.10.0-beta / 0.11.0-beta staff-portal (React;
+  local APS `ANVILGOV-013`); CIB-255 GATE-1; pack-10 harvest B33
+- **Coordinates with:** CIB-255 (Released/Shipped disclosure), CIB-234 (audit
+  domain honesty), RETRACT-1 Anchor B
+- **Confidence:** high — allow-list is `SECRET_SCAN_EXTS`; tests currently
+  require `{ext} must stay outside the gate secret domain`
