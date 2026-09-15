@@ -11,6 +11,15 @@ engineering maintenance are recorded in the
 > **Draft.** This section accumulates customer-relevant changes landed on
 > `main`; the version and date are set at the next release.
 
+### Added
+
+- **`anvil settings` inspects resolved configuration.** CLI and TUI show
+  catalogue rows, sources, and health without a mutation path.
+
+- **Status shows a protection posture board.** Declared enforcement, gate, last
+  action, and runtime sit on one ladder so live protection is visible next to
+  what the repository declared.
+
 ### Fixed
 
 - **Windows readiness treats `\\?\` and ordinary drive paths as one worktree.**
