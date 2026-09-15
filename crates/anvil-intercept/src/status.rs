@@ -628,12 +628,32 @@ impl StatusProvider for DaemonStatusProvider {
 
 /// Keep daemon-global health/latency, drop sessions and worktrees that
 /// are not the queried worktree (JREL-013).
+fn matches_worktree(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    if let (Ok(a), Ok(b)) = (dunce::canonicalize(left), dunce::canonicalize(right)) {
+        return a == b;
+    }
+    fn strip(path: &Path) -> &Path {
+        path.to_str()
+            .and_then(|s| s.strip_prefix(r"\\?\"))
+            .map(Path::new)
+            .unwrap_or(path)
+    }
+    strip(left) == strip(right)
+}
+
 fn filter_status_to_worktree(mut status: DaemonStatus, worktree: &Path) -> DaemonStatus {
     status
         .sessions
-        .retain(|session| session.worktree == worktree);
-    status.worktrees.retain(|entry| entry.worktree == worktree);
-    status.fences.retain(|fence| fence.worktree == worktree);
+        .retain(|session| matches_worktree(&session.worktree, worktree));
+    status
+        .worktrees
+        .retain(|entry| matches_worktree(&entry.worktree, worktree));
+    status
+        .fences
+        .retain(|fence| matches_worktree(&fence.worktree, worktree));
     status
 }
 
@@ -771,7 +791,7 @@ pub fn build_protection_claim(snapshot: &DaemonStatus, worktree: &Path) -> Prote
     let worktree_entries: Vec<&WorktreeStatus> = snapshot
         .worktrees
         .iter()
-        .filter(|w| w.worktree == worktree)
+        .filter(|w| matches_worktree(&w.worktree, worktree))
         .collect();
 
     if worktree_entries.is_empty() {
@@ -850,7 +870,7 @@ pub fn build_protection_claim_from_wire(
     let worktree_entries: Vec<&WorktreeStatusV1> = snapshot
         .worktrees
         .iter()
-        .filter(|w| w.worktree == worktree)
+        .filter(|w| matches_worktree(&w.worktree, worktree))
         .collect();
 
     if worktree_entries.is_empty() {
@@ -999,6 +1019,18 @@ mod tests {
         let full_claim = build_protection_claim(&snapshot, Path::new("/tmp/wt-a"));
         let scoped_claim = build_protection_claim(&scoped, Path::new("/tmp/wt-a"));
         assert_eq!(full_claim, scoped_claim);
+    }
+
+    #[test]
+    fn matches_worktree_equates_plain_and_verbatim_windows_forms() {
+        let plain = Path::new(r"C:\Users\matt-\source\repos\hplan");
+        let verbatim = Path::new(r"\\?\C:\Users\matt-\source\repos\hplan");
+        assert!(matches_worktree(plain, verbatim));
+        assert!(matches_worktree(verbatim, plain));
+        assert!(!matches_worktree(
+            plain,
+            Path::new(r"C:\Users\matt-\source\repos\other")
+        ));
     }
 
     #[test]

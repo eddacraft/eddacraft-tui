@@ -750,9 +750,10 @@ impl SessionRegistry {
     /// Register a new session against a worktree path.
     ///
     /// **Canonicalisation policy:** the worktree is run through
-    /// `std::fs::canonicalize` before use as a registry key, so two
-    /// clients spelling the same worktree differently (trailing slash,
-    /// `..` segments, symlinks) cannot each "own" the same worktree.
+    /// [`canonicalise`] (`dunce::canonicalize`) before use as a registry
+    /// key, so two clients spelling the same worktree differently
+    /// (trailing slash, `..` segments, symlinks, Windows `\\?\`) cannot
+    /// each "own" the same worktree. Lookups must use the same helper.
     /// A path that does not exist yields
     /// [`RegistryError::WorktreePathInvalid`] — v1 refuses to register
     /// sessions for missing worktrees rather than silently storing a
@@ -1418,7 +1419,7 @@ impl SessionRegistry {
     /// same as before.
     #[must_use]
     pub fn session_for_worktree(&self, worktree: &Path) -> Option<SessionRecord> {
-        let canonical = std::fs::canonicalize(worktree).ok()?;
+        let canonical = canonicalise(worktree).ok()?;
         let inner = self.lock();
         let mut matches: Vec<&RegistryEntry> = inner
             .by_composite
@@ -1441,7 +1442,7 @@ impl SessionRegistry {
     /// untagged worktree-level session; this method surfaces them all.
     #[must_use]
     pub fn sessions_for_worktree(&self, worktree: &Path) -> Vec<SessionRecord> {
-        let Ok(canonical) = std::fs::canonicalize(worktree) else {
+        let Ok(canonical) = canonicalise(worktree) else {
             return Vec::new();
         };
         let inner = self.lock();
@@ -1469,7 +1470,7 @@ impl SessionRegistry {
     /// ADR-090 (CIB-098): the ownership resolver routes a daemon-health
     /// notification that fires precisely in degraded states (disk full,
     /// EROFS, the worktree deleted/unmounted). [`Self::sessions_for_worktree`]
-    /// calls `std::fs::canonicalize` and returns empty on error, so a session
+    /// calls [`canonicalise`] and returns empty on error, so a session
     /// registered against a now-unstattable worktree path would silently lose
     /// its subscriber — defeating the notification in the exact case it is for.
     /// This method skips the `canonicalize` step entirely: the registration
@@ -1522,7 +1523,7 @@ impl SessionRegistry {
     /// rule the constructor enforces.
     #[must_use]
     pub fn attribute_path(&self, changed: &Path) -> Attribution {
-        let canonical = std::fs::canonicalize(changed).ok().or_else(|| {
+        let canonical = canonicalise(changed).ok().or_else(|| {
             // Canonicalisation can fail for `Removed` events
             // (the file no longer exists). Walk up to the first
             // ancestor that does exist, canonicalise that, and
@@ -1530,7 +1531,7 @@ impl SessionRegistry {
             // does not affect prefix-matching.
             let mut probe = changed.parent();
             while let Some(p) = probe {
-                if let Ok(c) = std::fs::canonicalize(p) {
+                if let Ok(c) = canonicalise(p) {
                     return Some(c);
                 }
                 probe = p.parent();
@@ -3266,6 +3267,21 @@ mod tests {
                 .is_empty(),
             "an unregistered canonical worktree yields no sessions"
         );
+    }
+
+    #[test]
+    fn session_lookup_uses_register_canonicalise() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        registry
+            .register(&sid("s1"), wt.path(), None, Instant::now())
+            .expect("register");
+        let dotted = wt.path().join(".");
+        assert!(
+            registry.session_for_worktree(&dotted).is_some(),
+            "lookup through an equivalent spelling must hit the stored key"
+        );
+        assert_eq!(registry.sessions_for_worktree(&dotted).len(), 1);
     }
 
     /// ADR-090 (CIB-098), Finding 1: a session registered against a worktree
