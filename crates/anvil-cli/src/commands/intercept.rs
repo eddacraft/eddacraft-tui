@@ -1842,8 +1842,12 @@ mod tests {
             "bail message must mention --foreground, got: {msg}",
         );
         assert!(
-            msg.contains("DLIFE"),
-            "bail message must point at the daemon-lifecycle backgrounded path (DLIFE), got: {msg}",
+            msg.contains("anvil start") && msg.contains("anvil watch"),
+            "bail message must point at the backgrounded path, got: {msg}",
+        );
+        assert!(
+            !msg.contains("ADR-") && !msg.contains("DLIFE"),
+            "consumer-facing intercept errors must not cite internal ids, got: {msg}",
         );
     }
 
