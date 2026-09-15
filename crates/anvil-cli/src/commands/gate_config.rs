@@ -261,7 +261,7 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
     {
         bail!(
             "check \"{canonical_name}\" cannot be disabled via gate-config — its \
-             rule class `{class}` is hard-pinned (ADR-039). Per-finding \
+             rule class `{class}` is built-in. Per-finding \
              suppression via `@anvil-ignore` remains available."
         );
     }
@@ -557,8 +557,11 @@ mod tests {
         for check in ["secret-detection", "command-safety"] {
             let err = run_toggle(dir.path(), check, false, OutputMode::Plain).unwrap_err();
             let msg = err.to_string();
-            assert!(msg.contains("hard-pinned"), "{check}: {msg}");
-            assert!(msg.contains("ADR-039"), "{check}: {msg}");
+            assert!(msg.contains("cannot be disabled"), "{check}: {msg}");
+            assert!(
+                !msg.contains("ADR-"),
+                "consumer-facing gate-config errors must not cite ADRs: {check}: {msg}"
+            );
         }
         // The file is untouched by refused toggles.
         let value = read_yaml(dir.path());

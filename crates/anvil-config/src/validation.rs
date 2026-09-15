@@ -28,15 +28,14 @@ pub enum ValidationError {
     #[error(
         "hard-pinned rule class `{class}` cannot be disabled at \
          `{path}` — set `enabled: true` or remove the override \
-         entirely. ADR-039 §D-2 pins this class for safety reasons; \
-         per-finding suppression via `@anvil-ignore` (ADR-004) remains \
+         entirely. Per-finding suppression via `@anvil-ignore` remains \
          available."
     )]
     HardPinnedDisabled { class: String, path: String },
     #[error(
         "hard-pinned rule class `{class}` cannot be set to mode \
          `{mode}` at `{path}` — `disabled` / `off` modes are not \
-         accepted for this class. ADR-039 §D-2."
+         accepted for this class."
     )]
     HardPinnedModeDisabled {
         class: String,
@@ -352,7 +351,10 @@ mod tests {
         let err = validate_hard_pinned_classes(&v).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("secrets"), "msg should name the class");
-        assert!(msg.contains("ADR-039"), "msg should cite the governing ADR");
+        assert!(
+            !msg.contains("ADR-"),
+            "consumer-facing config errors must not cite ADRs: {msg}"
+        );
         assert!(
             msg.contains("@anvil-ignore"),
             "msg should point at the per-finding bypass"

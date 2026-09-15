@@ -1657,7 +1657,7 @@ fn round_to_int(value: f64) -> u64 {
 fn run_start(args: &StartArgs) -> Result<()> {
     if !args.foreground {
         anyhow::bail!(
-            "`anvil intercept start` requires --foreground; this is the low-level operator/debugging daemon surface. Backgrounded daemon launch is provided to `anvil start` / `anvil watch` via the daemon-lifecycle ensure primitive (DLIFE, ADR-082)."
+            "`anvil intercept start` requires --foreground; this is the low-level operator/debugging daemon surface. Backgrounded daemon launch is provided by `anvil start` / `anvil watch`."
         );
     }
 

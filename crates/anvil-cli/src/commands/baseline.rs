@@ -195,7 +195,7 @@ fn run_create_or_refresh(
             .and_then(|b| b.pre_cursor_fingerprint.clone());
         let saved_cursor = existing.as_ref().and_then(|b| b.continuation.clone());
         let drift_reason: Option<&str> = match (saved_fp.as_deref(), saved_cursor.as_deref()) {
-            (None, Some(_)) => Some("pre-MLP2-065 baseline carries no drift fingerprint"),
+            (None, Some(_)) => Some("older partial baseline carries no drift fingerprint"),
             (Some(saved), Some(cursor)) => match peek_pre_cursor_fingerprint(repo_root, cursor) {
                 Some(current) if current == saved => None,
                 Some(_) => Some("pre-cursor file list changed since the previous partial pass"),

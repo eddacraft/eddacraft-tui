@@ -818,7 +818,7 @@ fn write_dev_key_warning<W: std::io::Write>(w: &mut W) -> std::io::Result<()> {
     )?;
     writeln!(
         w,
-        "         Skipping signature verification — release builds enforce it. See ADR-045."
+        "         Skipping signature verification — release builds enforce it."
     )?;
     writeln!(
         w,
@@ -2120,7 +2120,7 @@ mod tests {
     }
 
     #[test]
-    fn dev_key_warning_writes_three_loud_lines_and_cites_adr_045() {
+    fn dev_key_warning_writes_three_loud_lines() {
         let mut buf = Vec::new();
         write_dev_key_warning(&mut buf).expect("infallible for Vec");
         let text = std::str::from_utf8(&buf).expect("utf-8");
@@ -2137,8 +2137,12 @@ mod tests {
             "header line missing; got:\n{text}"
         );
         assert!(
-            text.contains("release builds enforce it. See ADR-045"),
-            "ADR-045 citation missing; got:\n{text}"
+            text.contains("release builds enforce it"),
+            "enforcement line missing; got:\n{text}"
+        );
+        assert!(
+            !text.contains("ADR-"),
+            "consumer-facing update warnings must not cite ADRs; got:\n{text}"
         );
         assert!(
             text.contains("re-install from a trusted source"),

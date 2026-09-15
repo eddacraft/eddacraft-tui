@@ -170,8 +170,8 @@ pub enum ExceptionError {
     /// git. ADR-073 requires an explicit step — run
     /// [`ExceptionStore::migrate`] first, then reload.
     #[error(
-        "store was loaded from the legacy `.anvil/exceptions.json`; run migrate() before \
-         writing the tracked store (ADR-073 explicit-migration discipline)"
+        "store was loaded from the legacy `.anvil/exceptions.json`; run `anvil exception migrate` before \
+         writing the tracked store"
     )]
     LegacyOriginNotMigrated,
     /// A path component under the workspace's `anvil/` governance tree is

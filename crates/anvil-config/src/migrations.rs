@@ -111,8 +111,8 @@ pub fn legacy_keys_deprecation_note(renamed: &[String]) -> Option<String> {
         return None;
     }
     Some(format!(
-        "deprecated camelCase config keys detected: {} — snake_case is canonical \
-         (ADR-120); run `anvil migrate schema` to rewrite the file",
+        "deprecated camelCase config keys detected: {} — snake_case is canonical; \
+         run `anvil migrate schema` to rewrite the file",
         renamed.join(", ")
     ))
 }
@@ -125,7 +125,7 @@ pub fn legacy_keys_deprecation_note(renamed: &[String]) -> Option<String> {
 pub fn production_migrations() -> Vec<SchemaMigration> {
     vec![SchemaMigration {
         description: "rename legacy camelCase config keys (schemaVersion, planningDir) \
-                      to canonical snake_case (ADR-120 / UCFG-003)"
+                      to canonical snake_case"
             .to_string(),
         introduced_in: Version::parse("0.10.0-beta").expect("static version parses"),
         apply: |v| {

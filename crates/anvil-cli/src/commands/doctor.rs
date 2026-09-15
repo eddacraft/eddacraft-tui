@@ -1374,7 +1374,7 @@ fn check_state_boundary_at(root: &Path) -> DiagnosticCheck {
             name: "state-boundary".to_string(),
             category: "Configuration".to_string(),
             status: CheckStatus::Pass,
-            message: "durable anvil/ vs runtime .anvil/ state boundary holds (ADR-073)".to_string(),
+            message: "durable anvil/ vs runtime .anvil/ state boundary holds".to_string(),
             details: None,
             auto_fixable: false,
             remediation: Remediation::default(),
@@ -1472,10 +1472,10 @@ fn state_boundary_warn(
          state first) and keep `.anvil/` gitignored; remove the `.gitignore` rules \
          that swallow durable `anvil/` evidence, or move that state under `.anvil/` \
          if it is genuinely local. This check has no suppression surface: a \
-         deviation recorded in ADR-073 keeps warning by design — justify it at the \
+         documented local deviation keeps warning by design — justify it at the \
          ignore rule and leave the warning standing. Only `anvil/exceptions/.lock` \
-         (EXCEPT-007) and `anvil/witness/.chain-initialised` (CIB-126) are exempt, \
-         and that list is fixed in code.",
+         and `anvil/witness/.chain-initialised` are exempt, and that list is \
+         fixed in code.",
     );
     if diagnostic_command {
         summary.push_str(
@@ -4180,6 +4180,17 @@ mod tests {
 
     // --- state-boundary (GITGOV-014, ADR-073) ---
 
+    fn assert_no_internal_planning_ids(label: &str, text: &str) {
+        for token in [
+            "ADR-", "CIB-", "EXCEPT-", "GITGOV-", "KFIT-", "MLP2-", "UCFG-", "DLIFE",
+        ] {
+            assert!(
+                !text.contains(token),
+                "{label} leaked internal id {token}: {text}"
+            );
+        }
+    }
+
     /// `git` invocation for state-boundary fixtures. `GIT_CONFIG_GLOBAL` and
     /// `GIT_CONFIG_SYSTEM` are pointed at the null device so a developer's
     /// global excludesFile cannot leak into the fixture repo's ignore rules,
@@ -4228,6 +4239,7 @@ mod tests {
         git_in(tmp.path(), &["add", "anvil"]);
         let check = check_state_boundary_at(tmp.path());
         assert_eq!(check.status, CheckStatus::Pass, "{:?}", check.message);
+        assert_no_internal_planning_ids("state-boundary pass", &check.message);
     }
 
     #[test]
@@ -4328,6 +4340,7 @@ mod tests {
             !summary.contains("justified exception"),
             "remediation no longer offers exception-recording as a resolution: {summary:?}"
         );
+        assert_no_internal_planning_ids("state-boundary warn remediation", summary);
     }
 
     /// CIB-380 guard on the other arm: when runtime state is tracked the

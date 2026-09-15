@@ -1680,7 +1680,7 @@ where
                         target: "anvil::witness",
                         project_uuid = %project_uuid,
                         witness_root = %repo_root.display(),
-                        "witness chain integrity check failed; refusing to append (ADR-038)",
+                        "witness chain integrity check failed; refusing to append",
                     );
                 }
                 // CIB-124: the bounded lock acquire gave up — the `.lock` was held
