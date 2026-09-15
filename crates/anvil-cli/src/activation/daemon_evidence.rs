@@ -1877,25 +1877,20 @@ mod tests {
 
     /// Worktree canonicalisation contract — daemon stores canonical
     /// path; activation must canonicalise its argument too.
-    /// `build_protection_claim_from_wire` compares byte-equal on
-    /// `worktree`. If the caller passes a non-canonical form the
-    /// match fails, the claim reads `Unprotected`, and the promotion
-    /// silently no-ops — exact MLP2-025b / #1831 failure mode.
-    /// `canonicalise_for_activation` is the activation-side fix; this
-    /// test pins that the predicate fails closed when the worktree
-    /// path passed to `evaluate_and_promote` does not match the
-    /// daemon-stored form.
+    /// `build_protection_claim_from_wire` matches with `same_path`.
+    /// A caller that passes a *different* worktree still reads
+    /// `Unprotected` and promotion no-ops — exact MLP2-025b / #1831
+    /// failure mode. Spelling variants (plain vs `\\?\`) of the same
+    /// location do match; this test pins fail-closed for a different
+    /// location.
     #[test]
     fn non_canonical_worktree_does_not_promote() {
-        // The daemon stores its canonical absolute path at register-
-        // time. A caller that passes a sibling path (different bytes,
-        // even if both paths resolve to the same canonical dir) fails
-        // the `build_protection_claim_from_wire` byte-equality match
-        // — claim reads `Unprotected`, promotion silently no-ops.
-        // `canonicalise_for_activation` (the production path) closes
-        // this gap by canonicalising before the IPC call; the unit
-        // test here pins that `evaluate_and_promote` itself does NOT
-        // attempt a salvage match — non-canonical input is fail-closed.
+        // A sibling path that names a different directory fails the
+        // identity match — claim reads `Unprotected`, promotion
+        // silently no-ops. `canonicalise_for_activation` (the
+        // production path) closes the `..` / symlink spelling gap;
+        // this unit test pins that `evaluate_and_promote` itself does
+        // NOT salvage a different location.
         let canonical = PathBuf::from("/tmp/wt-051f-canonical-real");
         let non_canonical = PathBuf::from("/tmp/wt-051f-canonical-other");
         let now = now_with_recent_heartbeats();
@@ -1929,18 +1924,20 @@ mod tests {
     }
 
     /// The production canonicalisation step must produce a path that
-    /// `build_protection_claim_from_wire` sees as byte-equal to what
-    /// the daemon stored at register-time. The fixture uses a tempdir
-    /// (the closest real-world stand-in for a daemon-canonicalised
-    /// worktree) plus a `./<name>/.` accessor for the non-canonical
-    /// form. Canonicalising the latter must collapse to the former.
+    /// `build_protection_claim_from_wire` sees as the same location as
+    /// what the daemon stored at register-time. The fixture uses a
+    /// tempdir plus a `./<name>/.` accessor. Canonicalising the latter
+    /// must collapse to the dunce form of the former.
     #[test]
     fn canonicalise_for_activation_collapses_curdir_components() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalise tmp");
+        let canonical = crate::display_path::canonicalise(tmp.path()).expect("canonicalise tmp");
         let with_curdir = tmp.path().join(".");
         let out = canonicalise_for_activation(&with_curdir);
-        assert_eq!(out, canonical);
+        assert!(
+            crate::display_path::same_path(&out, &canonical),
+            "activation canonicalise {out:?} must match dunce form {canonical:?}"
+        );
     }
 
     /// End-to-end (still in-process): show that a snapshot registered
@@ -1952,7 +1949,7 @@ mod tests {
     #[test]
     fn evaluate_and_promote_against_canonicalised_tempdir_path() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalise tmp");
+        let canonical = crate::display_path::canonicalise(tmp.path()).expect("canonicalise tmp");
         let now = now_with_recent_heartbeats();
         let heartbeat = 1_716_336_050;
         let snapshot = make_snapshot(
@@ -1965,6 +1962,27 @@ mod tests {
 
         let mut map = handshake_verified_pair();
         evaluate_and_promote(&mut map, &snapshot, &canonical, now);
+        assert_eq!(map[&McpClientId::ClaudeCode].tier, McpTier::LiveValidation);
+    }
+
+    /// A leftover `\\?\` snapshot worktree must still promote when the
+    /// activation query is the dunce-plain form of the same location.
+    #[test]
+    fn evaluate_and_promote_matches_legacy_verbatim_snapshot_worktree() {
+        let plain = PathBuf::from(r"C:\Users\runner\work\proj");
+        let verbatim = PathBuf::from(r"\\?\C:\Users\runner\work\proj");
+        let now = now_with_recent_heartbeats();
+        let heartbeat = 1_716_336_050;
+        let snapshot = make_snapshot(
+            &verbatim,
+            vec![make_session("sess-1", &verbatim, heartbeat)],
+            vec![make_worktree_status("sess-1", &verbatim, false)],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+
+        let mut map = handshake_verified_pair();
+        evaluate_and_promote(&mut map, &snapshot, &plain, now);
         assert_eq!(map[&McpClientId::ClaudeCode].tier, McpTier::LiveValidation);
     }
 
@@ -2031,7 +2049,8 @@ mod tests {
         }
 
         let worktree_dir = tempfile::tempdir().expect("tempdir");
-        let worktree = std::fs::canonicalize(worktree_dir.path()).expect("worktree canonical");
+        let worktree =
+            crate::display_path::canonicalise(worktree_dir.path()).expect("worktree canonical");
 
         let pipe_name = format!(
             r"\\.\pipe\anvil-cib072-daemon-evidence-test-{}",
@@ -2143,7 +2162,8 @@ mod tests {
         // up at exit. An earlier draft called `.keep()` which leaks
         // the dir on disk per CI run (council finding).
         let worktree_dir = tempfile::tempdir().expect("tempdir");
-        let worktree = std::fs::canonicalize(worktree_dir.path()).expect("worktree canonical");
+        let worktree =
+            crate::display_path::canonicalise(worktree_dir.path()).expect("worktree canonical");
 
         let runtime_dir = tempfile::tempdir().expect("runtime tempdir");
         std::fs::set_permissions(runtime_dir.path(), std::fs::Permissions::from_mode(0o700))

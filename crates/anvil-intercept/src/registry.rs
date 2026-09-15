@@ -1424,7 +1424,7 @@ impl SessionRegistry {
         let mut matches: Vec<&RegistryEntry> = inner
             .by_composite
             .iter()
-            .filter(|((wt, _), _)| wt == &canonical)
+            .filter(|((wt, _), _)| worktree_key_matches(wt, &canonical))
             .filter_map(|(_, id)| inner.sessions.get(id))
             .collect();
         matches.sort_by(|a, b| {
@@ -1449,7 +1449,7 @@ impl SessionRegistry {
         let mut records: Vec<SessionRecord> = inner
             .by_composite
             .iter()
-            .filter(|((wt, _), _)| wt == &canonical)
+            .filter(|((wt, _), _)| worktree_key_matches(wt, &canonical))
             .filter_map(|(_, id)| inner.sessions.get(id))
             .map(|entry| entry.record.clone())
             .collect();
@@ -1462,8 +1462,8 @@ impl SessionRegistry {
     }
 
     /// All sessions registered against an **already-canonical** worktree,
-    /// matched directly against the stored canonical key **without** a
-    /// filesystem `canonicalize` round-trip. Sorted deterministically by
+    /// matched against the stored canonical key **without** a filesystem
+    /// `canonicalise` round-trip. Sorted deterministically by
     /// `started_at_unix` then `SessionId`, mirroring
     /// [`Self::sessions_for_worktree`].
     ///
@@ -1473,20 +1473,18 @@ impl SessionRegistry {
     /// calls [`canonicalise`] and returns empty on error, so a session
     /// registered against a now-unstattable worktree path would silently lose
     /// its subscriber — defeating the notification in the exact case it is for.
-    /// This method skips the `canonicalize` step entirely: the registration
+    /// This method skips the filesystem step entirely: the registration
     /// path already stores the canonical worktree (via [`canonicalise`]), and
     /// both production callers (`save_time.rs`, `full_scan_executor.rs`) pass
-    /// an already-canonical worktree, so an exact match against the stored
-    /// canonical key is correct and carries no on-disk dependency at lookup
-    /// time. Mis-delivery is impossible: the match is still the same exact
-    /// canonical composite/worktree key equality `sessions_for_worktree` uses.
+    /// an already-canonical worktree. Comparison uses [`worktree_key_matches`]
+    /// so a leftover `\\?\` stored key still hits a dunce query (CIB-419).
     #[must_use]
     pub fn sessions_for_canonical_worktree(&self, worktree: &Path) -> Vec<SessionRecord> {
         let inner = self.lock();
         let mut records: Vec<SessionRecord> = inner
             .by_composite
             .iter()
-            .filter(|((wt, _), _)| wt.as_path() == worktree)
+            .filter(|((wt, _), _)| worktree_key_matches(wt, worktree))
             .filter_map(|(_, id)| inner.sessions.get(id))
             .map(|entry| entry.record.clone())
             .collect();
@@ -1557,9 +1555,11 @@ impl SessionRegistry {
         // [`Self::sessions_for_worktree`] for the full set).
         let mut best_prefix: Option<&PathBuf> = None;
         for (wt, _) in inner.by_composite.keys() {
-            if canonical.starts_with(wt)
-                && best_prefix
-                    .is_none_or(|current| wt.as_os_str().len() > current.as_os_str().len())
+            if crate::path_identity::relative_to(&canonical, wt).is_some()
+                && best_prefix.is_none_or(|current| {
+                    crate::path_identity::identity_len(wt)
+                        > crate::path_identity::identity_len(current)
+                })
             {
                 best_prefix = Some(wt);
             }
@@ -1575,7 +1575,7 @@ impl SessionRegistry {
         let mut candidates: Vec<&RegistryEntry> = inner
             .by_composite
             .iter()
-            .filter(|((p, _), _)| p == &wt)
+            .filter(|((p, _), _)| worktree_key_matches(p, &wt))
             .filter_map(|(_, id)| inner.sessions.get(id))
             .collect();
         candidates.sort_by(|a, b| {
@@ -2118,6 +2118,13 @@ fn canonicalise(path: &Path) -> Result<PathBuf, RegistryError> {
         path: path.to_path_buf(),
         source,
     })
+}
+
+/// Registry-key identity: dunce-plain and leftover `\\?\` keys name the
+/// same worktree. Used after [`canonicalise`] on the query side so a
+/// missing path still fail-closes, while mixed stored/query forms hit.
+fn worktree_key_matches(stored: &Path, query: &Path) -> bool {
+    crate::path_identity::same_path(stored, query)
 }
 
 fn unix_seconds_now() -> u64 {
@@ -2723,7 +2730,7 @@ mod tests {
             .expect("live");
 
         let listed = registry.registered_worktrees();
-        let canonical = std::fs::canonicalize(durable_wt.path()).expect("canonicalise");
+        let canonical = canonicalise(durable_wt.path()).expect("canonicalise");
         assert_eq!(listed, vec![canonical]);
     }
 
@@ -2743,7 +2750,7 @@ mod tests {
             .register(&sid("gone"), gone.path(), Some(&spine_tag()), now)
             .expect("gone");
 
-        let gone_canonical = std::fs::canonicalize(gone.path()).expect("canonicalise gone");
+        let gone_canonical = canonicalise(gone.path()).expect("canonicalise gone");
         let reaped = registry.reap_missing(|wt| wt != gone_canonical);
 
         assert_eq!(reaped, vec![gone_canonical]);
@@ -2779,8 +2786,7 @@ mod tests {
             .register(&sid("dropped"), dropped.path(), Some(&spine_tag()), now)
             .expect("dropped");
         registry.unregister(&sid("kept")).expect("unregister kept");
-        let dropped_canonical =
-            std::fs::canonicalize(dropped.path()).expect("canonicalise dropped");
+        let dropped_canonical = canonicalise(dropped.path()).expect("canonicalise dropped");
         registry.reap_missing(|wt| wt != dropped_canonical);
 
         let seen = events.lock().unwrap().clone();
@@ -2822,7 +2828,7 @@ mod tests {
                 now,
             )
             .expect("live");
-        let canonical = std::fs::canonicalize(durable.path()).expect("canonicalise");
+        let canonical = canonicalise(durable.path()).expect("canonicalise");
 
         assert!(matches!(
             registry.register(&sid("durable"), durable.path(), Some(&spine_tag()), now),
@@ -3284,6 +3290,24 @@ mod tests {
         assert_eq!(registry.sessions_for_worktree(&dotted).len(), 1);
     }
 
+    #[test]
+    fn sessions_for_worktree_match_equates_plain_and_verbatim_windows_keys() {
+        let stored = Path::new(r"C:\Users\runner\work\proj");
+        let verbatim = Path::new(r"\\?\C:\Users\runner\work\proj");
+        assert!(
+            worktree_key_matches(stored, verbatim),
+            "stored dunce-plain key must match a verbatim query"
+        );
+        assert!(
+            worktree_key_matches(verbatim, stored),
+            "stored leftover verbatim key must match a dunce-plain query"
+        );
+        assert!(!worktree_key_matches(
+            stored,
+            Path::new(r"C:\Users\runner\work\other")
+        ));
+    }
+
     /// ADR-090 (CIB-098), Finding 1: a session registered against a worktree
     /// that is later removed from disk is STILL resolvable via
     /// `sessions_for_canonical_worktree` — the lookup performs no
@@ -3551,7 +3575,7 @@ mod tests {
             .register(&sid("c"), wt.path(), Some(&tag_c), now)
             .expect_err("third registration must be refused");
 
-        let canonical = std::fs::canonicalize(wt.path()).unwrap();
+        let canonical = canonicalise(wt.path()).unwrap();
         match err {
             RegistryError::SessionCapExceeded {
                 worktree,
@@ -3576,7 +3600,7 @@ mod tests {
         let registry = SessionRegistry::new().with_per_worktree_cap(2);
         let wt = make_worktree();
         let now = Instant::now();
-        let canonical = std::fs::canonicalize(wt.path()).unwrap();
+        let canonical = canonicalise(wt.path()).unwrap();
 
         // Durable membership does not consume a live-session slot.
         registry

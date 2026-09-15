@@ -359,7 +359,10 @@ fn validate_index_structure(content: &str, file: &str, issues: &mut Vec<Validati
 }
 
 fn has_aps_leaf_section(content: &str) -> bool {
-    content.contains("## Work Items") || content.contains("## Tasks")
+    content.lines().any(|line| {
+        let heading = line.trim_end();
+        heading == "## Work Items" || heading == "## Tasks"
+    })
 }
 
 fn validate_leaf_structure(content: &str, file: &str, issues: &mut Vec<ValidationIssue>) {
@@ -775,6 +778,18 @@ mod tests {
             !issues.iter().any(|i| i.rule == "required-sections"),
             "{issues:?}"
         );
+    }
+
+    #[test]
+    fn leaf_section_requires_a_heading_line_not_a_substring() {
+        assert!(has_aps_leaf_section("# Plan\n\n## Work Items\n"));
+        assert!(has_aps_leaf_section("## Tasks  \n"));
+        assert!(
+            !has_aps_leaf_section("See also ## Work Items in the guide\n"),
+            "inline mention must not count as the leaf heading"
+        );
+        assert!(!has_aps_leaf_section("## Work Items extra\n"));
+        assert!(!has_aps_leaf_section("# Plan\n\n## Overview\n"));
     }
 
     #[test]

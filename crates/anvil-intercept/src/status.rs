@@ -17,6 +17,7 @@ use crate::broadcaster::TelemetryBroadcaster;
 use crate::fence::{FenceRecord, FenceStore};
 use crate::latency::{LatencyAggregator, LatencyRollup};
 use crate::midedit::ScanBufferService;
+use crate::path_identity;
 use crate::registry::SessionRegistry;
 use crate::rule_cache::RuleSetCache;
 
@@ -618,9 +619,8 @@ impl StatusProvider for DaemonStatusProvider {
     fn query_status_for_worktree(&self, worktree: &Path) -> DaemonStatus {
         let sessions = self.registry.sessions_for_worktree(worktree);
         let snapshot = self.assemble_snapshot(sessions);
-        // sessions_for_worktree matches on canonicalize(worktree); stored
-        // paths are canonical. Filter with the same key so a non-canonical
-        // caller path cannot empty a successful lookup.
+        // Filter with the dunce-canonical query, then same_path so a leftover
+        // `\\?\` snapshot record still belongs to this worktree (CIB-419).
         let filter_key = dunce::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
         filter_status_to_worktree(snapshot, &filter_key)
     }
@@ -628,32 +628,16 @@ impl StatusProvider for DaemonStatusProvider {
 
 /// Keep daemon-global health/latency, drop sessions and worktrees that
 /// are not the queried worktree (JREL-013).
-fn matches_worktree(left: &Path, right: &Path) -> bool {
-    if left == right {
-        return true;
-    }
-    if let (Ok(a), Ok(b)) = (dunce::canonicalize(left), dunce::canonicalize(right)) {
-        return a == b;
-    }
-    fn strip(path: &Path) -> &Path {
-        path.to_str()
-            .and_then(|s| s.strip_prefix(r"\\?\"))
-            .map(Path::new)
-            .unwrap_or(path)
-    }
-    strip(left) == strip(right)
-}
-
 fn filter_status_to_worktree(mut status: DaemonStatus, worktree: &Path) -> DaemonStatus {
     status
         .sessions
-        .retain(|session| matches_worktree(&session.worktree, worktree));
+        .retain(|session| path_identity::same_path(&session.worktree, worktree));
     status
         .worktrees
-        .retain(|entry| matches_worktree(&entry.worktree, worktree));
+        .retain(|entry| path_identity::same_path(&entry.worktree, worktree));
     status
         .fences
-        .retain(|fence| matches_worktree(&fence.worktree, worktree));
+        .retain(|fence| path_identity::same_path(&fence.worktree, worktree));
     status
 }
 
@@ -791,7 +775,7 @@ pub fn build_protection_claim(snapshot: &DaemonStatus, worktree: &Path) -> Prote
     let worktree_entries: Vec<&WorktreeStatus> = snapshot
         .worktrees
         .iter()
-        .filter(|w| matches_worktree(&w.worktree, worktree))
+        .filter(|w| path_identity::same_path(&w.worktree, worktree))
         .collect();
 
     if worktree_entries.is_empty() {
@@ -870,7 +854,7 @@ pub fn build_protection_claim_from_wire(
     let worktree_entries: Vec<&WorktreeStatusV1> = snapshot
         .worktrees
         .iter()
-        .filter(|w| matches_worktree(&w.worktree, worktree))
+        .filter(|w| path_identity::same_path(&w.worktree, worktree))
         .collect();
 
     if worktree_entries.is_empty() {
@@ -1022,15 +1006,48 @@ mod tests {
     }
 
     #[test]
-    fn matches_worktree_equates_plain_and_verbatim_windows_forms() {
-        let plain = Path::new(r"C:\Users\matt-\source\repos\hplan");
-        let verbatim = Path::new(r"\\?\C:\Users\matt-\source\repos\hplan");
-        assert!(matches_worktree(plain, verbatim));
-        assert!(matches_worktree(verbatim, plain));
-        assert!(!matches_worktree(
-            plain,
-            Path::new(r"C:\Users\matt-\source\repos\other")
+    fn filter_status_to_worktree_retains_legacy_verbatim_records() {
+        let verbatim = r"\\?\C:\Users\runner\work\proj";
+        let plain = Path::new(r"C:\Users\runner\work\proj");
+        let snapshot = sample_status(
+            vec![sample_session("s-legacy", verbatim)],
+            &[fence_record(verbatim)],
+            IpcState::Serving,
+        );
+        let scoped = filter_status_to_worktree(snapshot, plain);
+        assert_eq!(scoped.sessions.len(), 1);
+        assert_eq!(scoped.sessions[0].id.as_str(), "s-legacy");
+        assert_eq!(scoped.worktrees.len(), 1);
+        assert!(path_identity::same_path(
+            &scoped.worktrees[0].worktree,
+            plain
         ));
+        assert_eq!(scoped.fences.len(), 1);
+        assert!(path_identity::same_path(&scoped.fences[0].worktree, plain));
+    }
+
+    #[test]
+    fn build_protection_claim_from_wire_matches_legacy_verbatim_worktree() {
+        let verbatim = r"\\?\C:\Users\runner\work\proj";
+        let plain = Path::new(r"C:\Users\runner\work\proj");
+        let snapshot = sample_status(
+            vec![sample_session("sess-legacy", verbatim)],
+            &[],
+            IpcState::Serving,
+        );
+        parity_check(&snapshot, plain);
+        let claim = build_protection_claim_from_wire(&snapshot.to_wire(), plain);
+        assert_eq!(claim.worktree_state, WorktreeClaimState::PreWriteDaemon);
+        assert_eq!(claim.surfaces.len(), 1);
+        assert_eq!(claim.surfaces[0].identifier, "sess-legacy");
+        assert_eq!(
+            build_protection_claim_from_wire(
+                &snapshot.to_wire(),
+                Path::new(r"C:\Users\runner\work\other")
+            )
+            .worktree_state,
+            WorktreeClaimState::Unprotected
+        );
     }
 
     #[test]
@@ -1041,7 +1058,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let wt = tmp.path().join("wt-a");
         std::fs::create_dir(&wt).expect("mkdir");
-        let canonical = std::fs::canonicalize(&wt).expect("canonicalize");
+        let canonical = dunce::canonicalize(&wt).expect("canonicalize");
         let via_dotdot = tmp.path().join(".").join("wt-a");
 
         let registry = Arc::new(SessionRegistry::new());
@@ -1059,12 +1076,15 @@ mod tests {
         );
         let scoped = provider.query_status_for_worktree(&via_dotdot);
         assert_eq!(scoped.sessions.len(), 1, "{scoped:?}");
-        assert_eq!(scoped.sessions[0].worktree, canonical);
+        assert!(
+            path_identity::same_path(&scoped.sessions[0].worktree, &canonical),
+            "{scoped:?}"
+        );
         assert!(
             scoped
                 .worktrees
                 .iter()
-                .all(|entry| entry.worktree == canonical),
+                .all(|entry| path_identity::same_path(&entry.worktree, &canonical)),
             "{scoped:?}"
         );
     }
@@ -2269,7 +2289,7 @@ mod tests {
         }
 
         let tmp = tempfile::tempdir().expect("tempdir");
-        let worktree = std::fs::canonicalize(tmp.path()).expect("canonicalise worktree");
+        let worktree = dunce::canonicalize(tmp.path()).expect("canonicalise worktree");
         let dir = tmp.path().join("save-time-drivers");
 
         let registry = Arc::new(SessionRegistry::new());
@@ -2303,7 +2323,7 @@ mod tests {
         let entry = wire
             .worktrees
             .iter()
-            .find(|w| w.worktree == worktree)
+            .find(|w| path_identity::same_path(&w.worktree, &worktree))
             .expect("worktree present in snapshot");
         assert_eq!(entry.save_time_driver, SaveTimeDriverStatusV1::Attached);
     }
@@ -2360,7 +2380,7 @@ mod tests {
         }
 
         let tmp = tempfile::tempdir().expect("tempdir");
-        let worktree = std::fs::canonicalize(tmp.path()).expect("canonicalise worktree");
+        let worktree = dunce::canonicalize(tmp.path()).expect("canonicalise worktree");
         let dir = tmp.path().join("save-time-drivers");
 
         let registry = Arc::new(SessionRegistry::new());
@@ -2393,7 +2413,7 @@ mod tests {
         let entry = wire
             .worktrees
             .iter()
-            .find(|w| w.worktree == worktree)
+            .find(|w| path_identity::same_path(&w.worktree, &worktree))
             .expect("worktree present in snapshot");
         assert_eq!(entry.save_time_driver, SaveTimeDriverStatusV1::Failed);
     }
@@ -2409,7 +2429,7 @@ mod tests {
         use crate::registry::SessionRegistry;
 
         let tmp = tempfile::tempdir().expect("tempdir");
-        let worktree = std::fs::canonicalize(tmp.path()).expect("canonicalise worktree");
+        let worktree = dunce::canonicalize(tmp.path()).expect("canonicalise worktree");
         let registry = Arc::new(SessionRegistry::new());
         registry
             .register(
@@ -2432,7 +2452,7 @@ mod tests {
         let entry = wire
             .worktrees
             .iter()
-            .find(|w| w.worktree == worktree)
+            .find(|w| path_identity::same_path(&w.worktree, &worktree))
             .expect("worktree present");
         assert_eq!(entry.save_time_driver, SaveTimeDriverStatusV1::Absent);
     }

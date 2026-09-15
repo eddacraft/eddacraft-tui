@@ -244,7 +244,7 @@ impl RegistrationStore {
         let mut records = self.load()?;
         if let Some(existing) = records
             .iter_mut()
-            .find(|existing| existing.worktree == record.worktree)
+            .find(|existing| crate::path_identity::same_path(&existing.worktree, &record.worktree))
         {
             *existing = record;
         } else {
@@ -259,7 +259,7 @@ impl RegistrationStore {
         let _guard = self.lock();
         let mut records = self.load()?;
         let before = records.len();
-        records.retain(|record| record.worktree != worktree);
+        records.retain(|record| !crate::path_identity::same_path(&record.worktree, worktree));
         let removed = records.len() != before;
         if removed {
             self.save(&records)?;
@@ -412,6 +412,27 @@ mod tests {
         store.upsert(record(&worktree)).expect("first");
         store.upsert(record(&worktree)).expect("second");
         assert_eq!(store.load().expect("load").len(), 1);
+    }
+
+    /// Windows path strings are not `Path::is_absolute` on Unix, so the
+    /// store's absolute-path validator only accepts this fixture on Windows.
+    #[cfg(windows)]
+    #[test]
+    fn upsert_and_remove_match_legacy_verbatim_windows_keys() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = store_path(&dir);
+        let store = RegistrationStore::at_path(&path);
+        let plain = PathBuf::from(r"C:\Users\runner\work\proj");
+        let verbatim = PathBuf::from(r"\\?\C:\Users\runner\work\proj");
+        store.upsert(record(&verbatim)).expect("legacy verbatim");
+        store
+            .upsert(record(&plain))
+            .expect("plain replaces verbatim");
+        let loaded = store.load().expect("load");
+        assert_eq!(loaded.len(), 1);
+        assert!(crate::path_identity::same_path(&loaded[0].worktree, &plain));
+        assert!(store.remove(&verbatim).expect("remove via verbatim"));
+        assert!(store.load().expect("empty").is_empty());
     }
 
     #[test]

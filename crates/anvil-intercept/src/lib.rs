@@ -92,6 +92,7 @@ pub mod last_action;
 pub mod latency;
 pub mod midedit;
 pub mod overlay_scan;
+pub(crate) mod path_identity;
 #[cfg(unix)]
 pub mod path_safety;
 pub mod rate_window;
