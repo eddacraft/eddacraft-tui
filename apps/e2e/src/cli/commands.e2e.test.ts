@@ -63,7 +63,9 @@ describeCli('CLI › doctor', () => {
     // Root shape contract (see CHANGELOG): doctor --json is an object with
     // `checks` (array) and `notifications` (array). Guard against a regression
     // back to a bare array or a drop of the notifications envelope.
-    const parsed = JSON.parse(result.output) as unknown;
+    // Stdout is the JSON document; stderr may carry "Doctor check failed"
+    // when a check fails (journey-readiness on an empty e2e workspace).
+    const parsed = JSON.parse(result.stdout) as unknown;
     expect(parsed).not.toBeNull();
     expect(Array.isArray(parsed)).toBe(false);
     const doc = parsed as { checks?: unknown; notifications?: unknown };

@@ -1156,7 +1156,8 @@ function publicCommandDescription(name, sourceDescription) {
     mcp: 'Manage Model Context Protocol (MCP) connections for supported AI clients',
     'mcp-config': 'Print MCP configuration for a supported AI client',
     plan: 'Inspect planning files written in APS, a Markdown-based plan format',
-    validate: 'Validate a planning file written in APS format',
+    validate:
+      'Structural check for an APS planning file (`## Work Items` or legacy `## Tasks`); not a substitute for `aps lint`',
     workspace: 'Control which project folders the local protection process may access',
   };
   return explanations[name] ?? sourceDescription;
