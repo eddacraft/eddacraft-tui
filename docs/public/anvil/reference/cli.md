@@ -16,7 +16,7 @@ upstream:
   - crates/anvil-cli/src/commands/init.rs
   - crates/anvil-cli/src/commands/policy/mod.rs
   - scripts/docs/generate-anvil-public-reference.mjs
-verified_against: 0.10.0-beta
+verified_against: 0.11.0-beta
 ---
 
 <!-- Generated from shipped product sources. Do not edit by hand. -->
@@ -24,7 +24,7 @@ verified_against: 0.10.0-beta
 # CLI command reference
 
 This page is generated from the command definitions shipped with anvil
-0.10.0-beta. Global flags appear once. Hidden clap commands are unpublished.
+0.11.0-beta. Global flags appear once. Hidden clap commands are unpublished.
 Flags and subcommands below cover the daily set (`start`, `check`, `gate`,
 `config`, `watch`, `doctor`, `init`, `policy`). Use `anvil <command> --help` for
 other commands and for examples on your installed version.
@@ -75,6 +75,7 @@ It does not install clients you skipped or rewrite configuration — use
 | `anvil new`          | Scaffold a new project from a template                                                                            |
 | `anvil policy`       | Manage and evaluate policies                                                                                      |
 | `anvil report-fp`    | Report a false positive against a check or a printed finding id                                                   |
+| `anvil settings`     | Inspect configured, resolved and evidenced-active settings                                                        |
 | `anvil skill`        | Install and verify bundled Agent Skills                                                                           |
 | `anvil start`        | Activate anvil in this repository                                                                                 |
 | `anvil status`       | Show project status and health                                                                                    |
