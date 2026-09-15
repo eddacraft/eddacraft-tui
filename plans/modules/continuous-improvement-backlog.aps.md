@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 332/419  |
+| CIB | —     | In Progress | 332/420  |
 
 ## Purpose
 
@@ -12142,7 +12142,8 @@ hang before opening a supervisor ticket.
 - **Coordinates with:** ADR-073 (which records the deviation the check cannot
   see), CIB-053 (which dispositioned the tracked `.anvil/` side and left this
   arm warning), GITGOV-014 (the check's origin), EXCEPT-007 and CIB-126 (the
-  two sanctioned exemptions)
+  two sanctioned exemptions). Moving the sidecar write off `anvil/kindling/`
+  is **CIB-425**.
 - **Confidence:** high — both claims are greps: the exemption list is two
   literals, and the diagnostic command is the `tracked_runtime.is_empty()` arm.
 
@@ -14185,3 +14186,38 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   domain honesty), RETRACT-1 Anchor B
 - **Confidence:** high — allow-list is `SECRET_SCAN_EXTS`; tests currently
   require `{ext} must stay outside the gate secret domain`
+
+### CIB-425: Write Kindling runtime sidecars under `.anvil/`, not tracked `anvil/`
+
+- **Status:** Ready
+- **Priority:** P2 — untracked churn inside a tracked directory; one
+  `git add -A` from committing session UUIDs, and it crosses the ADR-073
+  durable-vs-runtime split the product's own `state-boundary` check reports
+- **Intent:** Kindling runtime NDJSON (`audit-chain.ndjson` and any sibling
+  under `anvil/kindling/`) is written under `.anvil/kindling/`, next to
+  `.anvil/kindling.db`, so consumer repos never grow runtime files in the
+  durable `anvil/` tree.
+- **Expected Outcome:** `anvil audit-chain run` appends
+  `.anvil/kindling/audit-chain.ndjson` and does not create `anvil/kindling/`.
+  `anvil init` already gitignores `.anvil/` wholesale, so the new path is
+  ignored without a consumer gitignore rule. Witness chain under
+  `anvil/witness/` is unchanged.
+- **Non-scope / do not:** do not implement KFIT-009 (retire sidecars into
+  SQLite). Do not quiet CIB-380 by exempting `anvil/kindling/` from
+  `state-boundary`. Do not move the sidecar to `ANVIL_HOME` / XDG (that is
+  user-global, not per-workspace). Do not skip the gated-`ANVIL_HOME`
+  DISTRIB-006 no-write (candidate installs must still not touch a real
+  project tree).
+- **Files:** `crates/anvil-cli/src/commands/audit_chain.rs`
+  (`emit_audit_kindling_row`); tests for that helper; `docs/runbooks/anvil-witness-chain.md`
+- **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast` covering
+  `emit_audit_kindling_row`; a temp repo after one audit-chain emit has
+  `.anvil/kindling/audit-chain.ndjson` and no `anvil/kindling/` path
+- **Identified From:** Matt 0.10.0-beta / 0.11.0-beta (untracked
+  `anvil/kindling/audit-chain.ndjson` in a tracked tree); ADR-073 dogfood
+  deviation; CIB-380 doctor warn
+- **Coordinates with:** ADR-073, GITGOV-014 (Released/Shipped enforcement),
+  CIB-380 (remediation copy), KFIT-009 (later sidecar retirement), CIB-090
+  (write hardening stays)
+- **Confidence:** high — write path is `anvil/kindling/` in
+  `emit_audit_kindling_row`; SQLite already lives at `.anvil/kindling.db`
