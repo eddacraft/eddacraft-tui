@@ -391,6 +391,22 @@ describe('State File Operations', () => {
         return realWriteFile(...(args as Parameters<typeof fs.writeFile>));
       }) as typeof fs.writeFile);
 
+      let bSawReap: (() => void) | undefined;
+      const bReachedReap = new Promise<void>((resolve) => {
+        bSawReap = resolve;
+      });
+      const realRename = fs.rename.bind(fs);
+      let staleLockReaped = false;
+      vi.spyOn(fs, 'rename').mockImplementation(((...args: unknown[]) => {
+        const [from, to] = args as [string, string];
+        return realRename(from, to).then(() => {
+          if (!staleLockReaped && String(from) === lockPath && String(to).includes('.reaped')) {
+            staleLockReaped = true;
+            bSawReap?.();
+          }
+        });
+      }) as typeof fs.rename);
+
       const writerA = updateTaskState(tempDir, 'STALE-HOLD-A', {
         status: 'locked',
         locked_at: '2025-12-17T10:00:00.000Z',
@@ -408,9 +424,9 @@ describe('State File Operations', () => {
         locked_by: 'stale-hold-b',
       });
 
-      // Allow B to observe the stale lock, reap, and either wait on the
-      // refreshed predecessor (fixed) or race into the CS (buggy).
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Wait until B has actually reaped A's lock (not a fixed sleep) so the
+      // unfixed implementation cannot pass by racing ahead of the reap.
+      await bReachedReap;
       releaseHold?.();
 
       await Promise.all([writerA, writerB]);

@@ -533,8 +533,10 @@ function isStateLockHolderAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    // ESRCH = no such process (truly abandoned). EPERM/other probe failures
+    // mean the pid may still exist but we cannot signal it — keep the fence.
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH';
   }
 }
 
