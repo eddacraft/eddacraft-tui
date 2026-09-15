@@ -630,7 +630,7 @@ fn run_secret_check_fails_closed_on_lines_too_long_to_scan() {
     assert_eq!(
         result.message,
         "1 line(s) too long to scan, so this result cannot prove them clean: raise \
-         `max_line_bytes` to cover them, or suppress with a documented reason (ADR-029)",
+         `max_line_bytes` to cover them, or suppress with a documented reason",
     );
 
     let _ = std::fs::remove_dir_all(dir);

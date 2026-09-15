@@ -260,7 +260,7 @@ fn oversize_skip_diagnostic(file: &str, lines_skipped: usize, mode: Mode) -> Dia
         mode,
     )
     .with_remediation_hint(
-        "Raise `max_line_bytes` to cover them, or suppress with a documented reason (ADR-029).",
+        "Raise `max_line_bytes` to cover them, or suppress with a documented reason.",
     )
 }
 
@@ -504,8 +504,12 @@ mod tests {
             .as_deref()
             .expect("an unactionable red is not an improvement on a false clean");
         assert!(
-            hint.contains("max_line_bytes") && hint.contains("ADR-029"),
+            hint.contains("max_line_bytes") && hint.contains("documented reason"),
             "the hint must name both remedies: {hint}",
+        );
+        assert!(
+            !hint.contains("ADR-"),
+            "consumer-facing secret hints must not cite ADRs: {hint}",
         );
     }
 

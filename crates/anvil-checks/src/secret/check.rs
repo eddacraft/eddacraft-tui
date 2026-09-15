@@ -424,8 +424,7 @@ fn coverage_notes(
 fn oversize_skip_note(lines_skipped_oversize: usize) -> String {
     format!(
         "{lines_skipped_oversize} line(s) too long to scan, so this result cannot prove them \
-         clean: raise `max_line_bytes` to cover them, or suppress with a documented reason \
-         (ADR-029)"
+         clean: raise `max_line_bytes` to cover them, or suppress with a documented reason"
     )
 }
 
@@ -1234,8 +1233,13 @@ mod tests {
             result.message
         );
         assert!(
-            result.message.contains("ADR-029"),
+            result.message.contains("documented reason"),
             "the message must name the suppression remedy: {}",
+            result.message
+        );
+        assert!(
+            !result.message.contains("ADR-"),
+            "consumer-facing secret-check messages must not cite ADRs: {}",
             result.message
         );
 
