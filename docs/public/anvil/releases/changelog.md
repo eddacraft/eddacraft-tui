@@ -30,14 +30,13 @@ version-by-version history and downloadable artefacts, use the
 
 ### Fixed
 
-- **Windows readiness treats `\\?\` and ordinary drive paths as one worktree.**
-  A registered save-time driver no longer looks failed because the daemon stored
-  the NT-extended form while status compared the plain `C:\...` path.
-  `anvil doctor` now reports the same readiness aggregate, so it cannot pass
-  over a failed journey receipt.
+- **Windows readiness matches save-time driver status across path spellings.** A
+  registered driver no longer looks failed just because status and the daemon
+  saw different forms of the same worktree path. `anvil doctor` now reports the
+  same readiness aggregate, so it cannot pass over a failed journey receipt.
 
-- **`anvil validate` accepts current APS module files.** Canonical
-  `## Work Items` is required; `## Tasks` remains a legacy alias. This is a
+- **`anvil validate` accepts current APS module files.** `## Work Items` is
+  canonical; `## Tasks` is still accepted as a legacy alias. This is a
   structural check, not full `aps lint` parity.
 
 ## 0.10.0-beta — 13 September 2026 — Continuous journey honesty
