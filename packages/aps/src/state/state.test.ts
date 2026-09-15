@@ -352,6 +352,73 @@ describe('State File Operations', () => {
       expect(replacementWasDisplaced).toBe(true);
     });
 
+    it('reaping a live holder already past STALE_MS still fences so both records survive', async () => {
+      // Production bug: rename-aside preserved the stale mtime, then
+      // stateLockReapPathIsLive deleted the predecessor immediately, so a
+      // contender that reaped a descheduled live holder entered the critical
+      // section while the displaced writer was still mid read-modify-write
+      // and last-write-wins dropped a task record (tip-main flake on
+      // cross-process contenders reaping an abandoned lock).
+      //
+      // Hold A after it has already read its snapshot and before it writes,
+      // so a racing B that skips the fence overwrites with a stale snapshot.
+      const statePath = getStateFilePath(tempDir);
+      const lockPath = `${statePath}.lock`;
+
+      let releaseHold: (() => void) | undefined;
+      const hold = new Promise<void>((resolve) => {
+        releaseHold = resolve;
+      });
+      let enteredCs: (() => void) | undefined;
+      const inCs = new Promise<void>((resolve) => {
+        enteredCs = resolve;
+      });
+
+      const realWriteFile = fs.writeFile.bind(fs);
+      let holdingWriterBlocked = false;
+      vi.spyOn(fs, 'writeFile').mockImplementation(((...args: unknown[]) => {
+        const [path] = args as [string];
+        const pathText = String(path);
+        if (
+          !holdingWriterBlocked &&
+          pathText.includes(`${statePath}.`) &&
+          pathText.endsWith('.tmp')
+        ) {
+          holdingWriterBlocked = true;
+          enteredCs?.();
+          return hold.then(() => realWriteFile(...(args as Parameters<typeof fs.writeFile>)));
+        }
+        return realWriteFile(...(args as Parameters<typeof fs.writeFile>));
+      }) as typeof fs.writeFile);
+
+      const writerA = updateTaskState(tempDir, 'STALE-HOLD-A', {
+        status: 'locked',
+        locked_at: '2025-12-17T10:00:00.000Z',
+        locked_by: 'stale-hold-a',
+      });
+      await inCs;
+      // Make the live holder's lock look abandoned so the contender reaps it
+      // while A is still inside the critical section (snapshot already taken).
+      const past = new Date(Date.now() - 60_000);
+      await fs.utimes(lockPath, past, past);
+
+      const writerB = updateTaskState(tempDir, 'STALE-HOLD-B', {
+        status: 'locked',
+        locked_at: '2025-12-17T10:00:00.000Z',
+        locked_by: 'stale-hold-b',
+      });
+
+      // Allow B to observe the stale lock, reap, and either wait on the
+      // refreshed predecessor (fixed) or race into the CS (buggy).
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      releaseHold?.();
+
+      await Promise.all([writerA, writerB]);
+
+      const state = await readStateFile(tempDir);
+      expect(Object.keys(state.tasks).sort()).toEqual(['STALE-HOLD-A', 'STALE-HOLD-B']);
+    }, 20_000);
+
     it('cross-process contenders reaping an abandoned lock preserve every record', async () => {
       const lockPath = `${getStateFilePath(tempDir)}.lock`;
       await fs.mkdir(dirname(lockPath), { recursive: true });

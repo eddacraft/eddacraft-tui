@@ -318,9 +318,14 @@ const STATE_LOCK_STALE_MS = 10_000;
  *    The lock content is a unique fencing token for this holder.
  * 2. On EEXIST, retry with a short delay until {@link STATE_LOCK_TIMEOUT_MS}.
  *    A lock older than {@link STATE_LOCK_STALE_MS} was abandoned by a crashed
- *    holder and is reaped via an atomic rename-aside. A delayed observer can
- *    move a replacement lock after another reaper wins, so a fresh
- *    rename-aside remains as a visible predecessor instead of being deleted.
+ *    holder and is reaped via an atomic rename-aside. Lock tokens are
+ *    `pid.nonce` so a reap can tell a dead holder from a live process that
+ *    was only descheduled past STALE_MS: dead/unparseable tokens are unlinked
+ *    immediately (no wait), while a still-alive pid keeps a fresh mtime
+ *    predecessor fence (rename alone preserves the stale mtime and would
+ *    otherwise drop the fence). A delayed observer can move a replacement
+ *    lock after another reaper wins, so a fresh rename-aside remains as a
+ *    visible predecessor instead of being deleted.
  *    Every new holder waits for the predecessor paths it observed at
  *    acquisition before entering the critical section. Only ENOENT (lock
  *    released/reaped between attempts) is treated as benign; other
@@ -511,6 +516,28 @@ async function releaseStateFileLockToken(lockPath: string, token: string): Promi
   return released;
 }
 
+/**
+ * Parse the holder pid from a `pid.nonce` lock token. Legacy / test tokens
+ * without a pid prefix return undefined (treated as abandoned).
+ */
+function stateLockHolderPid(token: string): number | undefined {
+  const dot = token.indexOf('.');
+  if (dot <= 0) {
+    return undefined;
+  }
+  const pid = Number(token.slice(0, dot));
+  return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+}
+
+function isStateLockHolderAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function reapStateFileLock(lockPath: string): Promise<void> {
   const reapPath = createStateLockReapPath(lockPath);
   try {
@@ -527,13 +554,65 @@ async function reapStateFileLock(lockPath: string): Promise<void> {
     );
   }
 
-  await stateLockReapPathIsLive(reapPath);
+  let token: string;
+  try {
+    token = await fs.readFile(reapPath, 'utf-8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' || isWin32Contention(error)) {
+      return;
+    }
+    throw new StateError(
+      `Failed to inspect reaped state file lock: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      reapPath
+    );
+  }
+
+  const holderPid = stateLockHolderPid(token);
+  // Truly abandoned (crashed / legacy token): drop the rename-aside so the
+  // next holder does not wait STALE_MS for a dead predecessor.
+  if (holderPid === undefined || !isStateLockHolderAlive(holderPid)) {
+    try {
+      await fs.unlink(reapPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT' && !isWin32Contention(error)) {
+        throw new StateError(
+          `Failed to clear abandoned state file lock: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          reapPath
+        );
+      }
+    }
+    return;
+  }
+
+  // Live holder descheduled past STALE_MS: refresh mtime so
+  // stateLockReapPathIsLive keeps the predecessor fence until that holder
+  // finishes its critical section and unlinks its token (or STALE_MS elapses).
+  // rename(2) alone would preserve the already-stale mtime and the fence
+  // would be deleted immediately — the tip-main cross-process lost-write.
+  const now = new Date();
+  try {
+    await fs.utimes(reapPath, now, now);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT' || isWin32Contention(error)) {
+      return;
+    }
+    throw new StateError(
+      `Failed to refresh displaced state file lock mtime: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      reapPath
+    );
+  }
 }
 
 async function withStateFileLock<T>(projectRoot: string, fn: () => Promise<T>): Promise<T> {
   const statePath = getStateFilePath(projectRoot);
   const lockPath = `${statePath}.lock`;
-  const token = randomBytes(16).toString('hex');
+  const token = `${process.pid}.${randomBytes(16).toString('hex')}`;
   await fs.mkdir(dirname(statePath), { recursive: true });
 
   const deadline = Date.now() + STATE_LOCK_TIMEOUT_MS;
