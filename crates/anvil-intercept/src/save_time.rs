@@ -1754,7 +1754,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
                     target: "anvil_intercept::witness",
                     workspace = %canonical.display(),
                     scope = %entry.scope,
-                    "witness chain integrity check failed; refusing to append (ADR-038)",
+                    "witness chain integrity check failed; refusing to append",
                 );
                 WitnessAppendResponse {
                     outcome: WitnessOutcomeKind::ChainBroken,
