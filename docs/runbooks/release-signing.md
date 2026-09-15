@@ -2,7 +2,7 @@
 
 | Type    | Authority     | Owner  | Status | Freshness                                                                                                                             |
 | ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | Last verified 2026-09-14 against `.github/workflows/release-sign-artefacts.yml` and `.github/workflows/release.yml` dispatch recovery |
+| Runbook | Authoritative | @aneki | Live   | Last verified 2026-09-15 against `.github/workflows/release-sign-artefacts.yml` and `.github/workflows/release.yml` dispatch recovery |
 
 | Upstream                                                                                                                                                                                                                                            | Downstream                                                                                                                                                                                                                                      |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -112,12 +112,14 @@ Once setup is complete, no operator action is required per tag-push release:
 3. A successful `Release` workflow — tag `push` **or** existing-tag
    `workflow_dispatch` recovery — emits `workflow_run`, which starts
    `release-sign-artefacts.yml`. Pull-request runs are excluded before secrets
-   are consumed. The signing workflow resolves the tag from the Release run
-   (plan artefact / display title / inputs), signs the tag commit (not a
-   dispatch branch `head_sha`), signs every `*-installer.sh` / `*-installer.ps1`
-   asset plus the provenance manifest, self-verifies the signatures, and uploads
-   the `.minisig` files to both the private source release and the public
-   `eddacraft/anvil` release.
+   are consumed. The signer identifies the Release run by workflow path
+   (`.github/workflows/release.yml`), not Actions API `.name` — cargo-dist sets
+   `run-name` to the tag, so `.name` is e.g. `v0.11.0-beta`. It then resolves
+   the tag from the Release run (plan artefact / display title / inputs), signs
+   the tag commit (not a dispatch branch `head_sha`), signs every
+   `*-installer.sh` / `*-installer.ps1` asset plus the provenance manifest,
+   self-verifies the signatures, and uploads the `.minisig` files to both the
+   private source release and the public `eddacraft/anvil` release.
 4. Users on v0.7.0+ run `anvil update`; the library-fallback path verifies the
    signature against the embedded public key before replacing the running
    binary.
@@ -175,6 +177,7 @@ is taken) or by the dist config change (recommended path).
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `anvil update` errors "signature verification failed" | Artefact has been tampered with, or the embedded key is out of sync.                                                      | Verify the release manually (above). If verification fails locally too, the release is compromised — pull it.                                                                                                                   |
 | Release workflow logs "refusing to sign — dev key"    | Repo variable still set to the committed dev fallback.                                                                    | Run the One-time setup steps 1–3.                                                                                                                                                                                               |
+| Sign job errors "is 'v…', not the Release workflow"   | Signer checked Actions API `.name` while cargo-dist `run-name` set it to the tag.                                         | Identify Release runs by `.path == .github/workflows/release.yml`, then re-dispatch signing with the tag + successful Release run ID.                                                                                           |
 | Signing rejects the decoded private-key structure     | The repository secret is neither the complete two-line minisign key file nor a supported legacy one-line or raw key form. | Re-encode the full `anvil-release.key` file from the secure store and replace `ANVIL_MINISIGN_PRIVATE_KEY`; do not pad or truncate the value to satisfy a byte count.                                                           |
 | Users on legacy binaries cannot verify a new release  | Their embedded key is the dev fallback or an old key.                                                                     | They can update through Homebrew / curl-installer (own verification), then on-board to signed updates from there. The first signed release MUST be reachable through curl-installer / Homebrew — see "Initial bootstrap" below. |
 
