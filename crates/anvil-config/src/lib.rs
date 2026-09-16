@@ -11,8 +11,8 @@ mod gate_section;
 mod migrations;
 mod mutation;
 mod parse;
-mod settings_write;
 mod rule_modes;
+mod settings_write;
 mod validation;
 
 pub use canonical::{CanonicalError, canonical_json_bytes};
@@ -26,9 +26,9 @@ pub use migrations::{
 };
 pub use mutation::{MutationLockError, mutation_lock_path};
 pub use parse::{MAX_CONFIG_FILE_BYTES, ParseError, parse_file, parse_str, read_to_string_bounded};
+pub use rule_modes::{RuleMode, RuleModeError, RuleModes};
 pub use settings_write::{
     SafeWriteClass, SafeWriteError, UserSettingsFile, load_user_settings, persist_user_settings,
     store_user_setting, user_config_root, user_settings_path,
 };
-pub use rule_modes::{RuleMode, RuleModeError, RuleModes};
 pub use validation::{HARD_PINNED_CLASSES, ValidationError, validate_hard_pinned_classes};
