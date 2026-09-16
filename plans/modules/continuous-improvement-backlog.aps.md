@@ -13893,11 +13893,43 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   closed by CIB-398; what remains is a same-uid local socket client in the
   default `open` admission mode, which is a narrower attacker than the MCP
   path but the same rebase
-- **Currency:** landed 2026-09-16 — all nine `anvil/gctx/*` verbs call
-  `authorise_gctx_root` (gate before admit; graph key is the admitted
-  canonical). Nested `<repo>/secrets` is refused on first contact and after
-  the parent is admitted. The planted `.git` **directory** class is the
-  known residual already recorded on this item, not a new follow-up.
+- **Currency:** partially landed 2026-09-16 — all nine `anvil/gctx/*` verbs
+  call `authorise_gctx_root` (gate before admit; graph key is the admitted
+  canonical), and a *plain* nested `<repo>/secrets` is refused on first contact
+  and after the parent is admitted.
+- **Acceptance NOT yet met — correction 2026-09-16:** an earlier Currency note
+  claimed the planted `.git` **directory** class was "the known residual already
+  recorded on this item". That conflated two different things and is wrong. The
+  accepted residual is a **fully git-valid** fabricated checkout — one that git
+  itself recognises, and that is indistinguishable on disk from a vendored repo.
+  A bare `mkdir <repo>/secrets/.git` has no `HEAD`, no `objects/` and no
+  `refs/`; **git does not treat it as a repository**, and neither should the
+  daemon. It is a live one-command bypass, not an accepted limit. Measured
+  against `main` at `7fde855e4` through the crate's own API:
+
+  ```text
+  CONTROL  is_graph_root(secrets, no .git)       = false
+  ATTACK   is_graph_root(secrets, mkdir .git)    = true
+  ATTACK   fresh-connection permits_graph_root() = true
+  ```
+
+  `dot_git_is_directory` accepts any directory named `.git` with no
+  minimum-viable-repository check, and `resolve_git_dir` returns before the
+  `nested_untrusted_git_checkout` guard, which only covers the gitfile path.
+  So `secrets/token.ts` still projects as `token.ts` past the CE-3 deny-list on
+  a fresh `open`-mode connection. What #4732 *did* close, and which stands: the
+  symlinked `.git` shape, the gitfile shape, and reciprocal `worktrees/*/gitdir`
+  validation. Closing PRs:
+  [#4745](https://github.com/eddacraft/anvil-001/pull/4745) (git-parity
+  minimum-viable check; keeps legitimate nested repos authorised) and
+  [#4742](https://github.com/eddacraft/anvil-001/pull/4742) (unconditional
+  nested-untrusted refusal; measured to also refuse a legitimate repo nested
+  under a `$HOME`-as-dotfiles checkout). Do not treat this item as delivering
+  its Expected Outcome until one of them lands.
+- **Unproven control 2026-09-16:** the reciprocal worktree-registration test that
+  landed with #4732 stays **green with the validator removed** — it passes for an
+  unrelated reason (the graph-root rule already refuses that root), so that
+  security control is currently untested. #4745 adds a test that isolates it.
 - **Intent:** `anvil/gctx/*` verbs on the daemon (`save_time.rs`
   `symbol_context` and its siblings) call `authorise_root` and then key the
   graph on `WorktreeKey::from_canonical(root)` for whatever root the request
