@@ -1811,13 +1811,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // connection's admitted-root set before any read. A hostile MCP client
         // can send an arbitrary or sibling-worktree root; this is the same gate
         // the save-time verbs use, and a refusal blocks the projection.
-        authorise_gctx_root(
+        let AuthorisedGctxRoot { canonical, .. } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -1881,13 +1880,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_gctx_root(
+        let AuthorisedGctxRoot { canonical, .. } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -1949,13 +1947,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_gctx_root(
+        let AuthorisedGctxRoot { canonical, .. } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -2020,13 +2017,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_gctx_root(
+        let AuthorisedGctxRoot { canonical, .. } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -2073,13 +2069,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_gctx_root(
+        let AuthorisedGctxRoot { canonical, .. } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -2141,13 +2136,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_gctx_root(
+        let AuthorisedGctxRoot { canonical, .. } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -2213,13 +2207,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_gctx_root(
+        let AuthorisedGctxRoot { canonical, .. } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -2281,13 +2274,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        let anchor = authorise_gctx_root(
+        let AuthorisedGctxRoot { anchor, canonical } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -2336,13 +2328,12 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        let anchor = authorise_gctx_root(
+        let AuthorisedGctxRoot { anchor, canonical } = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
             &root,
         )?;
-        let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
@@ -3587,6 +3578,15 @@ fn authorise_root<'f>(
     }
 }
 
+/// Held GCTX admission: the read anchor **and** the canonical path the gate
+/// resolved. Callers must key the graph and warm-up on `canonical` — never a
+/// second `canonicalize` of the client spelling (CIB-414 TOCTOU: a same-uid
+/// writer can swap a symlink between two independent resolutions).
+struct AuthorisedGctxRoot<'f> {
+    anchor: &'f WorkspaceAnchor,
+    canonical: PathBuf,
+}
+
 /// [`authorise_root`] for the `anvil/gctx/*` verbs, which additionally require
 /// the root to be a **graph root** (CIB-414).
 ///
@@ -3600,9 +3600,10 @@ fn authorise_root<'f>(
 ///
 /// The gate runs **before** admission, so a refused nested root is never
 /// first-touch-adopted in `Open` mode and never consumes the CIB-154
-/// per-connection root budget. The root is canonicalised exactly once and the
-/// resolved path is handed straight to the admit step, so the gate and the
-/// admission cannot be split by a component swapped in between.
+/// per-connection root budget. The root is canonicalised exactly once; that
+/// resolved path is handed straight to the admit step **and returned** so the
+/// graph key and warm-up cannot be split from the gate by a component swapped
+/// in between.
 ///
 /// The refusal is the ordinary [`SaveTimeError::NotAdmitted`]: the wire reply
 /// stays the static, path-free `workspace-not-admitted`, so a refused client
@@ -3612,7 +3613,7 @@ fn authorise_gctx_root<'f>(
     confinement: &Confinement,
     root_budget: usize,
     root: &Path,
-) -> Result<&'f WorkspaceAnchor, SaveTimeError> {
+) -> Result<AuthorisedGctxRoot<'f>, SaveTimeError> {
     let set =
         admitted.get_or_insert_with(|| confinement.to_admitted_roots_with_budget(root_budget));
     let budget = set.root_budget();
@@ -3641,7 +3642,7 @@ fn authorise_gctx_root<'f>(
         .authorise_canonical_within_budget(&canonical)
         .map_err(SaveTimeError::Io)?
     {
-        AdmitOutcome::Authorised(anchor) => Ok(anchor),
+        AdmitOutcome::Authorised(anchor) => Ok(AuthorisedGctxRoot { anchor, canonical }),
         AdmitOutcome::OverBudget => Err(SaveTimeError::RootBudgetExceeded {
             root: root.to_path_buf(),
             budget,
@@ -3660,7 +3661,7 @@ mod tests {
     use anvil_intercept_proto::protocol::{
         AssuranceState, ChangeDescriptor, ChangeKindWire, Coverage, StaleReason,
     };
-    use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
+    use anvil_kernel_types::{SymbolIdentity, SymbolKind, SymbolNode, TrustLevel, Visibility};
     use std::fs;
 
     // ---- GV2-026: reverse-impact hop-depth lever resolution (ADR-063 §3) ----
@@ -5213,6 +5214,177 @@ mod tests {
             .expect("the allow-listed repo root is admitted");
         conn.search_symbols(&gctx_request(&linked))
             .expect("a registered linked worktree root is a graph root");
+    }
+
+    /// CIB-414: a client-planted `<repo>/secrets/.git` gitdir pointer is not a
+    /// checkout. First contact in Open mode must refuse it and must not consume
+    /// the CIB-154 per-connection root budget.
+    #[test]
+    fn gctx_open_mode_refuses_forged_nested_gitdir_on_first_contact() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        fs::write(
+            nested.join(".git"),
+            format!("gitdir: {}\n", main.join(".git").display()),
+        )
+        .expect("forged gitdir pointer");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        )
+        .with_root_budget(1);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let refused = conn.search_symbols(&gctx_request(&nested));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
+            "a forged nested gitdir pointer must be refused on first contact: {refused:?}",
+        );
+        conn.search_symbols(&gctx_request(&main)).expect(
+            "the repo root is still admissible after a refused forged nested gitdir pointer",
+        );
+    }
+
+    /// CIB-414: a nested untrusted `.git` directory (MCP
+    /// `nested_untrusted_git_root` shape) is not a graph root on first contact.
+    #[test]
+    fn gctx_open_mode_refuses_nested_untrusted_git_directory_on_first_contact() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        fs::create_dir_all(nested.join(".git").join("refs")).expect("nested git refs");
+        fs::write(nested.join(".git").join("HEAD"), b"ref: refs/heads/main\n")
+            .expect("nested HEAD");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        )
+        .with_root_budget(1);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let refused = conn.search_symbols(&gctx_request(&nested));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
+            "a nested untrusted git checkout must be refused on first contact: {refused:?}",
+        );
+        conn.search_symbols(&gctx_request(&main))
+            .expect("the repo root is still admissible after a refused nested git checkout");
+    }
+
+    fn dummy_symbol() -> SymbolIdentity {
+        SymbolIdentity {
+            file: "src/lib.rs".into(),
+            kind: SymbolKind::Function,
+            name: "f".into(),
+            ordinal: 0,
+        }
+    }
+
+    /// CIB-414 TOCTOU: every `anvil/gctx/*` handler keys the graph on the
+    /// canonical path `authorise_gctx_root` resolved, never a second
+    /// independent `canonicalize` of the client spelling.
+    #[test]
+    fn gctx_handlers_key_on_the_admitted_canonical_path() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        fs::create_dir_all(main.join("src")).expect("src dir");
+        let spelled = main.join("src").join("..");
+        assert_ne!(
+            spelled.as_os_str(),
+            main.as_os_str(),
+            "fixture must use a distinct client spelling of the same root"
+        );
+
+        let mut admitted = None;
+        let confinement = Confinement::open_default();
+        let AuthorisedGctxRoot { canonical, .. } =
+            authorise_gctx_root(&mut admitted, &confinement, 8, &spelled)
+                .expect("non-canonical spelling of the repo root is a graph root");
+        assert_eq!(
+            canonical, main,
+            "the gate must return the admitted canonical path, not the client spelling"
+        );
+        assert!(
+            admitted
+                .as_ref()
+                .expect("admitted set")
+                .is_admitted(&canonical),
+            "admission must be keyed on the returned canonical path"
+        );
+
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let root = spelled.to_string_lossy().into_owned();
+        let snippet = SnippetQuery {
+            target: dummy_symbol(),
+            include_source: false,
+        };
+        let context = SymbolContextQuery {
+            selector: ContextSelector::Symbol(dummy_symbol()),
+            token_budget: None,
+            include_source: false,
+        };
+
+        conn.search_symbols(&GctxSearchSymbolsRequest {
+            workspace_root: root.clone(),
+            query: SearchSymbolsQuery::default(),
+        })
+        .expect("search_symbols");
+        conn.find_dependents(&GctxFindDependentsRequest {
+            workspace_root: root.clone(),
+            query: FindDependentsQuery::default(),
+        })
+        .expect("find_dependents");
+        conn.find_callers(&GctxFindCallersRequest {
+            workspace_root: root.clone(),
+            query: FindCallersQuery::default(),
+        })
+        .expect("find_callers");
+        conn.graph_stats(&GctxGraphStatsRequest {
+            workspace_root: root.clone(),
+        })
+        .expect("graph_stats");
+        conn.graph_edges(&GctxGraphEdgesRequest {
+            workspace_root: root.clone(),
+            query: GraphEdgesQuery::default(),
+        })
+        .expect("graph_edges");
+        conn.impact_of_change(&GctxImpactOfChangeRequest {
+            workspace_root: root.clone(),
+            query: ImpactQuery::default(),
+        })
+        .expect("impact_of_change");
+        conn.affected_tests(&GctxAffectedTestsRequest {
+            workspace_root: root.clone(),
+            query: AffectedTestsQuery::default(),
+        })
+        .expect("affected_tests");
+        conn.get_snippet(&GctxGetSnippetRequest {
+            workspace_root: root.clone(),
+            query: snippet,
+        })
+        .expect("get_snippet");
+        conn.symbol_context(&GctxSymbolContextRequest {
+            workspace_root: root,
+            query: context,
+        })
+        .expect("symbol_context");
+
+        let set = conn
+            .admitted
+            .as_ref()
+            .expect("admitted set after GCTX verbs");
+        assert!(
+            set.is_admitted(&main),
+            "all nine GCTX handlers must key admission on the canonical root"
+        );
+        assert!(
+            !set.is_admitted(&spelled),
+            "the client spelling must not become a second admitted identity"
+        );
     }
 
     /// CE-6: a `file` filter that escapes the workspace is rejected as

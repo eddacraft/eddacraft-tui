@@ -370,18 +370,25 @@ impl AdmittedRoots {
 /// `<repo>/secrets` as the root rebases `secrets/token.ts` to `token.ts` and
 /// the CE-3 sensitive-path deny-list never sees the denied segment.
 ///
+/// A nested `.git` directory, or a `.git` file whose `gitdir:` pointer is not
+/// a registered worktree of the enclosing repository, is not a graph root —
+/// the same rule MCP `nested_untrusted_git_root` / forged-gitdir tests pin.
+///
 /// Reads the on-disk gitdir layout; never shells out to `git`.
 #[must_use]
 pub fn is_graph_root(canonical_root: &Path) -> bool {
     match containing_git_worktree_root(canonical_root) {
-        Some(checkout) => checkout == canonical_root,
+        Some(checkout) => checkout == canonical_root && !nested_untrusted_git_checkout(&checkout),
         None => true,
     }
 }
 
 /// The nearest enclosing Git worktree root at or above `path` (a directory
-/// whose `.git` is a directory or a `gitdir:` file). `path` is assumed
-/// canonical, so no component is re-resolved here.
+/// whose `.git` is a directory, or a `gitdir:` file that is a registered
+/// linked worktree of the repository it points at). An unregistered gitdir
+/// pointer is ignored so the walk continues to the enclosing checkout — a
+/// client-planted `<repo>/secrets/.git` must not stop the walk (CIB-414).
+/// `path` is assumed canonical, so no component is re-resolved here.
 fn containing_git_worktree_root(path: &Path) -> Option<PathBuf> {
     let mut current = path.to_path_buf();
     loop {
@@ -394,14 +401,40 @@ fn containing_git_worktree_root(path: &Path) -> Option<PathBuf> {
     }
 }
 
+/// Whether `checkout` sits inside another Git worktree without being a
+/// registered linked worktree of that repository. Daemon-side form of MCP
+/// `nested_untrusted_git_root`, using the enclosing checkout in place of the
+/// MCP server root (the daemon has no server cwd).
+fn nested_untrusted_git_checkout(checkout: &Path) -> bool {
+    let mut parent = checkout.to_path_buf();
+    if !parent.pop() {
+        return false;
+    }
+    match containing_git_worktree_root(&parent) {
+        Some(outer) => !registered_worktree_roots(&outer)
+            .iter()
+            .any(|worktree| worktree == checkout),
+        None => false,
+    }
+}
+
 /// Resolve `<root>/.git` as a directory or as a linked-worktree `gitdir:` file.
 /// Portable: the `graph_base_trigger` copy is `cfg(unix)`, while the
 /// save-time admission path is served on Unix and Windows alike.
+///
+/// A `.git` **file** is Git authority only when its `gitdir:` pointer is a
+/// registered linked-worktree admin directory of the enclosing repository
+/// (reciprocal `gitdir` backlink under `<common>/worktrees/<name>`). Any
+/// readable `gitdir:` line is not enough: a client that can create
+/// `<repo>/secrets/.git` must not make this path a checkout (CIB-414 / CE-3).
 fn resolve_git_dir(repo_root: &Path) -> Option<PathBuf> {
     let dot_git = repo_root.join(".git");
     let meta = std::fs::symlink_metadata(&dot_git).ok()?;
     if meta.is_dir() {
         return Some(dot_git);
+    }
+    if !meta.is_file() {
+        return None;
     }
     let contents = std::fs::read_to_string(&dot_git).ok()?;
     let line = contents.lines().find_map(|l| {
@@ -411,11 +444,97 @@ fn resolve_git_dir(repo_root: &Path) -> Option<PathBuf> {
             .filter(|p| !p.is_empty())
     })?;
     let git_dir = Path::new(line);
-    Some(if git_dir.is_absolute() {
+    let git_dir = if git_dir.is_absolute() {
         git_dir.to_path_buf()
     } else {
         lexical_join(repo_root, git_dir)
-    })
+    };
+    gitfile_is_registered_worktree(repo_root, &dot_git, &git_dir).then_some(git_dir)
+}
+
+/// A gitfile is a registered linked worktree when its admin directory is
+/// `<common>/worktrees/<name>` with a reciprocal `gitdir` backlink, **and**
+/// — when the path sits inside another checkout — that enclosing repository
+/// lists this path in its worktree set. Layout checks alone are not enough:
+/// a client can plant a self-consistent gitfile + admin dir under
+/// `<repo>/secrets` (anvil-config's planted-commondir shape).
+fn gitfile_is_registered_worktree(repo_root: &Path, dot_git: &Path, git_dir: &Path) -> bool {
+    if !gitfile_layout_matches_linked_worktree(dot_git, git_dir) {
+        return false;
+    }
+    !nested_untrusted_git_checkout(repo_root)
+}
+
+/// Internal gitfile layout: `git_dir` is `<common>/worktrees/<name>` and its
+/// `gitdir` backlink points at this gitfile. Rejects symlinks at every hop.
+fn gitfile_layout_matches_linked_worktree(dot_git: &Path, git_dir: &Path) -> bool {
+    let Ok(git_dir_meta) = std::fs::symlink_metadata(git_dir) else {
+        return false;
+    };
+    if git_dir_meta.file_type().is_symlink() || !git_dir_meta.is_dir() {
+        return false;
+    }
+    let common = resolve_common_dir(git_dir);
+    let Ok(common) = std::fs::canonicalize(&common) else {
+        return false;
+    };
+    let Ok(git_dir) = std::fs::canonicalize(git_dir) else {
+        return false;
+    };
+    let worktrees = common.join("worktrees");
+    let Ok(worktrees_meta) = std::fs::symlink_metadata(&worktrees) else {
+        return false;
+    };
+    if worktrees_meta.file_type().is_symlink() || !worktrees_meta.is_dir() {
+        return false;
+    }
+    let Ok(worktrees) = std::fs::canonicalize(&worktrees) else {
+        return false;
+    };
+    let Some(name) = git_dir
+        .file_name()
+        .filter(|name| !name.is_empty() && *name != "." && *name != "..")
+    else {
+        return false;
+    };
+    let Some(parent) = git_dir.parent() else {
+        return false;
+    };
+    if parent != worktrees.as_path() {
+        return false;
+    }
+    let Ok(expected) = std::fs::canonicalize(worktrees.join(name)) else {
+        return false;
+    };
+    if expected != git_dir {
+        return false;
+    }
+    let backlink = git_dir.join("gitdir");
+    let Ok(back_meta) = std::fs::symlink_metadata(&backlink) else {
+        return false;
+    };
+    if back_meta.file_type().is_symlink() || !back_meta.is_file() {
+        return false;
+    }
+    let Ok(raw) = std::fs::read_to_string(&backlink) else {
+        return false;
+    };
+    let target = Path::new(raw.trim());
+    if target.as_os_str().is_empty() {
+        return false;
+    }
+    let pointed = if target.is_absolute() {
+        target.to_path_buf()
+    } else {
+        lexical_join(&git_dir, target)
+    };
+    let Ok(pointed) = std::fs::canonicalize(&pointed) else {
+        return false;
+    };
+    let Ok(dot_git) = std::fs::canonicalize(dot_git) else {
+        return false;
+    };
+    pointed == dot_git
 }
 
 /// Resolve the **common** gitdir of a (possibly per-worktree) gitdir: a linked
@@ -532,6 +651,130 @@ mod tests {
             !roots.permits_graph_root(&nested),
             "a directory inside an admitted root is not a graph root: {}",
             nested.to_str().expect("utf-8 nested path"),
+        );
+    }
+
+    /// Main checkout plus a registered linked worktree nested inside it
+    /// (`<main>/.worktrees/linked`). Mirrors the MCP CIB-398 on-disk layout.
+    fn repo_with_linked_worktree(root: &Path) -> (PathBuf, PathBuf) {
+        let main = root.join("main");
+        let common = main.join(".git");
+        std::fs::create_dir_all(common.join("refs")).expect("git refs dir");
+        std::fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+
+        let admin = common.join("worktrees").join("linked");
+        std::fs::create_dir_all(&admin).expect("worktree admin dir");
+        std::fs::write(admin.join("HEAD"), b"ref: refs/heads/feature\n").expect("linked HEAD");
+        std::fs::write(admin.join("commondir"), b"../..\n").expect("commondir");
+
+        let linked = main.join(".worktrees").join("linked");
+        std::fs::create_dir_all(&linked).expect("linked worktree");
+        let git_file = linked.join(".git");
+        std::fs::write(&git_file, format!("gitdir: {}\n", admin.display())).expect(".git file");
+        std::fs::write(admin.join("gitdir"), format!("{}\n", git_file.display()))
+            .expect("gitdir back-pointer");
+
+        let main = std::fs::canonicalize(&main).expect("main canonicalises");
+        let linked = std::fs::canonicalize(&linked).expect("linked canonicalises");
+        (main, linked)
+    }
+
+    fn nested_secrets_dir(main: &Path) -> PathBuf {
+        let nested = main.join("secrets");
+        std::fs::create_dir_all(&nested).expect("nested dir");
+        std::fs::canonicalize(&nested).expect("nested canonicalises")
+    }
+
+    #[test]
+    fn nested_dir_inside_a_git_checkout_is_not_a_graph_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+
+        assert!(is_graph_root(&main), "main checkout is a graph root");
+        assert!(
+            is_graph_root(&linked),
+            "registered linked worktree is a graph root"
+        );
+        assert!(
+            !is_graph_root(&nested),
+            "a directory inside the checkout is not a graph root"
+        );
+
+        let mut roots = AdmittedRoots::new_open();
+        assert!(
+            !roots.permits_graph_root(&nested),
+            "first contact must refuse a nested directory"
+        );
+        roots.admit(&main).expect("admit main");
+        assert!(roots.permits_graph_root(&main));
+        assert!(roots.permits_graph_root(&linked));
+        assert!(
+            !roots.permits_graph_root(&nested),
+            "nested directory stays refused after the parent is admitted"
+        );
+    }
+
+    #[test]
+    fn forged_nested_gitdir_pointer_is_not_a_graph_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        std::fs::write(
+            nested.join(".git"),
+            format!("gitdir: {}\n", main.join(".git").display()),
+        )
+        .expect("forged gitdir pointer");
+
+        assert!(
+            !is_graph_root(&nested),
+            "an unregistered gitdir pointer must not make nested secrets a graph root"
+        );
+        let roots = AdmittedRoots::new_open();
+        assert!(
+            !roots.permits_graph_root(&nested),
+            "first contact must refuse a forged nested gitdir pointer"
+        );
+    }
+
+    #[test]
+    fn planted_self_consistent_nested_gitfile_is_not_a_graph_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        let fake_common = nested.join("fake-git");
+        let admin = fake_common.join("worktrees").join("planted");
+        std::fs::create_dir_all(&admin).expect("planted admin");
+        std::fs::write(admin.join("commondir"), b"../..\n").expect("planted commondir");
+        let git_file = nested.join(".git");
+        std::fs::write(&git_file, format!("gitdir: {}\n", admin.display()))
+            .expect("planted gitfile");
+        std::fs::write(admin.join("gitdir"), format!("{}\n", git_file.display()))
+            .expect("planted backlink");
+
+        assert!(
+            !is_graph_root(&nested),
+            "a self-consistent planted gitfile inside a checkout is not a graph root"
+        );
+    }
+
+    #[test]
+    fn nested_untrusted_git_directory_is_not_a_graph_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        std::fs::create_dir_all(nested.join(".git").join("refs")).expect("nested git refs");
+        std::fs::write(nested.join(".git").join("HEAD"), b"ref: refs/heads/main\n")
+            .expect("nested HEAD");
+
+        assert!(
+            !is_graph_root(&nested),
+            "a nested .git directory must not make secrets a graph root on first contact"
+        );
+        let roots = AdmittedRoots::new_open();
+        assert!(
+            !roots.permits_graph_root(&nested),
+            "first contact must refuse a nested untrusted git checkout"
         );
     }
 
