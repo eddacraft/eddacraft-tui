@@ -197,7 +197,7 @@ named in the crate source linked from the inventory table.
 
 ## Licence summary
 
-- **MIT License** — 368 crates
+- **MIT License** — 369 crates
 - **Unicode License v3** — 19 crates
 - **Apache License 2.0** — 17 crates
 - **ISC License** — 7 crates
@@ -4083,7 +4083,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `reqwest` 0.13.4
+- `reqwest` 0.13.5
 
 <details>
 <summary>Licence text</summary>
@@ -8850,6 +8850,42 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
+- `base64` 0.23.1
+
+<details>
+<summary>Licence text</summary>
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2025 Alice Maz, Marshall Pierce
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+```
+
+</details>
+
+### MIT License
+
+Used by:
+
 - `hashlink` 0.12.1
 
 <details>
@@ -9627,7 +9663,7 @@ the following restrictions:
 | `equivalent` | 1.0.2 | MIT License | https://github.com/indexmap-rs/equivalent |
 | `addr2line` | 0.25.1 | MIT License | https://github.com/gimli-rs/addr2line |
 | `scopeguard` | 1.2.0 | MIT License | https://github.com/bluss/scopeguard |
-| `reqwest` | 0.13.4 | MIT License | https://github.com/seanmonstar/reqwest |
+| `reqwest` | 0.13.5 | MIT License | https://github.com/seanmonstar/reqwest |
 | `sha2` | 0.11.0 | MIT License | https://github.com/RustCrypto/hashes |
 | `fnv` | 1.0.7 | MIT License | https://github.com/servo/rust-fnv |
 | `memoffset` | 0.9.1 | MIT License | https://github.com/Gilnaa/memoffset |
@@ -9905,6 +9941,7 @@ the following restrictions:
 | `crossbeam-deque` | 0.8.7 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-epoch` | 0.9.20 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-utils` | 0.8.22 | MIT License | https://github.com/crossbeam-rs/crossbeam |
+| `base64` | 0.23.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
 | `hashlink` | 0.12.1 | MIT License | https://github.com/djc/hashlink |
 | `borrow-or-share` | 0.2.4 | MIT No Attribution | https://github.com/yescallop/borrow-or-share |
 | `dunce` | 1.0.5 | MIT No Attribution | https://gitlab.com/kornelski/dunce |
