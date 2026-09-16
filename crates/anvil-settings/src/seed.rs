@@ -321,6 +321,21 @@ fn first_release_entries() -> Vec<CatalogueEntry> {
             None,
             EvidenceTrust::None,
         ),
+        entry(
+            "interface.hints",
+            "Contextual hints",
+            SettingGroup::Interface,
+            40,
+            ValueType::Boolean,
+            Some(json!(true)),
+            MergeSemantics::Replace,
+            ConsequenceClass::A,
+            Sensitivity::Public,
+            EvidenceMode::None,
+            HealthRelevance::None,
+            None,
+            EvidenceTrust::None,
+        ),
     ]
 }
 
@@ -403,9 +418,35 @@ mod catalogue_seed_tests {
         let compact = cat.get("interface.compact").unwrap();
         assert_eq!(compact.evidence_mode, EvidenceMode::None);
         assert!(compact.activation_owner.is_none());
+        let hints = cat.get("interface.hints").expect("hints");
+        assert_eq!(hints.consequence_class, ConsequenceClass::A);
+        assert_eq!(hints.value_type, ValueType::Boolean);
+        assert_eq!(hints.default, Some(json!(true)));
+        assert_eq!(hints.evidence_mode, EvidenceMode::None);
+        assert!(hints.activation_owner.is_none());
         let secret = cat.get("privacy.license_token").unwrap();
         assert_eq!(secret.consequence_class, ConsequenceClass::D);
         assert_eq!(secret.sensitivity, Sensitivity::Secret);
+    }
+
+    #[test]
+    fn catalogue_seed_class_a_keys_are_the_agreed_interface_set() {
+        let cat = first_release_catalogue().expect("seed");
+        let mut class_a: Vec<&str> = cat
+            .iter()
+            .filter(|entry| entry.consequence_class == ConsequenceClass::A)
+            .map(|entry| entry.key.as_str())
+            .collect();
+        class_a.sort_unstable();
+        assert_eq!(
+            class_a,
+            [
+                "interface.compact",
+                "interface.hints",
+                "interface.motion",
+                "interface.timestamps",
+            ]
+        );
     }
 
     #[test]
