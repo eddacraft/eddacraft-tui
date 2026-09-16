@@ -1037,10 +1037,10 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
 ///
 /// Must stay true to [`secret_path_scannable`]. Prefer this wording over
 /// a green "score: 100%" with no domain statement when non-scanned types
-/// (e.g. `.py`, `.tsx`) can still hold live credentials.
+/// (e.g. `.md`, `.rb`) can still hold live credentials.
 const GATE_SECRET_SCAN_DOMAIN: &str = "Domain: `.env*` filenames and extensions \
-.ts/.js/.rs/.json/.yaml/.yml/.toml/.env only — other source types (e.g. .py, \
-.tsx, .go, .sh) are not scanned by gate secret-detection. Per-file `anvil \
+.ts/.tsx/.js/.jsx/.rs/.py/.go/.sh/.json/.yaml/.yml/.toml/.env only — other source types (e.g. .md, \
+.rb) are not scanned by gate secret-detection. Per-file `anvil \
 check <path>` uses the broader scanner deny-list and may report secrets \
 this check does not.";
 
@@ -10842,15 +10842,16 @@ rules: []
 
     /// GATE-1: a green secret-detection result must name the allow-list
     /// domain so "score: 100%" cannot be read as scanning every source
-    /// type (`.py` / `.tsx` / `.go` live outside the gate allow-list).
+    /// type (`.md` / `.rb` live outside the expanded CIB-424 allow-list).
     #[test]
     fn secret_pass_message_discloses_scan_domain() {
         let tmp = tempfile::TempDir::new().unwrap();
         std::fs::write(tmp.path().join("clean.ts"), "export const x = 1;\n").unwrap();
+        std::fs::write(tmp.path().join("clean.py"), "x = 1\n").unwrap();
         // Out-of-domain secret that per-file `check` would flag — must not
         // be required for a green gate, but the domain note must still land.
         std::fs::write(
-            tmp.path().join("leak.py"),
+            tmp.path().join("leak.md"),
             "key = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz012345'\n",
         )
         .unwrap();
@@ -10873,16 +10874,16 @@ rules: []
             result.message
         );
         assert!(
-            result.message.contains(".py")
-                && result.message.contains(".tsx")
-                && result.message.contains(".ts/.js"),
+            result.message.contains(".tsx")
+                && result.message.contains(".py")
+                && result.message.contains(".md")
+                && result.message.contains(".ts/.tsx/.js/.jsx"),
             "domain note must name scanned and excluded types:\n{}",
             result.message
         );
-        // Non-scope: disclosure only — the .py secret must still be missed.
         assert!(
-            !result.message.contains("leak.py"),
-            "CIB-255 does not expand the domain; .py must stay unscanned:\n{}",
+            !result.message.contains("leak.md"),
+            "out-of-domain .md must stay unscanned:\n{}",
             result.message
         );
     }
@@ -10907,6 +10908,62 @@ rules: []
         assert!(
             !result.passed,
             "planted secret must fail: {}",
+            result.message
+        );
+        assert!(
+            result.message.contains(GATE_SECRET_SCAN_DOMAIN),
+            "FAIL message must carry the domain note:\n{}",
+            result.message
+        );
+    }
+
+    /// CIB-424: a planted credential in each newly admitted source type
+    /// fails gate secret-detection and is named. Remaining out-of-domain
+    /// types stay missed; the domain sentence still rides.
+    #[test]
+    fn planted_secrets_in_expanded_source_types_fail_gate() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut key = String::from("sk-ant-");
+        key.push_str("api03-");
+        key.push_str("abcdef");
+        key.push_str("ghijkl");
+        key.push_str("mnopqr");
+        key.push_str("stuvwx");
+        key.push_str("yz0123");
+        key.push_str("45");
+        for (name, body) in [
+            ("leak.tsx", format!("export const k = '{key}';\n")),
+            ("leak.jsx", format!("export const k = '{key}';\n")),
+            ("leak.py", format!("k = '{key}'\n")),
+            ("leak.go", format!("package main\nvar k = \"{key}\"\n")),
+            ("leak.sh", format!("KEY={key}\n")),
+        ] {
+            std::fs::write(tmp.path().join(name), body).unwrap();
+        }
+        std::fs::write(tmp.path().join("leak.md"), format!("key = '{key}'\n")).unwrap();
+
+        let result = run_check_secret_with_hook_mode(
+            "secret",
+            tmp.path(),
+            &std::collections::HashSet::new(),
+            false,
+        );
+
+        assert!(
+            !result.passed,
+            "planted secrets must fail: {}",
+            result.message
+        );
+        for name in ["leak.tsx", "leak.jsx", "leak.py", "leak.go", "leak.sh"] {
+            assert!(
+                result.message.contains(name),
+                "fail must name {name}:\n{}",
+                result.message
+            );
+        }
+        assert!(
+            !result.message.contains("leak.md"),
+            "out-of-domain .md must stay unscanned:\n{}",
             result.message
         );
         assert!(
@@ -11004,7 +11061,14 @@ rules: []
                 "{ext} must be scannable (SECRET_SCAN_EXTS lock-step)"
             );
         }
-        for ext in ["py", "tsx", "jsx", "go", "sh", "md", "rb"] {
+        for ext in ["py", "tsx", "jsx", "go", "sh"] {
+            let path = std::path::PathBuf::from(format!("src/leak.{ext}"));
+            assert!(
+                secret_path_scannable(&path),
+                "{ext} must be scannable (CIB-424 expanded domain)"
+            );
+        }
+        for ext in ["md", "rb"] {
             let path = std::path::PathBuf::from(format!("src/leak.{ext}"));
             assert!(
                 !secret_path_scannable(&path),
@@ -11032,16 +11096,29 @@ rules: []
         );
         assert!(raw_secret_path_scannable(raw));
 
-        let out = std::path::Path::new("src/leak.PY");
-        let out_raw = b"src/leak.PY";
+        let in_py = std::path::Path::new("src/leak.PY");
+        let in_py_raw = b"src/leak.PY";
         assert_eq!(
-            secret_path_scannable(out),
-            raw_secret_path_scannable(out_raw),
+            secret_path_scannable(in_py),
+            raw_secret_path_scannable(in_py_raw),
             "Path and raw predicates must agree on .PY"
         );
         assert!(
+            secret_path_scannable(in_py),
+            "uppercase .PY must be in-domain (CIB-424)"
+        );
+        assert!(raw_secret_path_scannable(in_py_raw));
+
+        let out = std::path::Path::new("src/leak.MD");
+        let out_raw = b"src/leak.MD";
+        assert_eq!(
+            secret_path_scannable(out),
+            raw_secret_path_scannable(out_raw),
+            "Path and raw predicates must agree on .MD"
+        );
+        assert!(
             !secret_path_scannable(out),
-            "uppercase .PY must stay out of domain"
+            "uppercase .MD must stay out of domain"
         );
     }
 

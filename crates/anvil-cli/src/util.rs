@@ -421,15 +421,17 @@ pub(crate) use anvil_kernel::watcher::filter::is_ignored_dir_name;
 
 /// File extensions the gate/audit secret allow-list covers (plus `.env*`
 /// filenames). Single definition for the #1798 lock-step: audit and gate
-/// must not drift. Expanding this list is a product decision (CIB-255
-/// disclosure prefers stating the domain over silent expansion).
+/// must not drift. CIB-424 expanded the list onto `.tsx` / `.jsx` / `.py`
+/// / `.go` / `.sh`; CIB-255 disclosure still requires stating the domain
+/// rather than silent expansion.
 ///
 /// Matching is **ASCII case-insensitive** on both the worktree (`Path`)
 /// and staged/raw (`[u8]`) predicates so the same path cannot be in-domain
 /// on one code path and out-of-domain on the other (e.g. `leak.TS` on
 /// case-insensitive filesystems).
-pub(crate) const SECRET_SCAN_EXTS: &[&str] =
-    &["ts", "js", "rs", "json", "yaml", "yml", "toml", "env"];
+pub(crate) const SECRET_SCAN_EXTS: &[&str] = &[
+    "ts", "tsx", "js", "jsx", "rs", "py", "go", "sh", "json", "yaml", "yml", "toml", "env",
+];
 
 /// True when `ext` is in [`SECRET_SCAN_EXTS`] (ASCII case-insensitive).
 #[must_use]
@@ -2090,12 +2092,17 @@ mod tests {
         assert!(secret_scan_ext_allowed("JsOn"));
         assert!(secret_scan_ext_bytes_allowed(b"ts"));
         assert!(secret_scan_ext_bytes_allowed(b"TS"));
-        assert!(!secret_scan_ext_allowed("py"));
-        assert!(!secret_scan_ext_bytes_allowed(b"PY"));
+        assert!(secret_scan_ext_allowed("py"));
+        assert!(secret_scan_ext_bytes_allowed(b"PY"));
+        assert!(!secret_scan_ext_allowed("md"));
+        assert!(!secret_scan_ext_bytes_allowed(b"MD"));
         // Canonical list is the only definition gate/audit share.
         assert_eq!(
             SECRET_SCAN_EXTS,
-            &["ts", "js", "rs", "json", "yaml", "yml", "toml", "env"]
+            &[
+                "ts", "tsx", "js", "jsx", "rs", "py", "go", "sh", "json", "yaml", "yml", "toml",
+                "env"
+            ]
         );
     }
 

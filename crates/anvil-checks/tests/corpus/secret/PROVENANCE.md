@@ -69,10 +69,10 @@ reports these as broken keys, the correct response is to point at this file.
 ## Why this file spells nothing out
 
 This document deliberately carries no full-shape credential literal. Anvil's own
-gate scans `.ts/.js/.rs/.json/.yaml/.yml/.toml/.env`, and the opt-in
-`discovery_repro` harness additionally walks `.md` — so a textbook AWS key
-quoted here would surface as a finding in anvil's own dogfood runs, for no
-benefit. Every literal lives in `cases/*.corpus`, which no walker selects.
+gate scans `.ts/.tsx/.js/.jsx/.rs/.py/.go/.sh/.json/.yaml/.yml/.toml/.env`, and
+the opt-in `discovery_repro` harness additionally walks `.md` — so a textbook
+AWS key quoted here would surface as a finding in anvil's own dogfood runs, for
+no benefit. Every literal lives in `cases/*.corpus`, which no walker selects.
 `tests/secret_calibration.rs` enforces the boundary: it scans this file,
 `manifest.json` and the runner itself, and fails if any of them carries a
 credential-shaped value.

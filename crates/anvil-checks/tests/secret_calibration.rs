@@ -726,8 +726,9 @@ fn secret_calibration_corpus_matches_the_committed_baseline() {
 
 /// The corpus keeps every credential-shaped literal inside `cases/*.corpus`,
 /// an extension no repository-wide walker selects (`anvil gate` scans
-/// `.ts/.js/.rs/.json/.yaml/.yml/.toml/.env` and `.env*` names; `anvil audit`
-/// and the discovery harness use comparable allowlists). The files that *are*
+/// `.ts/.tsx/.js/.jsx/.rs/.py/.go/.sh/.json/.yaml/.yml/.toml/.env` and
+/// `.env*` names; `anvil audit` and the discovery harness use comparable
+/// allowlists). The files that *are*
 /// scanned by anvil's own gate — this runner and the corpus manifest — must
 /// therefore stay clean, or the corpus turns anvil's dogfood run red against
 /// itself. This test is the trip-wire for that boundary.
