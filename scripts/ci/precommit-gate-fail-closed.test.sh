@@ -292,9 +292,179 @@ WORKING
   fi
 }
 
+# ── CIB-403 probes: the .prettierignore/.oxlintrc filter ─────────────
+#
+# The gate hands staged files to oxfmt and oxlint, and both exit non-zero when
+# EVERY path in the batch is excluded by their own ignore rules (oxfmt 2,
+# "Expected at least one target file"; oxlint 1, "No files found to lint"). So
+# the `*.{mjs,cjs}` key and the hook's oxfmt re-check filter ignored paths out
+# first, via `scripts/lint/ignore-rules.cjs`.
+#
+# That filter is load-bearing in two opposite directions, and probes 6 and 7
+# pin one each. Too narrow and an ignored file blocks the commit with
+# `--no-verify` as the only escape. Too wide and a file the tools WOULD have
+# checked is silently skipped, which quietly un-fixes CIB-403 itself. Probe 5
+# covers the new fail-closed branch the filter introduces.
+
+# A pnpm that satisfies the readiness probe and whose lint-staged run succeeds,
+# so the hook reaches the filter rather than stopping short of it.
+healthy_pnpm_shim() {
+  local dir="${tmp_root}/healthy-pnpm-bin"
+  if [ ! -d "${dir}" ]; then
+    mkdir -p "${dir}"
+    cat >"${dir}/pnpm" <<'HEALTHY'
+#!/bin/sh
+[ "$1" = "--version" ] && { echo "11.9.0"; exit 0; }
+exit 0
+HEALTHY
+    chmod +x "${dir}/pnpm"
+  fi
+  echo "${dir}"
+}
+
+# Fixture that can run the real formatter and linter: the tracked configs the
+# filter reads, the filter itself, and a node_modules symlink so `run_tool`
+# resolves the actual oxfmt/oxlint binaries.
+#
+# The configs are copied from the repository under test rather than written
+# here, for the same reason `new_fixture_repo` copies the tracked `.husky`
+# files: a probe that invented its own `.prettierignore` would pass whether or
+# not the real one still excludes what these probes assume.
+new_fixture_repo_with_filter() {
+  local dir="$1"
+  new_fixture_repo "${dir}"
+
+  local path
+  for path in .lintstagedrc.cjs .prettierignore .oxlintrc.json .oxfmtrc.json scripts/lint/ignore-rules.cjs; do
+    git -C "${repo_root}" ls-files --error-unmatch -- "${path}" >/dev/null 2>&1 ||
+      fail "${path} is not tracked; the gate's filter cannot be exercised without it"
+    mkdir -p "${dir}/$(dirname "${path}")"
+    cp "${repo_root}/${path}" "${dir}/${path}"
+  done
+
+  [ -x "${repo_root}/node_modules/.bin/oxfmt" ] ||
+    fail "node_modules/.bin/oxfmt is missing; run 'pnpm install' before these probes"
+  ln -s "${repo_root}/node_modules" "${dir}/node_modules"
+}
+
+# ── Probe 5: a filter that cannot run must refuse, never pass ────────
+
+probe_unrunnable_ignore_filter_refuses() {
+  local dir="${tmp_root}/no-ignore-filter"
+  new_fixture_repo "${dir}"
+
+  # Deliberately NOT `new_fixture_repo_with_filter`: this fixture has no
+  # scripts/lint/ignore-rules.cjs, standing in for a checkout where the module
+  # is absent, unreadable, or throws on load.
+  #
+  # The danger this pins is specific. The filter sits between `git diff
+  # --cached` and the oxfmt re-check, and the obvious way to write that is a
+  # shell pipeline — in which the shell reports only the LAST command's status,
+  # so a filter that died would hand xargs an empty list and the re-check would
+  # exit 0 having examined nothing. Silent success is the one outcome this gate
+  # exists to prevent, so the hook checks the filter's status explicitly.
+  printf 'const x = 1\n' >"${dir}/unformatted.mjs"
+  git -C "${dir}" add unformatted.mjs
+
+  local out status=0
+  out=$(cd "${dir}" && PATH="$(healthy_pnpm_shim):${PATH}" git commit -m 'should be refused' 2>&1) || status=$?
+
+  [ "${status}" -ne 0 ] ||
+    fail "commit succeeded with an unrunnable ignore filter — the re-check silently examined nothing (output: ${out})"
+
+  grep -q 'could not run' <<<"${out}" ||
+    fail "no refusal framing, so this reads as an unrelated crash: ${out}"
+
+  grep -q 'Cause:' <<<"${out}" ||
+    fail "message states no cause: ${out}"
+
+  # Name the filter specifically. 'could not run' and 'Cause:' are shared by
+  # every gate_unavailable branch — including "lint-staged is not runnable",
+  # which this fixture could plausibly hit — so asserting only on those passes
+  # when the hook refused for an entirely different reason. Same trap probe 4
+  # documents for 'repository root'.
+  grep -q 'ignore-rules.cjs' <<<"${out}" ||
+    fail "refused for some other reason — the filter guard did not fire: ${out}"
+
+  # The refusal must carry the tool's own stderr, not just the hook's guess.
+  # "Cannot find module" is node's, and it names the missing path; without it a
+  # contributor sees only that "the filter could not run".
+  grep -q 'Cannot find module' <<<"${out}" ||
+    fail "refusal does not quote the filter's own error, so the cause is unactionable: ${out}"
+}
+
+# ── Probe 6: an oxfmt-ignored .mjs must still be committable ─────────
+
+probe_ignored_mjs_is_accepted() {
+  local dir="${tmp_root}/ignored-mjs"
+  new_fixture_repo_with_filter "${dir}"
+
+  # `.prettierignore` excludes `archive/` at any depth and `.oxlintrc.json`
+  # repeats it, so both tools reject this path as an excluded target. Before
+  # the filter existed, staging it alone refused the commit — the CIB-403
+  # repair-round-1 regression. Committing an ignored file must be ordinary.
+  mkdir -p "${dir}/docs/archive/experiments"
+  printf 'const   thing = {a:1,   b:2}\nexport   function  proof( ) { return thing }\n' \
+    >"${dir}/docs/archive/experiments/ignored.mjs"
+  git -C "${dir}" add docs/archive/experiments/ignored.mjs
+
+  local out status=0
+  out=$(cd "${dir}" && git commit -m 'ignored mjs' 2>&1) || status=$?
+
+  [ "${status}" -eq 0 ] ||
+    fail "a staged oxfmt-ignored .mjs refused the commit; --no-verify is then the only escape (output: ${out})"
+
+  # Assert on the tools' own all-excluded messages rather than the exit status
+  # alone, so a future change that swallows them is still caught here.
+  if grep -q 'Expected at least one target file' <<<"${out}"; then
+    fail "oxfmt was handed an all-excluded batch: ${out}"
+  fi
+
+  if grep -q 'No files found to lint' <<<"${out}"; then
+    fail "oxlint was handed an all-excluded batch: ${out}"
+  fi
+}
+
+# ── Probe 7: the filter must not be too wide ─────────────────────────
+
+probe_unignored_mjs_is_still_formatted() {
+  local dir="${tmp_root}/unignored-mjs"
+  new_fixture_repo_with_filter "${dir}"
+
+  # The mirror of probe 6. A filter wide enough to drop this file would make
+  # every probe above pass — commits succeed, no tool ever errors — while
+  # quietly restoring the exact blind spot CIB-403 was filed to close.
+  #
+  # So the assertion is on the file's CONTENT after the commit, not on the exit
+  # status: an over-wide filter yields a green commit with the unformatted
+  # bytes intact, which a status check cannot tell from a real pass.
+  mkdir -p "${dir}/scripts"
+  printf 'const   thing = {a:1,   b:2}\nexport   function  proof( ) { return thing }\n' \
+    >"${dir}/scripts/tool.mjs"
+  git -C "${dir}" add scripts/tool.mjs
+
+  local out status=0
+  out=$(cd "${dir}" && git commit -m 'unignored mjs' 2>&1) || status=$?
+
+  [ "${status}" -eq 0 ] ||
+    fail "the gate rejected a normal .mjs outright instead of formatting it: ${out}"
+
+  grep -q 'const thing = { a: 1, b: 2 };' "${dir}/scripts/tool.mjs" ||
+    fail "a staged unformatted .mjs was committed unformatted — the filter is too wide and .mjs is outside the gate again (CIB-403): $(cat "${dir}/scripts/tool.mjs")"
+
+  # And the formatted bytes must be what got committed, not just what is left
+  # in the working tree: lint-staged re-stages what its tasks rewrite, and a
+  # regression there would leave the tree tidy and the commit unformatted.
+  git -C "${dir}" show HEAD:scripts/tool.mjs | grep -q 'const thing = { a: 1, b: 2 };' ||
+    fail "the formatted result was not re-staged, so the commit holds unformatted bytes: $(git -C "${dir}" show HEAD:scripts/tool.mjs)"
+}
+
 probe_gate_is_present_without_install
 probe_broken_pnpm_names_the_gate_and_a_remedy
 probe_working_toolchain_still_runs_the_gate
 probe_unresolvable_repo_root_refuses
+probe_unrunnable_ignore_filter_refuses
+probe_ignored_mjs_is_accepted
+probe_unignored_mjs_is_still_formatted
 
 echo 'pre-commit gate fail-closed probes passed'

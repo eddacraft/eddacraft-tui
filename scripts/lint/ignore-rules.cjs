@@ -153,11 +153,19 @@ const matches = (rules, file, root) => {
   return ignored;
 };
 
-const isOxfmtIgnored = (file, root = process.cwd()) =>
-  matches(rulesFor('prettier', root, readPrettierIgnore), file, root);
+// `files.filter(isOxfmtIgnored)` is the shape everyone reaches for, and it
+// passes the array INDEX as the second argument — which used to land in `root`
+// and throw ERR_INVALID_ARG_TYPE out of path.resolve. On a module the commit
+// gate depends on, a predicate that explodes when used the obvious way is a
+// trap worth closing rather than documenting: anything that is not a string is
+// not a root, so fall back to the default.
+const rootOrCwd = (root) => (typeof root === 'string' ? root : process.cwd());
 
-const isOxlintIgnored = (file, root = process.cwd()) =>
-  matches(rulesFor('oxlint', root, readOxlintIgnore), file, root);
+const isOxfmtIgnored = (file, root) =>
+  matches(rulesFor('prettier', rootOrCwd(root), readPrettierIgnore), file, rootOrCwd(root));
+
+const isOxlintIgnored = (file, root) =>
+  matches(rulesFor('oxlint', rootOrCwd(root), readOxlintIgnore), file, rootOrCwd(root));
 
 module.exports = { isOxfmtIgnored, isOxlintIgnored };
 
