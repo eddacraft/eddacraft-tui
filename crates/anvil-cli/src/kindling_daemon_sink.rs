@@ -1,6 +1,7 @@
 //! KDS-001 / PORT-011: `KindlingObservationSink` backed by the Kindling
 //! daemon (with local spool fallback).
 
+use std::ffi::OsStr;
 use std::path::PathBuf;
 
 use anvil_intercept::kindling_observation::{
@@ -8,7 +9,7 @@ use anvil_intercept::kindling_observation::{
 };
 use anyhow::Context as _;
 use kindling_client::spool::{AppendOutcome, SpoolConfig, SpoolError, SpooledClient};
-use kindling_client::{Client, ClientConfig, ObservationInput, ObservationKind, ScopeIds};
+use kindling_client::{Client, ClientConfig, ObservationInput, ObservationKind, ScopeIds, Spawner};
 use serde_json::{Map, Value};
 use tokio::runtime::Runtime;
 
@@ -93,6 +94,92 @@ fn rfc3339_to_epoch_ms(timestamp: &str) -> Option<i64> {
         .map(|dt| dt.timestamp_millis())
 }
 
+/// CIB-381: neutralise the upstream auto-spawn path when no `kindling` binary
+/// can be resolved on `path_var`, returning whether the guard engaged.
+///
+/// KDS-005 made the daemon the default sink. On a host where `kindling` was
+/// never installed every emit takes the daemon path, finds no socket, and asks
+/// `kindling-client` to spawn the daemon; the spawn fails `ENOENT` and the
+/// client appends one line to `~/.kindling/spawn.log` — a bare append with no
+/// size, age, rotation, or dedup bound. One line per emit, forever (measured:
+/// 5.01 MB / 59,259 identical lines on a dev host).
+///
+/// The unbounded writer is upstream (`kindling_client::config::append_spawn_log`
+/// in 0.3.0) and a cap there is a separate follow-up. Anvil's interim is to not
+/// reach it: when the binary is absent the spawn can only ever fail, so
+///
+/// - the spawner is replaced with one that never execs (skipping the attempt,
+///   and the per-emit `fork`/`exec` it costs), and
+/// - the spawn-log path is pointed at the platform null device, so the
+///   diagnostic upstream insists on writing is discarded rather than
+///   accumulating. It is redundant here: the absence is noted once, as a trace
+///   event, when the sink is built.
+///
+/// Everything else is unchanged: the daemon sink stays the default, an already
+/// running daemon still connects on the fast path (the spawner is only consulted
+/// when no socket answers), and rows still buffer to the capped spool.
+fn guard_absent_kindling_binary(config: &mut ClientConfig, path_var: Option<&OsStr>) -> bool {
+    if resolves_kindling_binary(path_var) {
+        return false;
+    }
+    config.spawn = Spawner::custom(|| {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "no `kindling` binary on PATH — auto-spawn skipped (CIB-381)",
+        ))
+    });
+    config.spawn_log_path = Some(PathBuf::from(NULL_DEVICE));
+    true
+}
+
+/// The platform's discard device. Writes to it are dropped by the OS, so
+/// pointing the upstream spawn log here bounds it at zero bytes without
+/// truncating, deleting, or relocating any existing log.
+#[cfg(not(windows))]
+const NULL_DEVICE: &str = "/dev/null";
+#[cfg(windows)]
+const NULL_DEVICE: &str = "NUL";
+
+/// Whether an executable named `kindling` can be resolved from `path_var`,
+/// mirroring what `Command::new("kindling")` would search. An unset or empty
+/// `PATH` resolves nothing, so it counts as absent (fail safe).
+fn resolves_kindling_binary(path_var: Option<&OsStr>) -> bool {
+    let Some(path_var) = path_var.filter(|value| !value.is_empty()) else {
+        return false;
+    };
+    std::env::split_paths(path_var).any(|dir| {
+        KINDLING_BINARY_NAMES
+            .iter()
+            .any(|name| is_executable_file(&dir.join(name)))
+    })
+}
+
+/// Names `Command::new("kindling")` would try on this platform.
+#[cfg(not(windows))]
+const KINDLING_BINARY_NAMES: &[&str] = &["kindling"];
+#[cfg(windows)]
+const KINDLING_BINARY_NAMES: &[&str] = &["kindling.exe", "kindling"];
+
+/// Whether `path` is a file this process could execute. On Unix a file without
+/// any execute bit would fail `exec`, so it does not count as a resolved
+/// binary; Windows has no such bit, so being a file is enough.
+fn is_executable_file(path: &std::path::Path) -> bool {
+    std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file() && is_executable(&metadata))
+}
+
+/// Unix: any of the three execute bits makes the file runnable.
+#[cfg(unix)]
+fn is_executable(metadata: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    metadata.permissions().mode() & 0o111 != 0
+}
+
+/// Non-Unix: no execute bit exists, so a plain file is runnable.
+#[cfg(not(unix))]
+fn is_executable(_metadata: &std::fs::Metadata) -> bool {
+    true
+}
+
 /// A [`KindlingObservationSink`] that appends observations to the Kindling
 /// daemon via a [`SpooledClient`], buffering to a local spool on a daemon
 /// outage. See the module docs for the boundary + async-bridge rationale.
@@ -141,6 +228,17 @@ impl KindlingDaemonSink {
         })?;
         if let Some(root) = project_root {
             config.project_root = root;
+        }
+        // CIB-381: on a host with no `kindling` binary the auto-spawn can only
+        // ever fail, and each failure appended an unbounded line to
+        // `~/.kindling/spawn.log`. Skip the attempt (see the guard's docs).
+        if guard_absent_kindling_binary(&mut config, std::env::var_os("PATH").as_deref()) {
+            tracing::debug!(
+                target: "anvil::usage",
+                sink = "kindling_daemon",
+                "no `kindling` binary on PATH — daemon auto-spawn skipped; \
+                 observations buffer to the spool until a daemon is reachable",
+            );
         }
         let repo_id = Some(config.project_root.clone());
         // KDS-005: bound the spool (size + age) so the only durable NDJSON in the
@@ -399,6 +497,8 @@ mod daemon_tests {
     use super::*;
     use kindling_client::{RetrieveOptions, RetrievedEntity, Spawner, Transport};
     use kindling_server::{ServerConfig, serve};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tempfile::TempDir;
 
@@ -496,6 +596,34 @@ mod daemon_tests {
     }
 
     const REPO_ID: &str = "/repo/anvil";
+
+    /// CIB-381: how many observations the spawn-log growth tests emit. More
+    /// than one, so "one line per emit" is distinguishable from "one
+    /// first-failure note".
+    const EMIT_COUNT: usize = 5;
+
+    /// A config pointed at a socket that will never exist under `base`, with a
+    /// tiny connect budget — the "no daemon running" shape the spawn path is
+    /// reached from. Keeps the real `Spawner::Command` default so callers opt
+    /// into a custom spawner explicitly.
+    fn absent_daemon_config(base: &std::path::Path) -> ClientConfig {
+        ClientConfig {
+            socket_path: base.join("absent.sock"),
+            port_path: base.join("absent.port"),
+            project_root: REPO_ID.to_string(),
+            expected_schema_version: schema_version_u32(),
+            spawn_log_path: None,
+            connect_timeout: Duration::from_millis(50),
+            poll_interval: Duration::from_millis(10),
+            spawn: Spawner::Command,
+            transport: Transport::Uds,
+        }
+    }
+
+    /// Line count of a spawn log, treating "never created" as zero.
+    fn spawn_log_lines(path: &std::path::Path) -> usize {
+        std::fs::read_to_string(path).map_or(0, |contents| contents.lines().count())
+    }
 
     /// Find the stored observation for `session_id` among retrieval candidates.
     async fn retrieve_observation(
@@ -717,6 +845,169 @@ mod daemon_tests {
             sink.spooled.pending_count().expect("count"),
             1,
             "row spooled via sync path"
+        );
+    }
+
+    /// CIB-381 regression harness: the unguarded default. A client whose
+    /// spawner fails like a missing binary appends at least one spawn-log line
+    /// per emit, forever — the unbounded growth this item fixes. (More than one,
+    /// in fact: once the spool has a backlog `append_observation` also tries an
+    /// opportunistic flush, and that connect attempt spawns and logs too.)
+    /// Documents the mechanism, and proves the guard test below can observe
+    /// growth at all.
+    #[test]
+    fn unguarded_spawner_appends_at_least_one_spawn_log_line_per_emit() {
+        let base = tempfile::tempdir().expect("base dir");
+        let spawn_log = base.path().join("spawn.log");
+        let mut config = absent_daemon_config(base.path());
+        config.spawn_log_path = Some(spawn_log.clone());
+        let sink = KindlingDaemonSink::from_spooled(
+            SpooledClient::new(
+                Client::with_config(config),
+                base.path().join("spool.ndjson"),
+            ),
+            Some(REPO_ID.to_string()),
+        )
+        .expect("sink builds");
+
+        for _ in 0..EMIT_COUNT {
+            sink.try_emit_command_invoked(fixture_observation())
+                .expect("outage buffered");
+        }
+
+        let lines = spawn_log_lines(&spawn_log);
+        assert!(
+            lines >= EMIT_COUNT,
+            "unguarded: the spawn log grows with every emit (the CIB-381 bug); \
+             {EMIT_COUNT} emits produced {lines} lines",
+        );
+    }
+
+    /// CIB-381 acceptance: with a `PATH` that cannot resolve `kindling`, the
+    /// guard must (a) never invoke the spawner and (b) leave the spawn log
+    /// untouched, however many observations are emitted — while the rows still
+    /// buffer to the (capped) spool.
+    #[test]
+    fn absent_binary_guard_skips_spawn_and_leaves_spawn_log_untouched() {
+        let base = tempfile::tempdir().expect("base dir");
+        let spawn_log = base.path().join("spawn.log");
+        let empty_path_dir = base.path().join("bin");
+        std::fs::create_dir_all(&empty_path_dir).expect("empty PATH dir");
+        let spool = base.path().join("spool.ndjson");
+
+        let spawn_calls = Arc::new(AtomicUsize::new(0));
+        let mut config = absent_daemon_config(base.path());
+        config.spawn_log_path = Some(spawn_log.clone());
+        config.spawn = {
+            let spawn_calls = Arc::clone(&spawn_calls);
+            Spawner::custom(move || {
+                spawn_calls.fetch_add(1, Ordering::SeqCst);
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "kindling binary not found",
+                ))
+            })
+        };
+
+        let guarded =
+            super::guard_absent_kindling_binary(&mut config, Some(empty_path_dir.as_os_str()));
+        assert!(guarded, "a PATH without `kindling` must engage the guard");
+
+        let sink = KindlingDaemonSink::from_spooled(
+            SpooledClient::new(Client::with_config(config), spool),
+            Some(REPO_ID.to_string()),
+        )
+        .expect("sink builds");
+
+        for _ in 0..EMIT_COUNT {
+            sink.try_emit_command_invoked(fixture_observation())
+                .expect("outage buffered");
+        }
+
+        assert_eq!(
+            spawn_calls.load(Ordering::SeqCst),
+            0,
+            "the spawn attempt must be skipped when the binary is absent",
+        );
+        assert_eq!(
+            spawn_log_lines(&spawn_log),
+            0,
+            "the spawn log must not grow per emit",
+        );
+        assert_eq!(
+            sink.spooled.pending_count().expect("count"),
+            EMIT_COUNT,
+            "observations still buffer to the capped spool",
+        );
+    }
+
+    /// The guard is scoped to the absent-binary case: when `kindling` IS
+    /// resolvable the upstream spawner and its diagnostics stay exactly as they
+    /// are (auto-spawn is the whole point of the daemon sink).
+    #[test]
+    fn present_binary_leaves_the_upstream_spawner_and_log_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let base = tempfile::tempdir().expect("base dir");
+        let bin = base.path().join("bin");
+        std::fs::create_dir_all(&bin).expect("bin dir");
+        let binary = bin.join("kindling");
+        std::fs::write(&binary, b"#!/bin/sh\n").expect("write fake binary");
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod fake binary");
+
+        let spawn_log = base.path().join("spawn.log");
+        let mut config = absent_daemon_config(base.path());
+        config.spawn_log_path = Some(spawn_log.clone());
+
+        let guarded = super::guard_absent_kindling_binary(&mut config, Some(bin.as_os_str()));
+
+        assert!(
+            !guarded,
+            "a resolvable `kindling` must not engage the guard"
+        );
+        assert!(
+            matches!(config.spawn, Spawner::Command),
+            "the upstream command spawner is left in place",
+        );
+        assert_eq!(
+            config.spawn_log_path.as_deref(),
+            Some(spawn_log.as_path()),
+            "the upstream spawn-log path is left in place",
+        );
+    }
+
+    /// An unset or empty `PATH` cannot resolve anything, so it is treated as
+    /// "binary absent" (fail safe: no spawn, no unbounded log).
+    #[test]
+    fn missing_path_variable_engages_the_guard() {
+        let base = tempfile::tempdir().expect("base dir");
+        let mut config = absent_daemon_config(base.path());
+        assert!(super::guard_absent_kindling_binary(&mut config, None));
+
+        let mut config = absent_daemon_config(base.path());
+        assert!(super::guard_absent_kindling_binary(
+            &mut config,
+            Some(std::ffi::OsStr::new(""))
+        ));
+    }
+
+    /// A non-executable file named `kindling` on `PATH` is not a runnable
+    /// binary, so the guard still engages.
+    #[test]
+    fn non_executable_kindling_file_engages_the_guard() {
+        use std::os::unix::fs::PermissionsExt;
+        let base = tempfile::tempdir().expect("base dir");
+        let bin = base.path().join("bin");
+        std::fs::create_dir_all(&bin).expect("bin dir");
+        let binary = bin.join("kindling");
+        std::fs::write(&binary, b"not executable").expect("write file");
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o644))
+            .expect("chmod file");
+
+        let mut config = absent_daemon_config(base.path());
+        assert!(
+            super::guard_absent_kindling_binary(&mut config, Some(bin.as_os_str())),
+            "a non-executable file is not a spawnable binary",
         );
     }
 
