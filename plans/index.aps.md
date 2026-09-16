@@ -843,24 +843,31 @@ remains the prerequisite Git argv and hook-time PATH closeout.
 
 ### Agent Baseline Assurance
 
-Planning intake 2026-09-14 from an enterprise agentic-engineering conversation:
-organisations need versioned, layered agent instructions and skills to remain
-current across many teams without erasing local ownership. The additional
+Planning intake 2026-09-14 from an enterprise agentic-engineering conversation;
+operator-approved design recorded 2026-09-16 in
+[the ABASE specification](./specs/2026-09-16-agent-baseline-assurance.md) and
+[ADR-147](./decisions/147-agent-baseline-governance-composition.md) proposed.
+Organisations need versioned, layered agent instructions and skills to remain
+current across many teams without erasing local ownership. The structural
+lineage is organisation → business area → pod → team → project, with
+independently selected security/platform functional overlays and one governed
+baseline steward. The same role contract collapses to one principal. The
 multi-organisation case recognises that one anvil installation may serve
 personal, consultancy, customer, volunteer, and project contexts without
 leaking authority, credentials, packs, or evidence between them.
 
 | Module | Scope | Status | Programme next |
 | --- | --- | --- | --- |
-| [agent-baseline-assurance](./modules/agent-baseline-assurance.aps.md) | ABASE | Draft | Validate replacement/coexistence demand, accept the governance-context ADR, and define the producer/pack contract before creating executable work items |
+| [agent-baseline-assurance](./modules/agent-baseline-assurance.aps.md) | ABASE | Draft | Validate the coexistence/steward model with design partners, accept ADR-147, and close trust/manifest/schema/PSCAF/receipt ownership gates before promoting the thirteen Draft slices |
 
-ABASE owns explicit governance-context resolution, layered desired state,
-externally produced materialised agent baseline packs, version assurance, and
-receipts. [PSCAF](./modules/project-scaffolding.aps.md) remains the safe local
-reconciler; ORGHIER/POLLC/POLFED own Rego policy hierarchy, lifecycle, and
-federation; SKPKG owns anvil-authored bundled skills; SKOBS supplies observed
-inventory; SETGOV and EXCEPT own governed mutation and exceptions. The full
-dependency and non-overlap map lives in the ABASE module.
+ABASE owns explicit governance-context resolution, structural layers,
+functional overlays, externally produced materialised agent baseline packs,
+composite publication, version assurance, and receipts.
+[PSCAF](./modules/project-scaffolding.aps.md) remains the safe local reconciler;
+ORGHIER/POLLC/POLFED own Rego policy hierarchy, lifecycle, and federation;
+SKPKG owns anvil-authored bundled skills; SKOBS supplies observed inventory;
+SETGOV and EXCEPT own governed mutation and exceptions. The full dependency and
+non-overlap map lives in the ABASE module.
 
 ### Settings Truth Surface
 
