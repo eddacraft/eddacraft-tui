@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 337/423  |
+| CIB | —     | In Progress | 337/424  |
 
 ## Purpose
 
@@ -12228,9 +12228,23 @@ hang before opening a supervisor ticket.
   that remains a private follow-up ask, not acceptance.
 - **Ownership / routing:** the unbounded writer is upstream in
   `kindling-client` 0.3.0 (crates.io). This Ready item is the **anvil-side
-  interim**: skip the spawn attempt when the binary is absent, so
-  `append_spawn_log` is never reached. File the durable cap from **private**
-  anvil-001; do **not** open it on the public kindling repo.
+  interim**: skip the spawn attempt when the binary is absent **and redirect
+  the spawn-log path to the platform null device**. Both halves are required.
+  File the durable cap from **private** anvil-001; do **not** open it on the
+  public kindling repo.
+- **Correction 2026-09-16 (review + verify-loop):** this bullet previously read
+  "skip the spawn attempt ... so `append_spawn_log` is never reached". That is
+  **not achievable** in `kindling-client` 0.3.0 and the wording was wrong, not
+  the implementation. `transport.rs:158-161` calls `log_spawn_failure` on **any**
+  spawner error, whatever spawner is installed, and `config.rs:243`
+  `effective_spawn_log_path()` is `Option::or_else(default)`, so
+  `spawn_log_path: None` falls back to `~/.kindling/spawn.log` rather than
+  disabling it — there is no off switch. Proven by isolated revert: with the
+  spawn attempt skipped exactly as the old wording specified but without the
+  null-device redirect, 5 emits still produced **9** spawn-log lines. The
+  redirect is the load-bearing half. Acceptance remains the Expected Outcome
+  below (line count does not grow per emit), which the landed change exceeds:
+  8 real emits under a `kindling`-less PATH produced **zero** lines.
 - **Files:** `crates/anvil-cli/src/kindling_daemon_sink.rs`
   (`KindlingDaemonSink::new` / `ClientConfig::defaults` spawner);
   tests next to that sink
@@ -14414,3 +14428,37 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `packages/aps` (already accepted both headings)
 - **Confidence:** high — same merge as CIB-427
 
+
+### CIB-429: `anvil kindling usage` still appends to the unbounded spawn log
+
+- **Status:** Proposed
+- **Priority:** P3 — bounded by explicit user invocation rather than per emit,
+  so it is not the unbounded growth CIB-381 targeted, but it is the same
+  unbounded writer left live on the same no-kindling host
+- **Intent:** `load_rows_from_daemon`
+  (`crates/anvil-cli/src/commands/kindling.rs:149-159`) builds
+  `ClientConfig::defaults()` and swaps in a failing custom spawner, but leaves
+  `spawn_log_path: None`. On a daemon-less host `effective_spawn_log_path()`
+  therefore falls back to `~/.kindling/spawn.log` and appends one line per
+  `anvil kindling usage` invocation. CIB-381 fixed the per-emit sink path and
+  deliberately scoped this call site out; independent `verify-loop` of
+  CIB-381 ([#4730](https://github.com/eddacraft/anvil-001/pull/4730)) named it
+  as the remaining writer. Note this call site is also direct evidence that a
+  spawner swap **alone** does not stop the log growing.
+- **Expected Outcome:** `anvil kindling usage` on a host with no `kindling`
+  binary does not append to the spawn log. The fix is the same one-line shape
+  CIB-381 landed — redirect `spawn_log_path` to the platform null device when
+  the binary is absent, ideally by reusing CIB-381's
+  `guard_absent_kindling_binary` rather than a second copy.
+- **Non-scope / do not:** do not truncate or delete an existing spawn log. Do
+  not disable the daemon sink. Do not attempt the upstream `append_spawn_log`
+  cap here — that remains the separate private ask.
+- **Files:** `crates/anvil-cli/src/commands/kindling.rs` (`load_rows_from_daemon`)
+- **Validation:** a hermetic test that invokes the usage path under a `PATH`
+  that cannot resolve `kindling` and asserts the spawn-log line count is
+  unchanged; `cargo test -p eddacraft-anvil --no-fail-fast`
+- **Identified From:** independent `verify-loop` of CIB-381, 2026-09-16
+- **Coordinates with:** CIB-381 (landed anvil-side interim), KDS-005 (spool cap),
+  `kindling-client` spawn-log cap (upstream, not this item)
+- **Confidence:** high — the call site and the `Option::or_else` fallback were
+  both read directly during CIB-381 verification
