@@ -50,7 +50,7 @@ use crate::kindling_observation::SaveTimeObservationEmitter;
 use crate::rule_cache::WorktreeKey;
 use crate::telemetry::{NotificationEnvelope, TelemetryCorrelation, TelemetryEmitter};
 use crate::validate_paths::{ValidateEnv, validate_paths as run_validate_paths};
-use crate::workspace_admission::{AdmitOutcome, AdmittedRoots};
+use crate::workspace_admission::{AdmitOutcome, AdmittedRoots, GraphAdmitOutcome};
 use crate::workspace_anchor::WorkspaceAnchor;
 use crate::workspace_pool::{DosCaps, WorkScheduler};
 
@@ -3594,16 +3594,34 @@ struct AuthorisedGctxRoot<'f> {
 /// itself still keyed a graph on any nested directory a socket client handed
 /// it. `<repo>/secrets` as the root rebases `secrets/token.ts` to `token.ts`,
 /// so the CE-3 sensitive-path deny-list (`is_sensitive_egress_path`) never sees
-/// the denied segment. This applies the same rule the MCP layer applies
-/// (`workspace_root_is_graph_root`) at the socket, so the prefixes survive
-/// whichever client asks.
+/// the denied segment. This applies the daemon-side form of the MCP rule
+/// (`workspace_root_is_graph_root`) at the socket.
+///
+/// ## What this actually guarantees (and what it does not)
+///
+/// It guarantees that **no plain directory inside a repository** can key a
+/// graph on this socket, so rebasing cannot be used to strip a deny-listed
+/// path segment. It does **not** guarantee that the deny-list prefixes
+/// "survive whichever client asks": git's on-disk model carries no
+/// authenticity signal, so a same-uid writer who can create files inside the
+/// repository can also construct a genuinely git-valid repository at
+/// `<repo>/secrets` — indistinguishable on disk from a legitimately vendored
+/// nested repo — and that root is accepted. The MCP layer escapes this because
+/// its rule is *relational*, anchored on a trusted `server_root`; the daemon
+/// has no such anchor on first contact. That residual is a deliberate, bounded
+/// operator decision, documented on the graph-root rule in
+/// [`crate::workspace_admission`]. Do not read this gate as an authenticity
+/// boundary.
 ///
 /// The gate runs **before** admission, so a refused nested root is never
 /// first-touch-adopted in `Open` mode and never consumes the CIB-154
-/// per-connection root budget. The root is canonicalised exactly once; that
-/// resolved path is handed straight to the admit step **and returned** so the
-/// graph key and warm-up cannot be split from the gate by a component swapped
-/// in between.
+/// per-connection root budget.
+///
+/// Canonicalisation: the client spelling is resolved **once** here, and that
+/// single resolved path is used for the graph-root rule, the admit step and
+/// the graph/warm-up key (it is returned in `AuthorisedGctxRoot::canonical`
+/// for exactly that reason), so no verb re-canonicalises the raw client path
+/// and the gate cannot be split from the key.
 ///
 /// The refusal is the ordinary [`SaveTimeError::NotAdmitted`]: the wire reply
 /// stays the static, path-free `workspace-not-admitted`, so a refused client
@@ -3626,28 +3644,32 @@ fn authorise_gctx_root<'f>(
     let Ok(canonical) = std::fs::canonicalize(root) else {
         return Err(refused());
     };
-    if !set.permits_graph_root(&canonical) {
-        // Operator diagnostic only — the wire reply stays static and path-free
-        // (N5 / CIB-091b), as every other refusal here does.
-        tracing::warn!(
-            target: "anvil_intercept::save_time",
-            workspace_root = %canonical.display(),
-            "graph-context verb refused: workspace root is not a graph root \
-             (it must be the repository root itself or a registered git worktree \
-             root of that repository, never a directory inside one — CIB-414)",
-        );
-        return Err(refused());
-    }
+    // Single non-bypassable entry point: the graph-root rule and the admit
+    // step are fused inside `AdmittedRoots`, so this handler cannot skip the
+    // rule and no other handler can reach an already-canonical admit seam.
     match set
-        .authorise_canonical_within_budget(&canonical)
+        .authorise_graph_root_within_budget(&canonical)
         .map_err(SaveTimeError::Io)?
     {
-        AdmitOutcome::Authorised(anchor) => Ok(AuthorisedGctxRoot { anchor, canonical }),
-        AdmitOutcome::OverBudget => Err(SaveTimeError::RootBudgetExceeded {
+        GraphAdmitOutcome::Authorised(anchor) => Ok(AuthorisedGctxRoot { anchor, canonical }),
+        GraphAdmitOutcome::OverBudget => Err(SaveTimeError::RootBudgetExceeded {
             root: root.to_path_buf(),
             budget,
         }),
-        AdmitOutcome::Refused => Err(refused()),
+        GraphAdmitOutcome::NotGraphRoot => {
+            // Operator diagnostic only — the wire reply stays static and
+            // path-free (N5 / CIB-091b), as every other refusal here does.
+            tracing::warn!(
+                target: "anvil_intercept::save_time",
+                workspace_root = %canonical.display(),
+                "graph-context verb refused: workspace root is not a graph root \
+                 (it must be the repository root itself or a registered git worktree \
+                 root of that repository, never a directory inside one; a repository \
+                 whose structure cannot be confirmed is also refused — CIB-414)",
+            );
+            Err(refused())
+        }
+        GraphAdmitOutcome::Refused => Err(refused()),
     }
 }
 
