@@ -208,7 +208,7 @@ fn read_regular_nofollow(path: &Path) -> Result<String, SafeWriteError> {
         let mut text = String::new();
         file.read_to_string(&mut text)
             .map_err(|err| io_to_error(&err))?;
-        return Ok(text);
+        Ok(text)
     }
     #[cfg(not(unix))]
     {
