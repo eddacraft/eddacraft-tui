@@ -8136,3 +8136,13 @@ merge itself failed.
 - **Improvement:** none
 - **Follow-up:** owned: CIB-424 CIB-425
 
+### 2026-09-16 — grok
+
+- **Task:** Complete CI-log intake on PR 4715
+- **Outcome:** Harvested leftover closeout; aligned CIB-426..428 with landed #4712/#4703 tests; docs-owed log-to-guide edge is already baselined so no redate
+- **Worked:** cd into Worktrunk path; Copilot thread; ancestor-proved feature-PR test plans
+- **Failed:** none
+- **Friction:** wt switch did not change this shell cwd; harvest/append without cd wrote onto main and had to be reverted
+- **Improvement:** Always cd to the Worktrunk path before pnpm ci-log:* when the harness cannot activate shell integration
+- **Follow-up:** none
+
