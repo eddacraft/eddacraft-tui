@@ -1207,7 +1207,7 @@ mod tests {
             !is_graph_root(&nested),
             "a bare `mkdir .git` is not a repository to git and must not be one here"
         );
-        let mut roots = AdmittedRoots::new_open().with_root_budget(1);
+        let roots = AdmittedRoots::new_open().with_root_budget(1);
         assert!(
             !roots.permits_graph_root(&nested),
             "first contact must refuse a planted bare `.git` directory"
