@@ -5,15 +5,15 @@
 
 | ID      | Owner | Priority | Status   | Progress |
 | ------- | ----- | -------- | -------- | -------- |
-| SETPREF | —     | medium   | Proposed | 0/6      |
+| SETPREF | —     | medium   | Ready    | 0/6      |
 
-**Last reviewed:** 2026-09-16 — operator locked this module as the
-`v0.12.0-beta` next-minor claim (not the active `v0.11.1-beta` patch). SETINS
-is Done via #4696. Class A v0.1 keys are `interface.compact`,
-`interface.timestamps`, `interface.motion`, and `interface.hints`. The
-canonical writer for Class A user scope is the settings service persisting
-`user-config`. Remaining Ready gate: documented safe-write policy. Created
-2026-08-06 from the operator-supplied `/settings` specification v1.1
+**Last reviewed:** 2026-09-16 — Ready checklist complete. Operator locked this
+module as the `v0.12.0-beta` next-minor claim (not the active `v0.11.1-beta`
+patch). SETINS Done via #4696. Class A v0.1 keys: `interface.compact`,
+`interface.timestamps`, `interface.motion`, `interface.hints`. Canonical writer:
+user scope → settings-service `user-config`. Safe-write policy:
+[`2026-09-16-settings-class-a-safe-write.md`](../specs/2026-09-16-settings-class-a-safe-write.md).
+Created 2026-08-06 from the operator-supplied `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 2). Completing this module closes `/settings` v0.1 (spec §24).
 
@@ -120,7 +120,8 @@ Change status to **Ready** when:
 - [x] SETINS-002 and SETINS-006 are Done
 - [x] Canonical writer per Class A scope is declared in the catalogue:
       user scope → settings-service `user-config` (default write scope)
-- [ ] Safe-write policy (symlink, traversal, replace semantics) is documented
+- [x] Safe-write policy (symlink, traversal, replace semantics) is documented:
+      [`2026-09-16-settings-class-a-safe-write.md`](../specs/2026-09-16-settings-class-a-safe-write.md)
 - [x] Class A key set agreed with the operator:
       `interface.compact`, `interface.timestamps`, `interface.motion`,
       `interface.hints`
@@ -204,10 +205,10 @@ Change status to **Ready** when:
 
 - **Intent:** Prove the write path holds under hostile and interrupted
   filesystem conditions.
-- **Expected Outcome:** An explicit safe-write policy covers symbolic links,
-  path traversal, permission boundaries and replace operations, and is
-  documented; tests cover symlinked sources, traversal attempts, unwritable
-  targets, interrupted writes and concurrent writers; failures produce a clear
+- **Expected Outcome:** Writes obey
+  [`2026-09-16-settings-class-a-safe-write.md`](../specs/2026-09-16-settings-class-a-safe-write.md);
+  tests cover symlinked sources, traversal attempts, unwritable targets,
+  interrupted writes and concurrent writers; failures produce a clear
   diagnostic that embeds no unredacted source values or paths.
 - **Non-scope:** Recovery for multi-resource transactions (SETGOV)
 - **Dependencies:** SETPREF-004

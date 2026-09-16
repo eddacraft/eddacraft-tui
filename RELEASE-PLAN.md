@@ -124,10 +124,9 @@ Current CIB Ready set besides the primary (waive at cut if still open):
 
 `v0.12.0-beta` (minor, not this file's active window): **SETPREF** is the locked
 headline — Class A interface preferences through the settings service, closing
-`/settings` v0.1. SETINS-002/006 are Merged; remaining Ready gates are the
-canonical Class A writer, documented safe-write policy, and agreed Class A key
-set. SKPKG-010/011 may ride as secondaries. SHIPREP, ABASE, and SKOBS stay
-programme (Ready/ADR first). SETGOV stays later.
+`/settings` v0.1. The module is **Ready**. SKPKG-010/011 may ride as
+secondaries. SHIPREP, ABASE, and SKOBS stay programme (Ready/ADR first). SETGOV
+stays later.
 
 ### Phase plan
 
@@ -151,12 +150,12 @@ programme (Ready/ADR first). SETGOV stays later.
 
 ### Risks
 
-| Risk                                      | Mitigation                                                            |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| SETPREF starts before the Ready checklist | Keep Class A writes out of this window; NBI ranks SETPREF as Schedule |
-| SKPKG-010/011 land as unclaimed freight   | Park until 0.12; do not merge as 0.11.1 claim                         |
-| CIB Ready set is larger than the theme    | Primary is CIB-424; waive leftover secondaries at cut                 |
-| Hollow publish repeats                    | Verify assets before closeout                                         |
+| Risk                                    | Mitigation                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| SETPREF starts in this patch window     | Keep Class A writes out of `v0.11.1-beta`; NBI ranks SETPREF as Ready for 0.12 |
+| SKPKG-010/011 land as unclaimed freight | Park until 0.12; do not merge as 0.11.1 claim                                  |
+| CIB Ready set is larger than the theme  | Primary is CIB-424; waive leftover secondaries at cut                          |
+| Hollow publish repeats                  | Verify assets before closeout                                                  |
 
 ---
 
