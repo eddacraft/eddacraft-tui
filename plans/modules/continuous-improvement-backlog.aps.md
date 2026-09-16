@@ -12216,11 +12216,13 @@ hang before opening a supervisor ticket.
   `ensure_connected` spawns once per connection attempt, so the file gains
   one line per emit, forever.
 - **Expected Outcome:** anvil's default Kindling daemon sink does not append
-  to the spawn log on a host with no `kindling` binary. Skip the spawn so
-  `append_spawn_log` is never reached: N emits under a `PATH` that cannot
-  resolve `kindling` leave the spawn log line count unchanged. Delivery to a
-  live daemon still works when the binary is absent from `PATH`. The spool's
-  7d / 64 MiB cap and the `anvil kindling usage` degrade note stay unchanged.
+  to the spawn log on a host with no `kindling` binary: N emits under a `PATH`
+  that cannot resolve `kindling` leave the spawn-log line count unchanged.
+  Achieve that by skipping the exec **and** redirecting `spawn_log_path` to the
+  platform null device — see the correction below for why skipping the spawn
+  alone cannot work. Delivery to a live daemon still works when the binary is
+  absent from `PATH`. The spool's 7d / 64 MiB cap and the `anvil kindling usage`
+  degrade note stay unchanged.
 - **Non-scope / do not:** do not disable the daemon sink
   (`ANVIL_KINDLING_SINK=off` is operator rollback, not the default). Do not
   truncate or delete an existing spawn log. Do not add a second diagnostics
@@ -12243,7 +12245,7 @@ hang before opening a supervisor ticket.
   spawn attempt skipped exactly as the old wording specified but without the
   null-device redirect, 5 emits still produced **9** spawn-log lines. The
   redirect is the load-bearing half. Acceptance remains the Expected Outcome
-  below (line count does not grow per emit), which the landed change exceeds:
+  above (line count does not grow per emit), which the landed change exceeds:
   8 real emits under a `kindling`-less PATH produced **zero** lines.
 - **Files:** `crates/anvil-cli/src/kindling_daemon_sink.rs`
   (`KindlingDaemonSink::new` / `ClientConfig::defaults` spawner);
