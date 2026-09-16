@@ -213,3 +213,42 @@ test('absent merge state leaves the existing classification untouched', () => {
   assert.doesNotMatch(r.stdout, /conflict/i);
   assert.doesNotMatch(r.stdout, /mergeab/i);
 });
+
+// --- CIB-404 repair: the conflict guard must outrank the required-set exit ----
+// `required.length === 0` exits NOT_FINISHED before any classification runs, so
+// a conflict guard placed after it leaves the original misreport alive on a
+// branch that configures no required contexts — a reachable case, and one where
+// a poller waits its full budget exactly as it did on #4372.
+test('a conflicting PR is exit 4 even with an empty required set', () => {
+  const r = run([], NOTHING_REPORTED, undefined, {
+    mergeable: 'CONFLICTING',
+    mergeStateStatus: 'DIRTY',
+  });
+  assert.equal(r.status, 4, r.stdout + r.stderr);
+  assert.match(r.stdout, /conflict/i);
+  assert.doesNotMatch(r.stdout + r.stderr, /no required contexts found/);
+});
+
+// The early exit must survive the reorder: a mergeable PR on a branch with no
+// required contexts is still "the question cannot be answered", not a pass.
+test('an empty required set on a mergeable PR is still exit 2 and says so', () => {
+  const r = run([], NOTHING_REPORTED, undefined, {
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+  });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /no required contexts found/);
+});
+
+// Ordering call for UNKNOWN, the other side of the same decision: both paths
+// exit 2, so the caller should get the message that stays true. "No required
+// contexts found" is a configuration fact; UNKNOWN is transient.
+test('an empty required set outranks the transient UNKNOWN message', () => {
+  const r = run([], NOTHING_REPORTED, undefined, {
+    mergeable: 'UNKNOWN',
+    mergeStateStatus: 'UNKNOWN',
+  });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /no required contexts found/);
+  assert.doesNotMatch(r.stdout, /mergeability unresolved/);
+});

@@ -254,31 +254,41 @@ function main() {
     }
   }
 
-  if (!Array.isArray(required) || required.length === 0) {
-    process.stderr.write('[pr-required-status] no required contexts found\n');
-    process.exit(NOT_FINISHED);
-  }
-
-  const byName = new Map();
-  for (const check of checks) {
-    if (check.name) byName.set(check.name, check);
-  }
-
-  // Answered before the checks are classified: on a conflicting PR every
-  // required context is "pending" only because none of them can ever start, and
-  // reporting that as NOT_FINISHED is exactly the lie CIB-404 is about. This
-  // reports; it never rebases, merges, or otherwise repairs the branch.
+  // Answered first, ahead of even the required-set check: whether the PR has a
+  // merge candidate is a fact about the PR, not about how many contexts the
+  // branch happens to configure. A conflicting PR on a branch with zero
+  // required contexts is still a conflict, and reporting it as NOT_FINISHED —
+  // by any route — is exactly the lie CIB-404 exists to remove. This reports;
+  // it never rebases, merges, or otherwise repairs the branch.
   if (mergeState?.conflicting) {
     process.stdout.write(
       `[pr-required-status] conflict: the PR has no merge candidate (mergeable: ${mergeState.mergeable}, mergeStateStatus: ${mergeState.stateStatus || 'unknown'}); GitHub builds no merge commit, so required contexts cannot report — rebase or update the branch on its base, then re-run\n`
     );
     process.exit(MERGE_CONFLICT);
   }
+
+  if (!Array.isArray(required) || required.length === 0) {
+    process.stderr.write('[pr-required-status] no required contexts found\n');
+    process.exit(NOT_FINISHED);
+  }
+
+  // Deliberately *after* the required-set check, unlike the conflict guard.
+  // Both exit NOT_FINISHED, so this is a choice of message, not of verdict, and
+  // the caller should get the one that stays true: "no required contexts found"
+  // is a configuration fact that no amount of waiting changes, while UNKNOWN is
+  // GitHub's transient "ask again in a moment". Reporting UNKNOWN first on such
+  // a branch would send a caller off to poll a question that can never resolve
+  // into a useful answer.
   if (mergeState?.unknown) {
     process.stdout.write(
       `[pr-required-status] mergeability unresolved: GitHub has not finished computing it (mergeable: ${mergeState.mergeable}); the merge candidate is not yet decided either way, and no check verdict is implied — re-run once it settles\n`
     );
     process.exit(NOT_FINISHED);
+  }
+
+  const byName = new Map();
+  for (const check of checks) {
+    if (check.name) byName.set(check.name, check);
   }
 
   const pending = [];
