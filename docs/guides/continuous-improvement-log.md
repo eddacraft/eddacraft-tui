@@ -122,7 +122,9 @@ file is shared multi-writer; reconcile it only on the bookkeeping branch.
    branch), **absorb** (already owned — leave a one-line note in the triage
    CI-log entry), or **leave** (one-off lesson). Also apply deferred APS status
    reconcile for shipped CIB items (`Merged via PR #N` and friends).
-4. Promotion bar: intent + observable outcome + validation + source pointer.
+4. Promotion bar: intent + observable outcome + validation + source pointer +
+   **Priority** + **Currency** (see
+   [`plans/modules/continuous-improvement-backlog.aps.md#triage-fields`](../../plans/modules/continuous-improvement-backlog.aps.md#triage-fields)).
 5. `pnpm ci-log:set-watermark -- --today`. This refuses when the pending queue
    is non-empty or the tracked log differs from local `origin/main`, and names
    `pnpm ci-log:harvest` then commit. `--force` overrides. A missing

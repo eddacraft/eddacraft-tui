@@ -72,6 +72,8 @@ During **bookkeeping / weekly triage** (not in feature PRs), add a new
   known
 - Best-effort source context, such as the review, release, incident, file path,
   or module where it was identified
+- **Priority** and **Currency** (see [Triage fields](#triage-fields)). New
+  items must carry both; weekly triage fills them on promotion to Ready.
 
 Feature sessions capture candidates with `pnpm ci-log:append` and
 `promote: CIB` (or a theme key) in the pending queue. Do not open a feature PR
@@ -89,12 +91,49 @@ Task closeout must sweep `Coordinates with:`, `Blocks on:`, `Supersedes:`, and
 `Superseded by:` callouts rather than carrying unresolved references into
 archive.
 
+## Triage fields
+
+Priority is how bad the defect is if it is still true. Currency is whether we
+should pick it **now**. They are independent: a P1 can be stale, a P3 can be
+current.
+
+### Priority
+
+Aligns with the [release cadence](../../docs/policies/release-cadence.md) P0
+bar. Do not invent P5.
+
+| Token | Use for |
+| ----- | ------- |
+| P0 | Crash, data loss, false protection claim, daemon corruption, install/update breakage that strands users, or a security-relevant regression |
+| P1 | Shipped-surface honesty or a beta-report trust gap that is not P0 |
+| P2 | Required CI red, recurring dogfood, or wrong behaviour that is not a false protection claim |
+| P3 | Hygiene, flakes, editorial, latent traps |
+| P4 | Naming or docs honesty with no runtime effect |
+
+Write the token first, then an optional em-dash reason on the same line.
+
+### Currency
+
+| Token | Use for |
+| ----- | ------- |
+| current | Reproduced on `main` or the last shipped beta, or blocking a live cut / required CI |
+| next-cut | Real; belongs in the next release window, not today |
+| backlog | Real; not this cut |
+| stale | Not revalidated since **Identified From**; re-check before pickup |
+
+Pickup order: current P0/P1, then current P2, then next-cut. Do not pick stale
+until someone revalidates and retags it.
+
+Compacted done items do not need these fields.
+
 ## Item Template
 
 ```markdown
 ### CIB-NNN: Short outcome-focused title
 
 - **Status:** Draft
+- **Priority:** P2
+- **Currency:** current
 - **Intent:** One sentence describing the improvement outcome.
 - **Expected Outcome:** Observable result or acceptance condition.
 - **Validation:** `command` or manual check.
@@ -5382,6 +5421,8 @@ archive.
 ### CIB-202: Flaky beacon reservation test under parallel load
 
 - **Status:** Ready
+- **Priority:** P3 — single unreproduced 2026-07 failure
+- **Currency:** stale — single unreproduced 2026-07 failure
 - **Intent:** `telemetry::tests::reservation_commit_enforces_one_success_per_install_per_day`
   must be deterministic, or its non-determinism must be understood — a flaky
   assertion on the once-per-day beacon reservation erodes trust in the gate
@@ -5497,6 +5538,8 @@ archive.
 ### CIB-204: Drain the Windows-only clippy backlog in anvil-intercept
 
 - **Status:** Ready
+- **Priority:** P3 — windows-msvc Clippy is already a required job
+- **Currency:** backlog — windows-msvc Clippy is already a required job
 - **Intent:** `anvil-intercept`'s Windows named-pipe transport must meet the
   same lint bar as the rest of the workspace, so the CIB-193 gate can cover it
   and the `--exclude` in `.github/workflows/rust.yml` can be deleted.
@@ -5695,6 +5738,8 @@ archive.
 ### CIB-209: Worktree-safe local validation path selection
 
 - **Status:** Ready
+- **Priority:** P3 — worktree path-env; not this cut
+- **Currency:** backlog — worktree path-env; not this cut
 - **Intent:** `pnpm validate:changed` and agent-driven Rust/Nx checks repeatedly
   fail in Worktrunk worktrees for path-environment reasons that are not product
   defects: long Nx daemon sockets, read-only shared Cargo targets, `/tmp` as a
@@ -8762,6 +8807,7 @@ CIB-251/255 only.
   filed from the CIB-278 dev-loop run the same day.
 - **Priority:** P3 governance-signal gap (advisory by design; the defect is that
   the expectation and the implementation disagree)
+- **Currency:** backlog — advisory docs:check cannot fail closed
 - **Intent:** **CIB-278**'s Validation clause requires that "a real APS drift …
   must still produce a genuine surface `FAIL`". That clause is unsatisfiable as
   written. `scripts/aps/drift-check.mjs` is advisory by construction: its only
@@ -8806,6 +8852,7 @@ CIB-251/255 only.
   filed from the CIB-278 dev-loop run the same day.
 - **Priority:** P3 test-suite honesty (a red baseline case masks regressions in
   the path it covers)
+- **Currency:** backlog — adr-integrity case 1 red baseline
 - **Intent:** `bash scripts/docs/adr-integrity.test.sh` reports `1 test case(s)
   failed` on an untouched `main` checkout. Case 1 ("clean tree exits 0") builds
   its fixture from two helpers that disagree: `make_adr` creates ADR files named
@@ -10068,6 +10115,7 @@ RETEST-2). Do not re-file those.
 - **Status:** Ready — operator-authorised 2026-08-14 after pack-06
   revalidation (parked until CIB-322; still true on current `main`)
 - **Priority:** P3 — warning, language-level non-security declaration
+- **Currency:** backlog — hashlib usedforsecurity warning
 - **Intent:** `WC-001` matches `hashlib.(md5|sha1)(` with no regard for
   the Python 3.9+ `usedforsecurity=False` keyword. That keyword is the
   language-level way to declare a non-security digest (checksums, cache
@@ -10182,6 +10230,7 @@ RETEST-2). Do not re-file those.
 - **Priority:** P3 — cosmetic today; blocks nothing, but it is a
   correctness wart that will be re-litigated every time a rule needs a
   receiver gate
+- **Currency:** backlog — scanner column cosmetic
 - **Intent:** RE2 has no lookbehind, so a rule that must exclude a dotted
   receiver has to consume the preceding byte —
   `(^|[^.\w])print\s*\(` in PY-006 today, and the same shape in PY-008
@@ -10225,6 +10274,7 @@ RETEST-2). Do not re-file those.
 - **Status:** Ready
 - **Priority:** P3 — no shipped rule triggers it today; it is a latent trap
   for the next rule author
+- **Currency:** backlog — latent .anvil compiler trap
 - **Intent:** PR #3880 taught the compiler to let a rule body override the
   family-level `explanation` with a `## Why It's Harmful` section. The
   matching is exact-heading and unvalidated, so two silent failures exist:
@@ -12941,6 +12991,7 @@ reply.
   **reproduction task**, not a fix: the root cause is genuinely unknown and
   this entry exists so the next occurrence lands against a record instead of
   being re-diagnosed from scratch
+- **Currency:** current — CI still runs this doctor socket test
 - **Intent:** `commands::doctor::tests::stop_sibling_sockets_clears_a_crash_orphaned_socket`
   failed once on CI (PR [#4297](https://github.com/eddacraft/anvil-001/pull/4297),
   2026-09-01, job `99909924022`) at `crates/anvil-cli/src/commands/doctor.rs:5317`:
@@ -13230,6 +13281,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Priority:** P2 — it fails a **required** context with no test reporting a
   failure, on any PR that widens the affected set. Three CI runs were spent on
   one PR (#4353) to land a change that never touched SQLite
+- **Currency:** current — required Unit Tests can fail green-on-green
 - **Intent:** `Unit Tests (Node 22.x, ubuntu-latest)` fails with exit 1 while
   every suite in the log reports `✓`. Buried mid-log, not at the tail:
 
@@ -13361,6 +13413,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Priority:** P2 — 77 tracked files are outside pre-commit entirely, and the
   same blind spot cost two defects in one PR that review caught rather than a
   gate
+- **Currency:** current — .mjs still outside allowlists
 - **Intent:** the repository has 77 tracked `.mjs`/`.cjs` files (74 `.mjs`,
   3 `.cjs`), and the
   conventional file-type allowlists do not name that extension. It is invisible
@@ -13431,6 +13484,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Priority:** P2 — the wrong answer is *actionable in the opposite direction*:
   "not finished" says wait, the truth says repair. An automated caller waits
   until its own timeout on a PR that will never progress
+- **Currency:** current — pr-required-status still lies on conflict
 - **Intent:** `scripts/ci/pr-required-status.mjs` classifies each required
   context as reported / pending / failed, and reports "not finished" when a
   context has no check run. It never asks whether the pull request has a
@@ -13657,6 +13711,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Status:** Ready by operator authorisation
 - **Priority:** P3 — toolchain hygiene; 1.97.1 remains correct, and 1.98.0
   must not be pinned
+- **Currency:** backlog — pin is still 1.97.1
 - **Intent:** the workspace `rust-toolchain.toml` pin tracks current stable at
   the first safe 1.98 point release.
 - **Expected Outcome:** `rust-toolchain.toml` channel is `1.98.1`. Clippy and
@@ -14159,6 +14214,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Status:** Ready
 - **Priority:** P1 — the commit-blocking surface can PASS over live credentials
   in `.tsx` / `.jsx` / `.py` / `.go` / `.sh`
+- **Currency:** current — still the v0.11.0-beta SECRET_SCAN_EXTS skip
 - **Intent:** `anvil gate` and `check --all` secret-detection scan the source
   types a React, Python, Go, or shell repository actually commits, instead of
   only disclosing that they do not.
@@ -14193,6 +14249,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Priority:** P2 — untracked churn inside a tracked directory; one
   `git add -A` from committing session UUIDs, and it crosses the ADR-073
   durable-vs-runtime split the product's own `state-boundary` check reports
+- **Currency:** current — audit-chain.ndjson still writes under anvil/kindling/
 - **Intent:** Kindling runtime NDJSON (`audit-chain.ndjson` and any sibling
   under `anvil/kindling/`) is written under `.anvil/kindling/`, next to
   `.anvil/kindling.db`, so consumer repos never grow runtime files in the
