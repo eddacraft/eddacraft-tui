@@ -3,19 +3,16 @@
 
 # Anvil — Save-time Trust
 
-> **Latest promoted release: `v0.9.7-beta`** (shipped 2026-08-21 on
-> `89a6d2050`) — first-session honesty. Record:
-> [`plans/releases/v0.9.7-beta.md`](./releases/v0.9.7-beta.md). Prior:
-> `v0.9.6-beta` field fixes + shell command-safety; `v0.9.5-beta` MCP live-heal
-> + config. Dashboard remains flag-gated. Per-tag records under
+> **Latest tag: `v0.11.0-beta`** (2026-09-15) — Windows readiness and inspect
+> surfaces. Changelog: [`CHANGELOG.md`](../CHANGELOG.md). Prior:
+> [`v0.10.0-beta`](./releases/v0.10.0-beta.md). Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is **`v0.10.0-beta`** (claim locked 2026-09-11 —
-> continuous journey honesty after `v0.9.7-beta`; minor scope confirmed
-> 2026-09-12). Not cut-ready until standing bar + preflight. Highest-value
-> **programme** track
-> remains Graph Trust Surfaces Wave 0 (**CGBDG**; **CONF-001** merged via
-> #4174). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
+> The active release window is **`v0.11.1-beta`** (CIB Ready honesty; primary
+> **CIB-424**). Next minor **`v0.12.0-beta`** claim is **SETPREF** (not this
+> window). Highest-value programme track beside the cut remains Graph Trust
+> Surfaces Wave 0 (**CGBDG**). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and
+> NBI.
 
 ## Contents
 
@@ -107,10 +104,10 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | v0.10.0-beta — continuous journey honesty | Ready (claim locked) | [RELEASE-PLAN](../RELEASE-PLAN.md), [CHANGELOG](../CHANGELOG.md), [JSIMP](./modules/journey-simplification.aps.md), [JREL](./archive/modules/journey-reliability.aps.md) | Locked 2026-09-11; minor scope confirmed 2026-09-12 for feature additions since `v0.9.7-beta`. JSIMP-001..006 + JREL-002/-009/-010 Merged on `main`. JOURNEY-015/-016 gates only. | Standing bar; preflight → prepare → cut. |
-| 2 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
-| 3 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block the next cut. |
-| 4 | FEFF-001/-002 — field-effectiveness protocol and source audit | Ready | [field-effectiveness](./modules/field-effectiveness.aps.md) | Closes the gap between shipped usage/synthetic evidence and the four unverified post-release product outcomes. Not a release claim. | Accept the evidence/privacy ADR and prove the retrospective/prospective sources before building collection tooling. |
+| 1 | v0.11.1-beta — CIB-424 secret-detection domain | Ready (claim named) | [RELEASE-PLAN](../RELEASE-PLAN.md), [CIB-424](./modules/continuous-improvement-backlog.aps.md) | Patch after `v0.11.0-beta`. Gate currently skips `.tsx`/`.jsx`/`.py`/`.go`/`.sh`. | Implement CIB-424; land remaining Ready CIB or waive at cut; CLICT-008 before public `anvil settings` docs. |
+| 2 | SETPREF — Class A safe preferences | Schedule | [SETPREF](./modules/settings-safe-preferences.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | Locked `v0.12.0-beta` next-minor claim. Inspect shipped; writes are not Ready. | Agree Class A keys, declare canonical writers, document safe-write policy, then promote Ready. |
+| 3 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
+| 4 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block the next cut. |
 ## Release Plan
 
 Releases are themed by what they deliver, not sequenced by version number.
@@ -879,10 +876,10 @@ separate **configured**, **resolved** and **evidenced active** state, so Anvil
 can show the gap between declared intent and what the running system proves it
 enforces.
 
-**Not a release claim.** SETCON's truth-contract ADR is
-[ADR-132](./decisions/132-settings-truth-contract.md); there is still no
-named window or NBI row. This band does not compete with the active release
-window (named in the index header). Slices map one-to-one onto modules;
+SETCON's truth-contract ADR is
+[ADR-132](./decisions/132-settings-truth-contract.md). Inspect (SETINS) shipped
+in `v0.11.0-beta`. The **next-minor** claim is **SETPREF** (`v0.12.0-beta`); it
+is not the active `v0.11.1-beta` window. Slices map one-to-one onto modules;
 `/settings`
 v0.1 = SETCON + SETINS +
 SETPREF (`Settings | Status | Sources` only — the `Audit` tab ships with SETGOV,
@@ -897,7 +894,7 @@ Not a release claim.
 | [settings-truth-contract](./archive/modules/settings-truth-contract.aps.md) | SETCON | 0 — truth contract | Complete | 12/12 | **archived 2026-08-31.** All 12 SETCON work items are Merged via PR #4140 and PR #4216. SETINS remains gated on a named release window. |
 | [protection-posture-board](./modules/protection-posture-board.aps.md) | POSBRD | Status panel — v1 `anvil status` | Proposed | 5/5 | POSBRD-001/-002 Merged via #4680; POSBRD-003/-004/-005 Merged via #4697. SETINS Status later consumes the snapshot. |
 | [settings-inspect-surface](./modules/settings-inspect-surface.aps.md) | SETINS | 1 — inspect | Done | 10/10 | SETINS-001/-002 Merged via #4681; SETINS-003..010 Merged via #4696. [CLICT-008](./modules/cli-command-truth.aps.md) Auditing before public docs claim `anvil settings`. Next: SETPREF |
-| [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Proposed | 0/6 | SETINS Done via #4696; introduces the single authorised write path (Class A only) |
+| [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Proposed | 0/6 | Intended `v0.12.0-beta` claim. SETINS Done via #4696. Remaining Ready gates: Class A key set, canonical writers, safe-write policy. |
 | [settings-governed-changes](./modules/settings-governed-changes.aps.md) | SETGOV | 3 — governed changes and audit | Draft | 0/9 | Post-v0.1; needs the audit-store reuse decision and an approval-authority model with [ORGHIER](./modules/org-policy-hierarchy.aps.md)/[POLLC](./modules/policy-lifecycle.aps.md) |
 | [settings-nl-proposals](./modules/settings-nl-proposals.aps.md) | SETNL | 4 — natural-language proposals | Draft | 0/4 | Horizon; authoring input only, never an authority or mutation path |
 

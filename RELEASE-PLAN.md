@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                               |
-| ------------ | --------- | ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-09-14: **`v0.10.0-beta` shipped** — closeout. Active window rolled to provisional `v0.10.1-beta` (field intake; claim not frozen). |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                     |
+| ------------ | --------- | ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-09-16: operator locked **SETPREF** as the `v0.12.0-beta` next-minor claim. Active window is **`v0.11.1-beta`** (CIB Ready honesty after `v0.11.0-beta`). |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -32,97 +32,131 @@ nothing else.
 
 ## Current state
 
-- **Latest tag:** `v0.10.0-beta` "Continuous journey honesty" (2026-09-13 on
-  `bd6e4c98b`). Record:
-  [`plans/releases/v0.10.0-beta.md`](./plans/releases/v0.10.0-beta.md).
-- **Prior:** `v0.9.7-beta` first-session honesty
-  ([record](./plans/releases/v0.9.7-beta.md)); `v0.9.6-beta` field fixes + shell
-  command-safety; `v0.9.5-beta` MCP live-heal + config unification.
-- **Cadence:** current-minor patches when user signal warrants. See
+- **Latest tag:** `v0.11.0-beta` "Windows readiness and inspect surfaces"
+  (2026-09-15 on `1e07021a7`). Changelog: [`CHANGELOG.md`](./CHANGELOG.md).
+  Per-tag record under `plans/releases/` is still owed (closeout gap).
+- **Prior:** `v0.10.0-beta` continuous journey honesty
+  ([record](./plans/releases/v0.10.0-beta.md)); `v0.9.7-beta` first-session
+  honesty.
+- **Cadence:** current-minor patches when user signal warrants; next minor when
+  a named capability is Ready. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** provisional **`v0.10.1-beta`** — field intake after
-  `v0.10.0-beta`. Theme and claim IDs are **not frozen**.
+- **Active window:** **`v0.11.1-beta`** — CIB Ready honesty after
+  `v0.11.0-beta`.
+- **After this window (not active):** **`v0.12.0-beta`** next-minor claim is
+  **SETPREF** (Class A safe preferences; closes `/settings` v0.1). Do not open a
+  second `## Active window` here.
 
 ---
 
-## Active window — `v0.10.1-beta` (provisional)
+## Active window — `v0.11.1-beta`
 
-**Theme:** TBD from field intake after `v0.10.0-beta` (continuous journey
-honesty ship).
+**Theme:** Gate and inspect honesty after `v0.11.0-beta`.
 
-**Status:** **Provisional; claim not locked.** Do not cut until claim freeze +
-changelog + standing bar.
+**Status:** **Claim named.** Primary ID frozen. Remaining Ready CIB items are
+secondaries and may be waived at cut.
 
-**Customer one-liner:** TBD.
+**Customer one-liner:** Secret detection and inspect tell the truth on the
+languages and worktrees people actually use.
 
-**Authority:** Field signal + APS Ready/Accepted items after intake. Programme
-work (Graph Trust Surfaces Wave 0, `/settings` SETCON+, GATT attestation,
-live-heal soak) may run **beside** this window and is not automatically the cut
-claim.
+**Authority:** Operator 2026-09-16 — SETPREF locked as the next minor; this
+patch drains the current CIB Ready set rather than starting Class A writes.
+
+**Patch scope:** same behaviour intent, safer or clearer execution
+([release-cadence](./docs/policies/release-cadence.md)). No new command, no
+Class A mutation, no public-docs claim that `anvil settings` is a released
+product until CLICT-008 is Done.
 
 ### Primary claim
 
-_Not selected._ Promote only after operator intake names the theme and freezes
-IDs.
+- **[CIB-424](./plans/modules/continuous-improvement-backlog.aps.md)** — expand
+  `anvil gate` / `check --all` secret-detection onto `.tsx`, `.jsx`, `.py`,
+  `.go`, and `.sh` (Matt staff-portal / harvest B33).
 
-### Known intake candidates
+### Secondaries
 
-- Release packaging reliability follow-through after the `v0.10.0-beta` hollow
-  first publish — the workflow repair itself lands in #4674; any residual
-  hardening is intake, not yet a claim.
-- WinGet community publication lag (microsoft/winget-pkgs#434141 open at
-  `v0.10.0-beta` closeout).
+Current CIB Ready set besides the primary (waive at cut if still open):
 
-### Not a claim of this window (default)
+- CIB-425 Kindling runtime NDJSON under `.anvil/`
+- CIB-401 better-sqlite3 teardown crash
+- CIB-404 `pr-required-status` conflicting-PR honesty
+- CIB-393 CI-only orphaned-socket flake
+- CIB-202 flaky beacon reservation test
+- CIB-209 worktree-safe local validation
+- CIB-295 `aps` docs:check cannot express real APS drift
+- CIB-296 `adr-integrity.test.sh` red on `main`
+- CIB-333 scanner reports rule-token column
+- CIB-334 `.anvil` compiler rejects stray rule-body H2
+- CIB-330 WC-001 `usedforsecurity=False`
+- CIB-403 `.mjs` file-type allowlists
+- CIB-204 Windows-only clippy backlog in anvil-intercept
+- CIB-410 pin workspace Rust toolchain to 1.98.1
+- **CLICT-008** — re-audit `anvil settings --help` before public docs claim the
+  family
+  ([cli-command-truth review](./docs/reviews/cli-command-truth-review.md))
 
+### Not a claim of this window
+
+- **SETPREF** — next-minor `v0.12.0-beta` claim; Class A writes
+- **SHIPREP** — Draft; Ready checklist first
+- **ABASE / SKOBS** — Draft; no authorised work items for ABASE
+- **SKPKG-009 / 010 / 011** — new skill-install capability; park until 0.12 as
+  secondary, do not finish silently on this patch
+- **SETGOV / SETNL** — post-v0.1
 - **Ember** — inactive; generation unavailable; historical read only under
   `ANVIL_EMBER=1`
 - **`anvil impact` / `anvil plan` / `anvil dashboard --web`** — present but
   default-off / hidden from `--help`
-- Full **`/settings`** UI (SETCON foundations only)
 - Intent conformance as a **product gate** — advisory `anvil conformance check`
   / CONF foundations; CEG remains Proposed
 - Live-heal supervisor/proxy soak (residual restart remains honest)
 - Graph Trust Surfaces / council-gate bridge discovery
 - Browser dashboard default-on
 - CCTX as shipped product (spike/advisory only)
-- Standing CIB drain unless elevated to claim
-- Unquoted-variable shell follow-ups
-- Secret-detection truth (SDT) unless elevated
+- Standing CIB Proposed/Draft unless promoted to Ready
 - CIB-353 tutorial depth (Draft editorial)
-- First-run / docs prominence of telemetry disclosure (Elliot). Existing
-  disclosed opt-out notice and `docs/public/anvil/operations/telemetry.md` stay
+- First-run / docs prominence of telemetry disclosure (Elliot)
 - Docs definition layer / DOCRB public-site programme
 - Website decision-integrity redesign
-- Graph attestation (GATT) as a headline unless intake elevates it
+- Graph attestation (GATT) as a headline
+
+### After this window
+
+`v0.12.0-beta` (minor, not this file's active window): **SETPREF** is the locked
+headline — Class A interface preferences through the settings service, closing
+`/settings` v0.1. SETINS-002/006 are Merged; remaining Ready gates are the
+canonical Class A writer, documented safe-write policy, and agreed Class A key
+set. SKPKG-010/011 may ride as secondaries. SHIPREP, ABASE, and SKOBS stay
+programme (Ready/ADR first). SETGOV stays later.
 
 ### Phase plan
 
-| Phase               | Scope                                           | State         |
-| ------------------- | ----------------------------------------------- | ------------- |
-| **0.10.0 closeout** | Record + APS advance + prune                    | This change   |
-| **Field intake**    | Post-`v0.10.0-beta` signal → theme selection    | Next          |
-| **Claim lock**      | Freeze primary/secondary IDs for `v0.10.1-beta` | Not started   |
-| **Implement**       | Claim items                                     | Not started   |
-| **Changelog**       | Curate `[Unreleased]`                           | Not started   |
-| **Cut**             | Preflight → prepare → readiness → tag           | Not scheduled |
+| Phase          | Scope                                  | State         |
+| -------------- | -------------------------------------- | ------------- |
+| **0.11.0 tag** | Windows readiness and inspect surfaces | Tagged        |
+| **Claim lock** | CIB-424 primary; Ready CIB + CLICT-008 | This change   |
+| **Implement**  | Primary then secondaries               | Next          |
+| **Changelog**  | Curate `[Unreleased]`                  | Not started   |
+| **Cut**        | Preflight → prepare → readiness → tag  | Not scheduled |
 
 ### Cut criteria
 
 - Standing bar: full Cross matrix, release-readiness on source SHA,
   ACKNOWLEDGEMENTS fresh, dashboard openapi `check:api` green.
-- Claim locked with Merged primary items (and secondaries Merged or waived).
-- Changelog leads with the locked theme only — not programme freight.
+- Primary CIB-424 Merged. Secondaries Merged or waived in the cut note.
+- Changelog leads with the locked theme only — not SETPREF or skill-install
+  freight.
 - Strategy: **direct** unless readiness forces stabilisation.
-- Version stays `v0.10.1-beta` until intake names a different line.
+- Version stays `v0.11.1-beta`.
 
 ### Risks
 
-| Risk                                   | Mitigation                                                          |
-| -------------------------------------- | ------------------------------------------------------------------- |
-| Cutting without claim freeze           | Preflight/prepare blocked until RELEASE-PLAN status is claim-locked |
-| Programme work mistaken for cut claim  | Keep NBI / Not a claim list current at claim lock                   |
-| Hollow publish repeats on the next cut | Verify assets before closeout; #4674 carries the workflow repair    |
+| Risk                                      | Mitigation                                                            |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| SETPREF starts before the Ready checklist | Keep Class A writes out of this window; NBI ranks SETPREF as Schedule |
+| SKPKG-010/011 land as unclaimed freight   | Park until 0.12; do not merge as 0.11.1 claim                         |
+| CIB Ready set is larger than the theme    | Primary is CIB-424; waive leftover secondaries at cut                 |
+| Hollow publish repeats                    | Verify assets before closeout                                         |
 
 ---
 

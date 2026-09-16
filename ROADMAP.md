@@ -1,10 +1,9 @@
 # anvil Roadmap
 
-**Last updated:** 2026-09-14 (`v0.10.0-beta` shipped — continuous journey
-honesty. Active window rolled to provisional `v0.10.1-beta` (field intake).
-Highest-value programme track remains Graph Trust Surfaces Wave 0 / CGBDG. See
-`RELEASE-PLAN.md`. Module status lives in the SOT files below; this roadmap
-stays thematic.)
+**Last updated:** 2026-09-16 (`v0.11.0-beta` tagged — Windows readiness and
+inspect surfaces. Active window is `v0.11.1-beta` (CIB Ready honesty). Next
+minor `v0.12.0-beta` claim is SETPREF. See `RELEASE-PLAN.md`. Module status
+lives in the SOT files below; this roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -111,11 +110,11 @@ browser surface. Immutable records live under
 | `v0.9.6-beta` | Beta field fixes and shell command-safety | Hooks/warnings honesty plus shared shell command-safety (pipe-to-shell, eval-dynamic, chmod 777). Shipped 2026-08-18.                                                     |
 | `v0.9.7-beta` | First-session honesty                     | Unsigned welcome names sign-in before gated steps, live gate progress, learning-path picker, audit Next Steps jump to Issues. Shipped 2026-08-21.                         |
 
-**Latest shipped headline:** `v0.10.0-beta` (2026-09-13) — continuous journey
-honesty. Release record:
+**Latest shipped headline:** `v0.11.0-beta` (2026-09-15) — Windows readiness and
+inspect surfaces. Changelog: [`CHANGELOG.md`](./CHANGELOG.md). Prior:
 [`plans/releases/v0.10.0-beta.md`](./plans/releases/v0.10.0-beta.md).
 
-### Horizon 2 — Daily path + MCP reach — shipped through `v0.10.0-beta`
+### Horizon 2 — Daily path + MCP reach — shipped through `v0.11.0-beta`
 
 **Delivered theme:** Daily path polish, MCP 2.0 support, reconnect, and honesty
 
@@ -127,8 +126,8 @@ behind `dashboard.web` (default-off) for testing only — not a customer claim
 until default-on or a later named window owns it. Graph Trust Surfaces Wave 0
 (CGBDG discovery, CONF-001, …) is a **side programme**, not the active cut.
 
-**Active window:** provisional `v0.10.1-beta` (field intake; claim not frozen).
-Prior shipped: `v0.10.0-beta`. Current state:
+**Active window:** `v0.11.1-beta` (CIB Ready honesty after inspect). Next minor,
+not this window: `v0.12.0-beta` **SETPREF**. Current state:
 [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
 [`plans/index.aps.md`](./plans/index.aps.md).
 
