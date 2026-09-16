@@ -5,7 +5,7 @@
 //! persistence target `user-config`.
 
 use std::collections::BTreeMap;
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -36,8 +36,9 @@ impl SafeWriteClass {
             Self::Traversal => "traversal",
             Self::Permission => "permission",
             Self::NotRegular => "not-regular",
-            Self::Replace | Self::Concurrent => "replace",
+            Self::Replace => "replace",
             Self::Interrupted => "interrupted",
+            Self::Concurrent => "concurrent",
         }
     }
 }
@@ -120,7 +121,7 @@ pub fn load_user_settings(root: &Path) -> Result<UserSettingsFile, SafeWriteErro
         }
         Ok(_) => {}
     }
-    let text = fs::read_to_string(&path).map_err(|err| io_to_error(&err))?;
+    let text = read_regular_nofollow(&path)?;
     if text.trim().is_empty() {
         return Ok(UserSettingsFile::empty());
     }
@@ -194,6 +195,28 @@ pub fn persist_user_settings(
     atomic_replace(&dest, yaml.as_bytes(), root)
 }
 
+fn read_regular_nofollow(path: &Path) -> Result<String, SafeWriteError> {
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK)
+            .open(path)
+            .map_err(|err| io_to_error(&err))?;
+        let mut text = String::new();
+        file.read_to_string(&mut text)
+            .map_err(|err| io_to_error(&err))?;
+        return Ok(text);
+    }
+    #[cfg(not(unix))]
+    {
+        refuse_leaf_symlink(path)?;
+        fs::read_to_string(path).map_err(|err| io_to_error(&err))
+    }
+}
+
 fn atomic_replace(dest: &Path, bytes: &[u8], root: &Path) -> Result<(), SafeWriteError> {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -247,12 +270,23 @@ fn atomic_replace(dest: &Path, bytes: &[u8], root: &Path) -> Result<(), SafeWrit
         {
             use std::os::unix::fs::PermissionsExt;
             let mode = meta.permissions().mode();
-            let _ = fs::set_permissions(&tmp, fs::Permissions::from_mode(mode));
+            if let Err(err) = fs::set_permissions(&tmp, fs::Permissions::from_mode(mode)) {
+                let _ = fs::remove_file(&tmp);
+                return Err(io_to_error(&err));
+            }
         }
     }
 
     match fs::rename(&tmp, dest) {
-        Ok(()) => Ok(()),
+        Ok(()) => {
+            #[cfg(unix)]
+            {
+                if let Ok(dir) = File::open(root) {
+                    let _ = dir.sync_all();
+                }
+            }
+            Ok(())
+        }
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
             refuse_leaf_symlink(dest)?;
             fs::remove_file(dest).map_err(|err| io_to_error(&err))?;

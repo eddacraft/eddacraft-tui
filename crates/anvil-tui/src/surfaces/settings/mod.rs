@@ -296,13 +296,12 @@ impl SettingsState {
 
     fn commit_write(&mut self, write: PendingWrite) {
         self.last_error = None;
+        self.pending_write = Some(write.clone());
         if let Some(persist) = self.persist.as_mut()
-            && let Err(err) = persist(write.clone())
+            && let Err(err) = persist(write)
         {
             self.last_error = Some(err);
-            return;
         }
-        self.pending_write = Some(write);
     }
 
     fn toggle_class_a(&mut self) {
@@ -319,6 +318,13 @@ impl SettingsState {
         let key = row.key.clone();
         let next = !current;
         let inherited = row.inherited;
+        if inherited && self.reset_preview.is_none() {
+            self.reset_preview = Some(format!(
+                "override {key} at user scope  enter confirm  esc cancel"
+            ));
+            self.pending_write = Some(PendingWrite::Toggle { key });
+            return;
+        }
         self.commit_write(PendingWrite::Toggle { key });
         if self.last_error.is_some() {
             return;
@@ -352,6 +358,13 @@ impl SettingsState {
             .position(|item| item == &current)
             .unwrap_or(0);
         let next = allowed[(idx + 1) % allowed.len()].clone();
+        if row.inherited && self.reset_preview.is_none() {
+            self.reset_preview = Some(format!(
+                "override {key} at user scope  enter confirm  esc cancel"
+            ));
+            self.pending_write = Some(PendingWrite::Set { key, value: next });
+            return true;
+        }
         self.commit_write(PendingWrite::Set {
             key,
             value: next.clone(),
@@ -544,6 +557,10 @@ impl SettingsState {
             Action::Select => {
                 if self.pending_reset_key.is_some() {
                     self.confirm_reset();
+                } else if self.reset_preview.is_some() && self.pending_write.is_some() {
+                    let write = self.pending_write.clone().expect("pending");
+                    self.reset_preview = None;
+                    self.commit_write(write);
                 } else if self.cycle_class_a_enum() {
                     // Enum edit applied through the settings service.
                 } else if self.current_row().is_some() {
