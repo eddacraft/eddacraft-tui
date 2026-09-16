@@ -602,6 +602,23 @@ mod daemon_tests {
     /// first-failure note".
     const EMIT_COUNT: usize = 5;
 
+    /// A spawner that fails exactly as a missing `kindling` binary would
+    /// (`ErrorKind::NotFound`) without ever exec'ing anything.
+    ///
+    /// Upstream logs a spawn-failure line for *any* failing spawner
+    /// (`log_spawn_failure` on the `spawner.spawn()` error arm in
+    /// `kindling-client`'s connect path), so this reproduces the unguarded
+    /// spawn-log growth faithfully while staying hermetic on a host that really
+    /// does have `kindling` installed.
+    fn simulated_missing_binary_spawner() -> Spawner {
+        Spawner::custom(|| {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "kindling binary not found (simulated missing binary)",
+            ))
+        })
+    }
+
     /// A config pointed at a socket that will never exist under `base`, with a
     /// tiny connect budget — the "no daemon running" shape the spawn path is
     /// reached from. Keeps the real `Spawner::Command` default so callers opt
@@ -855,12 +872,19 @@ mod daemon_tests {
     /// opportunistic flush, and that connect attempt spawns and logs too.)
     /// Documents the mechanism, and proves the guard test below can observe
     /// growth at all.
+    ///
+    /// Hermetic by construction: the spawner is a custom closure that always
+    /// fails `NotFound`, never `Spawner::Command`. With the real command
+    /// spawner a host that *does* have `kindling` on `PATH` would exec it and
+    /// start a real daemon against real user state — the failure this canary is
+    /// meant to simulate, not perform.
     #[test]
     fn unguarded_spawner_appends_at_least_one_spawn_log_line_per_emit() {
         let base = tempfile::tempdir().expect("base dir");
         let spawn_log = base.path().join("spawn.log");
         let mut config = absent_daemon_config(base.path());
         config.spawn_log_path = Some(spawn_log.clone());
+        config.spawn = simulated_missing_binary_spawner();
         let sink = KindlingDaemonSink::from_spooled(
             SpooledClient::new(
                 Client::with_config(config),
@@ -1035,5 +1059,261 @@ mod daemon_tests {
             .mode()
             & 0o777;
         assert_eq!(mode, 0o700, "spool dir is owner-only");
+    }
+
+    // ---------------------------------------------------------------------
+    // CIB-381 constructor-level wiring proof.
+    //
+    // The guard tests above call `guard_absent_kindling_binary` directly, so
+    // they cannot see whether `KindlingDaemonSink::new` still *calls* it, nor
+    // whether it hands it the real process `PATH`. That wiring is what actually
+    // stops `~/.kindling/spawn.log` growing in production, so it is proved here
+    // through `new` itself.
+    //
+    // `new` reads `PATH` and `HOME` from the process environment, and
+    // `temp_env`-style mutation is process-global (it races every concurrent
+    // reader in this binary). So each case runs in a **child process** — this
+    // same test binary, re-executed with `--exact` on this test plus a purpose
+    // built `PATH` and a short throwaway `HOME`. Nothing touches the operator's
+    // real `~/.kindling`, and no `kindling` binary is ever exec'd: the
+    // absent/live children have an empty directory as their whole `PATH`, and
+    // the present child never emits.
+    // ---------------------------------------------------------------------
+
+    /// Selects a child-process case below. Unset ⇒ this process is the parent.
+    const GUARD_WIRING_CASE_ENV: &str = "ANVIL_CIB381_GUARD_WIRING_CASE";
+
+    /// The libtest name of the test below (`module::path::test_name`), derived
+    /// from `module_path!()` with the crate segment stripped — that is the form
+    /// libtest's `--exact` filter matches.
+    fn guard_wiring_test_name() -> String {
+        let module = module_path!();
+        let path = module.split_once("::").map_or(module, |(_, rest)| rest);
+        format!("{path}::new_wires_the_absent_binary_guard_to_the_process_path")
+    }
+
+    /// Run one child case, failing the parent with the child's captured output.
+    ///
+    /// `bin_dir` becomes the child's entire `PATH`; `home` its entire `HOME`
+    /// (kept short — a long `HOME` overflows `sockaddr_un.sun_path` and breaks
+    /// the live-daemon case).
+    fn run_guard_wiring_case(case: &str, home: &std::path::Path, bin_dir: &std::path::Path) {
+        let exe = std::env::current_exe().expect("test binary path");
+        let output = std::process::Command::new(exe)
+            .args([
+                "--exact",
+                &guard_wiring_test_name(),
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(GUARD_WIRING_CASE_ENV, case)
+            .env("HOME", home)
+            .env("PATH", bin_dir)
+            .output()
+            .expect("re-exec the test binary as a child");
+
+        assert!(
+            output.status.success(),
+            "child case `{case}` failed ({});\n--- stdout ---\n{}\n--- stderr ---\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        // A filter that matches nothing also exits 0, which would make every
+        // case vacuous. Require libtest to report exactly one test run.
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("1 passed"),
+            "child case `{case}` must actually run the wiring test (libtest \
+             reported no passing test);\n--- stdout ---\n{stdout}",
+        );
+    }
+
+    /// A short-lived `HOME` plus an empty `bin` directory to use as `PATH`.
+    /// `prefix("k")` keeps the path short for the UDS socket under it.
+    fn guard_wiring_sandbox() -> (TempDir, std::path::PathBuf) {
+        let home = tempfile::Builder::new()
+            .prefix("k")
+            .tempdir()
+            .expect("child home");
+        let bin = home.path().join("bin");
+        std::fs::create_dir_all(&bin).expect("child PATH dir");
+        (home, bin)
+    }
+
+    /// Block until `socket_path` appears (the child has no ambient runtime, so
+    /// this is the synchronous twin of [`wait_for_socket`]).
+    fn wait_for_socket_blocking(socket_path: &std::path::Path) {
+        for _ in 0..400 {
+            if socket_path.exists() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("daemon socket never appeared: {}", socket_path.display());
+    }
+
+    /// CIB-381 wiring acceptance: `KindlingDaemonSink::new` must consult
+    /// `guard_absent_kindling_binary` with the **real process `PATH`**.
+    ///
+    /// Three child cases, all driven through `new` (never the guard directly):
+    ///
+    /// - `absent`: `PATH` cannot resolve `kindling` → the guard engages, the
+    ///   spawner is replaced, the spawn log is redirected to the null device,
+    ///   and `EMIT_COUNT` emits leave `~/.kindling/spawn.log` non-existent while
+    ///   still buffering to the spool.
+    /// - `present`: `PATH` *can* resolve `kindling` → the upstream spawner and
+    ///   spawn-log path survive untouched. This is what pins the argument: a
+    ///   constructor that passed a hard-coded empty `PATH` would fail here.
+    /// - `live`: a daemon is already listening on the default socket while
+    ///   `PATH` is empty → the guard must not disturb the fast path; the row is
+    ///   delivered (nothing spooled) and no spawn log is written.
+    #[test]
+    fn new_wires_the_absent_binary_guard_to_the_process_path() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let Ok(case) = std::env::var(GUARD_WIRING_CASE_ENV) else {
+            // Parent: drive each case in its own process.
+            let (home, bin) = guard_wiring_sandbox();
+            run_guard_wiring_case("absent", home.path(), &bin);
+
+            let (home, bin) = guard_wiring_sandbox();
+            let binary = bin.join("kindling");
+            // A file that is executable but never executed (no child with this
+            // `PATH` emits, so nothing reaches the spawner).
+            std::fs::write(&binary, b"#!/bin/sh\nexit 1\n").expect("write fake binary");
+            std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod fake binary");
+            run_guard_wiring_case("present", home.path(), &bin);
+
+            let (home, bin) = guard_wiring_sandbox();
+            run_guard_wiring_case("live", home.path(), &bin);
+            return;
+        };
+        guard_wiring_child(&case);
+    }
+
+    /// One child-process case of the test above. Panics (failing the child, and
+    /// through it the parent) on any violation.
+    fn guard_wiring_child(case: &str) {
+        let home = std::path::PathBuf::from(
+            std::env::var_os("HOME").expect("parent sets a throwaway HOME"),
+        );
+        assert!(
+            home.starts_with(std::env::temp_dir()),
+            "refusing to run against a non-temporary HOME: {}",
+            home.display(),
+        );
+        let spool = home.join("anvil").join("kindling").join("spool.ndjson");
+        // Resolved the same way the client resolves them, from this child's
+        // HOME — so the assertions cover the real production paths.
+        let spawn_log = kindling_client::default_spawn_log_path().expect("child spawn-log path");
+        let socket_path = kindling_client::default_socket_path().expect("child socket path");
+
+        match case {
+            "absent" => {
+                let sink =
+                    KindlingDaemonSink::new(Some(REPO_ID.to_string()), spool).expect("sink builds");
+                assert_guard_engaged(&sink, "an unresolvable `kindling` on PATH");
+                emit_n(&sink);
+                assert!(
+                    !spawn_log.exists(),
+                    "`new` must keep the upstream spawn log unwritten; {} exists",
+                    spawn_log.display(),
+                );
+                assert_eq!(
+                    sink.spooled.pending_count().expect("count"),
+                    EMIT_COUNT,
+                    "observations still buffer to the capped spool",
+                );
+            }
+            "present" => {
+                let sink =
+                    KindlingDaemonSink::new(Some(REPO_ID.to_string()), spool).expect("sink builds");
+                let config = sink.spooled.client().config();
+                assert!(
+                    matches!(config.spawn, Spawner::Command),
+                    "a resolvable `kindling` on the process PATH must leave the \
+                     upstream spawner in place — `new` must pass the real PATH \
+                     to the guard (got {:?})",
+                    config.spawn,
+                );
+                assert!(
+                    config.spawn_log_path.is_none(),
+                    "the upstream spawn-log default must survive when the binary \
+                     is present (got {:?})",
+                    config.spawn_log_path,
+                );
+            }
+            "live" => {
+                // A daemon already listening on the default socket, started on
+                // its own runtime thread (this thread must stay runtime-free so
+                // the sink's `block_on` bridge works, as in production).
+                std::fs::create_dir_all(socket_path.parent().expect("socket parent"))
+                    .expect("kindling home");
+                let config = ServerConfig {
+                    socket_path: socket_path.clone(),
+                    kindling_home: socket_path.parent().expect("socket parent").to_path_buf(),
+                    pid_path: kindling_client::default_port_path()
+                        .expect("port path")
+                        .with_extension("pid"),
+                    port_path: kindling_client::default_port_path().expect("port path"),
+                    idle_timeout: TEST_IDLE_TIMEOUT,
+                    transport: kindling_server::Transport::default(),
+                };
+                std::thread::spawn(move || {
+                    let runtime = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .expect("daemon runtime");
+                    let _ = runtime.block_on(serve(config));
+                });
+                wait_for_socket_blocking(&socket_path);
+
+                let sink =
+                    KindlingDaemonSink::new(Some(REPO_ID.to_string()), spool).expect("sink builds");
+                assert_guard_engaged(&sink, "a live daemon with an unresolvable PATH");
+                sink.try_emit_command_invoked(fixture_observation())
+                    .expect("emit succeeds against the live daemon");
+                assert_eq!(
+                    sink.spooled.pending_count().expect("count"),
+                    0,
+                    "the guard must not disturb the fast path: with a daemon up \
+                     the row is delivered, not spooled",
+                );
+                assert!(
+                    !spawn_log.exists(),
+                    "no spawn log is written when the daemon answers; {} exists",
+                    spawn_log.display(),
+                );
+            }
+            other => panic!("unknown child case `{other}`"),
+        }
+    }
+
+    /// Assert the constructor installed the CIB-381 guard on the built client.
+    fn assert_guard_engaged(sink: &KindlingDaemonSink, context: &str) {
+        let config = sink.spooled.client().config();
+        assert!(
+            matches!(config.spawn, Spawner::Custom(_)),
+            "`KindlingDaemonSink::new` must install the absent-binary spawner \
+             ({context}); got {:?} — is the guard still called from the \
+             constructor, with the process PATH?",
+            config.spawn,
+        );
+        assert_eq!(
+            config.spawn_log_path.as_deref(),
+            Some(std::path::Path::new(super::NULL_DEVICE)),
+            "`KindlingDaemonSink::new` must redirect the upstream spawn log to \
+             the null device ({context})",
+        );
+    }
+
+    /// Emit [`EMIT_COUNT`] observations through the synchronous trait path.
+    fn emit_n(sink: &KindlingDaemonSink) {
+        for _ in 0..EMIT_COUNT {
+            sink.try_emit_command_invoked(fixture_observation())
+                .expect("outage buffered");
+        }
     }
 }
