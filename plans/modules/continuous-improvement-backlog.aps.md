@@ -13896,8 +13896,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Currency:** landed 2026-09-16 — all nine `anvil/gctx/*` verbs call
   `authorise_gctx_root` (gate before admit; graph key is the admitted
   canonical). Nested `<repo>/secrets` is refused on first contact and after
-  the parent is admitted. Residual planted `.git` **directory** remains
-  later_item
+  the parent is admitted. The planted `.git` **directory** class is the
+  known residual already recorded on this item, not a new follow-up.
 - **Intent:** `anvil/gctx/*` verbs on the daemon (`save_time.rs`
   `symbol_context` and its siblings) call `authorise_root` and then key the
   graph on `WorktreeKey::from_canonical(root)` for whatever root the request
