@@ -13279,8 +13279,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   cannot recur: the dependency is absent from every `package.json` and from
   `pnpm-lock.yaml`, `packages/edda-stack/src/ember/` is now a tombstone
   `README.md`, and `proposal-store.ts` plus both its test files are deleted.
-  Every file this entry's **Files** bullet names is gone. Verified 2026-09-16 by
-  `git merge-base --is-ancestor`, a lockfile grep, and three consecutive wide
+  Of this entry's **Files** bullet, the consumer and its tests are gone;
+  `packages/edda-stack/vitest.config.ts` still exists (still default pool, no
+  `poolOptions`) but has no native-addon consumer left to protect, so the
+  pool-setting remedy it was named for has nothing to act on. Verified
+  2026-09-16 by `git merge-base --is-ancestor`, a lockfile grep, and three wide
   `nx run-many -t test` runs (4386 tests, zero crash signatures) — the runs are
   corroboration only; the structural absence is the load-bearing evidence.
   Recorded for the record: the entry was filed 2026-09-03 and superseded two
