@@ -4630,7 +4630,7 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `smallvec` 1.15.2
+- `smallvec` 1.16.1
 
 <details>
 <summary>Licence text</summary>
@@ -9680,7 +9680,7 @@ the following restrictions:
 | `digest` | 0.11.3 | MIT License | https://github.com/RustCrypto/traits |
 | `bytes` | 1.12.1 | MIT License | https://github.com/tokio-rs/bytes |
 | `hash32` | 0.2.1 | MIT License | https://github.com/japaric/hash32 |
-| `smallvec` | 1.15.2 | MIT License | https://github.com/servo/rust-smallvec |
+| `smallvec` | 1.16.1 | MIT License | https://github.com/servo/rust-smallvec |
 | `ahash` | 0.8.12 | MIT License | https://github.com/tkaitchuck/ahash |
 | `want` | 0.3.1 | MIT License | https://github.com/seanmonstar/want |
 | `dirs-sys` | 0.5.0 | MIT License | https://github.com/dirs-dev/dirs-sys-rs |
