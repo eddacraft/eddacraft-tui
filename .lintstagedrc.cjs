@@ -91,6 +91,31 @@ module.exports = {
     const list = toCommandList(kept);
     return [`oxfmt --write ${list}`, `oxlint --fix ${list}`, `eslint --fix ${list}`];
   },
+  // CIB-403: `.mjs`/`.cjs` were outside every other glob here, so 87 tracked
+  // files (84 `.mjs`, 3 `.cjs` — including this config and `eslint.config.mjs`)
+  // got NO pre-commit formatting or linting at all. lint-staged reported "could
+  // not find any staged files matching configured tasks" and exited 0; the only
+  // thing that caught them was CI's `oxfmt --check .`, a far slower loop than
+  // the one every other executable source extension gets.
+  //
+  // A separate key rather than widening `*.{js,jsx,ts,tsx}`, because the task
+  // list is deliberately narrower: oxfmt + oxlint, no `eslint --fix`. ESLint is
+  // what differs, and it differs on purpose. The root flat config applies
+  // `js.configs.recommended` and typescript-eslint's recommended set to
+  // `.mjs`/`.cjs` without the `**/*.{ts,tsx,mts,cts}` block that downgrades
+  // `preserve-caught-error` and `no-useless-assignment` to warnings, so
+  // `eslint` reports 13 errors across 9 files that are on `main` today and that
+  // CI does not enforce (`pnpm lint` runs `oxlint .` tree-wide plus per-project
+  // nx lint targets, which do not cover these root scripts). Adding `eslint`
+  // here would not move a CI check earlier — it would invent a new blocking
+  // condition that fails the hook for anyone who stages an untouched file.
+  // Parity with what CI actually enforces is the goal.
+  '*.{mjs,cjs}': (files) => {
+    const kept = filter(files).filter((f) => !isAgentConfig(f));
+    if (kept.length === 0) return [];
+    const list = toCommandList(kept);
+    return [`oxfmt --write ${list}`, `oxlint --fix ${list}`];
+  },
   '*.json': (files) => {
     const kept = filter(files).filter((f) => !isAgentConfig(f));
     if (kept.length === 0) return [];
