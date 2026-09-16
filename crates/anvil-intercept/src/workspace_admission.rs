@@ -452,9 +452,8 @@ impl Confirm {
 fn confirm_non_symlink_dir(path: &Path) -> Confirm {
     match std::fs::symlink_metadata(path) {
         Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => Confirm::Yes,
-        Ok(_) => Confirm::Unknown,
         Err(err) if err.kind() == io::ErrorKind::NotFound => Confirm::No,
-        Err(_) => Confirm::Unknown,
+        Ok(_) | Err(_) => Confirm::Unknown,
     }
 }
 
@@ -463,9 +462,8 @@ fn confirm_non_symlink_dir(path: &Path) -> Confirm {
 fn confirm_non_symlink_file(path: &Path) -> Confirm {
     match std::fs::symlink_metadata(path) {
         Ok(meta) if meta.is_file() && !meta.file_type().is_symlink() => Confirm::Yes,
-        Ok(_) => Confirm::Unknown,
         Err(err) if err.kind() == io::ErrorKind::NotFound => Confirm::No,
-        Err(_) => Confirm::Unknown,
+        Ok(_) | Err(_) => Confirm::Unknown,
     }
 }
 
