@@ -11,7 +11,7 @@ upstream:
   - crates/anvil-cli/src/commands/auth.rs
   - crates/anvil-cli/src/commands/start.rs
   - crates/anvil-cli/src/activation/receipt.rs
-verified_against: 0.11.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Install and get first value
@@ -77,7 +77,7 @@ Open a **new** terminal:
 anvil version
 ```
 
-You should see a version (currently `0.11.0-beta` or newer), the install method,
+You should see a version (currently `0.11.1-beta` or newer), the install method,
 and upgrade guidance when an update exists. Prefer `anvil version` over
 `anvil --version` when you care about how the binary was installed.
 
