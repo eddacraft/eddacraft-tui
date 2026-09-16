@@ -5069,7 +5069,11 @@ mod tests {
     fn repo_with_linked_worktree(root: &Path) -> (PathBuf, PathBuf) {
         let main = root.join("main");
         let common = main.join(".git");
+        // Git's minimum-viable repository (`is_git_directory`): HEAD plus
+        // `objects/` and `refs/`. A bare `mkdir .git` is deliberately not one,
+        // so the fixture must build the real shape (CIB-414 M1).
         fs::create_dir_all(common.join("refs")).expect("git refs dir");
+        fs::create_dir_all(common.join("objects")).expect("git objects dir");
         fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
 
         let admin = common.join("worktrees").join("linked");
