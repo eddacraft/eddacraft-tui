@@ -801,7 +801,6 @@ checklist:
 `v0.11.1-beta` (CIB Ready honesty), module rows below
 remain owned by their home sections where they already live; this band is the
 programme hub, not a release claim.
->>>>>>> 86d3b9683 (feat(settings): persist Class A preferences to user-config)
 
 | Track | Module | Scope | Status | Programme next |
 | ----- | ------ | ----- | ------ | -------------- |
