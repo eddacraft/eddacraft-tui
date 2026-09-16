@@ -14290,12 +14290,13 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Currency:** current — stripped on `main`; v0.11.0-beta still shipped
   the leak
 - **Intent:** Consumer CLI output never names internal ADR, CIB, EXCEPT,
-  APS, or RETRACT identifiers.
+  GITGOV, KFIT, MLP, UCFG, or DLIFE identifiers.
 - **Expected Outcome:** doctor, gate-config, intercept start/Windows
   unblock, update, exception migrate, baseline resume, hook, config
   hard-pin, secret oversize skip, and capsule prune print operator-facing
-  copy with no `ADR-`, `CIB-`, or `EXCEPT-` tokens. Tests pin the
-  absence on those surfaces.
+  copy with no `ADR-`, `CIB-`, `EXCEPT-`, `GITGOV-`, `KFIT-`, `MLP2-`,
+  `UCFG-`, or `DLIFE` tokens. Doctor state-boundary tests pin that set
+  via `assert_no_internal_planning_ids`.
 - **Non-scope / do not:** do not strip IDs from `plans/`, internal docs,
   CI-log, or Council artefacts. Do not reopen CIB-424 or CIB-425. Do not
   treat this as a doctor state-boundary behaviour change.
@@ -14304,10 +14305,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `crates/anvil-config/src/{migrations,validation}.rs`;
   `crates/anvil-checks/src/secret/check.rs`;
   `crates/anvil-intercept/src/save_time.rs`;
-  `crates/anvil-intercept-rules/src/secret.rs`
-- **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast` covering
-  those command surfaces; user-facing strings in the listed files contain
-  no `ADR-` / `CIB-` / `EXCEPT-` tokens
+  `crates/anvil-intercept-rules/src/secret.rs`;
+  `crates/anvil-capsule/src/prune.rs`
+- **Validation:** `cargo test -p eddacraft-anvil --bins -- state_boundary_passes_when_boundary_holds state_boundary_remediation_marks_the_diagnostic_command_as_diagnostic disable_hard_pinned_check_is_refused grant_on_legacy_store_surfaces_migrate_requirement dev_key_warning_writes_three_loud_lines`;
+  `cargo test -p eddacraft-anvil-config -- error_message_includes_actionable_guidance deprecation_note_names_keys_and_remedy production_registry_carries_the_casing_migration`;
+  `cargo test -p eddacraft-anvil-intercept --lib` covering the ChainBroken warn path
 - **Identified From:** Matt 0.10.0-beta / 0.11.0-beta; doctor pass copy
   previously included `(ADR-073)`; CI-log 2026-09-15 `harvest CIB-426`
 - **Coordinates with:** ADR-073 (internal), CIB-380 (doctor remediation),
@@ -14339,9 +14341,10 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `crates/anvil-cli/src/commands/{status,doctor,workspace}.rs`;
   `crates/anvil-cli/src/activation/daemon_evidence.rs`;
   `crates/anvil-cli/src/mcp/tools/status.rs`
-- **Validation:** intercept `path_identity` tests; doctor journey-readiness;
-  `cargo test -p eddacraft-anvil --no-fail-fast` covering status / registry
-  / doctor
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib`;
+  `cargo test -p eddacraft-anvil --test save_time_driver_recovery`;
+  `cargo test -p eddacraft-anvil --bin anvil readiness_equates_plain_and_verbatim_windows_worktree_paths`;
+  `cargo test -p eddacraft-anvil --bin anvil -- commands::status::tests commands::doctor::tests::journey_readiness`
 - **Identified From:** Matt 0.10.0-beta Windows readiness report; CI-log
   2026-09-14 `promote: CIB`
 - **Coordinates with:** CIB-428 (same PR, APS headings), CIB-339 (Git Bash
@@ -14367,8 +14370,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   CIB-420 artefact-reachability as this item.
 - **Files:** `crates/anvil-cli/src/commands/validate.rs`;
   `apps/e2e/src/cli/commands.e2e.test.ts`
-- **Validation:** unit/e2e coverage for both headings;
-  `cargo test -p eddacraft-anvil --no-fail-fast` covering validate
+- **Validation:** `cargo test -p eddacraft-anvil --bin anvil -- commands::validate::tests`;
+  e2e coverage for both headings in `apps/e2e/src/cli/commands.e2e.test.ts`
 - **Identified From:** Matt 0.10.0-beta; public APS required `## Work Items`
   since before v0.2.0; CI-log 2026-09-14 `promote: CIB`
 - **Coordinates with:** CIB-427 (same PR), CIB-036 (Done, corpus),

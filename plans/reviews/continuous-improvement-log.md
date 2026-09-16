@@ -8123,6 +8123,16 @@ merge itself failed.
 - **Worked:** Clustered promote/absorb/leave; verified merge SHAs on origin/main; pnpm aps:index refreshed CIB counts
 - **Failed:** none
 - **Friction:** This worktree pnpm exec hits eslint ENOENT; oxfmt --write on explicit paths under plans/ bypasses prettierignore and rewrote historical entries (reverted to HEAD plus harvest).
-- **Improvement:** Never pass explicit /plans paths to oxfmt; use node scripts/ci-log and scripts/aps when pnpm exec is broken in a worktree.
+- **Improvement:** Never pass explicit /plans paths to oxfmt; when pnpm exec is broken in a worktree, run `node scripts/ci-log/status.mjs`, `node scripts/ci-log/harvest.mjs`, `node scripts/aps/index-counts.mjs`, and `node scripts/aps/active-lint.mjs`.
 - **Follow-up:** owned: CIB-424 CIB-425 CIB-420 CIB-421 CIB-422 CIB-423
+
+### 2026-09-16 — other
+
+- **Task:** Bookkeeping harvest, CIB-426..428 promotion records, PR 4715
+- **Outcome:** Harvested 43 notes; filed CIB-426 Merged via #4712 and CIB-427/428 Merged via #4703; watermark 2026-09-16; CIB 335/423; opened #4715
+- **Worked:** Isolated chore/cib-bookkeeping-2026-09-16; clustered promote/absorb/leave; ancestor-proved merge SHAs; aps:index; restored after oxfmt bypassed /plans prettierignore
+- **Failed:** none
+- **Friction:** Worktree node_modules was incomplete (eslint ENOENT); pnpm install repaired it after a targeted rsync was not enough
+- **Improvement:** none
+- **Follow-up:** owned: CIB-424 CIB-425
 
