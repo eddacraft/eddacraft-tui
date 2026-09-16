@@ -5247,10 +5247,13 @@ mod tests {
         );
     }
 
-    /// CIB-414: a nested untrusted `.git` directory (MCP
-    /// `nested_untrusted_git_root` shape) is not a graph root on first contact.
+    /// CIB-414: a descendant git checkout under an ancestor checkout (the
+    /// `$HOME`/dotfiles analogue) is still a graph root. The daemon has no
+    /// MCP server cwd; walking to filesystem root would over-refuse it.
+    /// Residual: the same nearest-checkout equality authorises a planted
+    /// `<repo>/secrets/.git` **directory** on first contact.
     #[test]
-    fn gctx_open_mode_refuses_nested_untrusted_git_directory_on_first_contact() {
+    fn gctx_open_mode_authorises_descendant_repo_under_ancestor_checkout() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let (main, _linked) = repo_with_linked_worktree(tmp.path());
         let nested = nested_secrets_dir(&main);
@@ -5261,17 +5264,11 @@ mod tests {
             WorkScheduler::new().expect("scheduler"),
             AntipatternCheckConfig::default(),
             Confinement::open_default(),
-        )
-        .with_root_budget(1);
+        );
         let mut conn = SaveTimeConn::new(&state);
 
-        let refused = conn.search_symbols(&gctx_request(&nested));
-        assert!(
-            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
-            "a nested untrusted git checkout must be refused on first contact: {refused:?}",
-        );
-        conn.search_symbols(&gctx_request(&main))
-            .expect("the repo root is still admissible after a refused nested git checkout");
+        conn.search_symbols(&gctx_request(&nested))
+            .expect("a descendant git checkout is its own graph root");
     }
 
     fn dummy_symbol() -> SymbolIdentity {
