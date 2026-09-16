@@ -4,6 +4,9 @@
 // ignored by their own config.
 
 const { relative } = require('node:path');
+// CIB-403 repair: real ignore-rule matchers, shared with the oxfmt re-check in
+// `.husky/pre-commit` so the two passes cannot drift apart.
+const { isOxfmtIgnored, isOxlintIgnored } = require('./scripts/lint/ignore-rules.cjs');
 
 // Normalise Windows backslash separators so the vendored-output filter matches
 // regardless of how lint-staged hands paths in. lint-staged on Windows can
@@ -113,8 +116,27 @@ module.exports = {
   '*.{mjs,cjs}': (files) => {
     const kept = filter(files).filter((f) => !isAgentConfig(f));
     if (kept.length === 0) return [];
-    const list = toCommandList(kept);
-    return [`oxfmt --write ${list}`, `oxlint --fix ${list}`];
+    // Drop each tool's own ignored paths before invoking it, the same shape as
+    // the `*.md` and `*.json` keys. oxfmt exits 2 and oxlint exits 1 on an
+    // all-excluded batch, so without this, staging only
+    // `docs/archive/.../bench.mjs` refuses the commit and leaves `--no-verify`
+    // as the only way out — the new blocking condition this key's own comment
+    // argues against, arriving via ignore rules instead of lint rules.
+    //
+    // Two predicates, not one: `.prettierignore` and `.oxlintrc.json`
+    // `ignorePatterns` are different lists, and both are read from the files
+    // themselves rather than naming paths, so the next archived `.mjs` is
+    // covered without a code change.
+    const formatted = kept.filter((f) => !isOxfmtIgnored(f));
+    const linted = kept.filter((f) => !isOxlintIgnored(f));
+    const tasks = [];
+    if (formatted.length > 0) {
+      tasks.push(`oxfmt --write ${toCommandList(formatted)}`);
+    }
+    if (linted.length > 0) {
+      tasks.push(`oxlint --fix ${toCommandList(linted)}`);
+    }
+    return tasks;
   },
   '*.json': (files) => {
     const kept = filter(files).filter((f) => !isAgentConfig(f));

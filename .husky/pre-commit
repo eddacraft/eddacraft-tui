@@ -156,8 +156,39 @@ run_tool lint-staged
 # `*.cjs` / `*.mjs` are listed since CIB-403: this net had the same blind spot
 # as the lint-staged globs, so a staged `.mjs` went unchecked on both passes.
 # Keep this pathspec in step with the glob keys in `.lintstagedrc.cjs`.
-git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.cjs' '*.mjs' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/**/*.json' ':(exclude)plans/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' ':(exclude).claude/**' ':(exclude).codex/**' ':(exclude).opencode/**' |
-  RUNNER="${RUNNER}" BIN_DIR="${BIN_DIR}" xargs -0 sh -c '
+#
+# The `:(exclude)` entries below are the historical, hand-maintained half of
+# that list. They are kept as-is, but they are no longer what makes this pass
+# safe: every staged path is then filtered through the same `.prettierignore`
+# matcher `.lintstagedrc.cjs` uses, so a newly ignored path cannot desynchronise
+# the two passes the way `archive/` did (CIB-403 repair round 1).
+TARGETS="$(git rev-parse --git-path anvil-precommit-oxfmt-targets)"
+KEPT="${TARGETS}.kept"
+
+if ! git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.cjs' '*.mjs' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/**/*.json' ':(exclude)plans/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' ':(exclude).claude/**' ':(exclude).codex/**' ':(exclude).opencode/**' > "${TARGETS}" 2>/dev/null; then
+  rm -f "${TARGETS}"
+  gate_unavailable \
+    "the staged file list could not be read, so the oxfmt re-check cannot run." \
+    "Run the commit from inside the repository working tree."
+fi
+
+# Deliberately NOT a pipeline. In a pipeline the shell reports only the last
+# command's status, so a filter that died — missing node, a syntax error in the
+# matcher — would hand xargs an empty list and the re-check would silently pass.
+# That is a fail-open in the one place this gate exists to be fail-closed.
+if ! node "${REPO_ROOT}/scripts/lint/ignore-rules.cjs" < "${TARGETS}" > "${KEPT}" 2>/dev/null; then
+  filter_error="$(node "${REPO_ROOT}/scripts/lint/ignore-rules.cjs" < "${TARGETS}" 2>&1 >/dev/null || true)"
+  rm -f "${TARGETS}" "${KEPT}"
+  gate_unavailable \
+    "the .prettierignore filter (scripts/lint/ignore-rules.cjs) could not run, so staged files cannot be checked." \
+    "Ensure node is on PATH and the repository checkout is complete, then retry the commit." \
+    "${filter_error}"
+fi
+
+# `|| oxfmt_status=$?` rather than a bare call: `set -e` would otherwise abort
+# here and leak the two scratch files into the git dir on every failed commit.
+oxfmt_status=0
+RUNNER="${RUNNER}" BIN_DIR="${BIN_DIR}" xargs -0 sh -c '
     [ "$#" -eq 0 ] && exit 0
     # Same resolution order as run_tool above; keep the two in step.
     if [ -x "$BIN_DIR/oxfmt" ]; then
@@ -167,4 +198,7 @@ git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.cjs' '*.mjs' '*
     else
       npx oxfmt --check -- "$@"
     fi
-  ' sh
+  ' sh < "${KEPT}" || oxfmt_status=$?
+
+rm -f "${TARGETS}" "${KEPT}"
+exit "${oxfmt_status}"
