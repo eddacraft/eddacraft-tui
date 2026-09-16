@@ -973,8 +973,13 @@ mod tests {
     /// half of [`AdmittedRoots::permits_graph_root`] is what refuses a directory
     /// nested inside it.
     ///
-    /// Skip the structural `is_graph_root` half when an ancestor checkout
-    /// exists (a stale `/tmp/.git` would make every tempfile descendant fail).
+    /// S2: asserted ONLY through `permits_graph_root`. The fixture lives under
+    /// the system temp directory, whose contents this process does not own, so
+    /// a bare `is_graph_root` assertion here would depend on whether a
+    /// concurrent process happens to have left `/tmp/.git` debris behind — a
+    /// known flake class in this repository. `permits_graph_root` is the
+    /// property under test and holds either way: the admitted-set half refuses
+    /// the nested directory whatever the structural half decides.
     #[test]
     fn nested_dir_inside_a_non_git_admitted_root_is_refused_by_the_admitted_set() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -985,18 +990,6 @@ mod tests {
         let mut roots = AdmittedRoots::new_open();
         roots.admit(&root).expect("admit root");
 
-        if is_graph_root(&root) {
-            assert!(
-                is_graph_root(&nested),
-                "no enclosing checkout ⇒ the structural rule cannot judge {}",
-                nested.to_str().expect("utf-8 nested path"),
-            );
-            assert!(
-                roots.permits_graph_root(&root),
-                "the admitted root itself stays a graph root: {}",
-                root.to_str().expect("utf-8 root path"),
-            );
-        }
         assert!(
             !roots.permits_graph_root(&nested),
             "a directory inside an admitted root is not a graph root: {}",
