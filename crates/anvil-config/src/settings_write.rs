@@ -175,6 +175,14 @@ pub fn persist_user_settings(
             "user-config root is empty",
         ));
     }
+    if let Ok(meta) = fs::symlink_metadata(root)
+        && meta.file_type().is_symlink()
+    {
+        return Err(SafeWriteError::new(
+            SafeWriteClass::Symlink,
+            "user-config root is a symlink",
+        ));
+    }
     fs::create_dir_all(root).map_err(|err| io_to_error(&err))?;
     refuse_escaping_root(root, root)?;
     let dest = user_settings_path(root);
@@ -458,6 +466,72 @@ mod settings_write_tests {
             .mode()
             & 0o777;
         assert_eq!(mode, 0o600);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn settings_safe_write_refuses_broken_leaf_symlink() {
+        let dir = tempdir().unwrap();
+        let dest = user_settings_path(dir.path());
+        std::os::unix::fs::symlink(dir.path().join("missing.yaml"), &dest).unwrap();
+        let err = persist_user_settings(dir.path(), &BTreeMap::new()).expect_err("broken");
+        assert_eq!(err.class, SafeWriteClass::Symlink);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn settings_safe_write_refuses_parent_symlink_escape() {
+        let dir = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let linked_root = dir.path().join("linked");
+        std::os::unix::fs::symlink(outside.path(), &linked_root).unwrap();
+        let err = persist_user_settings(&linked_root, &BTreeMap::new());
+        if let Err(err) = err {
+            assert!(
+                matches!(err.class, SafeWriteClass::Traversal | SafeWriteClass::Symlink),
+                "{err}"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn settings_safe_write_unwritable_target() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempdir().unwrap();
+        persist_user_settings(dir.path(), &BTreeMap::new()).unwrap();
+        let dest = user_settings_path(dir.path());
+        fs::set_permissions(&dest, fs::Permissions::from_mode(0o400)).unwrap();
+        let mut values = BTreeMap::new();
+        values.insert("interface.hints".into(), json!(false));
+        let result = persist_user_settings(dir.path(), &values);
+        fs::set_permissions(&dest, fs::Permissions::from_mode(0o600)).unwrap();
+        if let Err(err) = result {
+            assert_eq!(err.class, SafeWriteClass::Permission);
+        }
+    }
+
+    #[test]
+    fn settings_safe_write_concurrent_publishers_do_not_mix_bytes() {
+        let dir = tempdir().unwrap();
+        let mut a = BTreeMap::new();
+        a.insert("interface.compact".into(), json!(true));
+        let mut b = BTreeMap::new();
+        b.insert("interface.hints".into(), json!(false));
+        persist_user_settings(dir.path(), &a).unwrap();
+        persist_user_settings(dir.path(), &b).unwrap();
+        let loaded = load_user_settings(dir.path()).unwrap();
+        assert!(
+            loaded.values.contains_key("interface.hints")
+                && !loaded.values.contains_key("interface.compact")
+                || loaded.values.contains_key("interface.compact")
+                    && !loaded.values.contains_key("interface.hints")
+                || loaded.values.len() == 1,
+            "{:?}",
+            loaded.values
+        );
+        let text = fs::read_to_string(user_settings_path(dir.path())).unwrap();
+        assert!(!text.contains("compact: true") || !text.contains("hints: false") || loaded.values.len() == 1);
     }
 
     #[cfg(unix)]

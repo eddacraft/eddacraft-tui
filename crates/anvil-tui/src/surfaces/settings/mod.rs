@@ -145,6 +145,7 @@ pub struct SettingsRowView {
     pub boolean_value: Option<bool>,
     pub enum_allowed: Vec<String>,
     pub inherited: bool,
+    pub default_display: String,
 }
 
 impl SettingsRowView {
@@ -196,7 +197,9 @@ pub struct SettingsState {
     pub wants_back: bool,
     pub pending_write: Option<PendingWrite>,
     pub pending_reset_key: Option<String>,
+    pub reset_preview: Option<String>,
     pub last_error: Option<String>,
+    pub source_revision: Option<String>,
     pub persist: Option<PersistFn>,
 }
 
@@ -218,7 +221,9 @@ impl SettingsState {
             wants_back: false,
             pending_write: None,
             pending_reset_key: None,
+            reset_preview: None,
             last_error: None,
+            source_revision: None,
             persist: None,
         }
     }
@@ -367,21 +372,56 @@ impl SettingsState {
             return;
         };
         if !row.class_a {
-            self.last_error = Some("reset stays read-only for this class".into());
+            self.last_error = Some("reset stays read-only; Class B/C enter the proposal flow in SETGOV".into());
             return;
         }
-        self.pending_reset_key = Some(row.key.clone());
+        let key = row.key.clone();
+        let next = if row.default_display.is_empty() {
+            "catalogue default".to_owned()
+        } else {
+            row.default_display.clone()
+        };
+        self.reset_preview = Some(format!(
+            "reset {key} -> {next} [default]  enter confirm  esc cancel"
+        ));
+        self.pending_reset_key = Some(key);
     }
 
     fn confirm_reset(&mut self) {
         let Some(key) = self.pending_reset_key.take() else {
             return;
         };
+        self.reset_preview = None;
+        let default_display = self
+            .current_row()
+            .map(|row| row.default_display.clone())
+            .unwrap_or_default();
         self.commit_write(PendingWrite::Reset { key });
+        if self.last_error.is_some() {
+            return;
+        }
+        if let Some(row) = self.current_row_mut() {
+            row.resolved_display = if default_display.is_empty() {
+                "false".into()
+            } else {
+                default_display
+            };
+            row.source_badge = "default".into();
+            if let Ok(flag) = row.resolved_display.parse() {
+                row.boolean_value = Some(flag);
+            }
+            row.inherited = false;
+        }
     }
 
     #[must_use]
-    pub fn footer_commands(&self) -> &'static str {
+    pub fn footer_commands(&self) -> &str {
+        if let Some(err) = &self.last_error {
+            return err.as_str();
+        }
+        if let Some(preview) = &self.reset_preview {
+            return preview.as_str();
+        }
         match self.tab {
             SettingsTab::Settings if self.searching => {
                 "type to filter  up/down results  esc cancel  ctrl+c quit"
@@ -512,6 +552,7 @@ impl SettingsState {
             Action::Back => {
                 if self.pending_reset_key.is_some() {
                     self.pending_reset_key = None;
+                    self.reset_preview = None;
                 } else if self.expanded {
                     self.expanded = false;
                 } else {
@@ -639,6 +680,9 @@ fn extra_badges(row: &SettingsRowView) -> String {
     if let Some(consequence) = &row.consequence_badge {
         parts.push(consequence.as_str());
     }
+    if let Some(scope) = &row.write_scope {
+        parts.push(scope.as_str());
+    }
     parts.join("  ")
 }
 
@@ -679,6 +723,7 @@ pub(crate) mod tests {
             boolean_value: None,
             enum_allowed: Vec::new(),
             inherited: false,
+            default_display: String::new(),
         }
     }
 
@@ -731,6 +776,7 @@ pub(crate) mod tests {
         compact_mode.write_scope = Some("user".into());
         compact_mode.boolean_value = Some(true);
         compact_mode.inherited = false;
+        compact_mode.default_display = "false".into();
         compact_mode.deprecated_aliases = vec!["ui.compact".into()];
         compact_mode.active_display = Some("true".into());
         compact_mode.detail = SettingsRowDetail {
@@ -868,6 +914,40 @@ pub(crate) mod tests {
                 key: "interface.compact".into()
             })
         );
+    }
+
+    #[test]
+    fn settings_reset_preview_names_default_source() {
+        let mut state = sample_state();
+        state.focus_key("interface.compact");
+        state.handle_key(Action::Character('d'));
+        let preview = state.reset_preview.as_deref().expect("preview");
+        assert!(preview.contains("interface.compact"), "{preview}");
+        assert!(preview.contains("false"), "{preview}");
+        assert!(preview.contains("[default]"), "{preview}");
+        assert!(state.footer_commands().contains("false"));
+        state.handle_key(Action::Select);
+        let row = state.current_row().unwrap();
+        assert_eq!(row.source_badge, "default");
+        assert_eq!(
+            state.pending_write,
+            Some(PendingWrite::Reset {
+                key: "interface.compact".into()
+            })
+        );
+    }
+
+    #[test]
+    fn settings_write_scope_is_visible() {
+        let state = sample_state();
+        let compact = state
+            .groups
+            .iter()
+            .flat_map(|group| group.rows.iter())
+            .find(|row| row.key == "interface.compact")
+            .unwrap();
+        let rendered = format_row_values(compact);
+        assert!(rendered.contains("user"), "{rendered}");
     }
 
     #[test]

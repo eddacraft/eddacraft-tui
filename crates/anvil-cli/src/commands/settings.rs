@@ -124,15 +124,28 @@ pub fn run(args: &SettingsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
         let catalogue = first_release_catalogue().context("settings catalogue")?;
         let user_root = anvil_config::user_config_root();
+        if let Ok(file) = anvil_config::load_user_settings(&user_root) {
+            state.source_revision = Some(file.revision);
+        }
         state.persist = Some(Box::new(move |write| {
             let (key, op) = match write {
                 PendingWrite::Toggle { key } => (key, ClassAOp::Toggle),
                 PendingWrite::Set { key, value } => (key, ClassAOp::Set(Value::String(value))),
                 PendingWrite::Reset { key } => (key, ClassAOp::Reset),
             };
-            apply_class_a(&catalogue, &key, op, Scope::User, &user_root, None)
-                .map(|_| ())
-                .map_err(|err| err.to_string())
+            let expected = anvil_config::load_user_settings(&user_root)
+                .ok()
+                .map(|file| file.revision);
+            apply_class_a(
+                &catalogue,
+                &key,
+                op,
+                Scope::User,
+                &user_root,
+                expected.as_deref(),
+            )
+            .map(|_| ())
+            .map_err(|err| err.to_string())
         }));
         let state = crate::tui::run_surface(state)?;
         if state.search_used {
@@ -347,6 +360,12 @@ fn project_row(catalogue: &Catalogue, entry: &CatalogueEntry, row: &SettingRow) 
             _ => Vec::new(),
         },
         inherited,
+        default_display: match &entry.default {
+            Some(Value::Bool(flag)) => flag.to_string(),
+            Some(Value::String(text)) => text.clone(),
+            Some(other) => other.to_string(),
+            None => String::new(),
+        },
     }
 }
 
