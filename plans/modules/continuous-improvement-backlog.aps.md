@@ -12206,7 +12206,7 @@ hang before opening a supervisor ticket.
 - **Currency:** current — revalidated 2026-09-16: `~/.kindling/spawn.log` is
   5.01 MB / 59,259 lines (was 4.06 MB / 45,924 on 2026-08-31); still one
   ENOENT spawn-failure message with a fresh timestamp per emit. Production
-  `KindlingObservationSink::new` still uses `ClientConfig::defaults()` and
+  `KindlingDaemonSink::new` still uses `ClientConfig::defaults()` and
   does not skip spawn when the binary is absent
 - **Intent:** KDS-005 flipped the default sink `ndjson` → `daemon` (#2949). On a
   host where the `kindling` binary was never installed, every emit therefore
@@ -12216,10 +12216,11 @@ hang before opening a supervisor ticket.
   `ensure_connected` spawns once per connection attempt, so the file gains
   one line per emit, forever.
 - **Expected Outcome:** anvil's default Kindling daemon sink does not append
-  to the spawn log on a host with no `kindling` binary. N emits under a
-  `PATH` that cannot resolve `kindling` leave the spawn log line count
-  unchanged (or grow by at most one first-failure note). The spool's 7d /
-  64 MiB cap and the `anvil kindling usage` degrade note stay unchanged.
+  to the spawn log on a host with no `kindling` binary. Skip the spawn so
+  `append_spawn_log` is never reached: N emits under a `PATH` that cannot
+  resolve `kindling` leave the spawn log line count unchanged. Delivery to a
+  live daemon still works when the binary is absent from `PATH`. The spool's
+  7d / 64 MiB cap and the `anvil kindling usage` degrade note stay unchanged.
 - **Non-scope / do not:** do not disable the daemon sink
   (`ANVIL_KINDLING_SINK=off` is operator rollback, not the default). Do not
   truncate or delete an existing spawn log. Do not add a second diagnostics
@@ -12231,11 +12232,13 @@ hang before opening a supervisor ticket.
   `append_spawn_log` is never reached. File the durable cap from **private**
   anvil-001; do **not** open it on the public kindling repo.
 - **Files:** `crates/anvil-cli/src/kindling_daemon_sink.rs`
-  (`KindlingObservationSink::new` / `ClientConfig::defaults` spawner);
+  (`KindlingDaemonSink::new` / `ClientConfig::defaults` spawner);
   tests next to that sink
 - **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast` covering
-  `kindling_daemon_sink`; a hermetic case with `PATH` lacking `kindling`
-  emits several observations and the spawn log does not grow per emit
+  `kindling_daemon_sink`. Two hermetic cases with `PATH` lacking `kindling`:
+  (1) no reachable daemon — several emits leave spawn-log line count
+  unchanged; (2) live in-process daemon — observations still deliver and
+  spawn is not attempted
 - **Identified From:** KDS-005 ops follow-up; CI-log 2026-08-31; revalidated
   2026-09-16
 - **Coordinates with:** KDS-005 (spool cap, Released/Shipped), CIB-425
@@ -13856,14 +13859,16 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   itself still accepts them from any client that can reach the socket, and
   the daemon-side full-scan executor (DSV-045) will warm the nested root on
   first contact.
-- **Expected Outcome:** the daemon **refuses** a GCTX request whose root is a
-  nested directory of an already-admitted workspace root, using the same
-  rule as MCP `workspace_root_is_graph_root` (the admitted workspace root or
-  a registered worktree of that repository — not a directory inside either).
-  Sensitive-path prefixes survive regardless of which client asks.
-  `allowlist` mode (ADR-097) stays explicit-entries-only. The refusal must
-  not leak the admitted root set (`NotAdmitted` today reports only the
-  requested root and the entry count).
+- **Expected Outcome:** the daemon **refuses** a GCTX request whose root is
+  not a graph root, using the same rule as MCP
+  `workspace_root_is_graph_root`: the workspace root itself or an exact
+  registered worktree of that repository — not a directory inside either.
+  First contact in `open` mode must not first-touch-adopt `<repo>/secrets`.
+  After `<repo>` is admitted, `<repo>/secrets` is still refused. An exact
+  registered worktree root remains authorised. Sensitive-path prefixes
+  survive regardless of which client asks. `allowlist` mode (ADR-097) stays
+  explicit-entries-only. The refusal must not leak the admitted root set
+  (`NotAdmitted` today reports only the requested root and the entry count).
 - **Non-scope / do not:** do not re-anchor nested identities onto the parent
   root (that is a second design). Do not amend ADR-097. Do not reopen
   CIB-398's MCP tests as this item. Do not consume the CIB-154 root budget
@@ -13872,11 +13877,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   GCTX verb handlers), `crates/anvil-intercept/src/workspace_admission.rs`
   (`AdmittedRoots::authorise_within_budget`, `new_open`)
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --no-fail-fast`
-  covering a case that admits `<tmp>/repo`, then sends
-  `anvil/gctx/symbol_context` with `workspace_root = <tmp>/repo/secrets`
-  and asserts a structured refusal in both `open` and `allowlist` modes;
-  existing CIB-398 MCP tests keep passing; the refused root does not consume
-  the per-connection root budget
+  covering, in both `open` and `allowlist` modes: first-contact
+  `workspace_root = <tmp>/repo/secrets` is refused; after admitting
+  `<tmp>/repo`, `<tmp>/repo/secrets` is still refused; an exact registered
+  worktree root is authorised. Existing CIB-398 MCP tests keep passing; a
+  refused nested root does not consume the per-connection root budget
 - **Identified From:** independent `verify-loop` of CIB-398 (advisory A2);
   DeepSec run `20260902184224-6753b67df9c072ab` scoped the MCP tool only.
   Revalidated 2026-09-16
@@ -14147,8 +14152,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   unrelated. Hit on JREL-005, JREL-006, and JREL-007 in the same window.
 - **Expected Outcome:** `cargo test -p eddacraft-anvil --test daemon_identity`
   passes while a developer daemon is live at the implicit runtime endpoint.
-  The two XDG-unset binary fixtures skip (or otherwise isolate) when that
-  socket exists, instead of failing the suite. Implicit-sibling proofs stay
+  The two XDG-unset binary fixtures skip when that socket exists, instead
+  of failing the suite. Implicit-sibling proofs stay
   in `anvil-intercept` unit tests (`plain_shell_reuses_runtime_dir_daemon_through_the_implicit_sibling`
   and friends) and still run in CI, where no developer daemon is bound.
 - **Non-scope / do not:** do not change production
@@ -14168,7 +14173,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 - **Coordinates with:** JREL-004 (rendezvous identity, archived), CIB-393
 - **Confidence:** high — the refuse helper and the two call sites were
   re-read on 2026-09-16; the original "redirect rendezvous" wording
-  contradicted the fixtures' own contract and is replaced by skip/isolate
+  contradicted the fixtures' own contract and is replaced by an early skip
 
 ### CIB-422: Widen wt-cleanup-sweep ignored-cache allowlist
 
