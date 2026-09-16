@@ -9,12 +9,12 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "^7.2.10"
+    "astro": "astro"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.41.6",
     "@vercel/functions": "^3.7.5",
-    "astro": "^7.2.8",
+    "astro": "^7.2.10",
     "sharp": "^0.35.4"
   },
   "engines": {
