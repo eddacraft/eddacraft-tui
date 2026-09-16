@@ -12227,7 +12227,7 @@ hang before opening a supervisor ticket.
   surface. Do not wait on an upstream `kindling-client` cap for this item —
   that remains a private follow-up ask, not acceptance.
 - **Ownership / routing:** the unbounded writer is upstream in
-  `kindling-client` 0.3.0 (crates.io). This Ready item is the **anvil-side
+  `kindling-client` 0.3.0 (crates.io). This item is the **anvil-side
   interim**: skip the spawn attempt when the binary is absent **and redirect
   the spawn-log path to the platform null device**. Both halves are required.
   File the durable cap from **private** anvil-001; do **not** open it on the
