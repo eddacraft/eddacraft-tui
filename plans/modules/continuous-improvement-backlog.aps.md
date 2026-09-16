@@ -12199,7 +12199,7 @@ hang before opening a supervisor ticket.
 
 ### CIB-381: the kindling spawn log grows without bound on a host with no daemon binary
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-16 via [#4730](https://github.com/eddacraft/anvil-001/pull/4730) (`e1928a3cb`, repair `8fce600f9`, Windows `.exe` fix `2e1fb2fff`)
 - **Priority:** P2 — unbounded disk growth in a user's home on every host that
   never installs kindling; no wrong verdict and no data loss, but it is silent
   and it never stops
@@ -14172,7 +14172,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-421: Isolate daemon-identity fixtures from a live intercept daemon
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-16 via [#4731](https://github.com/eddacraft/anvil-001/pull/4731) (`7f9c1b2fd`)
 - **Priority:** P2 — recurs on every JREL/CLI suite while a developer daemon
   occupies the implicit runtime endpoint
 - **Currency:** current — revalidated 2026-09-16:
