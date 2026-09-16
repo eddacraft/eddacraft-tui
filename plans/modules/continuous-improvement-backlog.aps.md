@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 339/424  |
+| CIB | —     | In Progress | 340/424  |
 
 ## Purpose
 
@@ -13875,20 +13875,12 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-414: The intercept daemon still keys a graph on any nested root a socket client hands it
 
-- **Status:** Ready
-- **Review 2026-09-16 (Council `council-75c4bfed`, decision REPAIR):** a first
-  implementation attempt ([#4732](https://github.com/eddacraft/anvil-001/pull/4732))
-  did **not** close the bypass and is not merged. Four independent lenses
-  demonstrated by execution that the structural graph-root rule is defeated by a
-  planted `.git` directory, a `.git` file with an unresolvable `gitdir:` pointer,
-  a **symlinked** `.git` directory (`symlink_metadata` does not follow, so the
-  ancestor walk climbs past a real checkout boundary), a non-UTF-8 `gitdir:`
-  line, and a fabricated `.git/worktrees/<n>/gitdir` registration — the last of
-  which survives even after the parent root is admitted. Root cause: the
-  detector was more permissive than git itself, and every inconclusive branch
-  failed **open**. Repair is bounded (git-parity detection, fail-closed on
-  inconclusive, reciprocal worktree-registration validation, negative tests) and
-  is in progress on the same PR.
+- **Status:** Merged 2026-09-16 via
+  [#4732](https://github.com/eddacraft/anvil-001/pull/4732) (`f9e86737c`,
+  council artefact `7fde855e4`). First Council (`council-75c4bfed`) returned
+  REPAIR; the bounded repair (nearest-checkout equality, gitfile recognition,
+  reciprocal `worktrees/*/gitdir` parser) landed on the same PR. Independent
+  verify-loop: pass-with-advisories.
 - **Known residual (accepted, not closed by this item):** git's on-disk model
   carries no authenticity signal — repo and worktree metadata are plain text a
   same-uid principal can write. A sufficiently motivated attacker who builds a
@@ -13901,11 +13893,11 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   closed by CIB-398; what remains is a same-uid local socket client in the
   default `open` admission mode, which is a narrower attacker than the MCP
   path but the same rebase
-- **Currency:** current — revalidated 2026-09-16: `SaveTimeEngine::symbol_context`
-  (and the other `anvil/gctx/*` verbs) still call `authorise_root` then
-  `WorktreeKey::from_canonical`; `AdmittedRoots::new_open` still
-  first-touch-adopts. Nested refusal lives only in MCP
-  `validate_gctx_workspace_root` (CIB-398)
+- **Currency:** landed 2026-09-16 — all nine `anvil/gctx/*` verbs call
+  `authorise_gctx_root` (gate before admit; graph key is the admitted
+  canonical). Nested `<repo>/secrets` is refused on first contact and after
+  the parent is admitted. Residual planted `.git` **directory** remains
+  later_item
 - **Intent:** `anvil/gctx/*` verbs on the daemon (`save_time.rs`
   `symbol_context` and its siblings) call `authorise_root` and then key the
   graph on `WorktreeKey::from_canonical(root)` for whatever root the request
@@ -13931,9 +13923,9 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   root (that is a second design). Do not amend ADR-097. Do not reopen
   CIB-398's MCP tests as this item. Do not consume the CIB-154 root budget
   on a refused nested root.
-- **Files:** `crates/anvil-intercept/src/save_time.rs` (`authorise_root`, the
-  GCTX verb handlers), `crates/anvil-intercept/src/workspace_admission.rs`
-  (`AdmittedRoots::authorise_within_budget`, `new_open`)
+- **Files:** `crates/anvil-intercept/src/save_time.rs` (`authorise_gctx_root`,
+  the nine GCTX verb handlers), `crates/anvil-intercept/src/workspace_admission.rs`
+  (`is_graph_root`, `AdmittedRoots::permits_graph_root`)
 - **Validation:** `cargo test -p eddacraft-anvil-intercept --no-fail-fast`
   covering, in both `open` and `allowlist` modes: first-contact
   `workspace_root = <tmp>/repo/secrets` is refused; after admitting
