@@ -7,7 +7,7 @@ import test from 'node:test';
 
 const SCRIPT = resolve(import.meta.dirname, 'pr-required-status.mjs');
 
-function run(required, checks, threads) {
+function run(required, checks, threads, merge) {
   const dir = mkdtempSync(join(tmpdir(), 'pr-req-'));
   const requiredPath = join(dir, 'required.json');
   const checksPath = join(dir, 'checks.json');
@@ -18,6 +18,11 @@ function run(required, checks, threads) {
     const threadsPath = join(dir, 'threads.json');
     writeFileSync(threadsPath, JSON.stringify(threads));
     argv.push('--threads-json', threadsPath);
+  }
+  if (merge !== undefined) {
+    const mergePath = join(dir, 'merge.json');
+    writeFileSync(mergePath, JSON.stringify(merge));
+    argv.push('--merge-json', mergePath);
   }
   try {
     return spawnSync(process.execPath, argv, { encoding: 'utf8' });
@@ -104,4 +109,107 @@ test('pending checks still report not-finished even with an open thread', () => 
   );
   assert.equal(r.status, 2, r.stdout + r.stderr);
   assert.match(r.stdout, /not finished/i);
+});
+
+// --- CIB-404: a PR with no merge candidate ------------------------------------
+// When a PR conflicts with its base, GitHub builds no merge commit, so no
+// workflow runs and no required context can ever report. Reporting that as
+// "not finished" tells a polling caller to wait when the truth is "repair the
+// base" — observed on PR #4372, where the poller burned its full 52-minute
+// budget on a branch that needed a thirty-second rebase.
+const NOTHING_REPORTED = [];
+
+test('a conflicting PR is its own exit code, not "not finished"', () => {
+  const r = run(REQUIRED, NOTHING_REPORTED, undefined, {
+    mergeable: 'CONFLICTING',
+    mergeStateStatus: 'DIRTY',
+  });
+  assert.equal(r.status, 4, r.stdout + r.stderr);
+  assert.match(r.stdout, /conflict/i);
+  assert.doesNotMatch(r.stdout, /not finished/i);
+  assert.doesNotMatch(r.stdout, /all required contexts reported and passed/i);
+});
+
+test('the conflict report names the base repair, not the missing contexts', () => {
+  const r = run(REQUIRED, NOTHING_REPORTED, undefined, {
+    mergeable: 'CONFLICTING',
+    mergeStateStatus: 'DIRTY',
+  });
+  assert.equal(r.status, 4, r.stdout + r.stderr);
+  assert.match(r.stdout, /mergeable: CONFLICTING/);
+  assert.match(r.stdout, /mergeStateStatus: DIRTY/);
+  assert.match(r.stdout, /rebase|repair|update the branch/i);
+});
+
+test('mergeStateStatus DIRTY alone is a conflict even if mergeable lags', () => {
+  const r = run(REQUIRED, NOTHING_REPORTED, undefined, {
+    mergeable: 'UNKNOWN',
+    mergeStateStatus: 'DIRTY',
+  });
+  assert.equal(r.status, 4, r.stdout + r.stderr);
+  assert.match(r.stdout, /conflict/i);
+});
+
+// The other arm: the tool must not start calling healthy, merely-early PRs
+// conflicted. A mergeable PR whose checks genuinely have not started is still
+// exit 2 and still names what is missing.
+test('a healthy PR whose checks have not started is still not finished', () => {
+  const r = run(REQUIRED, NOTHING_REPORTED, undefined, {
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+  });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stdout, /not finished/i);
+  assert.match(r.stdout, /Docs Lint/);
+  assert.match(r.stdout, /Lint & Format/);
+  assert.doesNotMatch(r.stdout, /conflict/i);
+});
+
+test('a mergeable PR with green checks still passes', () => {
+  const r = run(REQUIRED, GREEN, undefined, {
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'BLOCKED',
+  });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /all required contexts reported and passed/);
+});
+
+// GitHub computes mergeability asynchronously, so UNKNOWN is itself a
+// not-yet-a-verdict: it is neither a conflict nor evidence that the checks are
+// merely early. It gets its own message so a caller polling on exit 2 can tell
+// the two apart, and is never reported as a conflict.
+test('mergeable UNKNOWN is its own case, not a conflict', () => {
+  const r = run(REQUIRED, NOTHING_REPORTED, undefined, {
+    mergeable: 'UNKNOWN',
+    mergeStateStatus: 'UNKNOWN',
+  });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stdout, /mergeability (is )?(still )?(not|un)/i);
+  assert.match(r.stdout, /UNKNOWN/);
+  assert.doesNotMatch(r.stdout, /conflict/i);
+  assert.doesNotMatch(r.stdout, /all required contexts reported and passed/i);
+});
+
+test('mergeable UNKNOWN is distinguishable from plain not-started checks', () => {
+  const unknown = run(REQUIRED, NOTHING_REPORTED, undefined, {
+    mergeable: 'UNKNOWN',
+    mergeStateStatus: 'UNKNOWN',
+  });
+  const early = run(REQUIRED, NOTHING_REPORTED, undefined, {
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'CLEAN',
+  });
+  assert.equal(unknown.status, 2, unknown.stdout + unknown.stderr);
+  assert.equal(early.status, 2, early.stdout + early.stderr);
+  assert.notEqual(unknown.stdout, early.stdout);
+});
+
+// Absent mergeability data must not invent a verdict: every pre-CIB-404 caller
+// passes no merge state at all and must keep its old behaviour.
+test('absent merge state leaves the existing classification untouched', () => {
+  const r = run(REQUIRED, NOTHING_REPORTED);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stdout, /not finished/i);
+  assert.doesNotMatch(r.stdout, /conflict/i);
+  assert.doesNotMatch(r.stdout, /mergeab/i);
 });

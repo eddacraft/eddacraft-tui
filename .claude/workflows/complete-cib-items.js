@@ -392,8 +392,12 @@ Procedure (from inside the worktree):
    required context that has not reported yet looks like nothing at all, and a mid-flight sample reads as a pass
    (CIB-390). Exit codes: 0 all required contexts reported and passed (and threads resolved where the branch
    requires it); 2 not finished — it names the contexts that have not reported; 1 a required check failed;
-   3 checks are green but review threads are unresolved, so the PR is still blocked. On 1, 2 or 3 that will not
-   clear, STOP: set merged=false, ciVerified=false, and report — do NOT merge a red/unknown PR.
+   3 checks are green but review threads are unresolved, so the PR is still blocked; 4 the PR conflicts with its
+   base, so it has NO merge candidate and no required context can ever report (CIB-404). Exit 4 is not a wait
+   state: do not keep polling — go back to step 2, rebase onto origin/main, force-with-lease, then resume polling.
+   Exit 2 may also report "mergeability unresolved" while GitHub computes it asynchronously; that one IS a wait.
+   On 1, 2 or 3 that will not clear, STOP: set merged=false, ciVerified=false, and report — do NOT merge a
+   red/unknown PR.
 4. Only when CI is green: attempt \`gh pr merge ${g.pr.prNumber} --rebase --delete-branch\`. If it succeeds, confirm
    the PR shows MERGED and capture the merge commit. If it is rejected by branch protection (required reviews/checks
    or insufficient permissions), STOP: set merged=false, ciVerified=true, and report the blocker — do NOT bypass it.

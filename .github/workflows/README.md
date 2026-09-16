@@ -541,6 +541,16 @@ happens to have reported — and exits:
 | `1`  | A required check failed.                                                          |
 | `2`  | Not finished — names the required contexts that have not reported.                |
 | `3`  | Checks are green, but unresolved review threads still block the merge.            |
+| `4`  | The PR has no merge candidate — it conflicts with its base. Rebase, then re-run.  |
+
+Exit `4` exists (CIB-404) because a conflicting PR produces **no merge commit**,
+so no workflow runs and no required context can ever report. Folded into exit
+`2` that reads as "not finished", which tells a poller to wait when the truth is
+"repair the base" — observed on PR #4372, where a 70 × 45 s poll burned its full
+budget on a branch that needed a thirty-second rebase. The reader only reports:
+it never rebases or merges anything itself. `mergeable: UNKNOWN` is a third
+state — GitHub computes mergeability asynchronously — and is reported as its own
+"mergeability unresolved" message under exit `2`, never as a conflict.
 
 Exit `3` exists because status checks are not the only merge gate: a ruleset may
 also set `required_review_thread_resolution`, and that state is invisible to

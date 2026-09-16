@@ -9,10 +9,15 @@ const FAILED = 1;
 // review thread to be resolved. Distinct from FAILED so a caller can tell
 // "a check went red" from "a human conversation is still open".
 const UNRESOLVED_THREADS = 3;
+// The PR has no merge candidate at all: GitHub cannot build the merge commit,
+// so no workflow runs and no required context can ever report. Distinct from
+// NOT_FINISHED because the two demand opposite actions — NOT_FINISHED says
+// wait, this says repair the base (CIB-404).
+const MERGE_CONFLICT = 4;
 
 function usage() {
   process.stderr.write(
-    'Usage: scripts/ci/pr-required-status.mjs [--repo owner/repo] [--pr N] [--base BRANCH] [--required-json FILE] [--checks-json FILE] [--threads-json FILE] [--gh PATH]\n'
+    'Usage: scripts/ci/pr-required-status.mjs [--repo owner/repo] [--pr N] [--base BRANCH] [--required-json FILE] [--checks-json FILE] [--threads-json FILE] [--merge-json FILE] [--gh PATH]\n'
   );
 }
 
@@ -24,6 +29,7 @@ function parseArgs(argv) {
     requiredJson: null,
     checksJson: null,
     threadsJson: null,
+    mergeJson: null,
     gh: process.env.GH_BIN || 'gh',
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -39,6 +45,7 @@ function parseArgs(argv) {
       '--required-json': 'requiredJson',
       '--checks-json': 'checksJson',
       '--threads-json': 'threadsJson',
+      '--merge-json': 'mergeJson',
       '--gh': 'gh',
     };
     if (keys[arg]) {
@@ -172,6 +179,31 @@ function unresolvedThreadCount(gh, repo, prNumber) {
   return nodes.filter((thread) => !thread.isResolved).length;
 }
 
+/// Classify the PR's merge candidate from `gh pr view`'s `mergeable` /
+/// `mergeStateStatus`. Returns `null` when no merge state was supplied at all,
+/// which is "the question was not asked" — never a verdict.
+///
+/// Three outcomes, deliberately not two:
+///   - `conflicting`: `mergeable: CONFLICTING` or `mergeStateStatus: DIRTY`.
+///     Nothing is pending because nothing can start.
+///   - `unknown`: GitHub computes mergeability asynchronously, so `UNKNOWN` is
+///     itself a not-yet-a-verdict. It is not a conflict (calling it one sends a
+///     caller to rebase a healthy branch) and it is not ordinary
+///     checks-not-started either, so it gets its own message.
+///   - neither: the PR has a merge candidate; classify the checks as before.
+function classifyMergeability(raw) {
+  if (raw === null || raw === undefined) return null;
+  const mergeable = String(raw.mergeable ?? '').toUpperCase();
+  const stateStatus = String(raw.mergeStateStatus ?? '').toUpperCase();
+  if (mergeable === 'CONFLICTING' || stateStatus === 'DIRTY') {
+    return { conflicting: true, unknown: false, mergeable, stateStatus };
+  }
+  if (mergeable === 'UNKNOWN' || mergeable === '') {
+    return { conflicting: false, unknown: true, mergeable: mergeable || 'UNKNOWN', stateStatus };
+  }
+  return { conflicting: false, unknown: false, mergeable, stateStatus };
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   let required;
@@ -179,6 +211,9 @@ function main() {
   // `null` means "thread resolution is not required on this base", which is
   // different from "required and zero unresolved". Only the latter is a pass.
   let unresolved = null;
+  // `null` means "no merge state was supplied", which is how every pre-CIB-404
+  // caller behaves. Absent data must not manufacture a verdict either way.
+  let mergeState = null;
 
   if (args.requiredJson && args.checksJson) {
     required = loadJsonFile(args.requiredJson);
@@ -189,13 +224,16 @@ function main() {
         ? threads.filter((thread) => !thread.isResolved).length
         : Number(threads.unresolved ?? 0);
     }
+    if (args.mergeJson) {
+      mergeState = classifyMergeability(loadJsonFile(args.mergeJson));
+    }
   } else {
     const prView = ghJson(args.gh, [
       'pr',
       'view',
       ...(args.pr ? [args.pr] : []),
       '--json',
-      'number,baseRefName,url,statusCheckRollup',
+      'number,baseRefName,url,statusCheckRollup,mergeable,mergeStateStatus',
       ...(args.repo ? ['--repo', args.repo] : []),
     ]);
     const repo =
@@ -207,6 +245,10 @@ function main() {
     );
     required = requiredFromRulesets(rulesets, base);
     checks = normalizeChecks(prView);
+    mergeState = classifyMergeability({
+      mergeable: prView.mergeable,
+      mergeStateStatus: prView.mergeStateStatus,
+    });
     if (threadResolutionRequired(rulesets, base)) {
       unresolved = unresolvedThreadCount(args.gh, repo, prView.number);
     }
@@ -220,6 +262,23 @@ function main() {
   const byName = new Map();
   for (const check of checks) {
     if (check.name) byName.set(check.name, check);
+  }
+
+  // Answered before the checks are classified: on a conflicting PR every
+  // required context is "pending" only because none of them can ever start, and
+  // reporting that as NOT_FINISHED is exactly the lie CIB-404 is about. This
+  // reports; it never rebases, merges, or otherwise repairs the branch.
+  if (mergeState?.conflicting) {
+    process.stdout.write(
+      `[pr-required-status] conflict: the PR has no merge candidate (mergeable: ${mergeState.mergeable}, mergeStateStatus: ${mergeState.stateStatus || 'unknown'}); GitHub builds no merge commit, so required contexts cannot report — rebase or update the branch on its base, then re-run\n`
+    );
+    process.exit(MERGE_CONFLICT);
+  }
+  if (mergeState?.unknown) {
+    process.stdout.write(
+      `[pr-required-status] mergeability unresolved: GitHub has not finished computing it (mergeable: ${mergeState.mergeable}); the merge candidate is not yet decided either way, and no check verdict is implied — re-run once it settles\n`
+    );
+    process.exit(NOT_FINISHED);
   }
 
   const pending = [];
