@@ -114,17 +114,16 @@ Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
 **Shipped release windows** — `v0.5.0-beta` (2026-05-01) through
-`v0.9.7-beta` (2026-08-21, first-session honesty) are fully shipped as promoted
-headline windows.
+`v0.11.0-beta` (2026-09-15, Windows readiness and inspect surfaces) are fully
+shipped as promoted headline windows.
 Windows through `v0.7.4-beta` have their per-window tables and slice records in
 [`completed-index.aps.md`](./completed-index.aps.md#release-plan); later records
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.10.0-beta`** (claim locked — continuous journey honesty after
-`v0.9.7-beta`), declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also
-the header above and the NBI table. Shipped windows through `v0.9.7-beta` are
-promoted headlines.
+window is **`v0.11.1-beta`** (CIB Ready honesty after `v0.11.0-beta`), declared
+in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the
+NBI table. Shipped windows through `v0.11.0-beta` are promoted headlines.
 
 **Module tables below** mix archived Complete modules (Graph Substrate GV2/GCTX/…
 Released/Shipped via v0.9.0-beta and archived 2026-07-13), work landed around
@@ -798,7 +797,7 @@ the shipped graph into agent- and team-lead trust answers. Framing and clearance
 checklist:
 [`plans/specs/2026-07-28-graph-trust-surfaces.md`](./specs/2026-07-28-graph-trust-surfaces.md).
 **Not** a second `RELEASE-PLAN.md` window. While the active window is
-`v0.10.0-beta` (claim locked — continuous journey honesty), module rows below
+`v0.11.1-beta` (CIB Ready honesty), module rows below
 remain owned by their home sections where they already live; this band is the
 programme hub, not a release claim.
 

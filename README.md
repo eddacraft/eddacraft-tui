@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                                         |
-| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Reviewed 2026-09-12 against latest tag `v0.9.7-beta`, locked `v0.10.0-beta` window in `RELEASE-PLAN.md`, and `benchmarks/history/2026-08-10.json` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                                                    |
+| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| README | Advisory  | DOCGOV | Live   | Reviewed 2026-09-16 against latest tag `v0.11.0-beta`, locked `v0.11.1-beta` window in `RELEASE-PLAN.md`, and SETPREF as the `v0.12.0-beta` next-minor claim |
 
 | Upstream                                               | Downstream                      |
 | ------------------------------------------------------ | ------------------------------- |
@@ -27,8 +27,8 @@ docs/API/tooling, Pulumi infra, APS plans.
 | Early access  | [eddacraft.ai](https://eddacraft.ai)                                |
 | Public docs   | [docs.eddacraft.ai/anvil](https://docs.eddacraft.ai/anvil/overview) |
 | Install       | [install.eddacraft.ai](https://install.eddacraft.ai)                |
-| Latest tag    | **`v0.9.7-beta`**                                                   |
-| Active window | **`v0.10.0-beta`** — continuous journey honesty (claim locked)      |
+| Latest tag    | **`v0.11.0-beta`**                                                  |
+| Active window | **`v0.11.1-beta`** — CIB Ready honesty (claim locked)               |
 | Live work     | [`plans/index.aps.md`](./plans/index.aps.md)                        |
 | Release cut   | [`RELEASE-PLAN.md`](./RELEASE-PLAN.md)                              |
 
