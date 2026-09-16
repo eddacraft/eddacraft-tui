@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 335/423  |
+| CIB | —     | In Progress | 337/423  |
 
 ## Purpose
 
@@ -13271,7 +13271,20 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-401: better-sqlite3 teardown crash fails `Unit Tests` with every suite green
 
-- **Status:** Ready by operator authorisation
+- **Status:** Superseded 2026-09-16 by commit `dfbf5aefd` (2026-09-05,
+  EMBERRS-001, "retire JavaScript Ember and default-disable its CLI surface"),
+  which is an ancestor of `main`. **Not** Merged via PR — no implementation PR
+  exists and none should be cited. That commit deleted the TypeScript Ember
+  runtime and dropped `better-sqlite3` from the workspace, so the named cause
+  cannot recur: the dependency is absent from every `package.json` and from
+  `pnpm-lock.yaml`, `packages/edda-stack/src/ember/` is now a tombstone
+  `README.md`, and `proposal-store.ts` plus both its test files are deleted.
+  Every file this entry's **Files** bullet names is gone. Verified 2026-09-16 by
+  `git merge-base --is-ancestor`, a lockfile grep, and three consecutive wide
+  `nx run-many -t test` runs (4386 tests, zero crash signatures) — the runs are
+  corroboration only; the structural absence is the load-bearing evidence.
+  Recorded for the record: the entry was filed 2026-09-03 and superseded two
+  days later, then sat Ready for thirteen days before anyone noticed
 - **Priority:** P2 — it fails a **required** context with no test reporting a
   failure, on any PR that widens the affected set. Three CI runs were spent on
   one PR (#4353) to land a change that never touched SQLite
@@ -13403,13 +13416,17 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `main` after #4191 and the index case was reproduced end to end.
 ### CIB-403: `.mjs` is outside the repo's file-type allowlists, so it escapes both tooling and search
 
-- **Status:** Ready by operator authorisation
-- **Priority:** P2 — 77 tracked files are outside pre-commit entirely, and the
+- **Status:** Merged 2026-09-16 via PR
+  [#4722](https://github.com/eddacraft/anvil-001/pull/4722) (claim GH #4720).
+  Tooling half only; the search half was out of scope by the entry's own
+  Non-scope bullet and remains a habit, not a gate
+- **Priority:** P2 — 88 tracked files are outside pre-commit entirely, and the
   same blind spot cost two defects in one PR that review caught rather than a
   gate
 - **Currency:** current — .mjs still outside allowlists
-- **Intent:** the repository has 77 tracked `.mjs`/`.cjs` files (74 `.mjs`,
-  3 `.cjs`), and the
+- **Intent:** the repository has 88 tracked `.mjs`/`.cjs` files (84 `.mjs`,
+  4 `.cjs` as of 2026-09-16; filed saying 77/74/3, and the count drifted to 87
+  then 88 during the fix — counts embedded in prose go stale silently), and the
   conventional file-type allowlists do not name that extension. It is invisible
   in two directions.
 
@@ -13440,7 +13457,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   instead of CI. Whatever the fix, it is proven by staging an unformatted
   `.mjs` and watching pre-commit correct or reject it — the current state
   silently accepts it.
-- **Non-scope / do not:** do not rename the 77 files to `.js` to fit the glob —
+- **Non-scope / do not:** do not rename the 88 files to `.js` to fit the glob —
   the extension is meaningful (ESM in a CJS-defaulting package) and the glob is
   the thing that is wrong. Do not treat the search half as fixed by the tooling
   half; a wider lint-staged glob does nothing for someone grepping by
@@ -13474,7 +13491,8 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-404: `pr-required-status` reports a conflicting PR as "not finished", so a poller waits for checks that can never run
 
-- **Status:** Ready by operator authorisation
+- **Status:** Merged 2026-09-16 via PR
+  [#4721](https://github.com/eddacraft/anvil-001/pull/4721) (claim GH #4719)
 - **Priority:** P2 — the wrong answer is *actionable in the opposite direction*:
   "not finished" says wait, the truth says repair. An automated caller waits
   until its own timeout on a PR that will never progress
