@@ -5275,15 +5275,23 @@ mod tests {
 
     /// CIB-414: a descendant git checkout under an ancestor checkout (the
     /// `$HOME`/dotfiles analogue) is still a graph root. The daemon has no
-    /// MCP server cwd; walking to filesystem root would over-refuse it.
-    /// Residual: the same nearest-checkout equality authorises a planted
-    /// `<repo>/secrets/.git` **directory** on first contact.
+    /// MCP server cwd; walking to filesystem root would over-refuse it, and
+    /// over-refusal is a real defect too.
+    ///
+    /// This is the DOCUMENTED RESIDUAL in the same breath: a *fully git-valid*
+    /// nested repository is indistinguishable on disk from a legitimately
+    /// vendored one, so the structural rule accepts both. A planted `.git`
+    /// that is not a minimum-viable repository is now refused (see
+    /// `gctx_open_mode_refuses_planted_bare_git_directory`); closing the
+    /// valid-repository case would need an authenticity signal git does not
+    /// have. See `workspace_admission`'s graph-root rule.
     #[test]
     fn gctx_open_mode_authorises_descendant_repo_under_ancestor_checkout() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let (main, _linked) = repo_with_linked_worktree(tmp.path());
         let nested = nested_secrets_dir(&main);
         fs::create_dir_all(nested.join(".git").join("refs")).expect("nested git refs");
+        fs::create_dir_all(nested.join(".git").join("objects")).expect("nested git objects");
         fs::write(nested.join(".git").join("HEAD"), b"ref: refs/heads/main\n")
             .expect("nested HEAD");
         let state = SaveTimeState::new(
@@ -5295,6 +5303,34 @@ mod tests {
 
         conn.search_symbols(&gctx_request(&nested))
             .expect("a descendant git checkout is its own graph root");
+    }
+
+    /// CIB-414 (M1): the demonstrated hole, end to end at the verb. A single
+    /// `mkdir <repo>/secrets/.git` used to make the daemon key a graph on the
+    /// nested directory on first contact — a bare `.git` is not a repository
+    /// to git, and is no longer one here.
+    #[test]
+    fn gctx_open_mode_refuses_planted_bare_git_directory() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        fs::create_dir_all(nested.join(".git")).expect("planted bare .git dir");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        );
+        let mut conn = SaveTimeConn::new(&state);
+
+        let err = conn
+            .search_symbols(&gctx_request(&nested))
+            .expect_err("a planted bare `.git` directory must not key a graph");
+        assert!(
+            matches!(err, SaveTimeError::NotAdmitted { .. }),
+            "the refusal must stay the static, path-free not-admitted reply: {err:?}"
+        );
+        conn.search_symbols(&gctx_request(&main))
+            .expect("the repo root is still admissible after the refusal");
     }
 
     fn dummy_symbol() -> SymbolIdentity {
