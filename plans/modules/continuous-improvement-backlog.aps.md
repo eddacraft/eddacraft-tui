@@ -14282,11 +14282,13 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   --test secret_gate_domain --offline` — 1 passed (2026-09-16).
 - **Priority:** P1 — the commit-blocking surface can PASS over live credentials
   in `.tsx` / `.jsx` / `.py` / `.go` / `.sh`
-- **Currency:** current — expanded on `main` via #4725; v0.11.0-beta still
-  shipped the skip
-- **Intent:** `anvil gate` and `check --all` secret-detection scan the source
-  types a React, Python, Go, or shell repository actually commits, instead of
-  only disclosing that they do not.
+- **Currency:** current — gate domain expanded on `main` via #4725;
+  v0.11.0-beta still shipped the skip. Residual: `check --all` discovery still
+  omits `.go`/`.sh` (advisory on #4725); per-file `anvil check <path>` already
+  finds them.
+- **Intent:** `anvil gate` secret-detection scans the source types a React,
+  Python, Go, or shell repository actually commits, instead of only disclosing
+  that they do not. `check --all` discovery is not this item's close.
 - **Expected Outcome:** A planted credential in `.tsx`, `.jsx`, `.py`, `.go`,
   or `.sh` fails `anvil gate --only-checks secret-detection`.
   `GATE_SECRET_SCAN_DOMAIN` names the expanded list. Tests that currently pin
