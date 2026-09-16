@@ -236,6 +236,13 @@ fn atomic_replace(dest: &Path, bytes: &[u8], root: &Path) -> Result<(), SafeWrit
                 "user-config/settings.yaml is not a regular file",
             ));
         }
+        if OpenOptions::new().write(true).open(dest).is_err() {
+            let _ = fs::remove_file(&tmp);
+            return Err(SafeWriteError::new(
+                SafeWriteClass::Permission,
+                "user-config/settings.yaml is not writable",
+            ));
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -485,13 +492,8 @@ mod settings_write_tests {
         let outside = tempdir().unwrap();
         let linked_root = dir.path().join("linked");
         std::os::unix::fs::symlink(outside.path(), &linked_root).unwrap();
-        let err = persist_user_settings(&linked_root, &BTreeMap::new());
-        if let Err(err) = err {
-            assert!(
-                matches!(err.class, SafeWriteClass::Traversal | SafeWriteClass::Symlink),
-                "{err}"
-            );
-        }
+        let err = persist_user_settings(&linked_root, &BTreeMap::new()).expect_err("escape");
+        assert_eq!(err.class, SafeWriteClass::Symlink);
     }
 
     #[cfg(unix)]
@@ -505,10 +507,9 @@ mod settings_write_tests {
         let mut values = BTreeMap::new();
         values.insert("interface.hints".into(), json!(false));
         let result = persist_user_settings(dir.path(), &values);
+        let class = result.as_ref().err().map(|err| err.class);
         fs::set_permissions(&dest, fs::Permissions::from_mode(0o600)).unwrap();
-        if let Err(err) = result {
-            assert_eq!(err.class, SafeWriteClass::Permission);
-        }
+        assert_eq!(class, Some(SafeWriteClass::Permission));
     }
 
     #[test]
@@ -521,17 +522,8 @@ mod settings_write_tests {
         persist_user_settings(dir.path(), &a).unwrap();
         persist_user_settings(dir.path(), &b).unwrap();
         let loaded = load_user_settings(dir.path()).unwrap();
-        assert!(
-            loaded.values.contains_key("interface.hints")
-                && !loaded.values.contains_key("interface.compact")
-                || loaded.values.contains_key("interface.compact")
-                    && !loaded.values.contains_key("interface.hints")
-                || loaded.values.len() == 1,
-            "{:?}",
-            loaded.values
-        );
-        let text = fs::read_to_string(user_settings_path(dir.path())).unwrap();
-        assert!(!text.contains("compact: true") || !text.contains("hints: false") || loaded.values.len() == 1);
+        assert_eq!(loaded.values.get("interface.hints"), Some(&json!(false)));
+        assert!(!loaded.values.contains_key("interface.compact"));
     }
 
     #[cfg(unix)]

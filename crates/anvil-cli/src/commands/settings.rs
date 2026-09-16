@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::io::IsTerminal;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 use anvil_observability::settings_telemetry::{SettingsSignal, emit as emit_settings_trace};
 use anvil_settings::exit_codes::{SettingsOutcome, code_for};
@@ -127,16 +128,19 @@ pub fn run(args: &SettingsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         if let Ok(file) = anvil_config::load_user_settings(&user_root) {
             state.source_revision = Some(file.revision);
         }
+        let captured = Arc::new(Mutex::new(state.source_revision.clone()));
+        let captured_for_persist = captured.clone();
         state.persist = Some(Box::new(move |write| {
             let (key, op) = match write {
                 PendingWrite::Toggle { key } => (key, ClassAOp::Toggle),
                 PendingWrite::Set { key, value } => (key, ClassAOp::Set(Value::String(value))),
                 PendingWrite::Reset { key } => (key, ClassAOp::Reset),
             };
-            let expected = anvil_config::load_user_settings(&user_root)
-                .ok()
-                .map(|file| file.revision);
-            apply_class_a(
+            let expected = captured_for_persist
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let stored = apply_class_a(
                 &catalogue,
                 &key,
                 op,
@@ -144,8 +148,11 @@ pub fn run(args: &SettingsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 &user_root,
                 expected.as_deref(),
             )
-            .map(|_| ())
-            .map_err(|err| err.to_string())
+            .map_err(|err| err.to_string())?;
+            *captured_for_persist
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(stored.revision);
+            Ok(())
         }));
         let state = crate::tui::run_surface(state)?;
         if state.search_used {
