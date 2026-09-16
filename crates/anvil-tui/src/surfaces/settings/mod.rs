@@ -139,6 +139,12 @@ pub struct SettingsRowView {
     /// True only when the projector reports resolved and active agree.
     pub compact: bool,
     pub detail: SettingsRowDetail,
+    /// SETPREF: Class A rows may be edited through the settings service.
+    pub class_a: bool,
+    pub write_scope: Option<String>,
+    pub boolean_value: Option<bool>,
+    pub enum_allowed: Vec<String>,
+    pub inherited: bool,
 }
 
 impl SettingsRowView {
@@ -163,7 +169,17 @@ impl SettingsRowView {
     }
 }
 
-/// Interactive Settings view state. Inspect-only: no edit path.
+/// Pending Class A write the CLI persists through the settings service.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PendingWrite {
+    Toggle { key: String },
+    Set { key: String, value: String },
+    Reset { key: String },
+}
+
+type PersistFn = Box<dyn FnMut(PendingWrite) -> Result<(), String>>;
+
+/// Interactive Settings view state. Class A edits go through `persist`.
 #[allow(clippy::struct_excessive_bools)]
 pub struct SettingsState {
     pub groups: Vec<SettingsGroupView>,
@@ -178,6 +194,10 @@ pub struct SettingsState {
     pub search_used: bool,
     pub should_quit: bool,
     pub wants_back: bool,
+    pub pending_write: Option<PendingWrite>,
+    pub pending_reset_key: Option<String>,
+    pub last_error: Option<String>,
+    pub persist: Option<PersistFn>,
 }
 
 impl SettingsState {
@@ -196,6 +216,10 @@ impl SettingsState {
             search_used: false,
             should_quit: false,
             wants_back: false,
+            pending_write: None,
+            pending_reset_key: None,
+            last_error: None,
+            persist: None,
         }
     }
 
@@ -259,16 +283,118 @@ impl SettingsState {
         self.groups.get(group_idx)?.rows.get(row_idx)
     }
 
+    fn current_row_mut(&mut self) -> Option<&mut SettingsRowView> {
+        let visible = self.visible_rows();
+        let (group_idx, row_idx) = visible.get(self.selected).copied()?;
+        self.groups.get_mut(group_idx)?.rows.get_mut(row_idx)
+    }
+
+    fn commit_write(&mut self, write: PendingWrite) {
+        self.last_error = None;
+        if let Some(persist) = self.persist.as_mut()
+            && let Err(err) = persist(write.clone())
+        {
+            self.last_error = Some(err);
+            return;
+        }
+        self.pending_write = Some(write);
+    }
+
+    fn toggle_class_a(&mut self) {
+        let Some(row) = self.current_row() else {
+            return;
+        };
+        if !row.class_a {
+            self.last_error = Some("not a Class A setting".into());
+            return;
+        }
+        let Some(current) = row.boolean_value else {
+            return;
+        };
+        let key = row.key.clone();
+        let next = !current;
+        let inherited = row.inherited;
+        self.commit_write(PendingWrite::Toggle { key });
+        if self.last_error.is_some() {
+            return;
+        }
+        if let Some(row) = self.current_row_mut() {
+            row.boolean_value = Some(next);
+            row.resolved_display = next.to_string();
+            row.source_badge = "user".into();
+            row.inherited = false;
+            if inherited {
+                row.detail.lines.insert(
+                    0,
+                    "override: writing user scope will override the inherited value".into(),
+                );
+            }
+        }
+    }
+
+    fn cycle_class_a_enum(&mut self) -> bool {
+        let Some(row) = self.current_row() else {
+            return false;
+        };
+        if !row.class_a || row.enum_allowed.is_empty() {
+            return false;
+        }
+        let key = row.key.clone();
+        let allowed = row.enum_allowed.clone();
+        let current = row.resolved_display.clone();
+        let idx = allowed
+            .iter()
+            .position(|item| item == &current)
+            .unwrap_or(0);
+        let next = allowed[(idx + 1) % allowed.len()].clone();
+        self.commit_write(PendingWrite::Set {
+            key,
+            value: next.clone(),
+        });
+        if self.last_error.is_some() {
+            return true;
+        }
+        if let Some(row) = self.current_row_mut() {
+            row.resolved_display = next;
+            row.source_badge = "user".into();
+            row.inherited = false;
+        }
+        true
+    }
+
+    fn preview_reset(&mut self) {
+        let Some(row) = self.current_row() else {
+            return;
+        };
+        if !row.class_a {
+            self.last_error = Some("reset stays read-only for this class".into());
+            return;
+        }
+        self.pending_reset_key = Some(row.key.clone());
+    }
+
+    fn confirm_reset(&mut self) {
+        let Some(key) = self.pending_reset_key.take() else {
+            return;
+        };
+        self.commit_write(PendingWrite::Reset { key });
+    }
+
     #[must_use]
     pub fn footer_commands(&self) -> &'static str {
         match self.tab {
             SettingsTab::Settings if self.searching => {
                 "type to filter  up/down results  esc cancel  ctrl+c quit"
             }
+            SettingsTab::Settings if self.pending_reset_key.is_some() => {
+                "enter confirm reset  esc cancel  q quit"
+            }
             SettingsTab::Settings if self.expanded => {
                 "h/l tabs  j/k navigate  enter collapse  esc close  q quit"
             }
-            SettingsTab::Settings => "h/l tabs  / search  j/k navigate  g/G jump  esc back  q quit",
+            SettingsTab::Settings => {
+                "h/l tabs  / search  space toggle  d reset  j/k navigate  g/G jump  esc back  q quit"
+            }
             SettingsTab::Status | SettingsTab::Sources => "h/l tabs  esc back  q quit",
         }
     }
@@ -372,13 +498,21 @@ impl SettingsState {
             Action::Character('G') | Action::End => self.jump_last(),
             Action::Up => self.move_selection(false),
             Action::Down => self.move_selection(true),
+            Action::Toggle => self.toggle_class_a(),
+            Action::Character('d') => self.preview_reset(),
             Action::Select => {
-                if self.current_row().is_some() {
+                if self.pending_reset_key.is_some() {
+                    self.confirm_reset();
+                } else if self.cycle_class_a_enum() {
+                    // Enum edit applied through the settings service.
+                } else if self.current_row().is_some() {
                     self.expanded = !self.expanded;
                 }
             }
             Action::Back => {
-                if self.expanded {
+                if self.pending_reset_key.is_some() {
+                    self.pending_reset_key = None;
+                } else if self.expanded {
                     self.expanded = false;
                 } else {
                     self.wants_back = true;
@@ -540,6 +674,11 @@ pub(crate) mod tests {
             consequence_badge: None,
             compact,
             detail: SettingsRowDetail::default(),
+            class_a: false,
+            write_scope: None,
+            boolean_value: None,
+            enum_allowed: Vec::new(),
+            inherited: false,
         }
     }
 
@@ -579,8 +718,8 @@ pub(crate) mod tests {
         };
 
         let mut compact_mode = row(
-            "interface.compact_mode",
-            "Compact mode",
+            "interface.compact",
+            "Compact display",
             "Reduce spacing in the TUI",
             "Interface",
             "true",
@@ -588,6 +727,10 @@ pub(crate) mod tests {
             RuntimeLabel::Active,
             true,
         );
+        compact_mode.class_a = true;
+        compact_mode.write_scope = Some("user".into());
+        compact_mode.boolean_value = Some(true);
+        compact_mode.inherited = false;
         compact_mode.deprecated_aliases = vec!["ui.compact".into()];
         compact_mode.active_display = Some("true".into());
         compact_mode.detail = SettingsRowDetail {
@@ -713,6 +856,21 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn settings_space_toggles_class_a_boolean() {
+        let mut state = sample_state();
+        state.focus_key("interface.compact");
+        state.handle_key(Action::Toggle);
+        let row = state.current_row().unwrap();
+        assert_eq!(row.boolean_value, Some(false));
+        assert_eq!(
+            state.pending_write,
+            Some(PendingWrite::Toggle {
+                key: "interface.compact".into()
+            })
+        );
+    }
+
+    #[test]
     fn settings_view_slash_focuses_search() {
         let mut state = sample_state();
         assert!(!state.text_entry_active());
@@ -746,7 +904,7 @@ pub(crate) mod tests {
         assert_eq!(state.visible_rows().len(), 1);
         assert_eq!(
             state.current_row().map(|row| row.key.as_str()),
-            Some("interface.compact_mode")
+            Some("interface.compact")
         );
     }
 
@@ -834,33 +992,22 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn settings_view_footer_omits_edit_commands() {
+    fn settings_view_footer_includes_class_a_edit_commands() {
         let state = sample_state();
         let footer = state.footer_commands();
-        assert!(!footer.to_ascii_lowercase().contains("edit"));
-        assert!(!footer.contains("space"));
-        assert!(!footer.contains("toggle"));
+        assert!(footer.contains("space toggle"), "{footer}");
+        assert!(footer.contains("d reset"), "{footer}");
+        assert!(!footer.to_ascii_lowercase().contains("audit"));
     }
 
     #[test]
-    fn settings_view_toggle_does_not_edit() {
+    fn settings_view_toggle_does_not_edit_class_c() {
         let mut state = sample_state();
-        let before = (
-            state.selected,
-            state.expanded,
-            state.searching,
-            state.search_query.clone(),
-        );
+        state.focus_key("protection.enforcement.mode");
+        let before = state.current_row().unwrap().resolved_display.clone();
         state.handle_key(Action::Toggle);
-        assert_eq!(
-            before,
-            (
-                state.selected,
-                state.expanded,
-                state.searching,
-                state.search_query.clone()
-            )
-        );
+        assert_eq!(state.current_row().unwrap().resolved_display, before);
+        assert!(state.last_error.is_some());
     }
 
     #[test]
@@ -870,7 +1017,7 @@ pub(crate) mod tests {
             .groups
             .iter()
             .flat_map(|group| group.rows.iter())
-            .find(|row| row.key == "interface.compact_mode")
+            .find(|row| row.key == "interface.compact")
             .expect("compact row");
         let rendered = format_row_values(compact);
         assert!(!rendered.contains("resolved:"), "{rendered}");
@@ -884,7 +1031,7 @@ pub(crate) mod tests {
             .groups
             .iter()
             .flat_map(|group| group.rows.iter())
-            .find(|row| row.key == "interface.compact_mode")
+            .find(|row| row.key == "interface.compact")
             .cloned()
             .expect("compact row");
         row.compact = true;

@@ -123,7 +123,8 @@ live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 was cut for testing and is **not** a promoted headline window. The **active**
 window is **`v0.11.1-beta`** (CIB Ready honesty after `v0.11.0-beta`), declared
 in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the
-NBI table. Shipped windows through `v0.11.0-beta` are promoted headlines.
+NBI table. Shipped windows through `v0.11.0-beta` are promoted headlines. Next
+minor claim is SETPREF (`v0.12.0-beta`).
 
 **Module tables below** mix archived Complete modules (Graph Substrate GV2/GCTX/…
 Released/Shipped via v0.9.0-beta and archived 2026-07-13), work landed around
@@ -800,6 +801,7 @@ checklist:
 `v0.11.1-beta` (CIB Ready honesty), module rows below
 remain owned by their home sections where they already live; this band is the
 programme hub, not a release claim.
+>>>>>>> 86d3b9683 (feat(settings): persist Class A preferences to user-config)
 
 | Track | Module | Scope | Status | Programme next |
 | ----- | ------ | ----- | ------ | -------------- |

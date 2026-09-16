@@ -16,6 +16,7 @@ pub mod redaction;
 pub mod resolver;
 pub mod runtime_state;
 pub mod seed;
+pub mod mutate;
 pub mod service;
 pub mod types;
 
@@ -38,6 +39,7 @@ pub use runtime_state::{
     Attestation, EvidenceChannel, EvidenceTrust, RuntimeState, classify_runtime_state,
 };
 pub use seed::first_release_catalogue;
+pub use mutate::{ClassAOp, apply_class_a};
 pub use service::{SettingRow, SettingsError, SettingsService, Snapshot, SnapshotRequest};
 pub use types::{
     ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, PersistenceTarget, Posture,

@@ -28,6 +28,14 @@ pub enum SettingsError {
     Redaction(#[from] RedactionError),
     #[error("io discovering config: {0}")]
     Discover(#[from] std::io::Error),
+    #[error("not a Class A setting: {0}")]
+    NotClassA(String),
+    #[error("scope {scope:?} is not writable for {key}")]
+    UnsupportedScope { key: String, scope: crate::types::Scope },
+    #[error("value does not match catalogue type for {0}")]
+    TypeMismatch(String),
+    #[error(transparent)]
+    Persist(#[from] anvil_config::SafeWriteError),
 }
 
 /// Internally consistent, `model_revision`-stamped snapshot.

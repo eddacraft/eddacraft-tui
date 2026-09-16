@@ -460,7 +460,7 @@ mod tests {
             output.push('\n');
         }
         assert!(
-            output.contains("Compact mode"),
+            output.contains("Compact display"),
             "selected last row must remain visible:\n{output}"
         );
         assert!(output.contains(">> "), "{output}");

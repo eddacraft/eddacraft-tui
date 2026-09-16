@@ -1,4 +1,4 @@
-//! Inspect-only `anvil settings` (SETINS-005/006). No mutation path.
+//! `anvil settings` inspect (SETINS) plus Class A edits (SETPREF).
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -8,13 +8,14 @@ use std::path::Path;
 use anvil_observability::settings_telemetry::{SettingsSignal, emit as emit_settings_trace};
 use anvil_settings::exit_codes::{SettingsOutcome, code_for};
 use anvil_settings::{
-    Catalogue, CatalogueEntry, Declaration, EnvelopeCommand, HealthStatus, ResolutionEvent,
-    RuntimeState, Scope, SettingGroup, SettingRow, SettingsService, Snapshot, SnapshotRequest,
-    first_release_catalogue, redact_setting_value,
+    Catalogue, CatalogueEntry, ClassAOp, ConsequenceClass, Declaration, EnvelopeCommand,
+    HealthStatus, ResolutionEvent, RuntimeState, Scope, SettingGroup, SettingRow, SettingsService,
+    Snapshot, SnapshotRequest, ValueType, apply_class_a, first_release_catalogue,
+    redact_setting_value,
 };
 use anvil_tui::surfaces::settings::{
-    RuntimeLabel, SettingsGroupView, SettingsRowDetail, SettingsRowView, SettingsSourceRow,
-    SettingsSourcesView, SettingsState, SettingsStatusView,
+    PendingWrite, RuntimeLabel, SettingsGroupView, SettingsRowDetail, SettingsRowView,
+    SettingsSourceRow, SettingsSourcesView, SettingsState, SettingsStatusView,
 };
 use anyhow::Context;
 use clap::{Args, Subcommand, ValueEnum};
@@ -121,6 +122,18 @@ pub fn run(args: &SettingsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         if let Some(key) = args.focus.as_deref() {
             state.focus_key(key);
         }
+        let catalogue = first_release_catalogue().context("settings catalogue")?;
+        let user_root = anvil_config::user_config_root();
+        state.persist = Some(Box::new(move |write| {
+            let (key, op) = match write {
+                PendingWrite::Toggle { key } => (key, ClassAOp::Toggle),
+                PendingWrite::Set { key, value } => (key, ClassAOp::Set(Value::String(value))),
+                PendingWrite::Reset { key } => (key, ClassAOp::Reset),
+            };
+            apply_class_a(&catalogue, &key, op, Scope::User, &user_root, None)
+                .map(|_| ())
+                .map_err(|err| err.to_string())
+        }));
         let state = crate::tui::run_surface(state)?;
         if state.search_used {
             emit_settings_signal(SettingsSignal::SearchUsed);
@@ -177,7 +190,8 @@ impl InspectModel {
 
 fn load_model(root: &Path) -> anyhow::Result<InspectModel> {
     let catalogue = first_release_catalogue().context("settings catalogue")?;
-    let declarations = declarations_from_project(root, &catalogue);
+    let mut declarations = declarations_from_user();
+    declarations.extend(declarations_from_project(root, &catalogue));
     let service = SettingsService::new(catalogue);
     let generated_at = "1970-01-01T00:00:00Z";
     let snapshot = service
@@ -197,6 +211,22 @@ fn load_model(root: &Path) -> anyhow::Result<InspectModel> {
         snapshot,
         generated_at,
     })
+}
+
+fn declarations_from_user() -> Vec<Declaration> {
+    let root = anvil_config::user_config_root();
+    let Ok(file) = anvil_config::load_user_settings(&root) else {
+        return Vec::new();
+    };
+    file.values
+        .into_iter()
+        .map(|(key, value)| Declaration {
+            key,
+            scope: Scope::User,
+            source_id: "user-config".into(),
+            event: ResolutionEvent::Set(value),
+        })
+        .collect()
 }
 
 fn declarations_from_project(root: &Path, catalogue: &Catalogue) -> Vec<Declaration> {
@@ -260,7 +290,15 @@ fn group_label(group: SettingGroup) -> &'static str {
 }
 
 fn project_row(catalogue: &Catalogue, entry: &CatalogueEntry, row: &SettingRow) -> SettingsRowView {
-    let resolved_display = display_value(catalogue, &row.key, row.resolved.as_ref());
+    let resolved_display = if entry.consequence_class == ConsequenceClass::A {
+        match row.resolved.as_ref() {
+            Some(Value::Bool(flag)) => flag.to_string(),
+            Some(Value::String(text)) => text.clone(),
+            _ => display_value(catalogue, &row.key, row.resolved.as_ref()),
+        }
+    } else {
+        display_value(catalogue, &row.key, row.resolved.as_ref())
+    };
     let runtime = match row.runtime {
         RuntimeState::Active => RuntimeLabel::Active,
         RuntimeState::Drift => RuntimeLabel::Drift,
@@ -277,6 +315,7 @@ fn project_row(catalogue: &Catalogue, entry: &CatalogueEntry, row: &SettingRow) 
             || "default".to_owned(),
             |event| format!("{:?}", event.scope).to_ascii_lowercase(),
         );
+    let inherited = source != "user" && source != "default";
     SettingsRowView {
         key: row.key.clone(),
         label: entry.label.clone(),
@@ -298,6 +337,16 @@ fn project_row(catalogue: &Catalogue, entry: &CatalogueEntry, row: &SettingRow) 
                 format!("cli: anvil settings explain {}", row.key),
             ],
         },
+        class_a: entry.consequence_class == ConsequenceClass::A,
+        write_scope: entry
+            .default_write_scope
+            .map(|scope| format!("{scope:?}").to_ascii_lowercase()),
+        boolean_value: row.resolved.as_ref().and_then(Value::as_bool),
+        enum_allowed: match &entry.value_type {
+            ValueType::Enum { allowed } => allowed.clone(),
+            _ => Vec::new(),
+        },
+        inherited,
     }
 }
 

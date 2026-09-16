@@ -102,15 +102,15 @@ on changes that cannot weaken protection.
 
 ## Acceptance Criteria
 
-- [ ] Class A preferences can be changed and reverted through the settings service
-- [ ] The target scope is visible, with user scope as the documented default
-- [ ] Editing an inherited value states the override consequence before applying
-- [ ] Reset previews the newly inherited value and source before removing the
+- [x] Class A preferences can be changed and reverted through the settings service
+- [x] The target scope is visible, with user scope as the documented default
+- [x] Editing an inherited value states the override consequence before applying
+- [x] Reset previews the newly inherited value and source before removing the
       selected declaration
-- [ ] Concurrent modification prevents apply, preserves the source, and leaves
+- [x] Concurrent modification prevents apply, preserves the source, and leaves
       the pending edit available for review or retry
-- [ ] Failed validation produces no partial configuration write
-- [ ] Tests cover symbolic links, path traversal, permissions, interrupted
+- [x] Failed validation produces no partial configuration write
+- [x] Tests cover symbolic links, path traversal, permissions, interrupted
       writes and concurrent writes
 
 ## Ready Checklist
@@ -139,9 +139,10 @@ Change status to **Ready** when:
   interface writes a configuration file directly.
 - **Non-scope:** Class B/C flows; audit records
 - **Dependencies:** SETCON-010, SETINS-002
-- **Validation:** `cargo test -p anvil-config settings_write_class_a`
+- **Validation:** `cargo test -p eddacraft-anvil-config -- settings_write_class_a`; `cargo test -p eddacraft-anvil-settings -- settings_write_class_a`
+- **Files:** `crates/anvil-config/src/settings_write.rs`, `crates/anvil-settings/src/mutate.rs`, `crates/anvil-tui/src/surfaces/settings/mod.rs`, `crates/anvil-cli/src/commands/settings.rs`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETPREF-002: Target scope and override disclosure
 
@@ -155,9 +156,10 @@ Change status to **Ready** when:
   offering an edit.
 - **Non-scope:** Session-scope overrides with expiry (SETGOV)
 - **Dependencies:** SETPREF-001
-- **Validation:** `cargo test -p anvil-config settings_scope`
+- **Validation:** `cargo test -p eddacraft-anvil-settings -- settings_scope`
+- **Files:** `crates/anvil-settings/src/mutate.rs`, `crates/anvil-tui/src/surfaces/settings/mod.rs`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETPREF-003: Reset with inheritance preview
 
@@ -170,9 +172,10 @@ Change status to **Ready** when:
   proposal flow later.
 - **Non-scope:** Governed reset (SETGOV)
 - **Dependencies:** SETPREF-002
-- **Validation:** `cargo test -p anvil-config settings_reset`
+- **Validation:** `cargo test -p eddacraft-anvil-config -- settings_reset`; `cargo test -p eddacraft-anvil-settings -- settings_reset`
+- **Files:** `crates/anvil-config/src/settings_write.rs`, `crates/anvil-settings/src/mutate.rs`, `crates/anvil-tui/src/surfaces/settings/mod.rs`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETPREF-004: Atomic persistence
 
@@ -184,9 +187,10 @@ Change status to **Ready** when:
   claim about activation.
 - **Non-scope:** Multi-file transactional writes and recovery protocol (SETGOV)
 - **Dependencies:** SETPREF-001
-- **Validation:** `cargo test -p anvil-config settings_persist`
+- **Validation:** `cargo test -p eddacraft-anvil-config -- settings_persist`
+- **Files:** `crates/anvil-config/src/settings_write.rs`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETPREF-005: Concurrent-change detection
 
@@ -197,9 +201,10 @@ Change status to **Ready** when:
   pending edit available for review or retry rather than discarding it.
 - **Non-scope:** Proposal staleness rules (SETGOV)
 - **Dependencies:** SETPREF-004
-- **Validation:** `cargo test -p anvil-config settings_concurrency`
+- **Validation:** `cargo test -p eddacraft-anvil-config -- settings_concurrency`
+- **Files:** `crates/anvil-config/src/settings_write.rs`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### SETPREF-006: Safe-write hardening
 
@@ -212,6 +217,7 @@ Change status to **Ready** when:
   diagnostic that embeds no unredacted source values or paths.
 - **Non-scope:** Recovery for multi-resource transactions (SETGOV)
 - **Dependencies:** SETPREF-004
-- **Validation:** `cargo test -p anvil-config settings_safe_write`
+- **Validation:** `cargo test -p eddacraft-anvil-config -- settings_safe_write`
+- **Files:** `crates/anvil-config/src/settings_write.rs`, `plans/specs/2026-09-16-settings-class-a-safe-write.md`
 - **Confidence:** medium
-- **Status:** Proposed
+- **Status:** In Progress
