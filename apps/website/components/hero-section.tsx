@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
-import { scrollToWaitlist as scrollToWaitlistSection } from '@/lib/scroll';
 import { TerminalWindow } from './terminal-window';
+import { WaitlistForm } from './waitlist-form';
 
 const REDACTED_INSTALL_COMMAND = 'brew install eddacraft/[EARLY-ACCESS]/anvil';
 
@@ -40,19 +40,55 @@ async function unlockInstallCommand(accessKey: string): Promise<UnlockResult> {
   return { ok: false, reason: 'unknown' };
 }
 
+interface InstallCommandRowProps {
+  command: string;
+}
+
+// Shown once an early-access key has unlocked the real tap. Rendered both in
+// the unlock dialog and inline in the hero, so the copy action stays reachable
+// after the dialog closes.
+export function InstallCommandRow({ command }: InstallCommandRowProps) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div className="flex max-w-xl border border-structure bg-surface font-mono text-xs">
+      <div className="min-w-0 flex-1 truncate px-4 py-3">
+        <span className="text-anvil">$ {command}</span>
+        <span className="ml-3 text-ghost-grey"># unlocked</span>
+      </div>
+      <button
+        type="button"
+        aria-label={copied ? 'Install command copied' : 'Copy install command'}
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(command);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+          } catch {
+            setCopied(false);
+          }
+        }}
+        className="shrink-0 border-l border-structure px-3 py-3 uppercase tracking-wide text-ghost-grey transition-colors hover:text-off-white"
+      >
+        {copied ? '[ COPIED ]' : '[ COPY ]'}
+      </button>
+    </div>
+  );
+}
+
 export function HeroSection() {
   const [open, setOpen] = useState(false);
   const [accessKey, setAccessKey] = useState('');
   const [status, setStatus] = useState<AccessStatus>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [installCommand, setInstallCommand] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const waitlistInputRef = useRef<HTMLInputElement>(null);
 
   const installUnlocked = Boolean(installCommand);
 
-  const scrollToWaitlist = () => {
+  const focusWaitlist = () => {
     setOpen(false);
-    scrollToWaitlistSection();
+    window.setTimeout(() => waitlistInputRef.current?.focus(), 100);
   };
 
   const handleAccessSubmit = async (event: FormEvent) => {
@@ -119,52 +155,36 @@ export function HeroSection() {
             Understand the change. Apply your standards. Stop unsafe work before it reaches review.
           </p>
 
-          <div className="mt-9 flex max-w-xl flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={scrollToWaitlist}
-              className="border border-anvil bg-anvil px-5 py-3 font-mono text-xs uppercase tracking-wide text-void transition-colors hover:bg-anvil/90"
-            >
-              [ = ] request early access
-            </button>
-            <Link
-              href="https://docs.eddacraft.ai/anvil/overview"
-              className="border border-structure px-5 py-3 font-mono text-xs uppercase tracking-wide text-ghost-grey transition-colors hover:border-border-strong hover:text-off-white"
-            >
-              read the docs
-            </Link>
+          <div className="mt-9">
+            <WaitlistForm id="hero-waitlist-email" inputRef={waitlistInputRef} />
           </div>
 
           <Dialog.Root open={open} onOpenChange={setOpen}>
-            <div className="mt-4 flex max-w-xl border border-structure bg-surface">
-              <Dialog.Trigger asChild>
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 px-4 py-3 text-left font-mono text-xs transition-colors hover:bg-void"
-                >
-                  <span className="text-anvil">$ {installCommand ?? REDACTED_INSTALL_COMMAND}</span>
-                  <span className="ml-3 text-ghost-grey">
-                    # {installUnlocked ? 'unlocked' : 'auth-required'}
-                  </span>
-                </button>
-              </Dialog.Trigger>
-              <button
-                type="button"
-                aria-label={copied ? 'Install command copied' : 'Copy install command'}
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(installCommand ?? REDACTED_INSTALL_COMMAND);
-                    setCopied(true);
-                    window.setTimeout(() => setCopied(false), 1600);
-                  } catch {
-                    setOpen(true);
-                  }
-                }}
-                className="shrink-0 border-l border-structure px-3 py-3 font-mono text-xs uppercase tracking-wide text-ghost-grey transition-colors hover:text-off-white"
+            <div className="mt-4 flex max-w-xl flex-col gap-3 sm:flex-row">
+              <Link
+                href="https://docs.eddacraft.ai/anvil/overview"
+                className="border border-structure px-5 py-3 font-mono text-xs uppercase tracking-wide text-ghost-grey transition-colors hover:border-border-strong hover:text-off-white"
               >
-                {copied ? '[ COPIED ]' : '[ COPY ]'}
-              </button>
+                read the docs
+              </Link>
+              {!installUnlocked ? (
+                <Dialog.Trigger asChild>
+                  <button
+                    type="button"
+                    className="border border-structure px-5 py-3 text-left font-mono text-xs uppercase tracking-wide text-ghost-grey transition-colors hover:border-border-strong hover:text-off-white"
+                  >
+                    have an access key? unlock install
+                  </button>
+                </Dialog.Trigger>
+              ) : null}
             </div>
+
+            {installCommand ? (
+              <div className="mt-4">
+                <InstallCommandRow command={installCommand} />
+              </div>
+            ) : null}
+
             <Dialog.Portal>
               <Dialog.Overlay className="fixed inset-0 z-50 bg-void/90" />
               <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -185,12 +205,14 @@ export function HeroSection() {
                     </Dialog.Close>
                   </div>
 
-                  <div className="border border-structure bg-void px-3 py-3 text-xs sm:text-sm">
-                    <span className="text-ghost-grey">$ </span>
-                    <span className={installUnlocked ? 'text-anvil' : 'text-ghost-grey'}>
-                      {installCommand ?? REDACTED_INSTALL_COMMAND}
-                    </span>
-                  </div>
+                  {installCommand ? (
+                    <InstallCommandRow command={installCommand} />
+                  ) : (
+                    <div className="border border-structure bg-void px-3 py-3 text-xs sm:text-sm">
+                      <span className="text-ghost-grey">$ </span>
+                      <span className="text-ghost-grey">{REDACTED_INSTALL_COMMAND}</span>
+                    </div>
+                  )}
 
                   {installUnlocked ? (
                     <div className="space-y-4">
@@ -236,7 +258,7 @@ export function HeroSection() {
                         </button>
                         <button
                           type="button"
-                          onClick={scrollToWaitlist}
+                          onClick={focusWaitlist}
                           className="flex-1 border border-structure px-4 py-3 text-xs uppercase tracking-wide text-ghost-grey transition-colors hover:border-border-strong hover:text-off-white"
                         >
                           Request access
