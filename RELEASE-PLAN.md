@@ -130,13 +130,13 @@ stays later.
 
 ### Phase plan
 
-| Phase          | Scope                                  | State         |
-| -------------- | -------------------------------------- | ------------- |
-| **0.11.0 tag** | Windows readiness and inspect surfaces | Tagged        |
-| **Claim lock** | CIB-424 primary; Ready CIB + CLICT-008 | This change   |
-| **Implement**  | Primary then secondaries               | Next          |
-| **Changelog**  | Curate `[Unreleased]`                  | Not started   |
-| **Cut**        | Preflight → prepare → readiness → tag  | Not scheduled |
+| Phase          | Scope                                  | State                                                                            |
+| -------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
+| **0.11.0 tag** | Windows readiness and inspect surfaces | Tagged                                                                           |
+| **Claim lock** | CIB-424 primary; Ready CIB + CLICT-008 | This change                                                                      |
+| **Implement**  | Primary then secondaries               | Primary Merged (#4725); CIB-425 Merged (#4723); leftover Ready CIB waived at cut |
+| **Changelog**  | Curate `[Unreleased]`                  | This change                                                                      |
+| **Cut**        | Preflight → prepare → readiness → tag  | Not scheduled                                                                    |
 
 ### Cut criteria
 

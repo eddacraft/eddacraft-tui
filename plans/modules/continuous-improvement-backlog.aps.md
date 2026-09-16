@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 340/424  |
+| CIB | —     | In Progress | 342/424  |
 
 ## Purpose
 
@@ -14276,10 +14276,14 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-424: Expand gate secret-detection onto source types the commit gate currently skips
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-16 via PR
+  [#4725](https://github.com/eddacraft/anvil-001/pull/4725) (`e1aad4c04`);
+  ancestor of `origin/main`. Validation: `cargo test -p eddacraft-anvil
+  --test secret_gate_domain --offline` — 1 passed (2026-09-16).
 - **Priority:** P1 — the commit-blocking surface can PASS over live credentials
   in `.tsx` / `.jsx` / `.py` / `.go` / `.sh`
-- **Currency:** current — still the v0.11.0-beta SECRET_SCAN_EXTS skip
+- **Currency:** current — expanded on `main` via #4725; v0.11.0-beta still
+  shipped the skip
 - **Intent:** `anvil gate` and `check --all` secret-detection scan the source
   types a React, Python, Go, or shell repository actually commits, instead of
   only disclosing that they do not.
@@ -14305,16 +14309,19 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   local APS `ANVILGOV-013`); CIB-255 GATE-1; pack-10 harvest B33
 - **Coordinates with:** CIB-255 (Released/Shipped disclosure), CIB-234 (audit
   domain honesty), RETRACT-1 Anchor B
-- **Confidence:** high — allow-list is `SECRET_SCAN_EXTS`; tests currently
-  require `{ext} must stay outside the gate secret domain`
+- **Confidence:** high — allow-list is `SECRET_SCAN_EXTS`; domain tests now
+  require `{ext} must be scannable (CIB-424 expanded domain)`
 
 ### CIB-425: Write Kindling runtime sidecars under `.anvil/`, not tracked `anvil/`
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-16 via PR
+  [#4723](https://github.com/eddacraft/anvil-001/pull/4723) (`a55063399`);
+  ancestor of `origin/main`.
 - **Priority:** P2 — untracked churn inside a tracked directory; one
   `git add -A` from committing session UUIDs, and it crosses the ADR-073
   durable-vs-runtime split the product's own `state-boundary` check reports
-- **Currency:** current — audit-chain.ndjson still writes under anvil/kindling/
+- **Currency:** current — writes `.anvil/kindling/audit-chain.ndjson` on `main`
+  via #4723; v0.11.0-beta still wrote `anvil/kindling/`
 - **Intent:** Kindling runtime NDJSON (`audit-chain.ndjson` and any sibling
   under `anvil/kindling/`) is written under `.anvil/kindling/`, next to
   `.anvil/kindling.db`, so consumer repos never grow runtime files in the
