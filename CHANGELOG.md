@@ -24,7 +24,7 @@ repository actually commits.
   expanded list. Previously the gate only disclosed that those types were
   skipped.
 
-- **Kindling runtime logs live under `.anvil/`, not in tracked `anvil/`.**
+- **kindling runtime logs live under `.anvil/`, not in tracked `anvil/`.**
   `anvil audit-chain` appends `.anvil/kindling/audit-chain.ndjson` and no longer
   creates `anvil/kindling/`.
 
@@ -32,8 +32,8 @@ repository actually commits.
   intercept, and related surfaces print operator-facing copy without `ADR-`,
   `CIB-`, or similar tokens.
 
-- **The Kindling daemon does not auto-spawn when no `kindling` binary is on
-  PATH.** Missing Kindling is a skip, not a crash or a spawn loop.
+- **The kindling daemon does not auto-spawn when no `kindling` binary is on
+  PATH.** Missing kindling is a skip, not a crash or a spawn loop.
 
 ## [0.11.0-beta] — 2026-09-15 — Windows readiness and inspect surfaces
 
