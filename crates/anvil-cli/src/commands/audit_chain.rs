@@ -230,7 +230,7 @@ pub fn run(args: &AuditChainArgs, global: &GlobalArgs) -> Result<()> {
 
     // MLP2-054 — emit one `gate_evaluated` Kindling row per audit run
     // so historical drift is queryable through the observation
-    // timeline. Failures are non-fatal: a missing `anvil/kindling/`
+    // timeline. Failures are non-fatal: a missing `.anvil/kindling/`
     // path or a write error must not flip the audit's exit code.
     if let Err(e) = emit_audit_kindling_row(&repo_root, &report, duration_ms) {
         tracing::warn!(
@@ -254,7 +254,7 @@ pub fn run(args: &AuditChainArgs, global: &GlobalArgs) -> Result<()> {
 }
 
 /// Build the Kindling observation for an audit run and append it to
-/// `anvil/kindling/audit-chain.ndjson`. Pure-ish: takes the repo root
+/// `.anvil/kindling/audit-chain.ndjson`. Pure-ish: takes the repo root
 /// plus an already-computed `AuditReport` plus the wall-clock
 /// duration. The session id, gate eval id, and timestamp are minted
 /// here because they are per-invocation identity rather than audit
@@ -275,7 +275,7 @@ pub(crate) fn emit_audit_kindling_row(
     }
 
     // DISTRIB-006 (ADR-060): the kindling observation row is appended under the
-    // project root (`anvil/kindling/`). Skip it under a gated ANVIL_HOME so a
+    // project root (`.anvil/kindling/`). Skip it under a gated ANVIL_HOME so a
     // candidate does not write a real project's audit sidecar — the audit output
     // itself (read-only) is unaffected and the caller already treats this as
     // best-effort.
@@ -305,7 +305,7 @@ pub(crate) fn emit_audit_kindling_row(
 }
 
 /// Append one JSON-serialised observation as a single NDJSON line.
-/// Creates `anvil/kindling/` if it does not yet exist; the audit-
+/// Creates `.anvil/kindling/` if it does not yet exist; the audit-
 /// chain consumer (Kindling-integration) tails the file the same way
 /// it tails the witness manifest stream.
 fn append_kindling_observation(
@@ -316,7 +316,7 @@ fn append_kindling_observation(
     // gate_id should fail loudly rather than silently mis-route rows.
     debug_assert_eq!(observation.gate_id, AUDIT_CHAIN_GATE_ID);
 
-    let dir = repo_root.join("anvil").join("kindling");
+    let dir = repo_root.join(".anvil").join("kindling");
     fs::create_dir_all(&dir).with_context(|| format!("create kindling dir {}", dir.display()))?;
     let path = dir.join(KINDLING_AUDIT_NDJSON);
     let serialised =
@@ -1263,11 +1263,15 @@ mod tests {
         )
     }
 
-    fn read_kindling_lines(repo_root: &Path) -> Vec<serde_json::Value> {
-        let path = repo_root
-            .join("anvil")
+    fn kindling_sidecar_path(repo_root: &Path) -> PathBuf {
+        repo_root
+            .join(".anvil")
             .join("kindling")
-            .join(KINDLING_AUDIT_NDJSON);
+            .join(KINDLING_AUDIT_NDJSON)
+    }
+
+    fn read_kindling_lines(repo_root: &Path) -> Vec<serde_json::Value> {
+        let path = kindling_sidecar_path(repo_root);
         let contents = fs::read_to_string(&path).expect("kindling sidecar exists");
         contents
             .lines()
@@ -1293,6 +1297,30 @@ mod tests {
     }
 
     #[test]
+    fn emit_audit_kindling_row_writes_under_dot_anvil_not_tracked_anvil() {
+        let tmp = TempDir::new().unwrap();
+        write_minimal_chain(tmp.path(), &["aaa", "bbb"]);
+        let report = run_audit_chain(tmp.path(), "HEAD", None, 5);
+
+        with_usage_collection_enabled(|| {
+            emit_audit_kindling_row(tmp.path(), &report, 42).expect("emit");
+        });
+
+        assert!(
+            kindling_sidecar_path(tmp.path()).is_file(),
+            "sidecar must land at .anvil/kindling/audit-chain.ndjson"
+        );
+        assert!(
+            !tmp.path().join("anvil").join("kindling").exists(),
+            "must not create the tracked anvil/kindling/ tree"
+        );
+        assert!(
+            tmp.path().join("anvil").join("witness").exists(),
+            "witness chain under anvil/witness/ must stay untouched"
+        );
+    }
+
+    #[test]
     fn do_not_track_suppresses_the_audit_kindling_row() {
         let tmp = TempDir::new().unwrap();
         write_minimal_chain(tmp.path(), &["aaa", "bbb"]);
@@ -1311,12 +1339,43 @@ mod tests {
         );
 
         assert!(
-            !tmp.path()
-                .join("anvil")
-                .join("kindling")
-                .join(KINDLING_AUDIT_NDJSON)
-                .exists(),
-            "DO_NOT_TRACK must prevent the direct audit-chain producer from writing",
+            !kindling_sidecar_path(tmp.path()).exists(),
+            "DO_NOT_TRACK must prevent the direct audit-chain producer from writing"
+        );
+        assert!(
+            !tmp.path().join("anvil").join("kindling").exists(),
+            "privacy opt-out must not create the legacy tracked kindling tree either"
+        );
+    }
+
+    #[test]
+    fn gated_anvil_home_does_not_write_kindling_sidecar() {
+        let tmp = TempDir::new().unwrap();
+        write_minimal_chain(tmp.path(), &["aaa", "bbb"]);
+        let report = run_audit_chain(tmp.path(), "HEAD", None, 5);
+        let home = TempDir::new().unwrap();
+        let home_path = home.path().to_str().expect("temp ANVIL_HOME is UTF-8");
+
+        with_usage_collection_enabled(|| {
+            temp_env::with_vars(
+                [
+                    ("ANVIL_HOME", Some(home_path)),
+                    ("ANVIL_TOUCH_PROJECT_STATE", None::<&str>),
+                ],
+                || {
+                    emit_audit_kindling_row(tmp.path(), &report, 42)
+                        .expect("DISTRIB-006 gated no-write is a successful no-op");
+                },
+            );
+        });
+
+        assert!(
+            !kindling_sidecar_path(tmp.path()).exists(),
+            "gated ANVIL_HOME must not write .anvil/kindling/audit-chain.ndjson"
+        );
+        assert!(
+            !tmp.path().join("anvil").join("kindling").exists(),
+            "gated ANVIL_HOME must not write anvil/kindling/"
         );
     }
 

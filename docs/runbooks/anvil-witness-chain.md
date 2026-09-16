@@ -1,8 +1,8 @@
 # Witness Chain — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-14 after docs-owed upstream touch on multilayer-protection-v2.aps.md (archive link retarget only; witness-chain procedure unchanged). Prior: 2026-09-10 against ADR-037 after archive-path reference tidy on related ADRs; witness-chain procedure unchanged. Prior: 2026-09-07 archive of v0.7.0-beta security-note path cited from MLP2; first filed 2026-05-18 as N4 doc-lane closure for v0.7.0-beta |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------- | ------------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-16 for CIB-425: Kindling audit-chain sidecar moved to `.anvil/kindling/audit-chain.ndjson`. Prior: 2026-09-14 after docs-owed upstream touch on multilayer-protection-v2.aps.md (archive link retarget only; witness-chain procedure unchanged). Prior: 2026-09-10 against ADR-037 after archive-path reference tidy on related ADRs; witness-chain procedure unchanged. Prior: 2026-09-07 archive of v0.7.0-beta security-note path cited from MLP2; first filed 2026-05-18 as N4 doc-lane closure for v0.7.0-beta |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                         | Downstream                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -150,10 +150,13 @@ workflow `anvil-audit.yml` in `.github/workflows/` (installed via the activation
 orchestrator, MLP2-053) runs this command and emits a `degraded:audit-drift`
 marker when threshold is met.
 
-A Kindling observation row is appended to `anvil/kindling/audit-chain.ndjson` on
-every run. Note this sidecar lives under `anvil/kindling/` — a different tree
-from the rollover manifest at `anvil/witness/manifest/chain.ndjson`. Downstream
-consumers tail it as a plain NDJSON stream.
+A Kindling observation row is appended to `.anvil/kindling/audit-chain.ndjson`
+on every run (CIB-425; ADR-073 runtime tree). That sidecar is local runtime
+state next to `.anvil/kindling.db`, not durable governance — the rollover
+manifest stays at `anvil/witness/manifest/chain.ndjson`. Downstream consumers
+tail the Kindling file as a plain NDJSON stream. `anvil init` gitignores
+`.anvil/` wholesale, so the sidecar is ignored without a consumer gitignore
+rule.
 
 ### `anvil hook pre-push`
 
