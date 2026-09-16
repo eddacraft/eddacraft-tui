@@ -12255,11 +12255,13 @@ hang before opening a supervisor ticket.
   spawn is not attempted
 - **Identified From:** KDS-005 ops follow-up; CI-log 2026-08-31; revalidated
   2026-09-16
-- **Coordinates with:** KDS-005 (spool cap, Released/Shipped), CIB-425
+- **Coordinates with:** CIB-429 (the same unbounded writer still live on the
+  `anvil kindling usage` path), KDS-005 (spool cap, Released/Shipped), CIB-425
   (Kindling sidecar path — separate write), `kindling-client` spawn-log cap
   (upstream, not this item)
 - **Confidence:** high on the mechanism and the 2026-09-16 remeasure;
-  Ready scope is the anvil-side skip, not the upstream byte/age cap
+  the landed scope is the anvil-side skip **plus** the null-device redirect,
+  not the upstream byte/age cap
 
 ### CIB-382: Close residual intercept rendezvous lifecycle and PID trust gaps
 
@@ -13874,6 +13876,27 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 ### CIB-414: The intercept daemon still keys a graph on any nested root a socket client hands it
 
 - **Status:** Ready
+- **Review 2026-09-16 (Council `council-75c4bfed`, decision REPAIR):** a first
+  implementation attempt ([#4732](https://github.com/eddacraft/anvil-001/pull/4732))
+  did **not** close the bypass and is not merged. Four independent lenses
+  demonstrated by execution that the structural graph-root rule is defeated by a
+  planted `.git` directory, a `.git` file with an unresolvable `gitdir:` pointer,
+  a **symlinked** `.git` directory (`symlink_metadata` does not follow, so the
+  ancestor walk climbs past a real checkout boundary), a non-UTF-8 `gitdir:`
+  line, and a fabricated `.git/worktrees/<n>/gitdir` registration — the last of
+  which survives even after the parent root is admitted. Root cause: the
+  detector was more permissive than git itself, and every inconclusive branch
+  failed **open**. Repair is bounded (git-parity detection, fail-closed on
+  inconclusive, reciprocal worktree-registration validation, negative tests) and
+  is in progress on the same PR.
+- **Known residual (accepted, not closed by this item):** git's on-disk model
+  carries no authenticity signal — repo and worktree metadata are plain text a
+  same-uid principal can write. A sufficiently motivated attacker who builds a
+  genuinely git-valid nested checkout still satisfies a purely structural rule.
+  MCP escapes this because its rule is *relational*, anchored on a trusted
+  `server_root`; the daemon has no such anchor on first contact. Closing that
+  class needs an anchor-based trust model and is a separate design decision, not
+  this item.
 - **Priority:** P2 — the unauthenticated surface (the six MCP graph tools) is
   closed by CIB-398; what remains is a same-uid local socket client in the
   default `open` admission mode, which is a narrower attacker than the MCP
