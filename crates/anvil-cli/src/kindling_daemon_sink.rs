@@ -105,8 +105,11 @@ fn rfc3339_to_epoch_ms(timestamp: &str) -> Option<i64> {
 /// 5.01 MB / 59,259 identical lines on a dev host).
 ///
 /// The unbounded writer is upstream (`kindling_client::config::append_spawn_log`
-/// in 0.3.0) and a cap there is a separate follow-up. Anvil's interim is to not
-/// reach it: when the binary is absent the spawn can only ever fail, so
+/// in 0.3.0) and a cap there is a separate follow-up. kindling-client 0.3.0
+/// logs every spawner `Err` and has no off-value for the spawn log
+/// (`spawn_log_path: None` falls back to `~/.kindling/spawn.log`). anvil's
+/// interim is therefore to keep the line count unchanged: when the binary is
+/// absent the spawn can only ever fail, so
 ///
 /// - the spawner is replaced with one that never execs (skipping the attempt,
 ///   and the per-emit `fork`/`exec` it costs), and
@@ -157,8 +160,10 @@ fn resolves_kindling_binary(path_var: Option<&OsStr>) -> bool {
 /// Names `Command::new("kindling")` would try on this platform.
 #[cfg(not(windows))]
 const KINDLING_BINARY_NAMES: &[&str] = &["kindling"];
+/// `Command::new("kindling")` appends `.exe` on Windows; an extensionless
+/// `kindling` file is not a runnable candidate and must not disable the guard.
 #[cfg(windows)]
-const KINDLING_BINARY_NAMES: &[&str] = &["kindling.exe", "kindling"];
+const KINDLING_BINARY_NAMES: &[&str] = &["kindling.exe"];
 
 /// Whether `path` is a file this process could execute. On Unix a file without
 /// any execute bit would fail `exec`, so it does not count as a resolved

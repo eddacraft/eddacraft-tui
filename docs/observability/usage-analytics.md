@@ -1,8 +1,8 @@
 # Usage Analytics Privacy Contract
 
-| Type  | Authority     | Owner              | Status | Freshness                                                                                            |
-| ----- | ------------- | ------------------ | ------ | ---------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | USAGE, FLEET, BACT | Live   | Live as of 2026-08-13 (BACT-007 DAI/DAA pointer to admin-cli.md; two-pipe contract still 2026-08-11) |
+| Type  | Authority     | Owner              | Status | Freshness                                                                                                                                                                      |
+| ----- | ------------- | ------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | USAGE, FLEET, BACT | Live   | Last reviewed 2026-09-16 against CIB-381 missing-binary spawn skip. Prior live as of 2026-08-13 (BACT-007 DAI/DAA pointer to admin-cli.md; two-pipe contract still 2026-08-11) |
 
 | Upstream                                                                                                                                                                                                                                                                                                                                                                                                                                      | Downstream                                                                                                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -254,16 +254,17 @@ table.
 > print a note to stderr (so `--json` stdout stays clean). Under
 > `ANVIL_KINDLING_SINK=off` only the sidecar is read.
 
-> **Rollback / hosts without the `kindling` binary (KDS-005).** With the daemon
-> now the default sink, the resident `anvil intercept start` daemon writes
-> `command.invoked` rows to the Kindling daemon (auto-spawning `kindling serve`
-> on first use). On a host where the `kindling` binary is **not** installed,
-> each emit instead spends the client's connect budget and buffers to the
-> (capped) spool, and the client appends to `~/.kindling/spawn.log` — observable
-> cost on the producer's drain thread (never the dispatch hot path). To opt out
-> until kindling is deployed, set **`ANVIL_KINDLING_SINK=off`** (or the
-> whole-observation **`ANVIL_INTERCEPT_DISABLE_OBSERVATION=1`** break-glass);
-> both are read at **daemon start**, so restart the daemon after setting them.
+> **Rollback / hosts without the `kindling` binary (KDS-005 / CIB-381).** With
+> the daemon now the default sink, the resident `anvil intercept start` daemon
+> writes `command.invoked` rows to the Kindling daemon (auto-spawning
+> `kindling serve` on first use **when the `kindling` binary is on `PATH`**). On
+> a host where the binary is **not** installed, auto-spawn is skipped and each
+> emit buffers to the (capped) spool; `~/.kindling/spawn.log` is not grown. A
+> daemon that is already running still receives rows even if `kindling` is
+> absent from `PATH`. To opt out of the daemon sink until kindling is deployed,
+> set **`ANVIL_KINDLING_SINK=off`** (or the whole-observation
+> **`ANVIL_INTERCEPT_DISABLE_OBSERVATION=1`** break-glass); both are read at
+> **daemon start**, so restart the daemon after setting them.
 
 | View         | Command                           | Answers                                                                                                                            |
 | ------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
