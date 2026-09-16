@@ -1,12 +1,14 @@
 //! First-release catalogue groups (SETCON-011).
 
+use std::collections::BTreeMap;
+
 use serde_json::json;
 
 use crate::catalogue::{Catalogue, CatalogueEntry, CatalogueError, Mutability};
 use crate::runtime_state::EvidenceTrust;
 use crate::types::{
-    ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, Scope, Sensitivity,
-    SettingGroup, SettingKey, ValueType,
+    ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, PersistenceTarget, Scope,
+    Sensitivity, SettingGroup, SettingKey, ValueType,
 };
 
 /// Populate Protection, Agents, Privacy, Integrations and Interface.
@@ -355,6 +357,23 @@ fn entry(
     activation_owner: Option<&str>,
     evidence_trust: EvidenceTrust,
 ) -> CatalogueEntry {
+    let class_a = consequence_class == ConsequenceClass::A;
+    let supported_scopes = if class_a {
+        vec![Scope::User]
+    } else {
+        vec![
+            Scope::Org,
+            Scope::Team,
+            Scope::Project,
+            Scope::User,
+            Scope::Environment,
+            Scope::Session,
+        ]
+    };
+    let mut writers_by_scope = BTreeMap::new();
+    if class_a {
+        writers_by_scope.insert(Scope::User, PersistenceTarget::UserConfig);
+    }
     CatalogueEntry {
         key: SettingKey(key.into()),
         label: label.into(),
@@ -363,18 +382,13 @@ fn entry(
         order,
         value_type,
         default,
-        supported_scopes: vec![
-            Scope::Org,
-            Scope::Team,
-            Scope::Project,
-            Scope::User,
-            Scope::Environment,
-            Scope::Session,
-        ],
+        supported_scopes,
         precedence: ResolverPrecedence::all().to_vec(),
         merge,
         mutability: Mutability::SettingsService,
         canonical_writer: "settings-service".into(),
+        writers_by_scope,
+        default_write_scope: class_a.then_some(Scope::User),
         consequence_class,
         sensitivity,
         evidence_mode,
@@ -447,6 +461,17 @@ mod catalogue_seed_tests {
                 "interface.timestamps",
             ]
         );
+        for key in class_a {
+            let entry = cat.get(key).expect(key);
+            assert_eq!(entry.supported_scopes, vec![Scope::User]);
+            assert_eq!(entry.default_write_scope, Some(Scope::User));
+            assert_eq!(
+                entry.writer_for(Scope::User),
+                Some(PersistenceTarget::UserConfig)
+            );
+            assert_eq!(entry.writer_for(Scope::Project), None);
+            assert_eq!(entry.canonical_writer, "settings-service");
+        }
     }
 
     #[test]

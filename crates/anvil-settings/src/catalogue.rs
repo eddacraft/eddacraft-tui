@@ -7,8 +7,8 @@ use serde_json::Value;
 
 use crate::runtime_state::EvidenceTrust;
 use crate::types::{
-    ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, Scope, Sensitivity,
-    SettingGroup, SettingKey, ValueType,
+    ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, PersistenceTarget, Scope,
+    Sensitivity, SettingGroup, SettingKey, ValueType,
 };
 
 /// One inspectable setting.
@@ -26,6 +26,15 @@ pub struct CatalogueEntry {
     pub merge: MergeSemantics,
     pub mutability: Mutability,
     pub canonical_writer: String,
+    /// Settings-service persistence target per writable scope. Absent scopes
+    /// are not writable through this entry. Spec §23: the UI never discovers a
+    /// write target heuristically.
+    #[serde(default)]
+    pub writers_by_scope: BTreeMap<Scope, PersistenceTarget>,
+    /// Default target scope for a Class A edit. Must have a `writers_by_scope`
+    /// entry when present.
+    #[serde(default)]
+    pub default_write_scope: Option<Scope>,
     pub consequence_class: ConsequenceClass,
     pub sensitivity: Sensitivity,
     pub evidence_mode: EvidenceMode,
@@ -85,6 +94,22 @@ pub enum CatalogueError {
     InvalidProjectConfigWriter { key: String },
     #[error("project config target collision: {0}")]
     ProjectConfigTargetCollision(String),
+    #[error("writer for {scope:?} on {key} is not a supported scope")]
+    UnsupportedWriterScope { key: String, scope: Scope },
+    #[error("Class A setting {key} has no canonical writer for {scope:?}")]
+    ClassAMissingWriter { key: String, scope: Scope },
+    #[error("Class A setting {key} must declare a default write scope")]
+    ClassAMissingDefaultScope { key: String },
+    #[error("Class A setting {key} default write scope {scope:?} has no canonical writer")]
+    ClassADefaultWriterMissing { key: String, scope: Scope },
+}
+
+impl CatalogueEntry {
+    /// Persistence target for `scope`, if this entry is writable there.
+    #[must_use]
+    pub fn writer_for(&self, scope: Scope) -> Option<PersistenceTarget> {
+        self.writers_by_scope.get(&scope).copied()
+    }
 }
 
 impl Catalogue {
@@ -102,6 +127,7 @@ impl Catalogue {
         }
         validate_namespace(key, &entry.owner)?;
         validate_merge(key, &entry.value_type, entry.merge)?;
+        validate_writers(&entry)?;
         if entry.evidence_mode == EvidenceMode::None
             && let Some(owner) = entry.activation_owner.as_deref()
         {
@@ -202,6 +228,7 @@ impl Catalogue {
                     owner: owner.to_owned(),
                 });
             }
+            validate_writers(entry)?;
         }
         for key in self.project_config_targets.keys() {
             let entry = self
@@ -224,6 +251,43 @@ fn validate_namespace(key: &str, owner: &str) -> Result<(), CatalogueError> {
         && !(key.starts_with("adapter.") || key.starts_with("ext."))
     {
         return Err(CatalogueError::UnnamespacedExtension(key.to_owned()));
+    }
+    Ok(())
+}
+
+fn validate_writers(entry: &CatalogueEntry) -> Result<(), CatalogueError> {
+    let key = entry.key.as_str();
+    for scope in entry.writers_by_scope.keys() {
+        if !entry.supported_scopes.contains(scope) {
+            return Err(CatalogueError::UnsupportedWriterScope {
+                key: key.to_owned(),
+                scope: *scope,
+            });
+        }
+    }
+    if entry.consequence_class != ConsequenceClass::A
+        || entry.mutability != Mutability::SettingsService
+    {
+        return Ok(());
+    }
+    for scope in &entry.supported_scopes {
+        if !entry.writers_by_scope.contains_key(scope) {
+            return Err(CatalogueError::ClassAMissingWriter {
+                key: key.to_owned(),
+                scope: *scope,
+            });
+        }
+    }
+    let Some(default) = entry.default_write_scope else {
+        return Err(CatalogueError::ClassAMissingDefaultScope {
+            key: key.to_owned(),
+        });
+    };
+    if !entry.writers_by_scope.contains_key(&default) {
+        return Err(CatalogueError::ClassADefaultWriterMissing {
+            key: key.to_owned(),
+            scope: default,
+        });
     }
     Ok(())
 }
@@ -269,6 +333,8 @@ mod catalogue_tests {
             merge: MergeSemantics::Replace,
             mutability: Mutability::SettingsService,
             canonical_writer: "settings".to_owned(),
+            writers_by_scope: BTreeMap::new(),
+            default_write_scope: None,
             consequence_class: ConsequenceClass::B,
             sensitivity: Sensitivity::Public,
             evidence_mode: EvidenceMode::None,
@@ -352,5 +418,31 @@ mod catalogue_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn class_a_requires_a_canonical_writer_per_supported_scope() {
+        let mut missing = entry("interface.compact", "core");
+        missing.consequence_class = ConsequenceClass::A;
+        missing.supported_scopes = vec![Scope::User];
+        missing.default_write_scope = Some(Scope::User);
+        let err = Catalogue::new()
+            .register(missing)
+            .expect_err("Class A without writer");
+        assert_eq!(
+            err,
+            CatalogueError::ClassAMissingWriter {
+                key: "interface.compact".into(),
+                scope: Scope::User,
+            }
+        );
+
+        let mut ok = entry("interface.compact", "core");
+        ok.consequence_class = ConsequenceClass::A;
+        ok.supported_scopes = vec![Scope::User];
+        ok.default_write_scope = Some(Scope::User);
+        ok.writers_by_scope
+            .insert(Scope::User, PersistenceTarget::UserConfig);
+        Catalogue::new().register(ok).expect("Class A with writer");
     }
 }

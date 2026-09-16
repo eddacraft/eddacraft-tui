@@ -110,6 +110,8 @@ mod health_tests {
             merge: MergeSemantics::Replace,
             mutability: Mutability::SettingsService,
             canonical_writer: "settings".into(),
+            writers_by_scope: std::collections::BTreeMap::new(),
+            default_write_scope: None,
             consequence_class: ConsequenceClass::C,
             sensitivity: Sensitivity::Public,
             evidence_mode: EvidenceMode::Value,

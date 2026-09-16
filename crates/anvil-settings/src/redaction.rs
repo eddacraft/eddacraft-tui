@@ -160,6 +160,8 @@ mod redaction_tests {
             merge: MergeSemantics::Replace,
             mutability: Mutability::SettingsService,
             canonical_writer: "settings".into(),
+            writers_by_scope: std::collections::BTreeMap::new(),
+            default_write_scope: None,
             consequence_class: class,
             sensitivity,
             evidence_mode: EvidenceMode::None,

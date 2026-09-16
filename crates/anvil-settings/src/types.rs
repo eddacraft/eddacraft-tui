@@ -48,7 +48,7 @@ pub enum ValueType {
 }
 
 /// Configuration source scope.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Scope {
     Org,
@@ -57,6 +57,17 @@ pub enum Scope {
     User,
     Environment,
     Session,
+}
+
+/// Persistence target the settings service uses for one writable scope.
+///
+/// The settings service remains the only writer process (spec §15). This names
+/// the destination file family, not a second writer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PersistenceTarget {
+    UserConfig,
+    ProjectConfig,
 }
 
 /// How structured values combine across scopes. There is no implicit global

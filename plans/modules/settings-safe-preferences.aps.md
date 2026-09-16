@@ -10,8 +10,9 @@
 **Last reviewed:** 2026-09-16 — operator locked this module as the
 `v0.12.0-beta` next-minor claim (not the active `v0.11.1-beta` patch). SETINS
 is Done via #4696. Class A v0.1 keys are `interface.compact`,
-`interface.timestamps`, `interface.motion`, and `interface.hints`. Remaining
-Ready gates: canonical writer per scope, documented safe-write policy. Created
+`interface.timestamps`, `interface.motion`, and `interface.hints`. The
+canonical writer for Class A user scope is the settings service persisting
+`user-config`. Remaining Ready gate: documented safe-write policy. Created
 2026-08-06 from the operator-supplied `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 2). Completing this module closes `/settings` v0.1 (spec §24).
@@ -117,7 +118,8 @@ on changes that cannot weaken protection.
 Change status to **Ready** when:
 
 - [x] SETINS-002 and SETINS-006 are Done
-- [ ] Canonical writer per Class A scope is declared in the catalogue
+- [x] Canonical writer per Class A scope is declared in the catalogue:
+      user scope → settings-service `user-config` (default write scope)
 - [ ] Safe-write policy (symlink, traversal, replace semantics) is documented
 - [x] Class A key set agreed with the operator:
       `interface.compact`, `interface.timestamps`, `interface.motion`,
