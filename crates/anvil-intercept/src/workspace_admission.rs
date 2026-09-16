@@ -1441,8 +1441,11 @@ mod tests {
         let git_file = nested.join(".git");
         std::fs::write(&git_file, format!("gitdir: {}\n", fake_admin.display()))
             .expect("planted gitfile");
-        std::fs::write(fake_admin.join("gitdir"), format!("{}\n", git_file.display()))
-            .expect("planted backlink");
+        std::fs::write(
+            fake_admin.join("gitdir"),
+            format!("{}\n", git_file.display()),
+        )
+        .expect("planted backlink");
 
         // The forged registration inside the REAL repository's admin area.
         let evil = main.join(".git").join("worktrees").join("evil");
