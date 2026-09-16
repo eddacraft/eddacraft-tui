@@ -9,8 +9,107 @@ delivery changes behind each release. For end-user feature summaries, see the
 
 ## [Unreleased]
 
-> **Draft.** Technical work landed on `main` since `v0.10.0-beta`. Version and
+> **Draft.** Technical work landed on `main` since `v0.11.1-beta`. Version and
 > date land at the next cut.
+
+## [0.11.1-beta] — 2026-09-16 — Gate and inspect honesty
+
+Shipped 2026-09-16 on `e7024b7a6`. Technical work on `main` since
+`v0.11.0-beta`. The locked claim was **gate and inspect honesty** (primary
+CIB-424). SETPREF Class A persist and CIB-414 git-parity landed on the same tip
+after prepare.
+
+### Gate secret-detection (CIB-424)
+
+- **Commit-gate secret detection covers `.tsx`, `.jsx`, `.py`, `.go`, and
+  `.sh`.** The domain sentence names the expanded list; those types were
+  previously skipped. (`e1aad4c04`)
+
+### Kindling sidecar and spawn (CIB-425, CIB-381)
+
+- **Runtime logs live under `.anvil/kindling/`, not tracked `anvil/`.**
+  `anvil audit-chain` appends `.anvil/kindling/audit-chain.ndjson`. (CIB-425,
+  `a55063399`)
+- **No kindling binary on PATH is a skip, not a spawn loop.** Constructor guard
+  is load-bearing. (CIB-381, `e1928a3cb`, `8fce600f9`)
+
+### Consumer copy (CIB-426)
+
+- **Doctor, gate, intercept, and related surfaces drop `ADR-` / `CIB-` tokens**
+  from operator-facing copy. (`1619389fd` and follow-ups)
+
+### Nested GCTX graph-root (CIB-414)
+
+- **Daemon refuses a nested graph root** before first-touch adopt, so
+  `<repo>/secrets` cannot rebase identities past the CE-3 deny-list. (#4732,
+  `8f453d145`)
+- **Git-parity probes:** minimum-viable `HEAD` + `objects/` + `refs/`;
+  present-but-wrong-type metadata is inconclusive (fail closed), not absent. A
+  planted empty `.git` directory is not a checkout. Reciprocal worktree `gitdir`
+  validation is load-bearing. (#4745, `e7024b7a6`)
+- **Documented residual:** a fully git-valid nested repository is still accepted
+  on first contact.
+
+### Class A persist (SETPREF)
+
+- **Settings service writes Class A keys to user-config:** `interface.compact`,
+  `interface.timestamps`, `interface.motion`, `interface.hints`. CAS from the
+  session revision; no-follow user-config reads; unwritable dest refused;
+  pending edits kept. Landed on this tip after prepare (#4741) despite the 0.12
+  claim lock.
+
+### Tooling and process
+
+- **Pre-commit formats and lints `.mjs` / `.cjs`; ignore-rules skip ignored
+  paths and keep NUL out of the source.** (CIB-403)
+- **`gh pr merge` conflict vs missing required-set** is a distinct exit.
+  (CIB-404)
+- **ADR-148** two-backlog audience split: product defects route at promotion,
+  before an ID is minted. (#4744)
+- **Public site waitlist** in the hero, shared submit path with the footer.
+  (#4747)
+
+### Delivery
+
+- Version surfaces and public changelog prepared as `0.11.1-beta`. Dashboard
+  OpenAPI contract bumped in lock-step. Tag `v0.11.1-beta` is `e7024b7a6`.
+
+## [0.11.0-beta] — 2026-09-15 — Windows readiness and inspect surfaces
+
+Shipped 2026-09-15 on `1e07021a7`. Technical work on `main` since
+`v0.10.0-beta`. The locked claim was **Windows readiness and inspect surfaces**:
+SETINS inspect, POSBRD posture board, and a single worktree identity for `\\?\`
+vs ordinary Windows paths.
+
+### Settings inspect (SETINS)
+
+- **CLI and TUI inspect resolved configuration.** Catalogue rows, sources, and
+  health; no mutation path in this cut. Project declarations load in inspect;
+  telemetry and scroll selection are gated.
+
+### Protection posture board (POSBRD)
+
+- **Status ladder** puts declared enforcement, gate, last action, and runtime on
+  one board so live protection sits next to what the repository declared.
+
+### Windows worktree identity
+
+- **`\\?\` and ordinary drive paths are one worktree.** Register and lookup use
+  the same identity; overlay fences use `same_path`. `anvil doctor` JSON stays
+  parseable when readiness fails and reports the same aggregate as status.
+
+### APS validate
+
+- **`anvil validate` accepts canonical `## Work Items`.** `## Tasks` remains a
+  legacy alias. Structural check only, not full `aps lint` parity. Live APS
+  holders reaped past `STALE_MS` stay fenced on EPERM.
+
+### Delivery
+
+- **rustls** bumped for RUSTSEC-2026-0285; acknowledgements refreshed.
+- **Release signing** identifies Release runs by workflow path; dispatch
+  recovery binds `commit_sha` to the checked-out source.
+- **ABASE** receipts bound to the witness chain (design on this tip).
 
 ## [0.10.0-beta] — 2026-09-13 — Continuous journey honesty
 

@@ -14,9 +14,24 @@ engineering maintenance are recorded in the
 ## [0.11.1-beta] — 2026-09-16 — Gate and inspect honesty
 
 Secret detection now covers the source types a React, Python, Go, or shell
-repository actually commits.
+repository actually commits. Interface preferences persist. Graph tools refuse a
+nested folder as a workspace root.
+
+### Added
+
+- **Class A interface preferences persist.** Compact, timestamps, motion, and
+  hints write to user-config through the settings service. The TUI shows the
+  target scope, refuses a concurrent overwrite, and reset previews the inherited
+  value. Protection settings stay inspect-only.
+
+- **The public site waitlist sits in the hero.** The same submit path as the
+  footer form; the install-command unlock remains.
 
 ### Fixed
+
+- **Graph tools refuse a nested folder as a workspace root.** Asking the daemon
+  to index a directory inside a checkout no longer treats that folder as its own
+  project. A planted empty `.git` directory is not enough to bypass this.
 
 - **Commit-gate secret detection now covers React, Python, Go, and shell
   source.** A planted credential in `.tsx`, `.jsx`, `.py`, `.go`, or `.sh` fails
