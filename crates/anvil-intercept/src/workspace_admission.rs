@@ -442,14 +442,17 @@ impl Confirm {
     }
 }
 
-/// Is `path` a real (non-symlink) directory? `NotFound` ⇒ `No` (definitely
-/// absent); a symlink ⇒ `No` (git metadata is never followed through a symlink
-/// here); any other error ⇒ `Unknown` (fail closed).
+/// Is `path` a real (non-symlink) directory?
+///
+/// Failure direction: `NotFound` ⇒ `No` (confirmed absent — the walk may
+/// continue). A present symlink, FIFO, socket, or other non-directory is
+/// `Unknown`, not `No`: treating it as absence lets the walk climb past a
+/// live parent checkout and first-touch-adopt `<repo>/secrets` (CIB-414).
+/// Any other I/O error ⇒ `Unknown` (fail closed).
 fn confirm_non_symlink_dir(path: &Path) -> Confirm {
     match std::fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_symlink() => Confirm::No,
-        Ok(meta) if meta.is_dir() => Confirm::Yes,
-        Ok(_) => Confirm::No,
+        Ok(meta) if meta.is_dir() && !meta.file_type().is_symlink() => Confirm::Yes,
+        Ok(_) => Confirm::Unknown,
         Err(err) if err.kind() == io::ErrorKind::NotFound => Confirm::No,
         Err(_) => Confirm::Unknown,
     }
@@ -459,9 +462,8 @@ fn confirm_non_symlink_dir(path: &Path) -> Confirm {
 /// [`confirm_non_symlink_dir`].
 fn confirm_non_symlink_file(path: &Path) -> Confirm {
     match std::fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_symlink() => Confirm::No,
-        Ok(meta) if meta.is_file() => Confirm::Yes,
-        Ok(_) => Confirm::No,
+        Ok(meta) if meta.is_file() && !meta.file_type().is_symlink() => Confirm::Yes,
+        Ok(_) => Confirm::Unknown,
         Err(err) if err.kind() == io::ErrorKind::NotFound => Confirm::No,
         Err(_) => Confirm::Unknown,
     }
@@ -711,7 +713,7 @@ fn dot_git_is_directory(meta: &std::fs::Metadata, dot_git: &Path) -> Confirm {
 /// relative target against. The caller maps every `None` to `Inconclusive`,
 /// never to `Absent` (M2).
 fn parse_gitdir_pointer(gitdir_file: &Path) -> Option<PathBuf> {
-    let contents = std::fs::read_to_string(gitdir_file).ok()?;
+    let contents = read_small_nofollow(gitdir_file)?;
     let line = contents.lines().find_map(|l| {
         l.trim()
             .strip_prefix("gitdir:")
@@ -826,7 +828,7 @@ fn gitfile_layout_matches_linked_worktree(dot_git: &Path, git_dir: &Path) -> boo
     if back_meta.file_type().is_symlink() || !back_meta.is_file() {
         return false;
     }
-    let Ok(raw) = std::fs::read_to_string(&backlink) else {
+    let Some(raw) = read_small_nofollow(&backlink) else {
         return false;
     };
     let target = Path::new(raw.trim());
@@ -864,8 +866,8 @@ fn gitfile_layout_matches_linked_worktree(dot_git: &Path, git_dir: &Path) -> boo
 /// (`objects/`, `refs/`, `worktrees/`); a wrong fallback makes a probe fail —
 /// a refusal, never extra authority.
 fn resolve_common_dir(git_dir: &Path) -> PathBuf {
-    match std::fs::read_to_string(git_dir.join("commondir")) {
-        Ok(raw) => {
+    match read_small_nofollow(&git_dir.join("commondir")) {
+        Some(raw) => {
             let rel = Path::new(raw.trim());
             if rel.is_absolute() {
                 rel.to_path_buf()
@@ -873,7 +875,38 @@ fn resolve_common_dir(git_dir: &Path) -> PathBuf {
                 lexical_join(git_dir, rel)
             }
         }
-        Err(_) => git_dir.to_path_buf(),
+        None => git_dir.to_path_buf(),
+    }
+}
+
+/// Read a small regular file without following a leaf symlink or blocking on
+/// a FIFO/socket. `None` means unreadable or unconfirmable — callers map that
+/// to refuse, never to extra authority.
+fn read_small_nofollow(path: &Path) -> Option<String> {
+    #[cfg(unix)]
+    {
+        use std::io::Read;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
+            .open(path)
+            .ok()?;
+        let meta = file.metadata().ok()?;
+        if !meta.is_file() {
+            return None;
+        }
+        let mut text = String::new();
+        file.read_to_string(&mut text).ok()?;
+        Some(text)
+    }
+    #[cfg(not(unix))]
+    {
+        let meta = std::fs::symlink_metadata(path).ok()?;
+        if meta.file_type().is_symlink() || !meta.is_file() {
+            return None;
+        }
+        std::fs::read_to_string(path).ok()
     }
 }
 
@@ -1290,6 +1323,34 @@ mod tests {
                 "{label}: the unconfirmable root itself is refused too"
             );
         }
+    }
+
+    /// Present-but-wrong-type git metadata is not confirmed absence. A FIFO
+    /// `HEAD` used to map to `Confirm::No` → `Absent`, so the walk climbed
+    /// past the parent and first-touch-adopted `secrets`.
+    #[cfg(unix)]
+    #[test]
+    fn parent_git_head_fifo_refuses_nested_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let main = tmp.path().join("main");
+        std::fs::create_dir_all(&main).expect("worktree");
+        write_git_directory(&main);
+        let head = main.join(".git").join("HEAD");
+        std::fs::remove_file(&head).expect("remove HEAD");
+        nix::unistd::mkfifo(&head, nix::sys::stat::Mode::from_bits_truncate(0o600))
+            .expect("fifo HEAD");
+        let main = std::fs::canonicalize(&main).expect("canonical");
+        let nested = nested_secrets_dir(&main);
+        let roots = AdmittedRoots::new_open();
+        assert!(
+            !is_graph_root(&nested),
+            "a FIFO HEAD must not let the walk skip the parent"
+        );
+        assert!(!roots.permits_graph_root(&nested));
+        assert!(
+            !roots.permits_graph_root(&main),
+            "the unconfirmable parent is itself refused"
+        );
     }
 
     /// M2: the same fail-closed rule when the unparsable `.git` is on the
