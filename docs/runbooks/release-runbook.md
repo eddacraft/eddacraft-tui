@@ -1,8 +1,8 @@
 # Anvil Release Runbook
 
-| Type    | Authority     | Owner   | Status | Freshness                                                                             |
-| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-08-07 — closeout doctrine (release record + APS advance) per #1712 |
+| Type    | Authority     | Owner   | Status | Freshness                                                                                                                                                          |
+| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-09-16 — `verify.sh` live GitHub/host checks (no fake-report stub). Prior: 2026-08-07 closeout doctrine (release record + APS advance) per #1712 |
 
 | Upstream                                                           | Downstream                            |
 | ------------------------------------------------------------------ | ------------------------------------- |
@@ -310,9 +310,11 @@ Verification must confirm:
 - Homebrew, Scoop, and WinGet publication state is recorded
 - `https://install.eddacraft.ai` returns HTTP 200
 
-Until live host and publisher checks are enabled, `verify.sh` blocks and
-requires explicit verification evidence rather than inferring release state from
-prose.
+`verify.sh` performs those checks live via `gh` and `curl`. A missing release,
+asset, provenance SHA mismatch, or non-200 install host fails the command. Scoop
+and WinGet are recorded as `not-configured` while `dist-workspace.toml` only
+publishes Homebrew. The fake-report test hook remains for harness contracts; it
+is not the operator path.
 
 ### 9. Approve Comms
 
