@@ -6417,8 +6417,8 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 
-- `zerocopy-derive` 0.8.56
-- `zerocopy` 0.8.56
+- `zerocopy-derive` 0.8.57
+- `zerocopy` 0.8.57
 
 <details>
 <summary>Licence text</summary>
@@ -9755,8 +9755,8 @@ the following restrictions:
 | `synstructure` | 0.13.2 | MIT License | https://github.com/mystor/synstructure |
 | `ipnet` | 2.12.1 | MIT License | https://github.com/krisprice/ipnet |
 | `rand` | 0.10.2 | MIT License | https://github.com/rust-random/rand |
-| `zerocopy-derive` | 0.8.56 | MIT License | https://github.com/google/zerocopy |
-| `zerocopy` | 0.8.56 | MIT License | https://github.com/google/zerocopy |
+| `zerocopy-derive` | 0.8.57 | MIT License | https://github.com/google/zerocopy |
+| `zerocopy` | 0.8.57 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
 | `lru` | 0.18.4 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
