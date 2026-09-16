@@ -11,12 +11,12 @@ pub mod constraints;
 pub mod envelope;
 pub mod exit_codes;
 pub mod health;
+pub mod mutate;
 pub mod posture;
 pub mod redaction;
 pub mod resolver;
 pub mod runtime_state;
 pub mod seed;
-pub mod mutate;
 pub mod service;
 pub mod types;
 
@@ -26,6 +26,7 @@ pub use constraints::{ApprovalEvidence, Constraint, ConstraintError, PolicyBundl
 pub use envelope::{Envelope, EnvelopeCommand, SCHEMA_VERSION};
 pub use exit_codes::{SettingsOutcome, code_for};
 pub use health::{Health, HealthStatus};
+pub use mutate::{ClassAOp, apply_class_a};
 pub use posture::{
     AcceptanceSource, AcceptanceVerb, ActiveCell, EnforcementSource, GateSource, LastAction,
     MappingLegend, POSTURE_SCALE, PostureCell, PostureInputs, PostureRow, PostureSnapshot,
@@ -39,7 +40,6 @@ pub use runtime_state::{
     Attestation, EvidenceChannel, EvidenceTrust, RuntimeState, classify_runtime_state,
 };
 pub use seed::first_release_catalogue;
-pub use mutate::{ClassAOp, apply_class_a};
 pub use service::{SettingRow, SettingsError, SettingsService, Snapshot, SnapshotRequest};
 pub use types::{
     ConsequenceClass, EvidenceMode, HealthRelevance, MergeSemantics, PersistenceTarget, Posture,

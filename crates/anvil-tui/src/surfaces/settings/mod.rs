@@ -372,7 +372,8 @@ impl SettingsState {
             return;
         };
         if !row.class_a {
-            self.last_error = Some("reset stays read-only; Class B/C enter the proposal flow in SETGOV".into());
+            self.last_error =
+                Some("reset stays read-only; Class B/C enter the proposal flow in SETGOV".into());
             return;
         }
         let key = row.key.clone();
