@@ -1811,7 +1811,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         // connection's admitted-root set before any read. A hostile MCP client
         // can send an arbitrary or sibling-worktree root; this is the same gate
         // the save-time verbs use, and a refusal blocks the projection.
-        authorise_root(
+        authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -1881,7 +1881,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(
+        authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -1949,7 +1949,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(
+        authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -2020,7 +2020,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(
+        authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -2073,7 +2073,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(
+        authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -2141,7 +2141,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(
+        authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -2213,7 +2213,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let originating_session = self.originating_session.clone();
         let state = self.state;
         // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
-        authorise_root(
+        authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -2281,7 +2281,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        let anchor = authorise_root(
+        let anchor = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -2336,7 +2336,7 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
-        let anchor = authorise_root(
+        let anchor = authorise_gctx_root(
             &mut self.admitted,
             &state.confinement,
             state.root_budget(),
@@ -3584,6 +3584,69 @@ fn authorise_root<'f>(
             root: root.to_path_buf(),
             allow_entries: confinement.allow_count(),
         }),
+    }
+}
+
+/// [`authorise_root`] for the `anvil/gctx/*` verbs, which additionally require
+/// the root to be a **graph root** (CIB-414).
+///
+/// CIB-398 refused a nested root client-side, in the MCP layer only; the daemon
+/// itself still keyed a graph on any nested directory a socket client handed
+/// it. `<repo>/secrets` as the root rebases `secrets/token.ts` to `token.ts`,
+/// so the CE-3 sensitive-path deny-list (`is_sensitive_egress_path`) never sees
+/// the denied segment. This applies the same rule the MCP layer applies
+/// (`workspace_root_is_graph_root`) at the socket, so the prefixes survive
+/// whichever client asks.
+///
+/// The gate runs **before** admission, so a refused nested root is never
+/// first-touch-adopted in `Open` mode and never consumes the CIB-154
+/// per-connection root budget. The root is canonicalised exactly once and the
+/// resolved path is handed straight to the admit step, so the gate and the
+/// admission cannot be split by a component swapped in between.
+///
+/// The refusal is the ordinary [`SaveTimeError::NotAdmitted`]: the wire reply
+/// stays the static, path-free `workspace-not-admitted`, so a refused client
+/// still learns nothing about the admitted root set.
+fn authorise_gctx_root<'f>(
+    admitted: &'f mut Option<AdmittedRoots>,
+    confinement: &Confinement,
+    root_budget: usize,
+    root: &Path,
+) -> Result<&'f WorkspaceAnchor, SaveTimeError> {
+    let set =
+        admitted.get_or_insert_with(|| confinement.to_admitted_roots_with_budget(root_budget));
+    let budget = set.root_budget();
+    let refused = || SaveTimeError::NotAdmitted {
+        root: root.to_path_buf(),
+        allow_entries: confinement.allow_count(),
+    };
+    // A vanished/unresolvable root is the same plain refusal `authorise_root`
+    // reports for it.
+    let Ok(canonical) = std::fs::canonicalize(root) else {
+        return Err(refused());
+    };
+    if !set.permits_graph_root(&canonical) {
+        // Operator diagnostic only — the wire reply stays static and path-free
+        // (N5 / CIB-091b), as every other refusal here does.
+        tracing::warn!(
+            target: "anvil_intercept::save_time",
+            workspace_root = %canonical.display(),
+            "graph-context verb refused: workspace root is not a graph root \
+             (it must be the repository root itself or a registered git worktree \
+             root of that repository, never a directory inside one — CIB-414)",
+        );
+        return Err(refused());
+    }
+    match set
+        .authorise_canonical_within_budget(&canonical)
+        .map_err(SaveTimeError::Io)?
+    {
+        AdmitOutcome::Authorised(anchor) => Ok(anchor),
+        AdmitOutcome::OverBudget => Err(SaveTimeError::RootBudgetExceeded {
+            root: root.to_path_buf(),
+            budget,
+        }),
+        AdmitOutcome::Refused => Err(refused()),
     }
 }
 
@@ -4971,6 +5034,185 @@ mod tests {
             matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
             "an unadmitted root must be refused: {refused:?}",
         );
+    }
+
+    // ---- CIB-414: a GCTX root must be a graph root, whoever asks ----
+
+    /// A minimal main-checkout + **registered** linked-worktree layout, with the
+    /// linked worktree checked out *inside* the main checkout (this repository's
+    /// own `<main>/.worktrees/` shape). Mirrors the MCP-side CIB-398 fixture: no
+    /// `git` subprocess, just the on-disk gitdir layout the admission code
+    /// reads. Returns the canonical `(main, linked)` pair.
+    fn repo_with_linked_worktree(root: &Path) -> (PathBuf, PathBuf) {
+        let main = root.join("main");
+        let common = main.join(".git");
+        fs::create_dir_all(common.join("refs")).expect("git refs dir");
+        fs::write(common.join("HEAD"), b"ref: refs/heads/main\n").expect("HEAD");
+
+        let admin = common.join("worktrees").join("linked");
+        fs::create_dir_all(&admin).expect("worktree admin dir");
+        fs::write(admin.join("HEAD"), b"ref: refs/heads/feature\n").expect("linked HEAD");
+        fs::write(admin.join("commondir"), b"../..\n").expect("commondir");
+
+        let linked = main.join(".worktrees").join("linked");
+        fs::create_dir_all(&linked).expect("linked worktree");
+        let git_file = linked.join(".git");
+        fs::write(&git_file, format!("gitdir: {}\n", admin.display())).expect(".git file");
+        fs::write(admin.join("gitdir"), format!("{}\n", git_file.display()))
+            .expect("gitdir back-pointer");
+
+        let main = fs::canonicalize(&main).expect("main canonicalises");
+        let linked = fs::canonicalize(&linked).expect("linked canonicalises");
+        (main, linked)
+    }
+
+    /// `<main>/secrets`, created and canonical.
+    fn nested_secrets_dir(main: &Path) -> PathBuf {
+        let nested = main.join("secrets");
+        fs::create_dir_all(&nested).expect("nested dir");
+        fs::canonicalize(&nested).expect("nested canonicalises")
+    }
+
+    /// CIB-414 / CIB-398: in `Open` mode the daemon first-touch-adopts the first
+    /// root a connection names, so a nested root must be refused on FIRST
+    /// contact — before any parent is admitted — or `<repo>/secrets` becomes its
+    /// own graph root and `secrets/token.ts` projects as `token.ts`, past the
+    /// CE-3 sensitive-path deny-list. The refusal must also NOT consume the
+    /// CIB-154 per-connection root budget: with a budget of 1, the legitimate
+    /// repo root must still be admissible afterwards.
+    #[test]
+    fn gctx_open_mode_refuses_nested_root_on_first_contact() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        )
+        .with_root_budget(1);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let refused = conn.search_symbols(&gctx_request(&nested));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
+            "a nested root must be refused on first contact: {refused:?}",
+        );
+        // The refusal consumed no budget: the repo root is still admissible on
+        // this connection even with a budget of exactly one root.
+        conn.search_symbols(&gctx_request(&main))
+            .expect("the repo root is still admissible after a refused nested root");
+    }
+
+    /// CIB-414: the nested root stays refused once its parent workspace root is
+    /// admitted on the connection.
+    #[test]
+    fn gctx_open_mode_refuses_nested_root_under_admitted_parent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+
+        conn.search_symbols(&gctx_request(&main))
+            .expect("the repo root is admitted");
+        let refused = conn.search_symbols(&gctx_request(&nested));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
+            "a nested root under an admitted parent must be refused: {refused:?}",
+        );
+    }
+
+    /// CIB-414: the rule is CIB-398's — an EXACT registered worktree root stays
+    /// authorised, including one checked out inside the main checkout.
+    #[test]
+    fn gctx_open_mode_admits_registered_linked_worktree() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, linked) = repo_with_linked_worktree(tmp.path());
+        assert!(
+            linked
+                .to_str()
+                .expect("utf-8 linked path")
+                .starts_with(main.to_str().expect("utf-8 main path")),
+            "fixture must nest the linked worktree inside the main checkout: {linked:?}",
+        );
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+
+        conn.search_symbols(&gctx_request(&main))
+            .expect("the repo root is admitted");
+        conn.search_symbols(&gctx_request(&linked))
+            .expect("a registered linked worktree root is a graph root");
+    }
+
+    /// Allowlist confinement (ADR-097) over the whole `<main>` subtree — the
+    /// operator `prefix` entry form (DSV-008). The allow policy therefore
+    /// PERMITS `<main>/secrets`; only the CIB-414 graph-root rule refuses it.
+    fn allowlist_prefix_state(prefix: &Path) -> SaveTimeState {
+        let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
+            admission: crate::confinement::AdmissionModeFile::Allowlist,
+            allow: vec![crate::confinement::AllowEntry {
+                path: prefix.to_path_buf(),
+                kind: crate::confinement::MatchKind::Prefix,
+            }],
+            ..Default::default()
+        });
+        SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            confinement,
+        )
+    }
+
+    /// CIB-414: `Allowlist` mode stays explicit-entries-only (ADR-097) — the
+    /// graph-root rule only ever REFUSES. A nested directory the operator's
+    /// `prefix` entry permits is still not a graph root, on first contact.
+    #[test]
+    fn gctx_allowlist_mode_refuses_nested_root_on_first_contact() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        let state = allowlist_prefix_state(&main);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let refused = conn.search_symbols(&gctx_request(&nested));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
+            "an allow-permitted nested root must still be refused: {refused:?}",
+        );
+    }
+
+    /// CIB-414: same in `Allowlist` mode once the parent root is admitted.
+    #[test]
+    fn gctx_allowlist_mode_refuses_nested_root_under_admitted_parent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, _linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+        let state = allowlist_prefix_state(&main);
+        let mut conn = SaveTimeConn::new(&state);
+
+        conn.search_symbols(&gctx_request(&main))
+            .expect("the allow-listed repo root is admitted");
+        let refused = conn.search_symbols(&gctx_request(&nested));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted { .. })),
+            "an allow-permitted nested root must still be refused: {refused:?}",
+        );
+    }
+
+    /// CIB-414: an exact registered worktree root the allow policy permits is
+    /// still authorised — the rule refuses nested directories, not worktrees.
+    #[test]
+    fn gctx_allowlist_mode_admits_registered_linked_worktree() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, linked) = repo_with_linked_worktree(tmp.path());
+        let state = allowlist_prefix_state(&main);
+        let mut conn = SaveTimeConn::new(&state);
+
+        conn.search_symbols(&gctx_request(&main))
+            .expect("the allow-listed repo root is admitted");
+        conn.search_symbols(&gctx_request(&linked))
+            .expect("a registered linked worktree root is a graph root");
     }
 
     /// CE-6: a `file` filter that escapes the workspace is rejected as

@@ -292,23 +292,248 @@ impl AdmittedRoots {
             // A vanished/unresolvable root is a plain refusal, not an error.
             return Ok(AdmitOutcome::Refused);
         };
+        self.authorise_canonical_within_budget(&canonical)
+    }
+
+    /// [`Self::authorise_within_budget`] on an **already-canonicalised** root.
+    /// The CIB-414 graph-root gate resolves the incoming root once to make its
+    /// structural decision, and hands that same resolved path straight here —
+    /// so the gate and the admit step cannot be split by a same-uid writer
+    /// swapping a path component between two `canonicalize` calls (the CIB-154
+    /// TOCTOU shape).
+    ///
+    /// # Errors
+    /// Propagates the open error when admission is attempted for a root that is
+    /// admissible and within budget but cannot be opened.
+    pub fn authorise_canonical_within_budget(
+        &mut self,
+        canonical: &Path,
+    ) -> io::Result<AdmitOutcome<'_>> {
         // Budget guard first, so an admissible-but-over-budget root reports the
         // structured budget refusal rather than being admitted (or reported as
         // a plain not-admitted refusal). An unlisted or already-admitted root is
         // never a budget block, so it falls through to `authorise_canonical`.
-        if self.budget_would_block_canonical(&canonical) {
+        if self.budget_would_block_canonical(canonical) {
             return Ok(AdmitOutcome::OverBudget);
         }
-        match self.authorise_canonical(&canonical)? {
+        match self.authorise_canonical(canonical)? {
             Some(anchor) => Ok(AdmitOutcome::Authorised(anchor)),
             None => Ok(AdmitOutcome::Refused),
         }
     }
+
+    /// CIB-414: whether `canonical_root` may key a **graph** on this connection
+    /// — the daemon-side form of the MCP rule `workspace_root_is_graph_root`
+    /// (CIB-398). Two independent refusals, both of which must pass:
+    ///
+    /// 1. [`is_graph_root`] — a repository-structure rule that holds on FIRST
+    ///    contact, before anything is admitted. `Open` mode first-touch-adopts
+    ///    whatever root a client names, so a rule that only compared against the
+    ///    already-admitted set would still let a fresh connection make
+    ///    `<repo>/secrets` its own graph root.
+    /// 2. not a directory nested inside an already-admitted root of this
+    ///    connection, unless it is a registered worktree root of that
+    ///    repository. This covers the roots rule 1 cannot judge — an admitted
+    ///    root that is not a Git checkout at all has no structural "repo root"
+    ///    to compare against.
+    ///
+    /// This predicate only ever *refuses*: it never admits a root the
+    /// connection's mode would not admit, so `Allowlist` confinement (ADR-097)
+    /// stays explicit-entries-only.
+    #[must_use]
+    pub fn permits_graph_root(&self, canonical_root: &Path) -> bool {
+        is_graph_root(canonical_root) && !self.nested_inside_admitted(canonical_root)
+    }
+
+    /// Whether `canonical_root` is strictly inside an already-admitted root
+    /// without being a registered worktree root of that repository.
+    fn nested_inside_admitted(&self, canonical_root: &Path) -> bool {
+        self.admitted.keys().any(|admitted| {
+            canonical_root != admitted
+                && canonical_root.starts_with(admitted)
+                && !registered_worktree_roots(admitted)
+                    .iter()
+                    .any(|worktree| worktree == canonical_root)
+        })
+    }
+}
+
+/// CIB-414: whether a canonical path is a **graph root** by repository
+/// structure — the root of the Git checkout that contains it (its main
+/// checkout or its own registered linked worktree), never a directory inside
+/// one. A path that is in no Git checkout at all has no enclosing repository
+/// to be nested inside, so it is its own root; the admitted-set half of
+/// [`AdmittedRoots::permits_graph_root`] is what guards those.
+///
+/// Why this matters (CIB-398): the daemon keys its graph on the root it is
+/// handed and every file identity it projects is root-relative, so
+/// `<repo>/secrets` as the root rebases `secrets/token.ts` to `token.ts` and
+/// the CE-3 sensitive-path deny-list never sees the denied segment.
+///
+/// Reads the on-disk gitdir layout; never shells out to `git`.
+#[must_use]
+pub fn is_graph_root(canonical_root: &Path) -> bool {
+    match containing_git_worktree_root(canonical_root) {
+        Some(checkout) => checkout == canonical_root,
+        None => true,
+    }
+}
+
+/// The nearest enclosing Git worktree root at or above `path` (a directory
+/// whose `.git` is a directory or a `gitdir:` file). `path` is assumed
+/// canonical, so no component is re-resolved here.
+fn containing_git_worktree_root(path: &Path) -> Option<PathBuf> {
+    let mut current = path.to_path_buf();
+    loop {
+        if resolve_git_dir(&current).is_some() {
+            return Some(current);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
+/// Resolve `<root>/.git` as a directory or as a linked-worktree `gitdir:` file.
+/// Portable: the `graph_base_trigger` copy is `cfg(unix)`, while the
+/// save-time admission path is served on Unix and Windows alike.
+fn resolve_git_dir(repo_root: &Path) -> Option<PathBuf> {
+    let dot_git = repo_root.join(".git");
+    let meta = std::fs::symlink_metadata(&dot_git).ok()?;
+    if meta.is_dir() {
+        return Some(dot_git);
+    }
+    let contents = std::fs::read_to_string(&dot_git).ok()?;
+    let line = contents.lines().find_map(|l| {
+        l.trim()
+            .strip_prefix("gitdir:")
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+    })?;
+    let git_dir = Path::new(line);
+    Some(if git_dir.is_absolute() {
+        git_dir.to_path_buf()
+    } else {
+        lexical_join(repo_root, git_dir)
+    })
+}
+
+/// Resolve the **common** gitdir of a (possibly per-worktree) gitdir: a linked
+/// worktree's gitdir carries a `commondir` pointer, a main worktree has none.
+fn resolve_common_dir(git_dir: &Path) -> PathBuf {
+    match std::fs::read_to_string(git_dir.join("commondir")) {
+        Ok(raw) => {
+            let rel = Path::new(raw.trim());
+            if rel.is_absolute() {
+                rel.to_path_buf()
+            } else {
+                lexical_join(git_dir, rel)
+            }
+        }
+        Err(_) => git_dir.to_path_buf(),
+    }
+}
+
+/// Lexically join `rel` onto `base`, resolving `..`/`.` without touching the
+/// filesystem (the pointed-at dirs need not all exist).
+fn lexical_join(base: &Path, rel: &Path) -> PathBuf {
+    let mut out = base.to_path_buf();
+    for comp in rel.components() {
+        match comp {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
+}
+
+/// Registered Git worktree roots of the repository that owns `repo_root`,
+/// including the main worktree. Empty when `repo_root` is not a Git checkout.
+/// Does not spawn `git`; reads the on-disk gitdir layout (the same shape the
+/// MCP-side CIB-398 rule reads).
+fn registered_worktree_roots(repo_root: &Path) -> Vec<PathBuf> {
+    let Some(git_dir) = resolve_git_dir(repo_root) else {
+        return Vec::new();
+    };
+    let common = resolve_common_dir(&git_dir);
+    let Ok(common) = std::fs::canonicalize(&common) else {
+        return Vec::new();
+    };
+
+    let mut roots = Vec::new();
+    if common.file_name().is_some_and(|name| name == ".git")
+        && let Some(parent) = common.parent()
+        && let Ok(main) = std::fs::canonicalize(parent)
+    {
+        roots.push(main);
+    }
+
+    let Ok(entries) = std::fs::read_dir(common.join("worktrees")) else {
+        return roots;
+    };
+    for entry in entries.flatten() {
+        let admin = entry.path();
+        if !admin.is_dir() {
+            continue;
+        }
+        let Ok(raw) = std::fs::read_to_string(admin.join("gitdir")) else {
+            continue;
+        };
+        let pointed = Path::new(raw.trim());
+        let pointed = if pointed.is_absolute() {
+            pointed.to_path_buf()
+        } else {
+            lexical_join(&admin, pointed)
+        };
+        let Some(root) = pointed.parent() else {
+            continue;
+        };
+        if let Ok(canonical) = std::fs::canonicalize(root)
+            && !roots.iter().any(|existing| existing == &canonical)
+        {
+            roots.push(canonical);
+        }
+    }
+    roots
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CIB-414: an admitted root that is not a Git checkout has no structural
+    /// "repo root" for [`is_graph_root`] to compare against — the admitted-set
+    /// half of [`AdmittedRoots::permits_graph_root`] is what refuses a directory
+    /// nested inside it.
+    #[test]
+    fn nested_dir_inside_a_non_git_admitted_root_is_not_a_graph_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = std::fs::canonicalize(tmp.path()).expect("root canonicalises");
+        let nested = root.join("secrets");
+        std::fs::create_dir_all(&nested).expect("nested dir");
+
+        let mut roots = AdmittedRoots::new_open();
+        roots.admit(&root).expect("admit root");
+
+        assert!(
+            is_graph_root(&nested),
+            "no enclosing checkout ⇒ the structural rule cannot judge {}",
+            nested.to_str().expect("utf-8 nested path"),
+        );
+        assert!(
+            roots.permits_graph_root(&root),
+            "the admitted root itself stays a graph root: {}",
+            root.to_str().expect("utf-8 root path"),
+        );
+        assert!(
+            !roots.permits_graph_root(&nested),
+            "a directory inside an admitted root is not a graph root: {}",
+            nested.to_str().expect("utf-8 nested path"),
+        );
+    }
 
     #[test]
     fn validate_paths_authorised_for_session_root() {
