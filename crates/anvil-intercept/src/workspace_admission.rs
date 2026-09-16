@@ -1420,6 +1420,66 @@ mod tests {
         );
     }
 
+    /// M3: `registered_worktree_roots` must not trust
+    /// `<common>/worktrees/<name>/gitdir` on its own. The registration is the
+    /// *only* thing that exempts a root from the nesting rules, so an
+    /// unvalidated one launders a planted nested checkout.
+    ///
+    /// The attack: plant a self-consistent gitfile at `<repo>/secrets` (which
+    /// `nested_untrusted_git_checkout` would refuse, because the enclosing
+    /// repository does not list it), then plant
+    /// `<repo>/.git/worktrees/evil/gitdir` naming `<repo>/secrets/.git` so the
+    /// enclosing repository *appears* to list it. Without the bidirectional
+    /// check the exemption applies and `<repo>/secrets` becomes a graph root.
+    ///
+    /// RED by replacing the `gitfile_layout_matches_linked_worktree` guard in
+    /// `registered_worktree_roots` with `if false`.
+    #[test]
+    fn planted_worktree_registration_cannot_launder_a_nested_gitfile() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (main, linked) = repo_with_linked_worktree(tmp.path());
+        let nested = nested_secrets_dir(&main);
+
+        // A self-consistent gitfile at `<repo>/secrets`, pointing at an admin
+        // directory the attacker also owns.
+        let fake_admin = nested.join("fake-git").join("worktrees").join("planted");
+        std::fs::create_dir_all(&fake_admin).expect("planted admin");
+        std::fs::write(fake_admin.join("commondir"), b"../..\n").expect("planted commondir");
+        let git_file = nested.join(".git");
+        std::fs::write(&git_file, format!("gitdir: {}\n", fake_admin.display()))
+            .expect("planted gitfile");
+        std::fs::write(fake_admin.join("gitdir"), format!("{}\n", git_file.display()))
+            .expect("planted backlink");
+
+        // The forged registration inside the REAL repository's admin area.
+        let evil = main.join(".git").join("worktrees").join("evil");
+        std::fs::create_dir_all(&evil).expect("forged admin");
+        std::fs::write(evil.join("commondir"), b"../..\n").expect("forged commondir");
+        std::fs::write(evil.join("gitdir"), format!("{}\n", git_file.display()))
+            .expect("forged registration");
+
+        let mut roots = AdmittedRoots::new_open();
+        assert!(
+            !is_graph_root(&nested),
+            "an unvalidated worktree registration must not make nested secrets a checkout"
+        );
+        assert!(
+            !roots.permits_graph_root(&nested),
+            "first contact must refuse the laundered nested root"
+        );
+        roots.admit(&main).expect("admit parent");
+        assert!(
+            !roots.permits_graph_root(&nested),
+            "the forged registration must not exempt nested secrets after admission"
+        );
+        // Over-refusal guard: the genuine registered linked worktree is
+        // untouched by the stricter validation.
+        assert!(
+            roots.permits_graph_root(&linked),
+            "a genuinely registered linked worktree stays authorised"
+        );
+    }
+
     #[test]
     fn validate_paths_authorised_for_session_root() {
         let tmp = tempfile::tempdir().expect("tempdir");
