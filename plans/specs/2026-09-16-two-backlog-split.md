@@ -16,16 +16,32 @@ This spec records the design approved on 2026-09-16. The governing decision is
 
 ## Problem
 
-`plans/modules/continuous-improvement-backlog.aps.md` holds **425 entries in
-14,380 lines**, of which 337 are Released/Merged/Done and 58 are open. Three
-distinct failures follow from that single file:
+### Measurement base
 
-1. **Category collision.** Roughly half the 58 open entries are product-shaped
+All corpus figures below are pinned to **`f2a8f1522`** and are reproduced by
+`scripts/aps/cib-corpus-stats.mjs` (added by migration step 0). They are stated
+as an as-of measurement, not a standing fact — this spec's own thesis is that
+counts embedded in prose drift, and these will.
+
+At `f2a8f1522`, `plans/modules/continuous-improvement-backlog.aps.md` holds
+**426 entries in 14,480 lines**: **342 terminal** (198 Released, 104 Merged,
+38 Done, 2 Superseded) and **82 open** (40 Draft, 30 Proposed, 12 Ready), plus
+one entry with no parseable `Status:`.
+
+Three distinct failures follow from that single file:
+
+1. **Category collision.** A substantial share of the 82 open entries are
+   product-shaped
    (a scanner reporting the wrong column, a secret rule blind to `camelCase`
    bindings, a remediation that provably changes nothing) and half are
    workshop-shaped (pre-commit globs, CI path classifiers, worktree disk
    pressure). They compete for the same attention under the same "what is
-   Ready" heuristic. On 2026-09-16 a three-item wave spent three repair rounds
+   Ready" heuristic. **The exact product/workshop ratio is deliberately not
+   asserted here** — establishing it per entry is migration step 2's job, and
+   an earlier draft of this spec quoted "~26/~32 of 58 open" from a status
+   normalisation that silently dropped variant spellings such as
+   `Draft — filed from ci-log triage`. That error is retained in this note
+   because it is the same defect class the currency gate exists to catch. On 2026-09-16 a three-item wave spent three repair rounds
    on pre-commit glob coverage while product defects sat `Proposed`.
 
 2. **Hot-file contention.** The file is a shared multi-writer surface that
@@ -71,8 +87,35 @@ ARCHIVE      plans/archive/ (history preserved, out of the hot path)
 
 - **PRODUCT** — inbox is GitHub issues; working set is
   `plans/modules/product-backlog.aps.md`.
-- **CIB** — intake stays the `ci-log` harvest → triage flow, unchanged; working
-  set is the existing module, thinned.
+- **CIB** — intake stays the `ci-log` harvest → triage flow; working set is the
+  existing module, thinned.
+
+**Routing happens at promotion, before an ID is minted.** The `ci-log` flow is
+audience-blind by construction: a feature session appending a note does not
+know, and should not have to decide, which queue the finding belongs to. Triage
+does. The promotion step therefore gains the audience question as a gate:
+
+| Triage decision | Destination |
+| --- | --- |
+| promote + user-facing | GitHub issue, `kind:*` + `area:*` labels; `PROD-NNN` only on promotion to Ready |
+| promote + workshop-only | `CIB-NNN` in the CIB working set, as today |
+| absorb / leave | unchanged |
+
+This is the single point where the audience test is applied. Without it the two
+queues are nominal: `docs/guides/continuous-improvement-log.md` step 3 and
+`plans/modules/continuous-improvement-backlog.aps.md` both currently instruct
+triage to file `CIB-NNN` unconditionally, so every internally discovered
+product defect would keep minting into CIB regardless of this design.
+
+**Downstream amendments required** (part of migration, not optional):
+
+- `docs/guides/continuous-improvement-log.md` — triage step 3 and the promotion
+  bar gain the audience question.
+- `plans/modules/continuous-improvement-backlog.aps.md` — the intake paragraph
+  stops implying `promote: CIB` is the only destination.
+- `pnpm ci-log:append --follow-up` — `promote: CIB` becomes one of
+  `promote: CIB` | `promote: PRODUCT` | `promote: <queue-undecided>`, the last
+  being the honest default for a session that cannot tell.
 
 ### Identity
 
@@ -104,6 +147,27 @@ exit 0 (advisory, new-edges-only baseline)
 Warns, does not block. Baselines existing state and reports new violations only
 — anvil's own principles applied to anvil's own plans.
 
+**Matching semantics (required for the gate to be deterministic).** `Files`
+bullets are not literal paths: at `f2a8f1522`, 42 of 918 backticked path tokens
+are glob or brace patterns (`crates/anvil-cli/src/mcp/tools/*.rs`,
+`crates/anvil-graph-cache/src/{snapshot.rs,snapshot_io.rs}`), and CIB-401's own
+bullet contains `packages/edda-stack/src/ember/*.test.ts`. A literal `exists`
+check would warn on all 42. The gate therefore classifies each token first:
+
+| Token shape | Test | Zero match |
+| --- | --- | --- |
+| Literal path | path exists | warn |
+| Directory (trailing `/`) | directory exists and is non-empty | warn |
+| Glob / brace pattern | expand against the tracked file set | warn — "pattern matched nothing" |
+| Unparseable / prose | skipped | never warns |
+
+Expansion is over `git ls-files`, not the working tree, so untracked build
+output cannot mask a deleted source path. A pattern that matches nothing is a
+warning, not silence: "the code this entry describes is gone" is precisely the
+CIB-401 signal, and a glob is the shape most likely to carry it. Tokens the
+parser cannot classify are skipped rather than guessed — a currency gate that
+invents warnings is worse than one with gaps.
+
 ### Reuse, not invention
 
 The existing label taxonomy is used as-is: `priority:P0..P4`, `kind:bug|ci|
@@ -120,14 +184,18 @@ Sequenced, not one change:
 
 | Step | Action | Result |
 | --- | --- | --- |
-| 1 | Archive the 337 done CIB entries | CIB ~14,380 → ~2,000 lines |
-| 2 | Classify the 58 open entries by audience | ~26 product / ~32 workshop |
+| 0 | Add `cib-corpus-stats.mjs`; re-measure against the merge base | Figures derivable, not quoted |
+| 1 | Archive the 342 terminal CIB entries | CIB ~14,480 → ~2,500 lines |
+| 2 | Classify the 82 open entries by audience | Ratio established (not assumed) |
 | 3 | Product-shaped → GitHub issues; Ready subset → `product-backlog.aps.md` | PRODUCT queue live |
 | 4 | Workshop-shaped stay in CIB | CIB keeps its stated purpose |
-| 5 | Add the currency gate | Staleness becomes visible |
+| 5 | Amend the triage contract and `ci-log` follow-up vocabulary | Routing applied at promotion |
+| 6 | Add the currency gate | Staleness becomes visible |
 
 Step 1 is a large mechanical change to the repo's hottest file and **must land
-on a quiet bookkeeping branch with no siblings in flight**.
+on a quiet bookkeeping branch with no siblings in flight**. Step 5 is
+load-bearing, not cleanup: until the triage contract routes by audience, the
+split exists only on paper.
 
 ## Risks
 
@@ -138,6 +206,9 @@ on a quiet bookkeeping branch with no siblings in flight**.
 - **Archive-split collision.** Step 1 touches the file most likely to conflict.
 - **The gate catches stale premises, not stale judgement.** An entry whose code
   still exists but is no longer worth doing stays invisible.
+- **Corpus figures in this document will themselves go stale.** They are pinned
+  to `f2a8f1522` and reproducible by command for exactly that reason; an
+  earlier draft already drifted between writing and review.
 
 ## Non-goals
 
