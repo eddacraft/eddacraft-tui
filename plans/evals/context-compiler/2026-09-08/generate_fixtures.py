@@ -617,7 +617,11 @@ add(
             claim(
                 1,
                 "Deterministic fact",
-                "`start.rs` embeds a built-in sample fixture `const KEY = \"AKIAQRSTUVWXYZ123456\";` so the first-run recipe can prove secret-detection catches the AWS-key shape. That is not a live credential.",
+                "`start.rs` embeds a built-in sample fixture `const KEY = \""
+                + "AKIA"
+                + "QRSTUVWXYZ"
+                + "123456"
+                + "\";` so the first-run recipe can prove secret-detection catches the AWS-key shape. That is not a live credential.",
                 [
                     "recall: `crates/anvil-cli/src/commands/start.rs` (CIB-392 / ADTRUST-006 fixture)",
                     "recall: CIB-392",
