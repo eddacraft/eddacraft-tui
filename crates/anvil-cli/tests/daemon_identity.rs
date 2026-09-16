@@ -13,9 +13,11 @@
 //! (`anvil_intercept::ipc::implicit_xdg_runtime_dir`). A developer daemon bound
 //! there would be probed by those tests, and under all-candidate probing it
 //! would be either reused or counted as a second live endpoint. Rather than
-//! silently touch it, [`refuse_when_a_real_daemon_could_be_probed`] fails the
-//! test with an actionable message. These tests therefore require a host with
-//! no live daemon at the implicit runtime endpoint.
+//! silently touch it, [`skip_if_a_real_daemon_could_be_probed`] skips just
+//! those two fixtures, announcing the skip on stderr (CIB-421). The rest of
+//! the suite is hermetic and still runs, so an unrelated change no longer
+//! reds this whole file because the operator happens to have a daemon up.
+//! CI binds no daemon at the implicit endpoint, so there the fixtures run.
 //!
 //! Disjoint-runtime fixtures (two explicit `XDG_RUNTIME_DIR` values, shared
 //! `HOME`, no `ANVIL_HOME`) never touch that implicit sibling: both shells have
@@ -39,6 +41,7 @@
 #![cfg(unix)]
 
 use std::fs;
+use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
@@ -241,7 +244,11 @@ fn stderr_of(output: &Output) -> String {
 /// its own canonical endpoint.
 #[test]
 fn xdg_shell_ensure_reuses_state_home_daemon_instead_of_starting_a_duplicate() {
-    refuse_when_a_real_daemon_could_be_probed();
+    if skip_if_a_real_daemon_could_be_probed(
+        "xdg_shell_ensure_reuses_state_home_daemon_instead_of_starting_a_duplicate",
+    ) {
+        return;
+    }
     let root = tempfile::tempdir().expect("tempdir");
     let home = root.path().join("home");
     let runtime = root.path().join("runtime");
@@ -311,7 +318,11 @@ fn xdg_shell_ensure_reuses_state_home_daemon_instead_of_starting_a_duplicate() {
 fn stale_canonical_socket_with_live_sibling_converges_on_the_sibling() {
     use std::os::unix::net::UnixListener;
 
-    refuse_when_a_real_daemon_could_be_probed();
+    if skip_if_a_real_daemon_could_be_probed(
+        "stale_canonical_socket_with_live_sibling_converges_on_the_sibling",
+    ) {
+        return;
+    }
 
     let root = tempfile::tempdir().expect("tempdir");
     let home = root.path().join("home");
@@ -441,22 +452,56 @@ fn isolated_anvil_homes_keep_distinct_daemons() {
     );
 }
 
-/// Refuse to run a fixture that leaves `XDG_RUNTIME_DIR` unset while a real
-/// daemon is bound at the implicit `/run/user/<uid>` endpoint.
+/// Endpoints whose presence means a plain-shell fixture would probe a daemon
+/// this suite does not own.
+///
+/// The first mirrors `anvil_intercept::ipc::implicit_xdg_runtime_dir`, which is
+/// private. `ANVIL_INTERCEPT_EXTRA_IMPLICIT_SOCKET` **adds** a second path so
+/// the skip can be exercised without binding anything at the real endpoint or
+/// disturbing a developer daemon. It only ever widens the guard: an override
+/// can never re-enable a fixture the real endpoint would have stopped. It is
+/// read by this test harness only and has no production effect.
+fn implicit_daemon_sockets() -> Vec<PathBuf> {
+    let uid = nix::unistd::Uid::current().as_raw();
+    let mut paths = vec![PathBuf::from(format!(
+        "/run/user/{uid}/anvil/intercept.sock"
+    ))];
+    if let Some(extra) = std::env::var_os("ANVIL_INTERCEPT_EXTRA_IMPLICIT_SOCKET") {
+        paths.push(PathBuf::from(extra));
+    }
+    paths
+}
+
+/// Skip a fixture that leaves `XDG_RUNTIME_DIR` unset while a real daemon is
+/// bound at the implicit `/run/user/<uid>` endpoint (CIB-421).
 ///
 /// Those fixtures cannot mask that candidate through the binary, so probing it
-/// would reach the developer's own daemon. Fail loudly instead of reusing it or
-/// reporting it as a same-scope conflict.
-fn refuse_when_a_real_daemon_could_be_probed() {
-    let uid = nix::unistd::Uid::current().as_raw();
-    let implicit = PathBuf::from(format!("/run/user/{uid}/anvil/intercept.sock"));
-    assert!(
-        !implicit.exists(),
-        "a daemon endpoint exists at {} and this fixture leaves XDG_RUNTIME_DIR \
-         unset, so the run would probe it. Stop that daemon (`anvil intercept \
-         stop`) before running this suite.",
+/// would reach the developer's own daemon: it would be either reused or counted
+/// as a second live endpoint. Neither outcome says anything about the code
+/// under test, so failing the suite only made unrelated changes look broken.
+/// Skip the two affected fixtures instead — loudly, never silently.
+///
+/// The notice is written straight to the process stderr rather than through
+/// `eprintln!`, which libtest captures and discards for a passing test: a skip
+/// nobody can see is exactly the silent coverage loss this guard must avoid.
+/// The implicit-sibling behaviour these fixtures cover is also proven with real
+/// sockets by the `anvil_intercept::ensure` unit tests, which have no such
+/// host dependency and run on every CI job.
+fn skip_if_a_real_daemon_could_be_probed(fixture: &str) -> bool {
+    let Some(implicit) = implicit_daemon_sockets()
+        .into_iter()
+        .find(|path| path.exists())
+    else {
+        return false;
+    };
+    let _ = writeln!(
+        std::io::stderr(),
+        "SKIP {fixture}: a daemon endpoint exists at {} and this fixture leaves \
+         XDG_RUNTIME_DIR unset, so the run would probe it. Stop that daemon \
+         (`anvil intercept stop`) to exercise this fixture locally.",
         implicit.display()
     );
+    true
 }
 
 fn anvil_intercept_pid_alive(pid: u32) -> bool {
