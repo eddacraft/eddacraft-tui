@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 337/424  |
+| CIB | —     | In Progress | 339/424  |
 
 ## Purpose
 
@@ -12218,11 +12218,9 @@ hang before opening a supervisor ticket.
 - **Expected Outcome:** anvil's default Kindling daemon sink does not append
   to the spawn log on a host with no `kindling` binary: N emits under a `PATH`
   that cannot resolve `kindling` leave the spawn-log line count unchanged.
-  Achieve that by skipping the exec **and** redirecting `spawn_log_path` to the
-  platform null device — see the correction below for why skipping the spawn
-  alone cannot work. Delivery to a live daemon still works when the binary is
-  absent from `PATH`. The spool's 7d / 64 MiB cap and the `anvil kindling usage`
-  degrade note stay unchanged.
+  Delivery to a live daemon still works when the binary is absent from `PATH`.
+  The spool's 7d / 64 MiB cap and the `anvil kindling usage` degrade note stay
+  unchanged.
 - **Non-scope / do not:** do not disable the daemon sink
   (`ANVIL_KINDLING_SINK=off` is operator rollback, not the default). Do not
   truncate or delete an existing spawn log. Do not add a second diagnostics
@@ -14448,14 +14446,15 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   as the remaining writer. Note this call site is also direct evidence that a
   spawner swap **alone** does not stop the log growing.
 - **Expected Outcome:** `anvil kindling usage` on a host with no `kindling`
-  binary does not append to the spawn log. The fix is the same one-line shape
-  CIB-381 landed — redirect `spawn_log_path` to the platform null device when
-  the binary is absent, ideally by reusing CIB-381's
-  `guard_absent_kindling_binary` rather than a second copy.
+  binary does not append to the spawn log: one or more invocations under a
+  `PATH` that cannot resolve `kindling` leave the spawn-log line count
+  unchanged.
 - **Non-scope / do not:** do not truncate or delete an existing spawn log. Do
   not disable the daemon sink. Do not attempt the upstream `append_spawn_log`
   cap here — that remains the separate private ask.
-- **Files:** `crates/anvil-cli/src/commands/kindling.rs` (`load_rows_from_daemon`)
+- **Files:** `crates/anvil-cli/src/commands/kindling.rs` (`load_rows_from_daemon`);
+  optionally `crates/anvil-cli/src/kindling_daemon_sink.rs` if the absent-binary
+  guard from CIB-381 is shared rather than duplicated
 - **Validation:** a hermetic test that invokes the usage path under a `PATH`
   that cannot resolve `kindling` and asserts the spawn-log line count is
   unchanged; `cargo test -p eddacraft-anvil --no-fail-fast`
