@@ -9,7 +9,7 @@ import { CompanyBand } from './company-band';
 import { DecisionIntegrityFlywheel } from './decision-integrity-flywheel';
 import { DecisionModel } from './decision-model';
 import { DeliveryBoundary } from './delivery-boundary';
-import { HeroSection } from './hero-section';
+import { HeroSection, InstallCommandRow } from './hero-section';
 import { ProductStages } from './product-stages';
 import { ShippingProof } from './shipping-proof';
 import { TrustGap } from './trust-gap';
@@ -68,10 +68,30 @@ describe('rendered website positioning', () => {
     expect(textOf(<TrustGap />)).toContain('UNSUPERVISED');
   });
 
-  it('exposes an accessible copy action for the install command', () => {
-    const markup = renderToStaticMarkup(<HeroSection />);
+  it('exposes an accessible copy action for the unlocked install command', () => {
+    const markup = renderToStaticMarkup(
+      <InstallCommandRow command="brew install eddacraft/tap/anvil" />
+    );
     expect(markup).toContain('aria-label="Copy install command"');
     expect(markup).toContain('[ COPY ]');
+    expect(markup).toContain('brew install eddacraft/tap/anvil');
+  });
+
+  it('puts the waitlist form in the hero and keeps the key-unlock path', () => {
+    const markup = renderToStaticMarkup(<HeroSection />);
+    expect(markup).toContain('id="hero-waitlist-email"');
+    expect(markup).toContain('type="email"');
+    expect(markup).toContain('[ = ] request early access');
+    expect(markup).toContain('have an access key? unlock install');
+    // The redacted install row no longer occupies hero real estate.
+    expect(markup).not.toContain('[EARLY-ACCESS]');
+  });
+
+  it('keeps the footer waitlist form alongside the hero form', () => {
+    const markup = renderToStaticMarkup(<Home />);
+    expect(markup).toContain('id="hero-waitlist-email"');
+    expect(markup).toContain('id="waitlist-email"');
+    expect(markup.match(/type="email"/g)).toHaveLength(2);
   });
 
   it('does not mistake unreachable JSX for rendered content', () => {

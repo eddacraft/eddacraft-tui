@@ -29,13 +29,15 @@ apps/website/
 │   └── twitter-image.tsx       # Dynamic Twitter card (edge runtime)
 ├── components/
 │   ├── navbar.tsx              # Fixed navigation bar
-│   ├── hero-section.tsx        # Hero with CTAs and modal
+│   ├── hero-section.tsx        # Hero with inline waitlist form + key-unlock modal
+│   ├── waitlist-form.tsx       # Compact waitlist form used by the hero
 │   ├── feature-grid.tsx        # 6-feature grid with integrations bar
 │   ├── cli-footer.tsx          # Interactive email waitlist CLI
 │   ├── terminal-window.tsx     # Animated terminal demo
 │   └── theme-provider.tsx      # next-themes wrapper
 ├── lib/
-│   └── utils.ts                # cn() helper (clsx + tailwind-merge)
+│   ├── utils.ts                # cn() helper (clsx + tailwind-merge)
+│   └── waitlist.ts             # Shared waitlist submit + response copy
 ├── public/                     # Static assets (icons, logos, images)
 ├── components.json             # shadcn/ui configuration
 ├── next.config.mjs             # Next.js config
@@ -102,7 +104,9 @@ All interactive components use `'use client'` directive. Key patterns:
 
 - **Typewriter effects** — terminal-window and cli-footer use
   character-by-character animation via `setTimeout` chains
-- **Smooth scroll anchors** — hero CTA scrolls to `#waitlist` in the footer
+- **Waitlist forms** — the hero embeds `waitlist-form.tsx` (compact, no
+  animation) and the footer keeps the typewriter CLI form; both post through
+  `lib/waitlist.ts`. The navbar CTA scrolls to `#waitlist` in the footer
 - **Modal dialogs** — docs modal and pre-release notice use state toggles
 - **Man page format** — privacy and security pages use Unix manual page styling
   (NAME, SYNOPSIS, DESCRIPTION sections)

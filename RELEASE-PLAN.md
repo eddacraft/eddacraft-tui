@@ -70,16 +70,16 @@ product until CLICT-008 is Done.
 ### Primary claim
 
 - **[CIB-424](./plans/modules/continuous-improvement-backlog.aps.md)** — expand
-  `anvil gate` / `check --all` secret-detection onto `.tsx`, `.jsx`, `.py`,
-  `.go`, and `.sh` (Matt staff-portal / harvest B33).
+  `anvil gate` secret-detection onto `.tsx`, `.jsx`, `.py`, `.go`, and `.sh`
+  (Matt staff-portal / harvest B33). `check --all` discovery still omits
+  `.go`/`.sh`; that is a residual, not this cut's claim.
 
 ### Secondaries
 
-Current CIB Ready set besides the primary (waive at cut if still open):
+Current CIB Ready set besides the primary (waive at cut if still open). Merged
+or superseded this window: CIB-425 (#4723), CIB-403 (#4722), CIB-404 (#4721),
+CIB-401 (Superseded). Remaining:
 
-- CIB-425 Kindling runtime NDJSON under `.anvil/`
-- CIB-401 better-sqlite3 teardown crash
-- CIB-404 `pr-required-status` conflicting-PR honesty
 - CIB-393 CI-only orphaned-socket flake
 - CIB-202 flaky beacon reservation test
 - CIB-209 worktree-safe local validation
@@ -88,7 +88,6 @@ Current CIB Ready set besides the primary (waive at cut if still open):
 - CIB-333 scanner reports rule-token column
 - CIB-334 `.anvil` compiler rejects stray rule-body H2
 - CIB-330 WC-001 `usedforsecurity=False`
-- CIB-403 `.mjs` file-type allowlists
 - CIB-204 Windows-only clippy backlog in anvil-intercept
 - CIB-410 pin workspace Rust toolchain to 1.98.1
 - **CLICT-008** — re-audit `anvil settings --help` before public docs claim the
@@ -130,13 +129,13 @@ stays later.
 
 ### Phase plan
 
-| Phase          | Scope                                  | State         |
-| -------------- | -------------------------------------- | ------------- |
-| **0.11.0 tag** | Windows readiness and inspect surfaces | Tagged        |
-| **Claim lock** | CIB-424 primary; Ready CIB + CLICT-008 | This change   |
-| **Implement**  | Primary then secondaries               | Next          |
-| **Changelog**  | Curate `[Unreleased]`                  | Not started   |
-| **Cut**        | Preflight → prepare → readiness → tag  | Not scheduled |
+| Phase          | Scope                                  | State                                                                                                                                      |
+| -------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **0.11.0 tag** | Windows readiness and inspect surfaces | Tagged                                                                                                                                     |
+| **Claim lock** | CIB-424 primary; Ready CIB + CLICT-008 | Locked                                                                                                                                     |
+| **Implement**  | Primary then secondaries               | Primary Merged (#4725); CIB-425 Merged (#4723); leftover Ready CIB waived at cut                                                           |
+| **Changelog**  | Curate `[Unreleased]`                  | Done (this PR)                                                                                                                             |
+| **Cut**        | Preflight → prepare → readiness → tag  | Prepare PR [#4748](https://github.com/eddacraft/anvil-001/pull/4748); tracking [#4749](https://github.com/eddacraft/anvil-001/issues/4749) |
 
 ### Cut criteria
 

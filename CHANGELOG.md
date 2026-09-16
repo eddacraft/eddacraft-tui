@@ -11,6 +11,30 @@ engineering maintenance are recorded in the
 > **Draft.** This section accumulates customer-relevant changes landed on
 > `main`; the version and date are set at the next release.
 
+## [0.11.1-beta] — 2026-09-16 — Gate and inspect honesty
+
+Secret detection now covers the source types a React, Python, Go, or shell
+repository actually commits.
+
+### Fixed
+
+- **Commit-gate secret detection now covers React, Python, Go, and shell
+  source.** A planted credential in `.tsx`, `.jsx`, `.py`, `.go`, or `.sh` fails
+  `anvil gate --only-checks secret-detection`. The domain sentence names the
+  expanded list. Previously the gate only disclosed that those types were
+  skipped.
+
+- **kindling runtime logs live under `.anvil/`, not in tracked `anvil/`.**
+  `anvil audit-chain` appends `.anvil/kindling/audit-chain.ndjson` and no longer
+  creates `anvil/kindling/`.
+
+- **Consumer CLI output no longer names internal planning IDs.** Doctor, gate,
+  intercept, and related surfaces print operator-facing copy without `ADR-`,
+  `CIB-`, or similar tokens.
+
+- **The kindling daemon does not auto-spawn when no `kindling` binary is on
+  PATH.** Missing kindling is a skip, not a crash or a spawn loop.
+
 ## [0.11.0-beta] — 2026-09-15 — Windows readiness and inspect surfaces
 
 ### Added

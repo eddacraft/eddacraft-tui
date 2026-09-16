@@ -4,90 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 
 import { ANVIL_BUILD_HASH, ANVIL_VERSION } from '@/lib/release';
-
-interface ResponseLine {
-  text: string;
-  colorClass: string;
-  delay: number;
-}
+import { buildResponseLines, isValidEmail, submitToWaitlist } from '@/lib/waitlist';
 
 interface DisplayedLine {
   id: string;
   text: string;
   colorClass: string;
-}
-
-interface WaitlistSubmitResult {
-  success: boolean;
-  error?: string;
-  warning?: string;
-  emailSent?: boolean;
-  isNewSignup?: boolean;
-}
-
-async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
-  try {
-    const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'https://api.eddacraft.ai').replace(
-      /\/+$/,
-      ''
-    );
-    const response = await fetch(`${apiBase}/api/v1/waitlist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const data = (await response.json()) as {
-      error?: string;
-      warning?: string;
-      emailSent?: boolean;
-      isNewSignup?: boolean;
-    };
-    if (!response.ok) {
-      return {
-        success: false,
-        error: data.error || 'Failed to join waitlist',
-        warning: data.warning,
-        emailSent: data.emailSent,
-        isNewSignup: data.isNewSignup,
-      };
-    }
-
-    return {
-      success: true,
-      warning: data.warning,
-      emailSent: data.emailSent,
-      isNewSignup: data.isNewSignup,
-    };
-  } catch {
-    return { success: false, error: 'Network error. Please try again.' };
-  }
-}
-
-function buildResponseLines(
-  userEmail: string,
-  submitWarning: string | null,
-  emailFailed: boolean
-): ResponseLine[] {
-  const lines: ResponseLine[] = [
-    { text: 'Verifying...', colorClass: 'text-ghost-grey', delay: 600 },
-    { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
-    {
-      text:
-        submitWarning && submitWarning.includes('WARN')
-          ? `Access is queued for ${userEmail}`
-          : `We will be in touch at ${userEmail}`,
-      colorClass: 'text-ghost-grey',
-      delay: 0,
-    },
-  ];
-  if (emailFailed) {
-    lines.push({
-      text: '[ WARN ] Confirmation email could not be sent — you are still on the list',
-      colorClass: 'text-dull-amber',
-      delay: 300,
-    });
-  }
-  return lines;
 }
 
 export function CLIFooter() {
@@ -155,8 +77,7 @@ export function CLIFooter() {
   const handleSubmit = async (event?: React.FormEvent | React.MouseEvent) => {
     event?.preventDefault();
     const trimmedEmail = email.trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail) || isSubmitting) return;
+    if (!isValidEmail(trimmedEmail) || isSubmitting) return;
 
     setIsSubmitting(true);
     setSubmitError(null);

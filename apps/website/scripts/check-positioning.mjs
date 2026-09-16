@@ -47,11 +47,14 @@ const sourceContractsByFile = new Map([
   ['../app/layout.tsx', ['Inter']],
   [
     '../components/hero-section.tsx',
-    ['Dialog.Title', 'Dialog.Description', 'Dialog.Close', 'Copy install command'],
+    ['Dialog.Title', 'Dialog.Description', 'Dialog.Close', 'Copy install command', '<WaitlistForm'],
   ],
   ['../components/trust-gap.tsx', ["label === 'ANVIL'"]],
   ['../components/terminal-window.tsx', ['MCP REQUEST :: anvil_validate_write']],
-  ['../components/cli-footer.tsx', ['Dialog.Title', 'Dialog.Description', 'Dialog.Close']],
+  [
+    '../components/cli-footer.tsx',
+    ['Dialog.Title', 'Dialog.Description', 'Dialog.Close', 'id="waitlist-email"'],
+  ],
 ]);
 
 const forbidden = [

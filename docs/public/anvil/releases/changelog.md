@@ -7,7 +7,7 @@ owner: DOCSYNC
 upstream:
   - CHANGELOG.md
   - RELEASE-PLAN.md
-verified_against: 0.11.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Current release notes
@@ -16,6 +16,30 @@ This page summarises user-visible beta changes. Internal work items, source
 paths, and implementation notes are deliberately excluded. For the full
 version-by-version history and downloadable artefacts, use the
 [GitHub release archive](https://github.com/eddacraft/anvil/releases).
+
+## 0.11.1-beta — 16 September 2026 — Gate and inspect honesty
+
+Secret detection now covers the source types a React, Python, Go, or shell
+repository actually commits.
+
+### Fixed
+
+- **Commit-gate secret detection now covers React, Python, Go, and shell
+  source.** A planted credential in `.tsx`, `.jsx`, `.py`, `.go`, or `.sh` fails
+  `anvil gate --only-checks secret-detection`. The domain sentence names the
+  expanded list. Previously the gate only disclosed that those types were
+  skipped.
+
+- **kindling runtime logs live under `.anvil/`, not in tracked `anvil/`.**
+  `anvil audit-chain` appends `.anvil/kindling/audit-chain.ndjson` and no longer
+  creates `anvil/kindling/`.
+
+- **Consumer CLI output no longer names internal planning IDs.** Doctor, gate,
+  intercept, and related surfaces print operator-facing copy without `ADR-`,
+  `CIB-`, or similar tokens.
+
+- **The kindling daemon does not auto-spawn when no `kindling` binary is on
+  PATH.** Missing kindling is a skip, not a crash or a spawn loop.
 
 ## 0.11.0-beta — 15 September 2026 — Windows readiness and inspect surfaces
 
