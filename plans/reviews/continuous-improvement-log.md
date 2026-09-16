@@ -49,7 +49,7 @@ Full operator guide:
 > the same change as adding one. Prefer `pnpm ci-log:append` /
 > `pnpm ci-log:harvest` over hand-editing.
 
-> **Last triaged:** 2026-09-13
+> **Last triaged:** 2026-09-16
 ## Template
 
 ```md
@@ -7552,4 +7552,577 @@ merge itself failed.
 - **Friction:** Fix PRs are still hard to find from CIB ids; 127-entry window mixed a harvest-only 2026-09-11 pass with this full triage
 - **Improvement:** Keep harvest and triage on the same bookkeeping PR when pending exceeds a week so the watermark cannot lag a harvest
 - **Follow-up:** owned: CIB-420 CIB-421 CIB-422 CIB-423
+
+### 2026-09-13 — other
+
+- **Task:** Address PR #4660 review: rateLimiter use-before-route source
+  positions and DATABASE_URL restore
+- **Outcome:** Concurrent commit 40b2f1cd5 already on the PR; independently
+  verified 29/29 telemetry tests, Copilot thread replied+resolved, Docs corpus
+  diagnosed as first-SHA missing freshness then green after triage commits
+- **Worked:** Reused existing PR worktree; confirmed diagram-impact 0 errors
+  locally; ran vitest in apps/anvil-api; confirmed GraphQL thread resolved
+- **Failed:** none
+- **Friction:** A parallel grok session committed and resolved the Copilot
+  thread while this session diagnosed CI; did not fight or rewrite
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other — grok
+
+- **Task:** full bookkeeping sweep: harvest, triage, CIB/PSCAF reconcile, land
+  PR 4662
+- **Outcome:** merged via rebase auto-merge; ae20a9bf0 is ancestor of
+  origin/main
+- **Worked:** 34-note harvest; 127-entry triage; CIB-211/212/215/416/417/419
+  Merged; CIB-369 follow-up; PSCAF-001 Merged; CIB-420..423 Proposed; Copilot
+  threads on 421/422 addressed
+- **Failed:** none
+- **Friction:** Rust Tests queued on a plans-only PR; Copilot correctly blocked
+  treating .agent-bus as disposable cache
+- **Improvement:** none
+- **Follow-up:** owned: CIB-420 CIB-421 CIB-422 CIB-423
+
+### 2026-09-13 — other
+
+- **Task:** CI Nightly licence-route-inventory Windows timeout: reshape AST
+  usersOf to one-pass identifier-token scan (same class as #4660); PR #4666;
+  closed blunt-timeout #4665
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Harden intercept resource benchmark isolation and trace daemon RSS
+  growth
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Triage latest Clawpatch run 20260913T065541-afd78d
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Fix Clawpatch promote-main delayed-start test finding
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — other
+
+- **Task:** Define agent baseline assurance module and dependency map
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — codex
+
+- **Task:** Address Copilot review findings on PR 4673
+- **Outcome:** Bound ABASE receipts to anvil-witness and settled AGENTS.md
+  freshness cascade; local validation green and threads resolved
+- **Worked:** Repository docs:redate workflow and focused witness-contract
+  review
+- **Failed:** Initial handwritten transfer patch had an invalid hunk count and
+  was rejected before mutation
+- **Friction:** Deus SSH returned one empty preflight and PR metadata briefly
+  lagged the pushed ref
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — codex
+
+- **Task:** Address Copilot review findings on PR 4673
+- **Outcome:** Bound ABASE receipts to anvil-witness and settled AGENTS.md
+  freshness cascade; local validation green and threads resolved
+- **Worked:** Repository docs:redate workflow and focused witness-contract
+  review
+- **Failed:** Initial handwritten transfer patch had an invalid hunk count and
+  was rejected before mutation
+- **Friction:** Deus SSH returned one empty preflight and PR metadata briefly
+  lagged the pushed ref
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — claude
+
+- **Task:** v0.10.0-beta closeout hygiene: release record, APS advance,
+  RELEASE-PLAN/ROADMAP roll to v0.10.1-beta, docs pin bump
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — grok
+
+- **Task:** Unblock PR #4674: rebase onto main after #4675, drop duplicate docs
+  pin, harden Release dispatch, extend signing for workflow_dispatch recovery,
+  resolve Copilot threads
+- **Outcome:** PR #4674 merged via rebase auto-merge at a3b56b3c1; required
+  checks green; four Copilot threads replied and resolved
+- **Worked:** Dropping the identical ANVIL_DOCS_VERSION pin with rebase
+  --empty=drop after #4675; passing dispatch tags via env; signing the tag
+  commit from plan announcement_tag rather than dispatch head_sha
+- **Failed:** First CI watcher returned DONE too early because statusCheckRollup
+  omitted still-queued required jobs; rewritten to wait on named required checks
+- **Friction:** anvil daemon errored during rebase/commit hooks (anvil doctor);
+  Copilot thread resolve GraphQL was interrupted once and had to be retried
+- **Improvement:** CI watchers for this repo must wait on the ruleset required
+  check names, not an incomplete statusCheckRollup snapshot
+- **Follow-up:** session: after merge, manually dispatch
+  release-sign-artefacts.yml for tag v0.10.0-beta run_id=34773735970; auto-sign
+  does not retrofire. Do not retag.
+
+### 2026-09-13 — grok
+
+- **Task:** SETINS-001/002 inspect-only settings TUI
+- **Outcome:** PR #4681 review-ready (pass-with-advisories)
+- **Worked:** Grouped searchable Settings view and honest expandable rows;
+  repaired 12-row detail cap
+- **Failed:** none
+- **Friction:** first verify-loop required a detail-height repair
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-13 — grok
+
+- **Task:** POSBRD-001/002 posture ladder catalogue and snapshot
+- **Outcome:** #4680 rebase-merged; APS reconcile #4682
+- **Worked:** TDD against `catalogue_seed` / `posture_snapshot`; independent
+  verify-loop `pass-with-advisories`; rebase auto-merge on green
+- **Failed:** none
+- **Friction:** Copilot review correctly flagged MinPosture rewriting
+  unparseable `enforce` and the snapshot re-deriving min instead of projecting
+  SETCON resolved
+- **Improvement:** MinPosture must fail closed on non-ladder values; posture
+  snapshot consumes SETCON resolved and applies only MCP/intercept surface
+  defaults when the key is undeclared
+- **Follow-up:** POSBRD-003 status rendering; POSBRD-004 last-action; POSBRD-005
+  public docs
+
+### 2026-09-13 — other
+
+- **Task:** Address Copilot review threads on PR 4681 settings view
+- **Outcome:** Fixed search Select, Active fallback honesty, and focused-row
+  description; pushed 8c2a93b91 and resolved three threads
+- **Worked:** address-reviews GraphQL thread fetch plus GitHub reply/resolve;
+  cargo test -p eddacraft-anvil-tui settings (27 passed) and clippy -D warnings
+- **Failed:** none
+- **Friction:** User asked for cargo test -p anvil-tui settings but the package
+  is eddacraft-anvil-tui
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — other
+
+- **Task:** Reviewed remaining TS and JS user-shipping and retirement surfaces
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — other
+
+- **Task:** Mapped proposed TS and JS retirements to day-to-day CI changes
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — grok
+
+- **Task:** Reconcile SETINS-001/002 and POSBRD-001/002 after merge
+- **Outcome:** bookkeeping branch docs/aps-setins-posbrd-reconcile
+- **Worked:** SETINS items Merged; aps:index 2/10 and 2/5
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — other
+
+- **Task:** Resolve ABASE dev-loop eligibility
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — grok
+
+- **Task:** dev-loop POSBRD-003/004/005 status posture board
+- **Outcome:** #4697 rebase-merged; APS reconcile #4698
+- **Worked:** one-pr topology in a fresh Worktrunk worktree; verify-loop
+  pass-with-advisories
+- **Failed:** first CI Docs corpus/Lint red on diagram-impact (settled with
+  `pnpm docs:redate`)
+- **Friction:** Copilot first-pass threads on gather root, schema required
+  fields, APS Files; SETCON snapshot wiring pushed back
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — claude
+
+- **Task:** Council quick assurance of staged SHIPREP draft APS module
+  (council-2eb89778): REPAIR — dangling DASHF module id, CLICT gate ordering
+  weaker than CLICT's own rule, rebase-merge PR-identity risk understated.
+  Improvement: reviewer prompts pre-loaded with verified repo facts kept both
+  lenses on substance; keep doing that for planning-artefact reviews.
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — grok
+
+- **Task:** dev-loop POSBRD complete: status posture board + APS reconcile
+- **Outcome:** integrated: #4697 rebase-merged c85046e12; APS bookkeeping #4698
+  rebase-merged 2e00d9cc8; both ancestors of origin/main; claims
+  #4686/#4685/#4687 closed; POSBRD 5/5
+- **Worked:** fresh Worktrunk worktree; one-pr topology; live pre-merge probe
+  then gh pr merge --rebase --delete-branch; integration-ancestor + content
+  probe
+- **Failed:** first CI Docs corpus/Lint red on diagram-impact; settled with pnpm
+  docs:redate --since origin/main --write --note
+- **Friction:** Copilot first-pass on gather root, last_action required fields,
+  APS Files in feature PR; rebase-merge rewrites SHAs so original head is not an
+  ancestor; module header left Proposed with Copilot nits (Files still cli.md)
+- **Improvement:** none
+- **Follow-up:** APS module still Proposed at 5/5; POSBRD-005 Files still names
+  cli.md; verify-loop advisories F-001..F-004 (last-action attests fence engage
+  only; interrupt-ladder stages omitted until live interrupt; gate Active
+  unknown without new evidence reader; public docs on status.md not generated
+  CLI page)
+
+### 2026-09-14 — other
+
+- **Task:** dev-loop SETINS remaining items in a fresh worktree, then
+  rebase-merge
+- **Outcome:** SETINS-003..010 landed via rebase-merge #4696 onto main
+  (94de16396). APS reconciled to Done 10/10 on docs/setins-inspect-reconcile.
+- **Worked:** Independent verify-loop pass-with-advisories; repaired missing
+  settings product feature (journey/docs corpus); gated inspect telemetry;
+  windowed TUI selection; resolved Copilot threads.
+- **Failed:** First CI on #4696: Docs corpus stale catalogue and Journey smoke
+  ZodError for unknown feature settings. Copilot first pass flagged pre-repair
+  projector issues already fixed on later SHAs.
+- **Friction:** flags/surfaces.json locators were added without a matching
+  productFeatures entry, so host completeness passed locally while
+  catalogue/journey failed in CI.
+- **Improvement:** When adding delivery surfaces, register the product feature
+  in the same commit and run pnpm docs:catalogue:generate before push.
+- **Follow-up:** CLICT-008 re-audit of anvil settings --help before public docs;
+  SETPREF unblocked
+
+### 2026-09-14 — claude
+
+- **Task:** council quick staged: SHIPREP draft module review, REPAIR (phantom
+  DASHF / DASHOPS overlap). Improvement: reviewer prompts that pre-list
+  already-verified facts cut duplicate work; council-session decide derives gate
+  BLOCK from REPAIR even for docs-only targets — worth confirming that mapping
+  is intended
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — other
+
+- **Task:** Document Elliot repo ship report requirements and module boundaries
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-14 — grok
+
+- **Task:** Triage Matt's 0.10.0-beta Windows readiness report
+- **Outcome:** Confirmed worktree/save-time readiness uses exact PathBuf
+  equality against daemon std::fs::canonicalize (\\?\) while
+  display/registration use dunce; doctor does not consult the readiness
+  aggregate; import-boundaries drops non-relative TS specifiers; anvil validate
+  still requires ## Tasks
+- **Worked:** Matched the report to registry.rs canonicalise, status.rs
+  registered == worktree, architecture_check extract_import_edges, and
+  validate.rs required-sections
+- **Failed:** none
+- **Friction:** CIB is shared multi-writer so the three follow-ups stay in
+  pending rather than being filed in this session
+- **Improvement:** Readiness and daemon persistence should share
+  display_path::same_path / dunce identity, not a second canonicalize
+- **Follow-up:** promote: CIB
+
+### 2026-09-14 — grok
+
+- **Task:** Check anvil-plan-spec for the Tasks vs Work Items mismatch Matt
+  reported
+- **Outcome:** Public APS has required ## Work Items since before v0.2.0 (rename
+  2026-01-09). Canonical aps lint E002 rejects ## Tasks. anvil validate is a
+  frozen pre-spec dialect that still requires ## Tasks. packages/aps already
+  accepts both (APSCAN-003).
+- **Worked:** Compared anvil-plan-spec lint.rs/module.sh, docs/usage.md E002,
+  TERMINOLOGY.md, and anvil-001 validate.rs plus packages/aps validator
+- **Failed:** none
+- **Friction:** anvil public CLI docs still advertise anvil validate as APS
+  format
+- **Improvement:** Align anvil validate with current APS Work Items (legacy
+  Tasks as alias), or point the command at aps lint
+- **Follow-up:** promote: CIB
+
+### 2026-09-14 — grok
+
+- **Task:** Plan Matt Windows readiness fix and APS validate alignment
+- **Outcome:** Two ReadyItems: CIB-419 identity+doctor honesty, CIB-420 anvil
+  validate Work Items alias. Workspace-alias resolution deferred.
+- **Worked:** Confirmed registry std canonicalize vs dunce, doctor has no
+  measured_readiness, packages/aps already accepts Work Items
+- **Failed:** none
+- **Friction:** CIB intake stays on bookkeeping; feature PRs use claim issues
+- **Improvement:** none
+- **Follow-up:** promote: CIB
+
+### 2026-09-14 — grok
+
+- **Task:** Implement Matt Windows readiness identity and APS Work Items
+  validate
+- **Outcome:** PR #4703. Registry dunce canonicalise, same_path readiness,
+  doctor journey-readiness check, anvil validate accepts ## Work Items.
+- **Worked:** TDD identity test red then green; intercept lib 1197 ok;
+  save_time_driver_recovery 7 ok; pnpm validate:changed exit 0 after docs:redate
+- **Failed:** none
+- **Friction:** pnpm validate:changed first failed diagram-impact until
+  docs:redate; CIB file not edited
+- **Improvement:** Readiness and persist must share one path helper; doctor must
+  consume measured_readiness
+- **Follow-up:** promote: CIB
+
+### 2026-09-15 — other
+
+- **Task:** PR 4703 Copilot path-identity threads: intercept path_identity
+  same_path for claim/filter/registry
+- **Outcome:** pushed 3ac2ad6ce, replied and resolved four Copilot threads
+- **Worked:** local path_identity module mirroring CLI same_path/strip_verbatim;
+  targeted intercept+cli tests and clippy green
+- **Failed:** none
+- **Friction:** anvil_apply_patch validates only; crate has no --lib target so
+  CLI tests run via --bin anvil
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-15 — other
+
+- **Task:** PR 4703 full Council for protected registry.rs
+- **Outcome:** session council-9ad220cb PASS after REPAIR; live head 9efde2c19;
+  overlay same_path for fence join; did not apply council:reviewed
+- **Worked:** five-seat full pack; judge REPAIR corroborated; bounded overlay
+  repair + mixed-form test; durable plans/reviews artefact and PR comment
+- **Failed:** none
+- **Friction:** fence.rs still writes std::fs::canonicalize; overlay same_path
+  covers mixed forms
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-15 — other
+
+- **Task:** Intake Matt kindling sidecar and gate secret-domain findings; keep
+  4703 P0 landing
+- **Outcome:** Both confirmed in tree; not folded into 4703
+- **Worked:** Mapped kindling write to audit_chain.rs anvil/kindling vs ADR-073
+  .anvil/; mapped gate SECRET_SCAN_EXTS and CIB-255 disclosure
+- **Failed:** none
+- **Friction:** 4703 still BLOCKED on Docs tooling/Docs Lint after extra commits
+  81c6d0a7/9efde2c1
+- **Improvement:** none
+- **Follow-up:** CIB harvest: move audit-chain.ndjson under .anvil/; reopen gate
+  secret domain to include .tsx/.jsx/.py/.go/.sh given React financial beta
+  evidence
+
+### 2026-09-15 — other
+
+- **Task:** P0 ship: land 4703, assess v0.11.0-beta, preflight, prepare PR 4705
+- **Outcome:** 4703 on main; 4705 opened; tag blocked on 4705 merge, issue 4704
+  sign-off, ANVIL_RELEASES_TOKEN
+- **Worked:** assess chose minor v0.11.0-beta; rustls 0.23.45 unblocked cargo
+  deny; prepare.sh wrote issue 4704
+- **Failed:** first preflight cargo deny RUSTSEC-2026-0285; local publication
+  token unset
+- **Friction:** assess minor vs P0 patch label; settings/posture had no
+  Unreleased notes until this cut
+- **Improvement:** none
+- **Follow-up:** merge 4705 under policy; operator sign 4704; tag.sh after
+  readiness; harvest Matt kindling and gate .tsx secrets
+
+### 2026-09-15 — other
+
+- **Task:** Land 4705 v0.11.0-beta prepare on main; dispatch release-readiness
+- **Outcome:** 4705 ancestor of origin/main; readiness requested; tag blocked on
+  unsigned 4704
+- **Worked:** proved merge fdc72d8b5; promote --request-readiness
+- **Failed:** none
+- **Friction:** issue 4704 operator boxes still unsigned; tag.sh must not run
+- **Improvement:** none
+- **Follow-up:** wait readiness 34924618321; operator sign 4704 then tag.sh
+
+### 2026-09-15 — other
+
+- **Task:** Tag v0.11.0-beta after operator-authorised 4704 boxes
+- **Outcome:** tag pushed to 1e07021a78; cargo-dist run 34927805988 in progress
+- **Worked:** ticked 4704 as joshuaboys at operator request; readiness
+  34925952141 green; tag.sh success
+- **Failed:** none
+- **Friction:** tag SHA is origin/main tip including attribution commit after
+  4705
+- **Improvement:** none
+- **Follow-up:** monitor cargo-dist; verify.sh; closeout still unsigned
+
+### 2026-09-15 — other
+
+- **Task:** Publish v0.11.0-beta tag and cargo-dist assets
+- **Outcome:** tag and public release live; closeout box left unsigned
+- **Worked:** tag.sh; cargo-dist 34927805988 success; public eddacraft/anvil
+  v0.11.0-beta assets including Windows zip and installers
+- **Failed:** none
+- **Friction:** verify.sh live path is operator-required; public release
+  isPrerelease=false for a beta tag
+- **Improvement:** none
+- **Follow-up:** closeout record/APS if operator wants; tell Matt tagged
+  installer URLs
+
+### 2026-09-15 — other
+
+- **Task:** File CIB-424 gate secret-domain expansion
+- **Outcome:** Ready item on bookkeeping PR; B33 reopened
+- **Worked:** isolated chore/cib-424-gate-secret-domain; aps:index 332/419;
+  aps:active-lint clean
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** land bookkeeping PR; implement CIB-424 separately
+
+### 2026-09-15 — other
+
+- **Task:** File CIB-425 kindling sidecar under .anvil
+- **Outcome:** Ready item on bookkeeping PR
+- **Worked:** isolated chore/cib-425-kindling-sidecar-path; aps:index 332/420;
+  aps:active-lint clean
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** land bookkeeping PR; implement CIB-425 separately
+
+### 2026-09-15 — other
+
+- **Task:** Strip internal planning IDs from consumer CLI
+- **Outcome:** PR 4712 open; waiting to rebase-merge
+- **Worked:** audited
+  doctor/gate-config/intercept/update/exception/baseline/hook/config strings;
+  tests pin no ADR- in those surfaces
+- **Failed:** none
+- **Friction:** CIB-426 not in module yet (bookkeeping)
+- **Improvement:** none
+- **Follow-up:** rebase-merge 4712 when green; harvest CIB-426
+
+### 2026-09-15 — other
+
+- **Task:** Land PR 4712 strip internal planning IDs from CLI
+- **Outcome:** rebase-merged onto main as ff3f14b74
+- **Worked:** audit+strip
+  doctor/gate-config/intercept/update/exception/baseline/hook/config/secret/capsule;
+  council on save_time copy; rebase merge no admin
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** harvest CIB-426 on bookkeeping
+
+### 2026-09-15 — other
+
+- **Task:** Triage review of open CIB items
+- **Outcome:** 87 open: 15 Ready, 32 Proposed, 40 Draft; CIB-426 code on main
+  unharvested; 39 pending ci-log notes
+- **Worked:** parsed module statuses; checked 4710/4712; rust-toolchain still
+  1.97.1 so CIB-410 open
+- **Failed:** none
+- **Friction:** pending harvest queue since 2026-09-13 watermark
+- **Improvement:** none
+- **Follow-up:** bookkeeping: harvest pending, file CIB-426, pick CIB-424 then
+  CIB-425
+
+### 2026-09-16 — other
+
+- **Task:** Add CIB Priority and Currency triage fields
+- **Outcome:** bookkeeping PR opened
+- **Worked:** template+policy; Ready backfill; ci-log weekly bar
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** land bookkeeping PR; fill Proposed/Draft at next harvest
+
+### 2026-09-16 — other
+
+- **Task:** Lock SETPREF as v0.12.0-beta next-minor claim
+- **Outcome:** Froze RELEASE-PLAN active window at v0.11.1-beta (CIB-424);
+  SETPREF named as 0.12 without a second window.
+- **Worked:** Updated RELEASE-PLAN, ROADMAP, index NBI, SETPREF last-reviewed
+  and SETINS Done tick.
+- **Failed:** none
+- **Friction:** plans/releases/v0.11.0-beta.md is still owed; index/RELEASE-PLAN
+  had lagged at 0.10.1.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-16 — claude
+
+- **Task:** Investigate local branches pr-4487/pr-4488: both stale PR-head
+  snapshots; #4487 closed superseded (svgo 4.1.0 on main), #4488 merged but
+  edited the scripts 'astro' entry instead of dependencies, leaving a broken
+  script on main. Improvement: none
+- **Outcome:** —
+- **Worked:** —
+- **Failed:** none
+- **Friction:** none
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-09-16 — other
+
+- **Task:** CI-log harvest and APS bookkeeping sweep
+- **Outcome:** Harvested 43 pending notes; reviewed 53 entries since 2026-09-13; filed CIB-426 Merged via #4712; CIB-427/428 Merged via #4703; absorbed CIB-369 leftover FPs already on the item; CIB-424/425 remain Ready; watermark 2026-09-13 to 2026-09-16; counts 332/420 to 335/423
+- **Worked:** Clustered promote/absorb/leave; verified merge SHAs on origin/main; pnpm aps:index refreshed CIB counts
+- **Failed:** none
+- **Friction:** This worktree pnpm exec hits eslint ENOENT; oxfmt --write on explicit paths under plans/ bypasses prettierignore and rewrote historical entries (reverted to HEAD plus harvest).
+- **Improvement:** Never pass explicit /plans paths to oxfmt; use node scripts/ci-log and scripts/aps when pnpm exec is broken in a worktree.
+- **Follow-up:** owned: CIB-424 CIB-425 CIB-420 CIB-421 CIB-422 CIB-423
 

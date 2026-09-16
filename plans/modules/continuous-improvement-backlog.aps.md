@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 332/420  |
+| CIB | —     | In Progress | 335/423  |
 
 ## Purpose
 
@@ -14278,3 +14278,100 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   (write hardening stays)
 - **Confidence:** high — write path is `anvil/kindling/` in
   `emit_audit_kindling_row`; SQLite already lives at `.anvil/kindling.db`
+
+### CIB-426: Strip internal planning IDs from consumer CLI output
+
+- **Status:** Merged 2026-09-15 via PR
+  [#4712](https://github.com/eddacraft/anvil-001/pull/4712) (`ff3f14b74`);
+  intake recorded 2026-09-16. The fix landed as a feature PR, so this
+  entry is the promotion record, not new work.
+- **Priority:** P1 — shipped-surface honesty: Matt's agent cited ADR-073
+  because `anvil doctor` printed it on a passing state-boundary check
+- **Currency:** current — stripped on `main`; v0.11.0-beta still shipped
+  the leak
+- **Intent:** Consumer CLI output never names internal ADR, CIB, EXCEPT,
+  APS, or RETRACT identifiers.
+- **Expected Outcome:** doctor, gate-config, intercept start/Windows
+  unblock, update, exception migrate, baseline resume, hook, config
+  hard-pin, secret oversize skip, and capsule prune print operator-facing
+  copy with no `ADR-`, `CIB-`, or `EXCEPT-` tokens. Tests pin the
+  absence on those surfaces.
+- **Non-scope / do not:** do not strip IDs from `plans/`, internal docs,
+  CI-log, or Council artefacts. Do not reopen CIB-424 or CIB-425. Do not
+  treat this as a doctor state-boundary behaviour change.
+- **Files:** `crates/anvil-cli/src/commands/{doctor,gate_config,intercept,update,baseline,hook,capsule}.rs`;
+  `crates/anvil-policy/src/exceptions.rs`;
+  `crates/anvil-config/src/{migrations,validation}.rs`;
+  `crates/anvil-checks/src/secret/check.rs`;
+  `crates/anvil-intercept/src/save_time.rs`;
+  `crates/anvil-intercept-rules/src/secret.rs`
+- **Validation:** `cargo test -p eddacraft-anvil --no-fail-fast` covering
+  those command surfaces; user-facing strings in the listed files contain
+  no `ADR-` / `CIB-` / `EXCEPT-` tokens
+- **Identified From:** Matt 0.10.0-beta / 0.11.0-beta; doctor pass copy
+  previously included `(ADR-073)`; CI-log 2026-09-15 `harvest CIB-426`
+- **Coordinates with:** ADR-073 (internal), CIB-380 (doctor remediation),
+  CIB-255 (gate disclosure)
+- **Confidence:** high — [#4712](https://github.com/eddacraft/anvil-001/pull/4712)
+  is an ancestor of `origin/main`
+
+### CIB-427: Compare Windows readiness paths by identity, not byte equality
+
+- **Status:** Merged 2026-09-15 via PR
+  [#4703](https://github.com/eddacraft/anvil-001/pull/4703) (`5bb096dc4`).
+  Intake recorded 2026-09-16. Claim issue #4702 used colliding id CIB-419;
+  that number already owns midedit fail-closed on missing benchmark input.
+- **Priority:** P0 — false protection claim: a registered Windows worktree
+  reported not ready because the daemon persisted `\\?\` canonicalise while
+  CLI compared dunce / `==`
+- **Currency:** current — shipped in v0.11.0-beta
+- **Intent:** Readiness, registration, status, MCP, and doctor use one
+  path-identity helper so `\\?\` and dunce forms of the same worktree match.
+- **Expected Outcome:** Intercept `canonicalise` / `same_path` and CLI
+  `same_path` agree. Doctor `journey-readiness` consults
+  `measured_readiness`. A Windows worktree registered under either path
+  form is ready.
+- **Non-scope / do not:** do not implement workspace-package alias
+  resolution. Do not reuse or reopen CIB-419 (midedit). Do not treat
+  [#4659](https://github.com/eddacraft/anvil-001/pull/4659) watch-event
+  dunce matching as this item. Do not fold CIB-428 into this record.
+- **Files:** `crates/anvil-intercept/src/{path_identity,registry,registration_store,status}.rs`;
+  `crates/anvil-cli/src/commands/{status,doctor,workspace}.rs`;
+  `crates/anvil-cli/src/activation/daemon_evidence.rs`;
+  `crates/anvil-cli/src/mcp/tools/status.rs`
+- **Validation:** intercept `path_identity` tests; doctor journey-readiness;
+  `cargo test -p eddacraft-anvil --no-fail-fast` covering status / registry
+  / doctor
+- **Identified From:** Matt 0.10.0-beta Windows readiness report; CI-log
+  2026-09-14 `promote: CIB`
+- **Coordinates with:** CIB-428 (same PR, APS headings), CIB-339 (Git Bash
+  path-shape)
+- **Confidence:** high — [#4703](https://github.com/eddacraft/anvil-001/pull/4703)
+  is an ancestor of `origin/main`
+
+### CIB-428: `anvil validate` accepts APS `## Work Items`
+
+- **Status:** Merged 2026-09-15 via PR
+  [#4703](https://github.com/eddacraft/anvil-001/pull/4703) (`5bb096dc4`).
+  Intake recorded 2026-09-16. Claim issue #4701 used colliding id CIB-420;
+  that number already owns the JS/TS artefact-reachability inventory.
+- **Priority:** P2 — `anvil validate` rejected current APS modules that
+  use `## Work Items`; `packages/aps` and `aps lint` already accept them
+- **Currency:** current — shipped in v0.11.0-beta
+- **Intent:** `anvil validate` treats `## Work Items` as the canonical
+  required heading and `## Tasks` as a legacy alias.
+- **Expected Outcome:** A module with `## Work Items` and no `## Tasks`
+  validates. Legacy `## Tasks` still validates.
+- **Non-scope / do not:** do not retarget `anvil validate` at `aps lint`.
+  Do not reopen CIB-036 (this repo's APS corpus migration). Do not treat
+  CIB-420 artefact-reachability as this item.
+- **Files:** `crates/anvil-cli/src/commands/validate.rs`;
+  `apps/e2e/src/cli/commands.e2e.test.ts`
+- **Validation:** unit/e2e coverage for both headings;
+  `cargo test -p eddacraft-anvil --no-fail-fast` covering validate
+- **Identified From:** Matt 0.10.0-beta; public APS required `## Work Items`
+  since before v0.2.0; CI-log 2026-09-14 `promote: CIB`
+- **Coordinates with:** CIB-427 (same PR), CIB-036 (Done, corpus),
+  `packages/aps` (already accepted both headings)
+- **Confidence:** high — same merge as CIB-427
+
