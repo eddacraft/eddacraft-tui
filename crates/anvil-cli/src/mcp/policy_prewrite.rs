@@ -130,6 +130,7 @@ pub(crate) fn evaluate_many(
 
 /// [`evaluate`] with an explicit total-pass budget, so tests can force deadline
 /// exhaustion mid-pass without a real slow eval.
+#[cfg(test)]
 fn evaluate_with_budget(
     workspace_root: &Path,
     changed_path: &str,
@@ -403,28 +404,41 @@ fn evaluate_pack(
         .unwrap_or_default();
     let fingerprint = pack_fingerprint(pack, manifest, &overlay);
 
+    // Take the engine out under a short lock, evaluate without holding the
+    // process-global cache mutex (save-time + MCP share this cache), then put
+    // it back. Holding the lock across regorus eval would serialise every
+    // concurrent pre-write/save-time pass.
     if let Some(fingerprint) = fingerprint.as_ref() {
-        let mut cache = prewrite_engine_cache();
-        if let Some(entry) = cache.entries.get_mut(&pack.pack.dir)
-            && entry.fingerprint == *fingerprint
-            && !entry.engine.is_poisoned()
-        {
+        let cached = {
+            let mut cache = prewrite_engine_cache();
+            match cache.entries.remove(&pack.pack.dir) {
+                Some(entry)
+                    if entry.fingerprint == *fingerprint && !entry.engine.is_poisoned() =>
+                {
+                    Some(entry)
+                }
+                Some(entry) if entry.engine.is_poisoned() => None,
+                Some(_stale) => None,
+                None => None,
+            }
+        };
+        if let Some(mut entry) = cached {
             if Instant::now() >= deadline {
+                remember_compiled_engine(pack.pack.dir.clone(), entry.fingerprint, entry.engine);
                 return PackEval::Truncated;
             }
             let _ = entry.engine.set_eval_timeout(config.eval_timeout);
-            return eval_compiled_engine(
+            let outcome = eval_compiled_engine(
                 &mut entry.engine,
                 policy_input,
                 manifest,
                 pack_id,
                 changed_path,
             );
-        }
-        if let Some(entry) = cache.entries.get(&pack.pack.dir)
-            && entry.engine.is_poisoned()
-        {
-            cache.entries.remove(&pack.pack.dir);
+            if !entry.engine.is_poisoned() {
+                remember_compiled_engine(pack.pack.dir.clone(), entry.fingerprint, entry.engine);
+            }
+            return outcome;
         }
     }
 
