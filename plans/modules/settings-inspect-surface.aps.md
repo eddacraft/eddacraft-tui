@@ -7,12 +7,15 @@
 | ------ | ----- | -------- | -------- | -------- |
 | SETINS | —     | medium   | Done     | 10/10     |
 
-**Last reviewed:** 2026-09-14 — SETINS-003..010 Merged via #4696 after SETINS-001/002
-via #4681. CLICT-008 re-audit in PR #4781 (2026-09-17, slice 8); the public-docs claim that `anvil settings`
-is a released product follows once it merges (RELEASE-PLAN `v0.12.0-beta`). Module created 2026-08-06 from the operator-supplied
-`/settings` specification v1.1
+**Last reviewed:** 2026-09-17 — CLICT-008 re-audit in PR #4781 (slice 8). SETINS-003..010
+Merged via #4696 after SETINS-001/002 via #4681. The public-docs claim that
+`anvil settings` is a released product follows once CLICT-008 merges
+(RELEASE-PLAN `v0.12.0-beta`). Module created 2026-08-06 from the
+operator-supplied `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
-spec §22 Slice 1). Gated on SETCON; no release window claimed.
+spec §22 Slice 1). At module creation it was gated on SETCON with no release
+window claimed; the `v0.12.0-beta` public-docs claim is the later RELEASE-PLAN
+window for that product claim.
 
 > **Entry gate.** SETINS starts only after SETCON-010 (settings service and
 > read-model boundary) and SETCON-008 (JSON envelope) land. This module renders

@@ -108,12 +108,13 @@ root registry re-verified 2026-07-07 on `main`. Registration lives in
 `crates/anvil-cli/src/main.rs` (`Commands` enum); dispatch in
 `crates/anvil-cli/src/commands/`.
 
-**Count:** **45** top-level command families (plus built-in `help`). **20**
+**Count:** **46** top-level command families (plus built-in `help`). **21**
 expose subcommands; **25** are flags/positional-only surfaces. Hidden
 compatibility aliases (`login`, `logout`, `whoami`) dispatch to `auth` and are
 tracked as auth-surface notes, not separate command families. `settings`
-(row 46) was added 2026-09-17 by CLICT-008; the live registry on 0.11.1-beta
-lists **48** families, and the full recount is owed to CLICT-007.
+(row 46) was added 2026-09-17 by CLICT-008 as a subcommand family. The live
+registry on 0.11.1-beta lists **48** families, and the full recount is owed to
+CLICT-007.
 
 ### Registry
 

@@ -639,7 +639,7 @@ $ anvil status --json | jq .protection_state
 
 **Class:** User-explicit **Purpose:** Inspect configured, resolved, and
 evidenced-active settings; change the four Class A interface preferences from
-the TUI. **When to use:** When you need to see what Anvil is configured to do,
+the TUI. **When to use:** When you need to see what anvil is configured to do,
 what it resolved after policy, and what the running system can prove it is
 enforcing. Prefer `show` / `explain` / `status` / `sources` for non-interactive
 output; bare `anvil settings` opens the control centre TUI on a supported
