@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                                                    |
-| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| README | Advisory  | DOCGOV | Live   | Reviewed 2026-09-16 against latest tag `v0.11.0-beta`, locked `v0.11.1-beta` window in `RELEASE-PLAN.md`, and SETPREF as the `v0.12.0-beta` next-minor claim |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                                                               |
+| ------ | --------- | ------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Reviewed 2026-09-17 against latest tag `v0.11.1-beta`, locked `v0.12.0-beta` window in `RELEASE-PLAN.md`, and SETPREF remaining after Class A persist on the 0.11.1 tip |
 
 | Upstream                                               | Downstream                      |
 | ------------------------------------------------------ | ------------------------------- |
@@ -27,8 +27,8 @@ docs/API/tooling, Pulumi infra, APS plans.
 | Early access  | [eddacraft.ai](https://eddacraft.ai)                                |
 | Public docs   | [docs.eddacraft.ai/anvil](https://docs.eddacraft.ai/anvil/overview) |
 | Install       | [install.eddacraft.ai](https://install.eddacraft.ai)                |
-| Latest tag    | **`v0.11.0-beta`**                                                  |
-| Active window | **`v0.11.1-beta`** — CIB Ready honesty (claim locked)               |
+| Latest tag    | **`v0.11.1-beta`**                                                  |
+| Active window | **`v0.12.0-beta`** — SETPREF remaining (persist already on 0.11.1)  |
 | Live work     | [`plans/index.aps.md`](./plans/index.aps.md)                        |
 | Release cut   | [`RELEASE-PLAN.md`](./RELEASE-PLAN.md)                              |
 

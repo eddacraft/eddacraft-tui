@@ -15,7 +15,7 @@ engineering maintenance are recorded in the
 
 Secret detection now covers the source types a React, Python, Go, or shell
 repository actually commits. Interface preferences persist. Graph tools refuse a
-nested folder as a workspace root.
+nested folder that is not itself a valid git checkout as a workspace root.
 
 ### Added
 
@@ -29,9 +29,11 @@ nested folder as a workspace root.
 
 ### Fixed
 
-- **Graph tools refuse a nested folder as a workspace root.** Asking the daemon
-  to index a directory inside a checkout no longer treats that folder as its own
-  project. A planted empty `.git` directory is not enough to bypass this.
+- **Graph tools refuse a nested folder that is not itself a valid git checkout
+  as a workspace root.** Asking the daemon to index a directory inside a
+  checkout no longer treats that folder as its own project. A planted empty
+  `.git` directory is not enough to bypass this. A nested folder that is itself
+  a complete git repository can still be used as a workspace root.
 
 - **Commit-gate secret detection now covers React, Python, Go, and shell
   source.** A planted credential in `.tsx`, `.jsx`, `.py`, `.go`, or `.sh` fails

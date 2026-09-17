@@ -3,16 +3,15 @@
 
 # Anvil — Save-time Trust
 
-> **Latest tag: `v0.11.0-beta`** (2026-09-15) — Windows readiness and inspect
-> surfaces. Changelog: [`CHANGELOG.md`](../CHANGELOG.md). Prior:
-> [`v0.10.0-beta`](./releases/v0.10.0-beta.md). Per-tag records under
+> **Latest tag: `v0.11.1-beta`** (2026-09-16) — Gate and inspect honesty.
+> Changelog: [`CHANGELOG.md`](../CHANGELOG.md). Record:
+> [`v0.11.1-beta`](./releases/v0.11.1-beta.md). Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is **`v0.11.1-beta`** (CIB Ready honesty; primary
-> **CIB-424**). Next minor **`v0.12.0-beta`** claim is **SETPREF** (not this
-> window). Highest-value programme track beside the cut remains Graph Trust
-> Surfaces Wave 0 (**CGBDG**). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and
-> NBI.
+> The active release window is **`v0.12.0-beta`** (SETPREF remaining after
+> Class A persist shipped on the `v0.11.1-beta` tip). Highest-value programme
+> track beside the cut remains Graph Trust Surfaces Wave 0 (**CGBDG**). See
+> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
 
 ## Contents
 
@@ -104,27 +103,26 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | v0.11.1-beta — CIB-424 secret-detection domain | Ready (claim named; primary Merged) | [RELEASE-PLAN](../RELEASE-PLAN.md), [CIB-424](./modules/continuous-improvement-backlog.aps.md) | Patch after `v0.11.0-beta`. Primary landed via [#4725](https://github.com/eddacraft/anvil-001/pull/4725). | Merge [#4748](https://github.com/eddacraft/anvil-001/pull/4748); operator sign-off on [#4749](https://github.com/eddacraft/anvil-001/issues/4749); preflight → readiness → tag. |
-| 2 | SETPREF — Class A safe preferences | Ready | [SETPREF](./modules/settings-safe-preferences.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | Locked `v0.12.0-beta` next-minor claim. Ready checklist complete. | Start SETPREF-001 after `v0.11.1-beta` or in parallel as 0.12 work. |
-| 3 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
-| 4 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block the next cut. |
+| 1 | SETPREF — remaining Class A safe preferences | Ready | [SETPREF](./modules/settings-safe-preferences.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | Locked `v0.12.0-beta` active window. Class A persist already shipped on `v0.11.1-beta` (#4741). | Remaining SETPREF items: scope honesty, reset preview, and the v0.1 closeout. |
+| 2 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
+| 3 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block the next cut. |
 ## Release Plan
 
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
 **Shipped release windows** — `v0.5.0-beta` (2026-05-01) through
-`v0.11.0-beta` (2026-09-15, Windows readiness and inspect surfaces) are fully
+`v0.11.1-beta` (2026-09-16, Gate and inspect honesty) are fully
 shipped as promoted headline windows.
 Windows through `v0.7.4-beta` have their per-window tables and slice records in
 [`completed-index.aps.md`](./completed-index.aps.md#release-plan); later records
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.11.1-beta`** (CIB Ready honesty after `v0.11.0-beta`), declared
-in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the
-NBI table. Shipped windows through `v0.11.0-beta` are promoted headlines. Next
-minor claim is SETPREF (`v0.12.0-beta`).
+window is **`v0.12.0-beta`** (SETPREF remaining after Class A persist shipped
+on the `v0.11.1-beta` tip), declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md);
+see also the header above and the NBI table. Shipped windows through
+`v0.11.1-beta` are promoted headlines.
 
 **Module tables below** mix archived Complete modules (Graph Substrate GV2/GCTX/…
 Released/Shipped via v0.9.0-beta and archived 2026-07-13), work landed around
@@ -798,7 +796,7 @@ the shipped graph into agent- and team-lead trust answers. Framing and clearance
 checklist:
 [`plans/specs/2026-07-28-graph-trust-surfaces.md`](./specs/2026-07-28-graph-trust-surfaces.md).
 **Not** a second `RELEASE-PLAN.md` window. While the active window is
-`v0.11.1-beta` (CIB Ready honesty), module rows below
+`v0.12.0-beta` (SETPREF remaining), module rows below
 remain owned by their home sections where they already live; this band is the
 programme hub, not a release claim.
 
@@ -878,8 +876,8 @@ enforces.
 
 SETCON's truth-contract ADR is
 [ADR-132](./decisions/132-settings-truth-contract.md). Inspect (SETINS) shipped
-in `v0.11.0-beta`. The **next-minor** claim is **SETPREF** (`v0.12.0-beta`); it
-is not the active `v0.11.1-beta` window. Slices map one-to-one onto modules;
+in `v0.11.0-beta`. The **active** window is **SETPREF** (`v0.12.0-beta`); Class A
+persist already rode `v0.11.1-beta`. Slices map one-to-one onto modules;
 `/settings`
 v0.1 = SETCON + SETINS +
 SETPREF (`Settings | Status | Sources` only — the `Audit` tab ships with SETGOV,

@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                       |
-| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-09-16: tagged **`v0.11.1-beta`**. Active window is **`v0.12.0-beta`** (SETPREF remaining after Class A persist shipped on the 0.11.1 tip). |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                   |
+| ------------ | --------- | ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-09-17: closeout record for **`v0.11.1-beta`** published; active window remains **`v0.12.0-beta`** (SETPREF remaining after Class A persist shipped on the 0.11.1 tip). |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -33,8 +33,8 @@ nothing else.
 ## Current state
 
 - **Latest tag:** `v0.11.1-beta` "Gate and inspect honesty" (2026-09-16 on
-  `e7024b7a6`). Changelog: [`CHANGELOG.md`](./CHANGELOG.md). Per-tag record
-  under `plans/releases/` is still owed (closeout gap).
+  `e7024b7a6`). Changelog: [`CHANGELOG.md`](./CHANGELOG.md). Per-tag record:
+  [`plans/releases/v0.11.1-beta.md`](./plans/releases/v0.11.1-beta.md).
 - **Prior:** `v0.11.0-beta` Windows readiness and inspect surfaces
   (`1e07021a7`); `v0.10.0-beta` continuous journey honesty
   ([record](./plans/releases/v0.10.0-beta.md)); `v0.9.7-beta` first-session

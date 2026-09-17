@@ -1,9 +1,9 @@
 # anvil Roadmap
 
-**Last updated:** 2026-09-16 (`v0.11.0-beta` tagged — Windows readiness and
-inspect surfaces. Active window is `v0.11.1-beta` (CIB Ready honesty). Next
-minor `v0.12.0-beta` claim is SETPREF. See `RELEASE-PLAN.md`. Module status
-lives in the SOT files below; this roadmap stays thematic.)
+**Last updated:** 2026-09-17 (`v0.11.1-beta` tagged — Gate and inspect honesty.
+Active window is `v0.12.0-beta` (SETPREF remaining after Class A persist shipped
+on the 0.11.1 tip). See `RELEASE-PLAN.md`. Module status lives in the SOT files
+below; this roadmap stays thematic.)
 
 > Companion: [RELEASE-PLAN.md](./RELEASE-PLAN.md) — pickable menu of release-
 > slice candidates with waves, dependencies, and parallelisation. Source of
@@ -126,10 +126,9 @@ behind `dashboard.web` (default-off) for testing only — not a customer claim
 until default-on or a later named window owns it. Graph Trust Surfaces Wave 0
 (CGBDG discovery, CONF-001, …) is a **side programme**, not the active cut.
 
-**Active window:** `v0.11.1-beta` (CIB Ready honesty after inspect). Next minor,
-not this window: `v0.12.0-beta` **SETPREF**. Current state:
-[`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module status:
-[`plans/index.aps.md`](./plans/index.aps.md).
+**Active window:** `v0.12.0-beta` (SETPREF remaining after Class A persist on
+`v0.11.1-beta`). Current state: [`RELEASE-PLAN.md`](./RELEASE-PLAN.md). Module
+status: [`plans/index.aps.md`](./plans/index.aps.md).
 
 ### Horizon 3 — Enterprise Readiness
 
