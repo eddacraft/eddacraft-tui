@@ -1,8 +1,8 @@
 # CLI Surface Reference
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-09-10 for ADR-145 continuous-command journey: intercept has no public `ensure`/`restart`; daily ensure remains bare `anvil`; recycle remains `anvil mcp refresh --daemon restart`. Prior review 2026-09-10 for JREL-008 welcome terminal restoration on success, cancellation, ordinary errors, partial setup and panic. Prior review 2026-09-09 for JREL-007 guided-setup project routing, cancellation and write-failure outcomes. Prior review 2026-09-08 for CIB-415 (`anvil init` seeds `anvil/policy.yml`, `anvil status` L4 honesty, `l4-validate` hex-SHA range) and CIB-267 (`anvil hook pre-push` silent-pass help and Git remote/URL argv). Prior review 2026-08-31 for CIB-382's physical-identity Unix rendezvous repair, complete canonical-refusal JSON, and trusted writable-PID recovery. Also reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CLIC  | Live   | Last reviewed 2026-09-17 for CLICT-008 `anvil settings` re-audit against `--help` on 0.11.1-beta: family flags precede the subcommand, `--check` exits 2, Class A TUI writes documented, `/settings` alias and MCP tools cross-linked. Prior review 2026-09-10 for ADR-145 continuous-command journey: intercept has no public `ensure`/`restart`; daily ensure remains bare `anvil`; recycle remains `anvil mcp refresh --daemon restart`. Prior review 2026-09-10 for JREL-008 welcome terminal restoration on success, cancellation, ordinary errors, partial setup and panic. Prior review 2026-09-09 for JREL-007 guided-setup project routing, cancellation and write-failure outcomes. Prior review 2026-09-08 for CIB-415 (`anvil init` seeds `anvil/policy.yml`, `anvil status` L4 honesty, `l4-validate` hex-SHA range) and CIB-267 (`anvil hook pre-push` silent-pass help and Git remote/URL argv). Prior review 2026-08-31 for CIB-382's physical-identity Unix rendezvous repair, complete canonical-refusal JSON, and trusted writable-PID recovery. Also reviewed 2026-08-31 for Unix rendezvous repair: live-probed doctor cleanup, watch relocation recovery, multi-daemon recycle, and complete-or-unknown stop impact. Also reviewed 2026-08-31 CONF-011 Council repair of `anvil conformance check` against `crates/anvil-cli/src/commands/conformance.rs`, including one-way Git admission and preserved timeout provenance. Also reviewed 2026-08-30 for SDT-004's additive internal secret finding field, which moved no command, flag, exit code, or output shape; prior targeted review: 2026-08-29 SDT-008 coverage exit codes. |
 
 | Upstream                                                         | Downstream                                                  |
 | ---------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -638,34 +638,69 @@ $ anvil status --json | jq .protection_state
 ## anvil settings
 
 **Class:** User-explicit **Purpose:** Inspect configured, resolved, and
-evidenced-active settings without mutation. **When to use:** When you need to
-see what Anvil is configured to do, what it resolved after policy, and what the
-running system can prove it is enforcing. Prefer `show` / `explain` / `status` /
-`sources` for non-interactive output; bare `anvil settings` opens the inspect
-TUI on a supported terminal.
+evidenced-active settings; change the four Class A interface preferences from
+the TUI. **When to use:** When you need to see what Anvil is configured to do,
+what it resolved after policy, and what the running system can prove it is
+enforcing. Prefer `show` / `explain` / `status` / `sources` for non-interactive
+output; bare `anvil settings` opens the control centre TUI on a supported
+terminal.
 
 **Synopsis:**
-`anvil settings [show|explain <key>|status|sources] [--format text|json] [--check] [--focus <key>]`
+`anvil settings [--format text|json] [--check] [--focus <key>] [show|explain <key>|status|sources]`
+
+Family flags belong to `anvil settings`, not to the subcommand: write
+`anvil settings --format json show`, not `anvil settings show --format json`
+(the latter fails with `unexpected argument '--format'`). The global `--json` is
+accepted in either position.
+
+**Subcommands:**
+
+| Subcommand      | Description                                                           |
+| --------------- | --------------------------------------------------------------------- |
+| `show`          | Grouped settings rows: requested, resolved and runtime value per key. |
+| `explain <key>` | One canonical key: description, class, sources and CLI equivalent.    |
+| `status`        | Operational status summary and settings health.                       |
+| `sources`       | Resolution sources and provenance.                                    |
 
 **Flags:**
 
-| Flag            | Description                                               |
-| --------------- | --------------------------------------------------------- | ----------------------------------------------- |
-| `--format text  | json`                                                     | Non-interactive output format (implies no TUI). |
-| `--check`       | Health check; non-zero when settings health is unhealthy. |
-| `--focus <key>` | Focus a canonical key or deprecated alias in the TUI.     |
+| Flag                    | Description                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| `--format <text\|json>` | Non-interactive output format (implies no TUI). A non-TTY stdout gets text without it.  |
+| `--check`               | Health check; exit 2 when settings health is unhealthy. Implies non-interactive output. |
+| `--focus <key>`         | Focus a canonical key or deprecated alias in the TUI. Ignored when no TUI is available. |
 
-**Exit codes:** 0 (success), 1 (error), 8 (settings redaction/health failure)
+**Mutation:** Only the four Class A interface preferences (`interface.compact`,
+`interface.timestamps`, `interface.motion`, `interface.hints`) are writable, and
+only from the TUI: `space` toggles, `d` previews a reset to the inherited value,
+`enter` confirms. Writes go through the settings service to
+`user-config/settings.yaml` with an atomic replace and a stale-revision check.
+Class B/C protection settings stay read-only; there is no `set` / `unset`
+subcommand.
+
+**Output:** non-interactive `--format json` (or global `--json`) emits one
+`anvil.settings.v1` envelope: `schema_version`, `command`, `generated_at`,
+`model_revision`, `context`, `health`, `data`, `diagnostics`.
+
+**Related surfaces:** hidden `/settings [KEY]` alias (opens the TUI on a
+terminal, otherwise prints the CLI equivalent); read-only MCP tools
+`anvil_settings_show` / `anvil_settings_explain` / `anvil_settings_status` /
+`anvil_settings_sources` return the same envelope.
+
+**Exit codes:** 0 (success), 1 (internal error), 2 (`--check` unhealthy, or
+usage error), 3 (access error), 4 (resolution error), 8 (redaction failure; no
+payload emitted)
 
 **Examples:**
 
 ```
 $ anvil settings
-$ anvil settings show --format text
+$ anvil settings --format text show
 $ anvil settings explain gate.checks
 $ anvil settings status --json
 $ anvil settings sources
 $ anvil settings --check
+$ anvil settings --focus interface.compact
 ```
 
 ---

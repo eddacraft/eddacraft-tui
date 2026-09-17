@@ -367,7 +367,7 @@ rather than parsing human-readable prose.
 | `5`  | Surface and daemon on different OS instances, or cross-boundary mixed configuration (reserved / future emission)                          |
 | `6`  | Daemon not running and embedded fallback unavailable (reserved / future emission)                                                         |
 | `7`  | CLI or hook protocol version mismatch with the daemon (reserved / future emission)                                                        |
-| `8`  | EXIT_REDACTION_ERROR (8)                                                                                                                  |
+| `8`  | Redaction failure on a settings surface — fail-closed, no settings payload emitted                                                        |
 | `10` | Runtime discovery failed (reserved / future emission)                                                                                     |
 
 ### Authentication-required behaviour

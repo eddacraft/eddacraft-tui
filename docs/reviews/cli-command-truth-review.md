@@ -1,8 +1,8 @@
 # CLI Command Truth Review
 
-| Type  | Authority | Owner | Status | Freshness                                                            |
-| ----- | --------- | ----- | ------ | -------------------------------------------------------------------- |
-| Guide | Advisory  | CLICT | Live   | Last updated 2026-08-01 — bare `anvil` ensure (ADR-114 / ONSW) noted |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                       |
+| ----- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | CLICT | Live   | Last updated 2026-09-17 — slice 8 `anvil settings` re-audited on 0.11.1-beta (CLICT-008); prior 2026-08-01 bare `anvil` ensure (ADR-114 / ONSW) |
 
 | Upstream                                                                    | Downstream                                      |
 | --------------------------------------------------------------------------- | ----------------------------------------------- |
@@ -111,7 +111,9 @@ root registry re-verified 2026-07-07 on `main`. Registration lives in
 **Count:** **45** top-level command families (plus built-in `help`). **20**
 expose subcommands; **25** are flags/positional-only surfaces. Hidden
 compatibility aliases (`login`, `logout`, `whoami`) dispatch to `auth` and are
-tracked as auth-surface notes, not separate command families.
+tracked as auth-surface notes, not separate command families. `settings`
+(row 46) was added 2026-09-17 by CLICT-008; the live registry on 0.11.1-beta
+lists **49** families, and the full recount is owed to CLICT-007.
 
 ### Registry
 
@@ -162,6 +164,7 @@ tracked as auth-surface notes, not separate command families.
 | 43  | `uninstall`    | Flat        | `[--global]` — project state or user state + daemon                                                                                     | Yes             | Tier 2      |
 | 44  | `validate`     | Positional  | `<PLAN> [--format …] [--no-validate-hash]` — APS plan file validation                                                                   | Yes             | Tier 2      |
 | 45  | `version`      | Flat        | Install-method-aware version + upgrade guidance                                                                                         | Yes             | Tier 2      |
+| 46  | `settings`     | Subcommands | `[--format text\|json] [--check] [--focus <key>] [show\|explain <key>\|status\|sources]`; hidden `/settings` alias                      | Yes             | Tier 1½     |
 
 † **Runbook partial:** `docs/runbooks/cli-surface.md` omits subcommands that
 exist in `--help` (see slice 6).
@@ -200,6 +203,7 @@ Canonical names from `crates/anvil-cli/src/commands/check_catalog.rs`
 | **Tier 1**  | `architecture`, `policy`, `drift`, `watch`, `gate` (+ `exception`) | CLICT-001..005 |
 | **Tier 2**  | Remaining 36 families — runbook-first spot-check                   | CLICT-007      |
 | **Tier 1½** | `intercept`, `workspace` — runbook subcommands reconciled          | CLICT-006      |
+| **Tier 1½** | `settings` — re-audited after SETINS/SETPREF landed                | CLICT-008      |
 
 ---
 
@@ -615,22 +619,83 @@ the registration and persistence details for operators.
 
 ## Slice queue
 
-| #   | Command family                         | CLICT item | Status          | Notes                                                                                                             |
-| --- | -------------------------------------- | ---------- | --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 1   | `anvil architecture`                   | CLICT-001  | **Reconciling** | PR #3209 — guide redirects, completed-index fixes                                                                 |
-| 2   | `anvil policy` + `anvil exception`     | CLICT-002  | **Reconciling** | PR #3209 — public tutorial, runbook, beta guide                                                                   |
-| 3   | `anvil drift`                          | CLICT-003  | **Reconciling** | PR #3209 — tutorial snapshot paths, `--overwrite` removed                                                         |
-| 4   | `anvil watch`                          | CLICT-004  | **Done**        | Watch command/default-action docs reconciled                                                                      |
-| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Done**        | Canonical check-name vocabulary reconciled                                                                        |
-| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Done**        | Runbook daemon/workspace subcommands reconciled                                                                   |
-| 7   | Tier 2 runbook alignment (36 families) | CLICT-007  | **Proposed**    | Spot-check remaining families; fix runbook-only gaps                                                              |
-| 8   | `anvil settings`                       | CLICT-008  | **Auditing**    | Family registered by SETINS-005/006. Re-audit `--help` after land. No public-docs claim until this slice is Done. |
+| #   | Command family                         | CLICT item | Status          | Notes                                                                                                    |
+| --- | -------------------------------------- | ---------- | --------------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | `anvil architecture`                   | CLICT-001  | **Reconciling** | PR #3209 — guide redirects, completed-index fixes                                                        |
+| 2   | `anvil policy` + `anvil exception`     | CLICT-002  | **Reconciling** | PR #3209 — public tutorial, runbook, beta guide                                                          |
+| 3   | `anvil drift`                          | CLICT-003  | **Reconciling** | PR #3209 — tutorial snapshot paths, `--overwrite` removed                                                |
+| 4   | `anvil watch`                          | CLICT-004  | **Done**        | Watch command/default-action docs reconciled                                                             |
+| 5   | `anvil gate` + `gate-config`           | CLICT-005  | **Done**        | Canonical check-name vocabulary reconciled                                                               |
+| 6   | `anvil intercept` + `anvil workspace`  | CLICT-006  | **Done**        | Runbook daemon/workspace subcommands reconciled                                                          |
+| 7   | Tier 2 runbook alignment (36 families) | CLICT-007  | **Proposed**    | Spot-check remaining families; fix runbook-only gaps                                                     |
+| 8   | `anvil settings`                       | CLICT-008  | **Done**        | Re-audited 2026-09-17 on 0.11.1-beta after SETINS/SETPREF landed; runbook + public reference reconciled. |
 
 ---
 
-## Slice 8: `anvil settings` (2026-09-14)
+## Slice 8: `anvil settings` (2026-09-14; re-audited 2026-09-17)
 
-New inspect-only family owned by SETINS. Runtime (this change): `anvil settings`
-with `show`, `explain <key>`, `status`, `sources`; hidden `/settings` alias
-explains the CLI equivalent outside a TUI. No `set`/`unset`. JSON envelope
-`anvil.settings.v1`. Re-audit after merge against `anvil settings --help`.
+Runtime truth re-verified 2026-09-17 against `anvil-main` (origin/main
+`1e142fcd1`, `anvil 0.11.1-beta`; `--help` identical to the published
+0.11.1-beta binary). Family registered by SETINS-005/006 (#4681, #4696); Class A
+write path by SETPREF-001..006 (#4741). Subcommands `show`, `explain <key>`,
+`status`, `sources`; family flags `--format text|json`, `--check`,
+`--focus <key>`; hidden `/settings [KEY]` alias; JSON envelope
+`anvil.settings.v1`. No `set` / `unset`.
+
+### Documentation layers (settings)
+
+| Layer                                                | Claim before re-audit                                                                                                                      | Truth                                                                                     | Outcome                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- | ----------------------------------- |
+| `docs/runbooks/cli-surface.md`                       | Synopsis placed `--format` / `--check` / `--focus` after the subcommand; example `anvil settings show --format text`; exit codes "0, 1, 8" | Family flags precede the subcommand (`show --format text` is rejected); `--check` exits 2 | Reconciled 2026-09-17               |
+| `docs/runbooks/cli-surface.md` flags table           | Raw `\|` inside a code span split the row into an extra column                                                                             | Rendered as a broken table                                                                | Reconciled 2026-09-17               |
+| `docs/public/anvil/reference/cli.md` (generated)     | Exit 8 rendered as `EXIT_REDACTION_ERROR (8)`                                                                                              | Generator meaning table lacked the constant                                               | Reconciled via generator 2026-09-17 |
+| `CHANGELOG.md` / public changelog (0.11.1)           | Inspect entry plus Class A persist entry                                                                                                   | Accurate                                                                                  | None                                |
+| `docs/guides/product-feature-catalogue.md` (FLAGCAT) | "Inspect-only control centre"                                                                                                              | Class A interface preferences write since #4741                                           | Follow-up (manifest owner)          |
+| `anvil settings --help` and TUI copy (code)          | "Inspect configured, resolved and evidenced-active settings"; "opens the inspect TUI"                                                      | TUI also toggles and resets Class A keys                                                  | Follow-up (honesty copy; not CLICT) |
+
+### Command-by-command map (settings)
+
+| Surface                    | Code                                                            | Engine                                                        | Tests                                                                                         |
+| -------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `anvil settings` (TUI)     | `Commands::Settings` → `commands::settings::run`                | `anvil_tui::surfaces::settings` + `anvil_settings::mutate`    | anvil-tui settings `mod` (28) / `render` (11); anvil-config `settings_write` (13); mutate (4) |
+| `show`                     | `SettingsCommand::Show`                                         | `anvil_settings::service` envelope                            | `settings_cli_show_text_lists_groups`, `settings_cli_json_envelope_is_versioned`              |
+| `explain <key>`            | `SettingsCommand::Explain`                                      | service                                                       | None explain-specific                                                                         |
+| `status`                   | `SettingsCommand::Status`                                       | `anvil_settings::health`                                      | `settings_cli_never_renders_active_without_evidence`                                          |
+| `sources`                  | `SettingsCommand::Sources`                                      | service                                                       | None sources-specific                                                                         |
+| `--check`                  | `SettingsArgs::check` → `SettingsOutcome::CheckFailed` (exit 2) | health                                                        | `settings_cli_check_fails_without_evidence`                                                   |
+| `/settings [KEY]` (hidden) | `Commands::SettingsSlash` → `run_slash`                         | Forwards to the TUI on a terminal, else prints the equivalent | `settings_entry_slash_explains_cli_equivalent`                                                |
+| MCP `anvil_settings_*`     | `crates/anvil-cli/src/mcp/tools/settings.rs`                    | Same envelope, read-only                                      | `settings_mcp_tools_are_read_only`                                                            |
+
+### Wiring and substitutes (settings)
+
+- Class A writes (`interface.compact`, `interface.timestamps`,
+  `interface.motion`, `interface.hints`) are TUI-only: `space` toggle, `d` reset
+  preview, `enter` confirm. Class B/C stay read-only until SETGOV.
+- `--focus` without a TTY falls through to text `show`.
+- Exit registry via `anvil_settings::exit_codes::code_for` (SETCON-009 /
+  ADR-132): 0 success, 1 internal, 2 check-failed or usage, 3 access, 4
+  resolution, 8 redaction. Only 8 is settings-reserved.
+
+### Test coverage gaps (settings)
+
+- No CLI-level test pins the `explain` or `sources` output shape.
+- No test pins family-flag placement; a future `global = true` on `--format`
+  would silently change the documented synopsis.
+
+### APS cross-links (settings)
+
+- CLICT-008 — this reconciliation.
+- SETINS-005/006 — family registration; SETPREF-001..006 — Class A writes.
+- Follow-ups filed, not fixed here: `--help` and TUI copy still say inspect-only
+  (honesty copy; code change, SETPREF owner); FLAGCAT manifest description for
+  `settings` says inspect-only.
+
+### Reconciliation checklist (settings)
+
+- [x] Runbook synopsis, subcommand and flag tables, exit codes and examples
+      match `--help` and observed behaviour (2026-09-17)
+- [x] Public reference exit-8 row rendered from the generator meaning table
+- [x] Slice-queue row 8 Done; SETINS and RELEASE-PLAN "no public-docs claim"
+      gates lifted
+- [ ] Follow-up: `--help` / TUI copy says inspect-only (code copy, not CLICT)
+- [ ] Follow-up: feature catalogue manifest says inspect-only (FLAGCAT)

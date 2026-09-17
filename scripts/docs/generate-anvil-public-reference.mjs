@@ -864,6 +864,8 @@ function exitCodeMeaning(name, code) {
     EXIT_VERSION_MISMATCH:
       'CLI or hook protocol version mismatch with the daemon (reserved / future emission)',
     EXIT_DISCOVERY_FAILED: 'Runtime discovery failed (reserved / future emission)',
+    EXIT_REDACTION_ERROR:
+      'Redaction failure on a settings surface — fail-closed, no settings payload emitted',
   };
   return meanings[name] ?? `${name} (${code})`;
 }

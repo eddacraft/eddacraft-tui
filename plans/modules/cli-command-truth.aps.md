@@ -276,4 +276,4 @@ build verdicts when redirects are already known.
   against the runbook and public reference synopses; `pnpm run docs:check`;
   `pnpm aps:index:check`
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** In Progress
