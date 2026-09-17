@@ -50,8 +50,10 @@ scripts/check-opa-version-pin.sh
 hits="$(git grep --no-recurse-submodules -l -F "$VERSION" -- \
   ':(exclude)plans' \
   ':(exclude)CHANGELOG.md' \
+  ':(exclude)ACKNOWLEDGEMENTS.md' \
   ':(exclude)pnpm-lock.yaml' \
   ':(exclude)**/*.lock' \
+  ':(exclude)Cargo.lock' \
   ':(exclude)**/pnpm-lock.yaml' \
   ':(exclude)target' || true)"
 
