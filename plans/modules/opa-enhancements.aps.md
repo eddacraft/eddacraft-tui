@@ -381,6 +381,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 - **Status:** In Progress
 - **Claim:** #4784
+- **PR:** #4788
 - **Intent:** Stop the MCP pre-write policy pass from repeating discovery,
   manifest parse, and `regorus` compile on **every** `anvil_validate_write` call.
   Filed from the POLRESET-006 review measurement: the pass is currently uncached
@@ -600,6 +601,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 - **Status:** In Progress
 - **Claim:** #4785
+- **PR:** #4788
 - **Intent:** Run installed policy packs on the daemon save-time path without
   linking `regorus` into `anvil-intercept`, using the ADR-067 injected-trait
   pattern reserved by ADR-098 AD-4.
