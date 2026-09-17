@@ -70,7 +70,22 @@ function ghJson(gh, args) {
     process.stderr.write(result.stderr || `gh ${args.join(' ')} failed\n`);
     process.exit(NOT_FINISHED);
   }
-  return JSON.parse(result.stdout);
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    process.stderr.write(
+      `[pr-required-status] incomplete API page: invalid JSON from gh ${args.join(' ')}\n`
+    );
+    process.exit(NOT_FINISHED);
+  }
+}
+
+/// Discovery that cannot finish must not look like a pass. Incomplete GraphQL
+/// or ruleset pages are the same class of lie as a missing check: wait/retry,
+/// never green.
+function failClosed(message) {
+  process.stderr.write(`[pr-required-status] ${message}\n`);
+  process.exit(NOT_FINISHED);
 }
 
 function loadJsonFile(path) {
@@ -153,30 +168,79 @@ function isFailed(check) {
 
 /// Count unresolved review threads via GraphQL. REST cannot answer this — it
 /// does not carry resolution state — which is why the ruleset's thread gate is
-/// invisible to `gh pr checks`.
+/// invisible to `gh pr checks`. Follow `pageInfo` until `hasNextPage` is false;
+/// a truncated page is fail-closed (CIB-430), never a pass on the first 100.
+const MAX_THREAD_PAGES = 100;
+
 function unresolvedThreadCount(gh, repo, prNumber) {
   const [owner, name] = repo.split('/');
-  const query = `query($owner:String!,$name:String!,$pr:Int!){
+  const query = `query($owner:String!,$name:String!,$pr:Int!,$after:String){
     repository(owner:$owner,name:$name){
       pullRequest(number:$pr){
-        reviewThreads(first:100){ nodes { isResolved } }
+        reviewThreads(first:100, after:$after){
+          pageInfo { hasNextPage endCursor }
+          nodes { isResolved }
+        }
       }
     }
   }`;
-  const data = ghJson(gh, [
-    'api',
-    'graphql',
-    '-f',
-    `query=${query}`,
-    '-F',
-    `owner=${owner}`,
-    '-F',
-    `name=${name}`,
-    '-F',
-    `pr=${prNumber}`,
-  ]);
-  const nodes = data?.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
-  return nodes.filter((thread) => !thread.isResolved).length;
+  let after = null;
+  let unresolved = 0;
+  const seenCursors = new Set();
+  for (let page = 0; page < MAX_THREAD_PAGES; page += 1) {
+    const args = [
+      'api',
+      'graphql',
+      '-f',
+      `query=${query}`,
+      '-F',
+      `owner=${owner}`,
+      '-F',
+      `name=${name}`,
+      '-F',
+      `pr=${prNumber}`,
+    ];
+    if (after) args.push('-f', `after=${after}`);
+    const data = ghJson(gh, args);
+    if (Array.isArray(data?.errors) && data.errors.length > 0) {
+      failClosed('incomplete review-thread page: GraphQL errors');
+    }
+    const threads = data?.data?.repository?.pullRequest?.reviewThreads;
+    const pageInfo = threads?.pageInfo;
+    const nodes = threads?.nodes;
+    if (
+      !threads ||
+      !pageInfo ||
+      typeof pageInfo.hasNextPage !== 'boolean' ||
+      !Array.isArray(nodes)
+    ) {
+      failClosed('incomplete review-thread page: missing pageInfo or nodes');
+    }
+    unresolved += nodes.filter((thread) => !thread.isResolved).length;
+    if (!pageInfo.hasNextPage) return unresolved;
+    if (!pageInfo.endCursor) {
+      failClosed('incomplete review-thread page: hasNextPage without endCursor');
+    }
+    if (seenCursors.has(pageInfo.endCursor)) {
+      failClosed('incomplete review-thread page: repeated cursor');
+    }
+    seenCursors.add(pageInfo.endCursor);
+    after = pageInfo.endCursor;
+  }
+  failClosed('incomplete review-thread page: exceeded page limit');
+}
+
+function loadLiveRulesets(gh, repo) {
+  const rulesetList = ghJson(gh, ['api', '--paginate', `repos/${repo}/rulesets`]);
+  if (!Array.isArray(rulesetList)) {
+    failClosed('incomplete ruleset page: list is not an array');
+  }
+  return rulesetList.map((entry) => {
+    if (entry == null || entry.id == null) {
+      failClosed('incomplete ruleset page: missing id');
+    }
+    return ghJson(gh, ['api', `repos/${repo}/rulesets/${entry.id}`]);
+  });
 }
 
 /// Classify the PR's merge candidate from `gh pr view`'s `mergeable` /
@@ -239,10 +303,7 @@ function main() {
     const repo =
       args.repo || ghJson(args.gh, ['repo', 'view', '--json', 'nameWithOwner']).nameWithOwner;
     const base = args.base || prView.baseRefName;
-    const rulesetList = ghJson(args.gh, ['api', `repos/${repo}/rulesets`]);
-    const rulesets = rulesetList.map((entry) =>
-      ghJson(args.gh, ['api', `repos/${repo}/rulesets/${entry.id}`])
-    );
+    const rulesets = loadLiveRulesets(args.gh, repo);
     required = requiredFromRulesets(rulesets, base);
     checks = normalizeChecks(prView);
     mergeState = classifyMergeability({

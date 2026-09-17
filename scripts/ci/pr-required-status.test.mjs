@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -251,4 +251,201 @@ test('an empty required set outranks the transient UNKNOWN message', () => {
   assert.equal(r.status, 2, r.stdout + r.stderr);
   assert.match(r.stderr, /no required contexts found/);
   assert.doesNotMatch(r.stdout, /mergeability unresolved/);
+});
+
+// --- CIB-430: paginate live discovery -----------------------------------------
+// Fixture injection never talks to GraphQL or the ruleset list, so a later
+// unresolved thread or required context on page 2 was invisible. Live mode
+// must follow every page; an incomplete page is fail-closed, not a pass.
+
+const FAKE_GH = `#!/usr/bin/env node
+'use strict';
+const fs = require('fs');
+const fixture = JSON.parse(fs.readFileSync(process.env.PR_REQUIRED_STATUS_FIXTURE, 'utf8'));
+const args = process.argv.slice(2);
+
+function valueOf(flag) {
+  for (let i = 0; i < args.length; i += 1) {
+    if ((args[i] === '-F' || args[i] === '-f') && args[i + 1] && args[i + 1].startsWith(flag + '=')) {
+      return args[i + 1].slice(flag.length + 1);
+    }
+  }
+  return undefined;
+}
+
+function reply(body) {
+  process.stdout.write(JSON.stringify(body));
+}
+
+if (args[0] === 'pr' && args[1] === 'view') {
+  reply(fixture.prView);
+  process.exit(0);
+}
+
+if (args.includes('graphql')) {
+  const after = valueOf('after') || '';
+  const pages = fixture.threadPages || {};
+  if (!Object.prototype.hasOwnProperty.call(pages, after)) {
+    process.stderr.write('fake-gh: unexpected reviewThreads cursor ' + JSON.stringify(after) + '\\n');
+    process.exit(1);
+  }
+  reply({
+    data: {
+      repository: {
+        pullRequest: {
+          reviewThreads: pages[after],
+        },
+      },
+    },
+  });
+  process.exit(0);
+}
+
+const pathArg = args.find((a) => typeof a === 'string' && a.startsWith('repos/'));
+if (pathArg) {
+  const pathOnly = pathArg.split('?')[0];
+  const detail = pathOnly.match(/\\/rulesets\\/(\\d+)$/);
+  if (detail) {
+    const id = detail[1];
+    const body = (fixture.rulesetDetails || {})[id];
+    if (!body) {
+      process.stderr.write('fake-gh: unknown ruleset ' + id + '\\n');
+      process.exit(1);
+    }
+    reply(body);
+    process.exit(0);
+  }
+  if (/\\/rulesets$/.test(pathOnly)) {
+    const pages = fixture.rulesetPages || [];
+    const body = args.includes('--paginate') ? pages.flat() : pages[0] || [];
+    reply(body);
+    process.exit(0);
+  }
+}
+
+process.stderr.write('fake-gh: unhandled ' + args.join(' ') + '\\n');
+process.exit(1);
+`;
+
+function livePrView(checks = GREEN) {
+  return {
+    number: 42,
+    baseRefName: 'main',
+    url: 'https://github.com/eddacraft/anvil-001/pull/42',
+    mergeable: 'MERGEABLE',
+    mergeStateStatus: 'BLOCKED',
+    statusCheckRollup: checks,
+  };
+}
+
+function liveRuleset({ id, contexts = [], threadResolution = false }) {
+  const rules = [];
+  if (contexts.length > 0) {
+    rules.push({
+      type: 'required_status_checks',
+      parameters: {
+        required_status_checks: contexts.map((context) => ({ context })),
+      },
+    });
+  }
+  if (threadResolution) {
+    rules.push({
+      type: 'pull_request',
+      parameters: { required_review_thread_resolution: true },
+    });
+  }
+  return {
+    id,
+    enforcement: 'active',
+    conditions: { ref_name: { include: ['~DEFAULT_BRANCH'] } },
+    rules,
+  };
+}
+
+function runLive(fixture) {
+  const dir = mkdtempSync(join(tmpdir(), 'pr-req-live-'));
+  const fixturePath = join(dir, 'fixture.json');
+  const ghPath = join(dir, 'fake-gh');
+  writeFileSync(fixturePath, JSON.stringify(fixture));
+  writeFileSync(ghPath, FAKE_GH, { mode: 0o755 });
+  chmodSync(ghPath, 0o755);
+  try {
+    return spawnSync(
+      process.execPath,
+      [SCRIPT, '--repo', 'eddacraft/anvil-001', '--pr', '42', '--gh', ghPath],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, PR_REQUIRED_STATUS_FIXTURE: fixturePath },
+      }
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('live mode counts an unresolved thread from the second GraphQL page', () => {
+  const firstPage = liveRuleset({
+    id: 1,
+    contexts: REQUIRED,
+    threadResolution: true,
+  });
+  const r = runLive({
+    prView: livePrView(),
+    rulesetPages: [[{ id: 1 }]],
+    rulesetDetails: { 1: firstPage },
+    threadPages: {
+      '': {
+        pageInfo: { hasNextPage: true, endCursor: 'thread-page-2' },
+        nodes: Array.from({ length: 100 }, () => ({ isResolved: true })),
+      },
+      'thread-page-2': {
+        pageInfo: { hasNextPage: false, endCursor: null },
+        nodes: [{ isResolved: false }],
+      },
+    },
+  });
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stdout, /blocked: 1 unresolved review thread\b/);
+  assert.doesNotMatch(r.stdout, /all required contexts reported and passed/);
+});
+
+test('live mode treats a required context from a later ruleset page as not finished', () => {
+  const pageOne = liveRuleset({ id: 1, contexts: REQUIRED });
+  const pageTwo = liveRuleset({ id: 2, contexts: ['Secret Scan'] });
+  const r = runLive({
+    prView: livePrView(),
+    rulesetPages: [[{ id: 1 }], [{ id: 2 }]],
+    rulesetDetails: { 1: pageOne, 2: pageTwo },
+    threadPages: {
+      '': {
+        pageInfo: { hasNextPage: false, endCursor: null },
+        nodes: [],
+      },
+    },
+  });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stdout, /not finished/i);
+  assert.match(r.stdout, /Secret Scan/);
+  assert.doesNotMatch(r.stdout, /all required contexts reported and passed/);
+});
+
+test('live mode fail-closes on an incomplete review-thread page, not a pass', () => {
+  const firstPage = liveRuleset({
+    id: 1,
+    contexts: REQUIRED,
+    threadResolution: true,
+  });
+  const r = runLive({
+    prView: livePrView(),
+    rulesetPages: [[{ id: 1 }]],
+    rulesetDetails: { 1: firstPage },
+    threadPages: {
+      '': {
+        pageInfo: { hasNextPage: true, endCursor: null },
+        nodes: Array.from({ length: 100 }, () => ({ isResolved: true })),
+      },
+    },
+  });
+  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.doesNotMatch(r.stdout, /all required contexts reported and passed/);
 });
