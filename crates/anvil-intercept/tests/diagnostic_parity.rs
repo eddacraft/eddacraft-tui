@@ -117,6 +117,7 @@ fn daemon_path_in_order(
             budget: 64,
             reverse_impact_depth: 1,
             caps: &DosCaps::default(),
+            policy: None,
         },
     );
     // `validate_paths` already applies the shared sort; filter to the family.

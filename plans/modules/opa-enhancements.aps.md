@@ -596,6 +596,31 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - **Dependencies:** OPAE-002, OPAE-007, POLFIT-001
 - **Confidence:** medium
 
+### OPAE-023: Inject policy evaluator into validate_paths
+
+- **Status:** In Progress
+- **Claim:** #4785
+- **Intent:** Run installed policy packs on the daemon save-time path without
+  linking `regorus` into `anvil-intercept`, using the ADR-067 injected-trait
+  pattern reserved by ADR-098 AD-4.
+- **Expected Outcome:** `anvil intercept start` injects a CLI `PolicyEvaluator`
+  into `validate_paths`. When the hook ran, `check_families` includes `policy`
+  and pack diagnostics appear on the save-time envelope. Coverage stays graph
+  plus antipattern. The daemon crate still fails `daemon_dep_boundary` if
+  `regorus` appears. `ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR=1` restores
+  today's antipattern-only path.
+- **Files:** `crates/anvil-intercept/src/save_time.rs`,
+  `crates/anvil-intercept/src/validate_paths.rs`,
+  `crates/anvil-intercept/src/lib.rs`,
+  `crates/anvil-intercept-proto/src/protocol.rs`,
+  `crates/anvil-cli/src/intercept_policy_evaluator.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`,
+  `plans/decisions/149-save-time-policy-evaluator-hook.md`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept --lib -- validate_paths`
+  and `cargo test -p eddacraft-anvil-intercept --test daemon_dep_boundary`
+- **Dependencies:** OPAE-011, ADR-149
+- **Confidence:** medium
+
 ## Designs
 
 - [Policy Authoring Lint and Agent Guidance Pilot](../specs/2026-07-15-policy-authoring-lint-and-agent-guidance.md)

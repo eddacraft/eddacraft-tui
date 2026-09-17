@@ -469,6 +469,11 @@ pub struct ForegroundOpts {
     /// documented degraded mode Unix also uses when no parser is wired.
     #[cfg(any(unix, windows))]
     symbol_parser: Option<Arc<dyn save_time::SymbolParser>>,
+    /// ADR-149: injected policy evaluator. `None` ⇒ `validate_paths` stays
+    /// antipattern-only. `anvil-cli` injects the MCP pre-write impl via
+    /// [`Self::with_policy_evaluator`].
+    #[cfg(any(unix, windows))]
+    policy_evaluator: Option<Arc<dyn save_time::PolicyEvaluator>>,
     /// USAGE-004: the command-invocation usage producer the daemon emits
     /// `command.invoked` rows through. `None` ⇒ usage export off (the
     /// default; tests and embedded mode). `anvil-cli` injects a real
@@ -524,6 +529,7 @@ impl ForegroundOpts {
             enforcement_config: config::Resolved::default(),
             #[cfg(any(unix, windows))]
             symbol_parser: None,
+            policy_evaluator: None,
             #[cfg(any(unix, windows))]
             usage_emitter: None,
             #[cfg(any(unix, windows))]
@@ -555,6 +561,7 @@ impl ForegroundOpts {
             scan_buffer: midedit::ScanBufferService::default(),
             enforcement_config: config::Resolved::default(),
             symbol_parser: None,
+            policy_evaluator: None,
             usage_emitter: None,
             observation_emitter: None,
             observation_sink: None,
@@ -578,6 +585,7 @@ impl ForegroundOpts {
             scan_buffer: midedit::ScanBufferService::default(),
             enforcement_config: config::Resolved::default(),
             symbol_parser: None,
+            policy_evaluator: None,
             usage_emitter: None,
             observation_emitter: None,
             observation_sink: None,
@@ -649,6 +657,15 @@ impl ForegroundOpts {
     #[must_use]
     pub fn with_symbol_parser(mut self, parser: Arc<dyn save_time::SymbolParser>) -> Self {
         self.symbol_parser = Some(parser);
+        self
+    }
+
+    /// ADR-149: inject the CLI-backed [`save_time::PolicyEvaluator`]. Without
+    /// it, `validate_paths` stays antipattern-only.
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_policy_evaluator(mut self, evaluator: Arc<dyn save_time::PolicyEvaluator>) -> Self {
+        self.policy_evaluator = Some(evaluator);
         self
     }
 
@@ -2502,6 +2519,9 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             // wired one.
             if let Some(parser) = opts.symbol_parser.clone() {
                 state = state.with_parser(parser);
+            }
+            if let Some(evaluator) = opts.policy_evaluator.clone() {
+                state = state.with_policy_evaluator(evaluator);
             }
             state = state.with_broadcaster(Arc::clone(&daemon_state.broadcaster));
             // DPO-001: wire the save-time gate_evaluated producer when the

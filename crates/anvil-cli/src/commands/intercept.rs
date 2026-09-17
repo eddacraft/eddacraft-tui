@@ -1746,6 +1746,23 @@ fn run_start(args: &StartArgs) -> Result<()> {
                 crate::intercept_symbol_parser::KernelSymbolParser::new(),
             ))
         };
+        // ADR-149: inject the CLI policy evaluator so save-time validate_paths
+        // runs installed packs without linking regorus into anvil-intercept.
+        #[cfg(any(unix, windows))]
+        let opts = if std::env::var_os("ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR")
+            .is_some_and(|value| value == "1")
+        {
+            tracing::warn!(
+                target: "anvil_intercept::save_time",
+                "ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR=1 — policy evaluator withheld; \
+                 validate_paths stays antipattern-only",
+            );
+            opts
+        } else {
+            opts.with_policy_evaluator(std::sync::Arc::new(
+                crate::intercept_policy_evaluator::CliPolicyEvaluator::new(),
+            ))
+        };
         run_foreground(opts, token).await
     })
 }

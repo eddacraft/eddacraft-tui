@@ -132,10 +132,10 @@ fn ast_checks_crate_carries_tree_sitter_rust() {
     );
 }
 
-/// ADR-098 AD-4: policy evaluation stays off the resident daemon. Slice-1
-/// policy runs on off-daemon surfaces only (MCP pre-write, `anvil gate`, CI);
-/// the sole sanctioned future on-ramp is an ADR-067-style injected trait,
-/// which must arrive via a new ADR and an explicit edit to this list.
+/// ADR-098 AD-4 / ADR-149: policy evaluation stays off the resident daemon
+/// crate. Save-time policy runs through the injected `PolicyEvaluator` trait
+/// (impl in `anvil-cli`); this list must stay forbidden so `regorus` cannot
+/// enter `anvil-intercept` by accident.
 /// `eddacraft-anvil-policy` is a prefix of `eddacraft-anvil-policy-engine`,
 /// so the substring scan covers both crates in one entry.
 const DAEMON_POLICY_FORBIDDEN: &[&str] = &["regorus", "eddacraft-anvil-policy"];

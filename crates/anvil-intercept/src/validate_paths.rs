@@ -273,6 +273,9 @@ pub struct ValidateEnv<'a> {
     /// applied per path here; the walk-depth cap governs the background scan
     /// executor (cf. [`walk_capped`](crate::workspace_pool::walk_capped)).
     pub caps: &'a DosCaps,
+    /// ADR-149: optional injected policy evaluator. `None` keeps
+    /// `check_families` as `[antipattern]`.
+    pub policy: Option<&'a dyn crate::save_time::PolicyEvaluator>,
 }
 
 /// The per-path outcome the orchestration folds into the response.
@@ -384,6 +387,15 @@ where
     // cross-path parity gate holds regardless of per-path encounter order.
     sort_diagnostics(&mut diagnostics);
 
+    let mut check_families = vec![CheckFamily::Antipattern];
+    if let Some(evaluator) = env.policy {
+        let changed: Vec<String> = order.clone();
+        let root = PathBuf::from(&request.workspace_root);
+        diagnostics.extend(evaluator.evaluate(&root, &changed));
+        sort_diagnostics(&mut diagnostics);
+        check_families.push(CheckFamily::Policy);
+    }
+
     // CIB-095b: a restored-but-not-reconciled warm-start stand-in carries an
     // empty `all_imports` accumulator, so `apply_delta`'s `annotate_trust` pass
     // ran over near-empty imports and may have cleared a cross-file `Privileged`
@@ -415,7 +427,7 @@ where
         evaluated: outcomes.into_iter().map(|o| o.evaluated).collect(),
         workspace_assurance: assurance.snapshot(),
         coverage,
-        check_families: vec![CheckFamily::Antipattern],
+        check_families,
     }
 }
 
@@ -814,6 +826,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
 
@@ -861,6 +874,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
         assert_eq!(resp.coverage, Coverage::Partial);
@@ -896,6 +910,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
         assert_eq!(
@@ -941,6 +956,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
         assert_eq!(
@@ -1010,6 +1026,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
         assert_eq!(
@@ -1067,6 +1084,7 @@ mod tests {
                 budget: 0, // budget 0 ⇒ any importer overflows
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
         assert_eq!(resp.coverage, Coverage::Partial);
@@ -1113,6 +1131,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &caps,
+                policy: None,
             },
         );
 
@@ -1179,6 +1198,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &caps,
+                policy: None,
             },
         );
         assert_eq!(
@@ -1208,6 +1228,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
         assert_eq!(resp.evaluated[0].content_hash, None);
@@ -1246,6 +1267,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
 
@@ -1304,6 +1326,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
+                policy: None,
             },
         );
 
@@ -1356,6 +1379,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &caps,
+                policy: None,
             },
         );
         // Oversized ⇒ skipped before parse/scan (no hash, coverage diagnostic).
@@ -1376,5 +1400,102 @@ mod tests {
             "an oversized Deleted path keeps its taxonomy StaleReason"
         );
         assert_eq!(resp.coverage, Coverage::Partial);
+    }
+
+    #[derive(Debug)]
+    struct StubPolicy;
+
+    impl crate::save_time::PolicyEvaluator for StubPolicy {
+        fn evaluate(
+            &self,
+            _workspace_root: &std::path::Path,
+            changed_paths: &[String],
+        ) -> Vec<Diagnostic> {
+            changed_paths
+                .iter()
+                .filter(|path| path.contains("crypto/"))
+                .map(|path| {
+                    Diagnostic::new(
+                        "crypto-human-signoff",
+                        Severity::Error,
+                        format!("`{path}` looks like cryptographic code"),
+                        Location {
+                            file: path.clone(),
+                            line: None,
+                            column: None,
+                            end_line: None,
+                            end_column: None,
+                        },
+                        Category::Policy,
+                        DiagnosticSource {
+                            rule_id: "crypto-human-signoff".to_string(),
+                            source_module: "anvil-cli::policy".to_string(),
+                        },
+                        Mode::known(KnownMode::SaveTime),
+                    )
+                })
+                .collect()
+        }
+    }
+
+    #[test]
+    fn validate_paths_policy_hook_labels_family_and_appends_diagnostics() {
+        let bytes = b"pub fn version() -> u8 { 1 }".to_vec();
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let stub = StubPolicy;
+        let resp = validate_paths(
+            &request(vec![desc(
+                "crypto/src/aes.rs",
+                ChangeKindWire::Modified,
+                None,
+            )]),
+            &cache,
+            &mut assurance,
+            |_| Ok(bytes.clone()),
+            |_, _| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                reverse_impact_depth: 1,
+                caps: &DosCaps::default(),
+                policy: Some(&stub),
+            },
+        );
+        assert_eq!(
+            resp.check_families,
+            vec![CheckFamily::Antipattern, CheckFamily::Policy]
+        );
+        assert!(
+            resp.diagnostics
+                .iter()
+                .any(|d| d.id == "crypto-human-signoff" && d.category == Category::Policy),
+            "injected policy diagnostics must appear: {:?}",
+            resp.diagnostics
+        );
+    }
+
+    #[test]
+    fn validate_paths_without_policy_hook_stays_antipattern_only() {
+        let bytes = b"pub fn version() -> u8 { 1 }".to_vec();
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc("src/app.rs", ChangeKindWire::Modified, None)]),
+            &cache,
+            &mut assurance,
+            |_| Ok(bytes.clone()),
+            |_, _| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                reverse_impact_depth: 1,
+                caps: &DosCaps::default(),
+                policy: None,
+            },
+        );
+        assert_eq!(resp.check_families, vec![CheckFamily::Antipattern]);
     }
 }

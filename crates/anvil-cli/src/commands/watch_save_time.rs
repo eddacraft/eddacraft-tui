@@ -429,10 +429,19 @@ pub(crate) fn daemon_verdict_summary(response: &ValidatePathsResponse) -> Daemon
         Coverage::Partial => "partial",
     };
     let exact_antipattern_scope = response.check_families.as_slice() == [CheckFamily::Antipattern];
-    let scope = exact_antipattern_scope.then(|| format!("antipattern-only {coverage}"));
+    let antipattern_and_policy =
+        response.check_families.as_slice() == [CheckFamily::Antipattern, CheckFamily::Policy];
+    let scope = if exact_antipattern_scope {
+        Some(format!("antipattern-only {coverage}"))
+    } else if antipattern_and_policy {
+        Some(format!("antipattern+policy {coverage}"))
+    } else {
+        None
+    };
+    let exact_supported_scope = exact_antipattern_scope || antipattern_and_policy;
     let degraded = response.coverage != Coverage::Certified
         || response.workspace_assurance.state != AssuranceState::Clean
-        || !exact_antipattern_scope;
+        || !exact_supported_scope;
     let detail = match scope.as_deref() {
         None => {
             let reason = if response.check_families.is_empty() {
@@ -1306,6 +1315,12 @@ mod tests {
         assert!(duplicate.detail.contains("refusing attestation"));
         assert!(duplicate.degraded);
         assert!(!duplicate.detail.contains("antipattern-only"));
+
+        let mut with_policy = clean_response();
+        with_policy.check_families.push(CheckFamily::Policy);
+        let with_policy = daemon_verdict_summary(&with_policy);
+        assert_eq!(with_policy.detail, "antipattern+policy certified");
+        assert!(!with_policy.degraded);
     }
 
     #[test]

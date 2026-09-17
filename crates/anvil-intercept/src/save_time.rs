@@ -38,7 +38,7 @@ use anvil_intercept_proto::protocol::{
     WitnessAppendRequest, WitnessAppendResponse, WitnessEntry, WitnessOutcomeKind,
     WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
-use anvil_kernel_types::FileSymbols;
+use anvil_kernel_types::{Diagnostic, FileSymbols};
 
 use crate::assurance::{AssuranceMachine, ScanPriority};
 use crate::broadcaster::TelemetryBroadcaster;
@@ -128,6 +128,20 @@ pub trait SymbolParser: Send + Sync + std::fmt::Debug {
     /// when the language is unsupported or the parse fails — a `None` keeps the
     /// verdict a safe `Partial`.
     fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols>;
+}
+
+/// ADR-149: dependency-inverted policy evaluation on the save-time verdict.
+///
+/// The daemon codes against this trait and never links `regorus`. `anvil-cli`
+/// injects the MCP pre-write evaluator via
+/// [`crate::ForegroundOpts::with_policy_evaluator`]. `None` ⇒ `validate_paths`
+/// stays antipattern-only, matching today's envelope.
+pub trait PolicyEvaluator: Send + Sync + std::fmt::Debug {
+    /// Evaluate installed packs against the save's changed paths.
+    ///
+    /// Must fail open: panics and eval errors become warning diagnostics, never
+    /// unwind into the daemon.
+    fn evaluate(&self, workspace_root: &Path, changed_paths: &[String]) -> Vec<Diagnostic>;
 }
 
 /// ADR-069 §10 structured snapshot I/O counters. One cumulative counter per
@@ -305,6 +319,9 @@ pub struct SaveTimeState {
     /// yields `None` and every verdict stays a safe `Partial` (the daemon never
     /// parses on its own); a `Some` is wired from `anvil-cli`.
     parser: Option<Arc<dyn SymbolParser>>,
+    /// ADR-149: injected policy evaluator. `None` ⇒ antipattern-only
+    /// `check_families`; a `Some` is wired from `anvil-cli`.
+    policy_evaluator: Option<Arc<dyn PolicyEvaluator>>,
     /// Per-workspace `DoS` caps (DSV-006 / Task 11): the parse-size cap the
     /// verdict path enforces per file. Daemon-level policy, immutable once
     /// built; defaults to [`DosCaps::default`] (a future operator-config
@@ -398,6 +415,7 @@ impl SaveTimeState {
             scheduler,
             confinement,
             parser: None,
+            policy_evaluator: None,
             caps: DosCaps::default(),
             broadcaster: None,
             telemetry: Mutex::new(TelemetryEmitter::new()),
@@ -508,6 +526,14 @@ impl SaveTimeState {
     #[must_use]
     pub fn with_parser(mut self, parser: Arc<dyn SymbolParser>) -> Self {
         self.parser = Some(parser);
+        self
+    }
+
+    /// Inject the CLI-backed [`PolicyEvaluator`] (ADR-149). Without it,
+    /// `validate_paths` stays antipattern-only.
+    #[must_use]
+    pub fn with_policy_evaluator(mut self, evaluator: Arc<dyn PolicyEvaluator>) -> Self {
+        self.policy_evaluator = Some(evaluator);
         self
     }
 
@@ -1514,6 +1540,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             budget: SAVE_TIME_CERTIFY_BUDGET,
             reverse_impact_depth,
             caps: &state.caps,
+            policy: state.policy_evaluator.as_deref(),
         };
         // Parse the EXACT guarded bytes the daemon read (handed in by
         // `validate_paths`) via the injected kernel-backed parser. No parser

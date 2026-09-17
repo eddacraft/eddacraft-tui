@@ -598,6 +598,7 @@ mod tests {
                 budget: 64,
                 reverse_impact_depth: 1,
                 caps: &dos,
+                policy: None,
             },
         );
 

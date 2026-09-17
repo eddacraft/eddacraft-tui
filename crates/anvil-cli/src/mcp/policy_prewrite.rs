@@ -110,13 +110,22 @@ pub(crate) fn evaluate(
     // Reuse the OPAE-006 adapter's tight default as the TOTAL pass budget — it
     // bounds discovery + compile + eval, not just a single eval.
     let pass_budget = PrewriteBudget::default().max_eval;
-    evaluate_with_budget(
+    evaluate_many_with_budget(
         workspace_root,
-        changed_path,
-        change_kind,
+        &[(changed_path, change_kind)],
         posture,
         pass_budget,
     )
+}
+
+/// Evaluate installed packs against a change set (ADR-149 save-time hook).
+pub(crate) fn evaluate_many(
+    workspace_root: &Path,
+    changes: &[(&str, ChangeKind)],
+    posture: EnforcementMode,
+) -> PolicyPrewriteOutcome {
+    let pass_budget = PrewriteBudget::default().max_eval;
+    evaluate_many_with_budget(workspace_root, changes, posture, pass_budget)
 }
 
 /// [`evaluate`] with an explicit total-pass budget, so tests can force deadline
@@ -128,6 +137,24 @@ fn evaluate_with_budget(
     posture: EnforcementMode,
     pass_budget: Duration,
 ) -> PolicyPrewriteOutcome {
+    evaluate_many_with_budget(
+        workspace_root,
+        &[(changed_path, change_kind)],
+        posture,
+        pass_budget,
+    )
+}
+
+fn evaluate_many_with_budget(
+    workspace_root: &Path,
+    changes: &[(&str, ChangeKind)],
+    posture: EnforcementMode,
+    pass_budget: Duration,
+) -> PolicyPrewriteOutcome {
+    let Some((changed_path, _)) = changes.first() else {
+        return PolicyPrewriteOutcome::inert();
+    };
+    let changed_path = *changed_path;
     // Kill switch first (AD-5): a single debug-level log, never per-call spam.
     if !policy_enforcement_enabled() {
         tracing::debug!(
@@ -165,7 +192,9 @@ fn evaluate_with_budget(
     // then bounded by min(remaining, that budget).
     let prewrite = PrewriteInput::from_parts(
         WorkflowPhase::Save,
-        [ChangedPath::new(changed_path, change_kind)],
+        changes
+            .iter()
+            .map(|(path, kind)| ChangedPath::new(*path, *kind)),
         [],
         GraphFacts::default(),
         PrewriteBudget::new(pass_budget),

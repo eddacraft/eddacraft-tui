@@ -384,15 +384,19 @@ pub enum Coverage {
     Partial,
 }
 
-/// The check families a `certified` verdict attests (B2). Frozen as
-/// `[antipattern]` for Sub-phase A — `coverage: certified` is **never** an
-/// unscoped structural-safety claim; structural policy stays on whole-repo
-/// `anvil gate`.
+/// The check families a `certified` verdict attests (B2).
+///
+/// Sub-phase A froze this as `[antipattern]`. ADR-149 adds `policy` when the
+/// injected save-time policy hook ran. `coverage: certified` remains graph plus
+/// antipattern; policy findings are extra diagnostics, not a structural-safety
+/// claim. Whole-repo structural policy still stays on `anvil gate`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CheckFamily {
     /// The antipattern check family (`anvil-checks::antipattern`).
     Antipattern,
+    /// Installed policy packs, evaluated through the ADR-149 injected hook.
+    Policy,
 }
 
 /// The coarse workspace-assurance state the `anvil status` surface renders.

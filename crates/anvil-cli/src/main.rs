@@ -19,6 +19,8 @@ mod help_layout;
 mod host_completeness;
 mod insights;
 mod install_root;
+#[cfg(any(unix, windows))]
+mod intercept_policy_evaluator;
 #[cfg(unix)]
 mod intercept_symbol_parser;
 #[cfg(test)]
