@@ -63,8 +63,8 @@ const snapshot = {
     url: `https://github.com/eddacraft/anvil/blob/main/releases/release-evidence-${version}.md`,
   },
   installSite: { status: 200, url: 'https://install.eddacraft.ai' },
-  scoop: { configured: false, state: 'not-configured' },
-  winget: { configured: false, state: 'not-configured' },
+  scoop: { configured: true, state: 'published' },
+  winget: { configured: true, state: 'published' },
 };
 fs.writeFileSync(dest, JSON.stringify(snapshot));
 NODE
@@ -107,5 +107,26 @@ doc.privateRelease.assets = doc.publicRelease.assets;
 fs.writeFileSync(path, JSON.stringify(doc));
 NODE
 bash "$HARNESS" run-contract --name verify-live-assets --expected-exit 1 --expected-command verify -- bash -c 'ANVIL_RELEASE_TEST_MODE=verify-live-fake ANVIL_RELEASE_VERIFY_FAKE_LIVE_FILE="$1" bash "$2" --json --version v0.7.0-beta --source-sha "$3"' _ "$live_assets" "$VERIFY" "$sha"
+
+
+# Missing on public only must fail even when private still has the asset (no union mask).
+live_asymmetric="$tmp/live-asymmetric.json"
+write_live_snapshot "$live_asymmetric"
+node - "$live_asymmetric" <<'NODE'
+const fs = require('node:fs');
+const path = process.argv[2];
+const doc = JSON.parse(fs.readFileSync(path, 'utf8'));
+doc.publicRelease.assets = doc.publicRelease.assets.filter((name) => !name.includes('installer.sh'));
+// leave privateRelease complete
+fs.writeFileSync(path, JSON.stringify(doc));
+NODE
+bash "$HARNESS" run-contract --name verify-live-asymmetric-assets --expected-exit 1 --expected-command verify -- bash -c 'ANVIL_RELEASE_TEST_MODE=verify-live-fake ANVIL_RELEASE_VERIFY_FAKE_LIVE_FILE="$1" bash "$2" --json --version v0.7.0-beta --source-sha "$3"' _ "$live_asymmetric" "$VERIFY" "$sha"
+
+# Uppercase source SHA must normalise and pass against lowercase provenance.
+sha_upper="$(printf '%s' "$sha" | tr 'a-f' 'A-F')"
+bash "$HARNESS" run-contract --name verify-live-sha-uppercase --expected-exit 0 --expected-command verify -- bash -c 'ANVIL_RELEASE_TEST_MODE=verify-live-fake ANVIL_RELEASE_VERIFY_FAKE_LIVE_FILE="$1" bash "$2" --json --version v0.7.0-beta --source-sha "$3"' _ "$live_pass" "$VERIFY" "$sha_upper"
+
+# Endpoint overrides require explicit test mode.
+bash "$HARNESS" run-contract --name verify-endpoint-override-guard --expected-exit 129 --expected-command verify -- bash -c 'ANVIL_RELEASE_VERIFY_INSTALL_URL=https://example.com bash "$1" --json --version v0.7.0-beta --source-sha "$2"' _ "$VERIFY" "$sha"
 
 echo "verify.test.sh: ok"

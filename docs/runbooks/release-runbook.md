@@ -1,8 +1,8 @@
 # Anvil Release Runbook
 
-| Type    | Authority     | Owner   | Status | Freshness                                                                                                                                                          |
-| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-09-16 — `verify.sh` live GitHub/host checks (no fake-report stub). Prior: 2026-08-07 closeout doctrine (release record + APS advance) per #1712 |
+| Type    | Authority     | Owner   | Status | Freshness                                                                                                                                                                                                                                  |
+| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-09-17 — `verify.sh` live host checks; Scoop/WinGet are configured publisher jobs (live surface state, not hard-coded not-configured). Prior: 2026-09-16 live GitHub/host checks; 2026-08-07 closeout doctrine per #1712 |
 
 | Upstream                                                           | Downstream                            |
 | ------------------------------------------------------------------ | ------------------------------------- |
@@ -311,10 +311,15 @@ Verification must confirm:
 - `https://install.eddacraft.ai` returns HTTP 200
 
 `verify.sh` performs those checks live via `gh` and `curl`. A missing release,
-asset, provenance SHA mismatch, or non-200 install host fails the command. Scoop
-and WinGet are recorded as `not-configured` while `dist-workspace.toml` only
-publishes Homebrew. The fake-report test hook remains for harness contracts; it
-is not the operator path.
+asset, provenance SHA mismatch, or non-200 install host fails the command.
+Homebrew is checked via the tap formula. Scoop and WinGet are **configured**
+publisher jobs in `.github/workflows/release.yml` (they run when
+`publishing=true` after a successful host publish); verify records their live
+surface state (`published` / `missing` / `unreachable` / version `mismatch`),
+not a hard-coded `not-configured`. A beta cut can still show `missing` when the
+community WinGet PR has not landed yet — that is skipped-or-pending publication,
+not an unconfigured publisher. The fake-report test hook remains for harness
+contracts; it is not the operator path.
 
 ### 9. Approve Comms
 

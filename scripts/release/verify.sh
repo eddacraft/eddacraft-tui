@@ -6,8 +6,8 @@ DEFAULT_PUBLIC_REPO="eddacraft/anvil"
 DEFAULT_TAP_REPO="eddacraft/homebrew-tap"
 DEFAULT_INSTALL_URL="https://install.eddacraft.ai"
 json=false; repo="$DEFAULT_REPO"; public_repo="$DEFAULT_PUBLIC_REPO"; version=""; source_sha=""; mode="target"; started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-tap_repo="${ANVIL_RELEASE_VERIFY_TAP_REPO:-$DEFAULT_TAP_REPO}"
-install_url="${ANVIL_RELEASE_VERIFY_INSTALL_URL:-$DEFAULT_INSTALL_URL}"
+tap_repo="$DEFAULT_TAP_REPO"
+install_url="$DEFAULT_INSTALL_URL"
 
 usage() {
   cat <<'USAGE'
@@ -15,8 +15,9 @@ Usage: verify.sh --version <vX.Y.Z[-suffix]> --source-sha <sha> [--json] [--repo
 
 Confirm the tagged cut is published: private and public GitHub releases, cargo-dist
 assets, provenance SHA, release-evidence asset and public-repo copy, Homebrew tap
-version, and https://install.eddacraft.ai. Scoop and WinGet are recorded as
-not-configured unless dist-workspace.toml lists them.
+version, and https://install.eddacraft.ai. Scoop and WinGet are configured
+publisher jobs in release.yml; verify records their live surface state
+(published / missing / unreachable), never a hard-coded not-configured.
 USAGE
 }
 
@@ -129,12 +130,16 @@ const releaseOk = (label, rel) => {
 
 const privateAssets = releaseOk('private-release', snapshot.privateRelease);
 const publicAssets = releaseOk('public-release', snapshot.publicRelease);
-const assetSet = new Set([...privateAssets, ...publicAssets]);
-const missing = required.filter((name) => !assetSet.has(name));
-if (missing.length) {
-  fail('cargo-dist-assets', 'integrity-failed', snapshot.publicRelease && snapshot.publicRelease.url, `missing: ${missing.join(', ')}`);
+const missingOn = (assets) => required.filter((name) => !assets.includes(name));
+const missingPrivate = missingOn(privateAssets);
+const missingPublic = missingOn(publicAssets);
+if (missingPrivate.length || missingPublic.length) {
+  const parts = [];
+  if (missingPrivate.length) parts.push(`private missing: ${missingPrivate.join(', ')}`);
+  if (missingPublic.length) parts.push(`public missing: ${missingPublic.join(', ')}`);
+  fail('cargo-dist-assets', 'integrity-failed', snapshot.publicRelease && snapshot.publicRelease.url, parts.join('; '));
 } else {
-  pass('cargo-dist-assets', snapshot.publicRelease && snapshot.publicRelease.url, `${required.length} expected assets`);
+  pass('cargo-dist-assets', snapshot.publicRelease && snapshot.publicRelease.url, `${required.length} expected assets on each release`);
 }
 
 const evidenceName = `release-evidence-${version}.md`;
@@ -176,12 +181,31 @@ if (!formula) {
   pass('homebrew', null, `version ${bare}`);
 }
 
-const recordPublisher = (name, entry) => {
-  const state = (entry && entry.state) || 'not-configured';
+const recordPublisher = (name, entry, { failOnMissing }) => {
+  const configured = !!(entry && entry.configured);
+  const state = (entry && entry.state) || (configured ? 'missing' : 'not-configured');
+  if (!configured && state === 'not-configured') {
+    // Should not appear for Scoop/WinGet once release.yml jobs exist.
+    fail(name, 'integrity-failed', null, 'publisher reported not-configured despite release.yml jobs');
+    return;
+  }
+  if (state === 'published') {
+    pass(name, null, state);
+    return;
+  }
+  if (state.startsWith('mismatch:')) {
+    fail(name, 'integrity-failed', null, state);
+    return;
+  }
+  if (state === 'missing' && failOnMissing) {
+    fail(name, 'integrity-failed', null, 'configured publisher surface missing this version');
+    return;
+  }
+  // missing (non-gating) or unreachable: record honest state without failing the cut
   pass(name, null, state);
 };
-recordPublisher('scoop', snapshot.scoop);
-recordPublisher('winget', snapshot.winget);
+recordPublisher('scoop', snapshot.scoop, { failOnMissing: true });
+recordPublisher('winget', snapshot.winget, { failOnMissing: false });
 
 const site = snapshot.installSite || {};
 const siteUrl = site.url || null;
@@ -189,14 +213,19 @@ if (Number(site.status) === 200) pass('install-site', siteUrl, 'HTTP 200');
 else fail('install-site', 'integrity-failed', siteUrl, `HTTP ${site.status == null ? '(none)' : site.status}`);
 
 const failed = checks.filter((check) => check.status !== 'pass');
-const provenanceSha = provenance && provenance.private_build && provenance.private_build.commit_sha;
 const evidenceUrl = snapshot.publicRelease && snapshot.publicRelease.url
   ? `${String(snapshot.publicRelease.url).replace(/\/tag\/[^/]+$/, '')}/download/${version}/${evidenceName}`
+  : null;
+// releaseRecordSha256 is the evidence digest, not the source commit SHA.
+// Live verify does not download the evidence body yet, so leave null rather
+// than advertise commit_sha as a checksum.
+const evidenceDigest = (snapshot.evidenceDigest && typeof snapshot.evidenceDigest === 'string')
+  ? snapshot.evidenceDigest
   : null;
 const data = {
   checks,
   releaseRecordUrl: evidenceUrl,
-  releaseRecordSha256: provenanceSha || null,
+  releaseRecordSha256: evidenceDigest,
   commsDraft: failed.length ? null : `Release ${version} verified (${sourceSha.slice(0, 11)}).`,
 };
 process.stdout.write(JSON.stringify({
@@ -308,8 +337,48 @@ process.stdout.write(JSON.stringify({ url, status: Number(status) || 0 }));
 NODE
 }
 
+fetch_scoop_state() {
+  local bare="${version#v}" path_json
+  # Scoop bucket owned by Eddacraft — live surface for the scoop job in release.yml.
+  if ! path_json="$(gh api "repos/eddacraft/scoop-bucket/contents/bucket/anvil.json" --jq '{message: .message, content: .content, encoding: .encoding}' 2>/dev/null)"; then
+    printf '%s' '{"configured":true,"state":"unreachable"}'
+    return
+  fi
+  node - "$path_json" "$bare" <<'NODE'
+const [raw, bare] = process.argv.slice(2);
+let doc;
+try { doc = JSON.parse(raw); } catch { process.stdout.write(JSON.stringify({ configured: true, state: 'unreachable' })); process.exit(0); }
+if (!doc || doc.message === 'Not Found' || !doc.content) {
+  process.stdout.write(JSON.stringify({ configured: true, state: 'missing' }));
+  process.exit(0);
+}
+const body = Buffer.from(doc.content, doc.encoding || 'base64').toString('utf8');
+let manifest;
+try { manifest = JSON.parse(body); } catch { process.stdout.write(JSON.stringify({ configured: true, state: 'unreachable' })); process.exit(0); }
+const ver = String(manifest.version || '');
+process.stdout.write(JSON.stringify({
+  configured: true,
+  state: ver === bare ? 'published' : (ver ? `mismatch:${ver}` : 'missing'),
+}));
+NODE
+}
+
+fetch_winget_state() {
+  local bare="${version#v}"
+  # WinGet community package path used by the winget job in release.yml.
+  if gh api "repos/microsoft/winget-pkgs/contents/manifests/e/eddacraft/anvil/${bare}" --silent >/dev/null 2>&1; then
+    printf '%s' '{"configured":true,"state":"published"}'
+    return
+  fi
+  if gh api "repos/microsoft/winget-pkgs/contents/manifests/e/eddacraft/anvil" --silent >/dev/null 2>&1; then
+    printf '%s' '{"configured":true,"state":"missing"}'
+  else
+    printf '%s' '{"configured":true,"state":"unreachable"}'
+  fi
+}
+
 collect_live_snapshot() {
-  local private_json public_json provenance_json formula evidence_json site_json formula_file
+  local private_json public_json provenance_json formula evidence_json site_json scoop_json winget_json formula_file
   private_json="$(gh_release_snapshot "$repo")"
   public_json="$(gh_release_snapshot "$public_repo")"
   provenance_json="$(fetch_provenance_json "$public_repo")"
@@ -319,11 +388,13 @@ collect_live_snapshot() {
   formula="$(fetch_homebrew_formula)"
   evidence_json="$(fetch_evidence_repo)"
   site_json="$(fetch_install_site)"
+  scoop_json="$(fetch_scoop_state)"
+  winget_json="$(fetch_winget_state)"
   formula_file="$(mktemp)"
   printf '%s' "$formula" >"$formula_file"
-  node - "$private_json" "$public_json" "$provenance_json" "$formula_file" "$evidence_json" "$site_json" <<'NODE'
+  node - "$private_json" "$public_json" "$provenance_json" "$formula_file" "$evidence_json" "$site_json" "$scoop_json" "$winget_json" <<'NODE'
 const fs = require('node:fs');
-const [privateRelease, publicRelease, provenanceRaw, formulaFile, evidenceRepo, installSite] = process.argv.slice(2);
+const [privateRelease, publicRelease, provenanceRaw, formulaFile, evidenceRepo, installSite, scoopRaw, wingetRaw] = process.argv.slice(2);
 let provenance = null;
 try { provenance = JSON.parse(provenanceRaw); } catch { provenance = null; }
 process.stdout.write(JSON.stringify({
@@ -333,8 +404,9 @@ process.stdout.write(JSON.stringify({
   homebrewFormula: fs.readFileSync(formulaFile, 'utf8'),
   evidenceRepo: JSON.parse(evidenceRepo),
   installSite: JSON.parse(installSite),
-  scoop: { configured: false, state: 'not-configured' },
-  winget: { configured: false, state: 'not-configured' },
+  scoop: JSON.parse(scoopRaw),
+  winget: JSON.parse(wingetRaw),
+  evidenceDigest: null,
 }));
 NODE
   rm -f "$formula_file"
@@ -375,6 +447,18 @@ done
 [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)?$ ]] || fail_usage '--version must look like vX.Y.Z[-suffix]'
 [[ -n "$source_sha" ]] || fail_usage '--source-sha is required'
 [[ "$source_sha" =~ ^[0-9a-fA-F]{40}$ ]] || fail_usage '--source-sha requires a full 40-character commit SHA'
+# Provenance compares case-sensitively against GitHub lowercase SHAs.
+source_sha="$(printf '%s' "$source_sha" | tr 'A-F' 'a-f')"
+
+# Production endpoints stay immutable unless an explicit fake/test mode is set.
+if [[ -n "${ANVIL_RELEASE_VERIFY_TAP_REPO:-}" || -n "${ANVIL_RELEASE_VERIFY_INSTALL_URL:-}" ]]; then
+  if [[ "${ANVIL_RELEASE_TEST_MODE:-}" != verify-live-fake && "${ANVIL_RELEASE_TEST_MODE:-}" != verify-endpoint-override ]]; then
+    emit failed "$(empty_data)" "$(failure_json invalid-input 'ANVIL_RELEASE_VERIFY_TAP_REPO / ANVIL_RELEASE_VERIFY_INSTALL_URL require ANVIL_RELEASE_TEST_MODE=verify-live-fake or verify-endpoint-override' false correct-test-usage)" verify 'Unset the override or enable an explicit test mode.'
+    exit 129
+  fi
+  tap_repo="${ANVIL_RELEASE_VERIFY_TAP_REPO:-$tap_repo}"
+  install_url="${ANVIL_RELEASE_VERIFY_INSTALL_URL:-$install_url}"
+fi
 
 if [[ -n "${ANVIL_RELEASE_VERIFY_FAKE_REPORT_FILE:-}" && "${ANVIL_RELEASE_TEST_MODE:-}" != verify-fake-report ]]; then
   emit failed "$(empty_data)" "$(failure_json invalid-input "ANVIL_RELEASE_VERIFY_FAKE_REPORT_FILE requires ANVIL_RELEASE_TEST_MODE=verify-fake-report" false correct-test-usage)" verify 'Unset the test hook or enable explicit fake report test mode.'
