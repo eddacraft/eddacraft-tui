@@ -388,6 +388,32 @@ impl Engine {
         })
     }
 
+    /// Update the wall-clock eval ceiling on an already-constructed engine.
+    ///
+    /// Used by the pre-write compiled-policy cache (OPAE-011) so a warm engine
+    /// still honours the remaining pass budget. `None` leaves the previous
+    /// ceiling in place: the inner timer can only be set to a concrete limit.
+    pub fn set_eval_timeout(&mut self, eval_timeout: Option<Duration>) -> Result<(), EngineError> {
+        let Some(limit) = eval_timeout else {
+            return Ok(());
+        };
+        self.config.eval_timeout = Some(limit);
+        let check_interval = NonZeroU32::new(1000).expect("non-zero check interval");
+        self.guard("set_eval_timeout", move |inner| {
+            inner.set_execution_timer_config(ExecutionTimerConfig {
+                limit,
+                check_interval,
+            });
+            Ok(())
+        })
+    }
+
+    /// Whether a previous regorus panic poisoned this engine (CIB-018).
+    #[must_use]
+    pub fn is_poisoned(&self) -> bool {
+        self.poisoned
+    }
+
     /// Evaluate a findings query and apply ADR-002 / ADR-003 post-processing
     /// (POLENG-005): annotate each finding with `is_new_edge` / `baselined` and
     /// compute the process exit code. `query` should resolve to an array of

@@ -379,7 +379,8 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-011: Compiled-policy cache for the pre-write path
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Claim:** #4784
 - **Intent:** Stop the MCP pre-write policy pass from repeating discovery,
   manifest parse, and `regorus` compile on **every** `anvil_validate_write` call.
   Filed from the POLRESET-006 review measurement: the pass is currently uncached

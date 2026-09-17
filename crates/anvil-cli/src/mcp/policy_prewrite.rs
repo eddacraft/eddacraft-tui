@@ -1,7 +1,10 @@
 //! POLRESET-006 / OPAE-007: MCP-side pre-write policy evaluation and posture routing.
 
-use std::path::Path;
-use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use anvil_intercept_rules::{PolicyOutcome, PolicySeverityClass, route_policy_outcome};
 use anvil_kernel_types::diagnostics::ControlDecision;
@@ -14,7 +17,8 @@ use anvil_policy_engine::context::WorkflowPhase;
 use anvil_policy_engine::context::assertion::ChangeKind;
 use anvil_policy_engine::guidance::{PolicyGuidance, PolicySource};
 use anvil_policy_engine::pack::{
-    LoadedPack, discover_and_load, enabled_entries, load_overlay_fail_open, resolve_member_id,
+    LoadedPack, PackOverlay, discover_and_load, enabled_entries, load_overlay_fail_open,
+    overlay_path, resolve_member_id,
 };
 use anvil_policy_engine::result::{Finding, Severity as FindingSeverity};
 use anvil_policy_engine::{Engine, EngineConfig, GraphFacts, PrewriteBudget, PrewriteInput};
@@ -241,6 +245,93 @@ fn bounded_engine_config(base: &EngineConfig, deadline: Instant) -> Option<Engin
     })
 }
 
+/// Process-local compiled engines for the MCP pre-write pass (OPAE-011).
+/// Keyed by pack directory; invalidated when the mtime fingerprint of the
+/// manifest, overlay, or enabled members changes.
+struct PrewriteEngineCache {
+    entries: HashMap<PathBuf, CachedPackEngine>,
+    compiles: AtomicU64,
+}
+
+struct CachedPackEngine {
+    fingerprint: PackFingerprint,
+    engine: Engine,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PackFingerprint {
+    stamps: Vec<(String, u128, u64)>,
+}
+
+fn prewrite_engine_cache() -> std::sync::MutexGuard<'static, PrewriteEngineCache> {
+    static CACHE: OnceLock<Mutex<PrewriteEngineCache>> = OnceLock::new();
+    CACHE
+        .get_or_init(|| {
+            Mutex::new(PrewriteEngineCache {
+                entries: HashMap::new(),
+                compiles: AtomicU64::new(0),
+            })
+        })
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+#[cfg(test)]
+fn reset_prewrite_engine_cache() {
+    let mut cache = prewrite_engine_cache();
+    cache.entries.clear();
+    cache.compiles.store(0, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+fn prewrite_engine_compile_count() -> u64 {
+    prewrite_engine_cache().compiles.load(Ordering::Relaxed)
+}
+
+fn file_stamp(path: &Path) -> Option<(u128, u64)> {
+    let meta = std::fs::metadata(path).ok()?;
+    let mtime = meta.modified().ok()?.duration_since(UNIX_EPOCH).ok()?;
+    Some((mtime.as_nanos(), meta.len()))
+}
+
+fn stamp_or_zero(path: &Path) -> (u128, u64) {
+    file_stamp(path).unwrap_or((0, 0))
+}
+
+fn pack_fingerprint(
+    pack: &LoadedPack,
+    manifest: &anvil_policy_engine::pack::PackManifest,
+    overlay: &PackOverlay,
+) -> Option<PackFingerprint> {
+    let mut stamps = Vec::new();
+    let (mtime, len) = file_stamp(&pack.pack.manifest_path)?;
+    stamps.push((pack.pack.manifest_path.display().to_string(), mtime, len));
+    if let Some(policies_dir) = pack.pack.dir.parent()
+        && let Ok(path) = overlay_path(policies_dir, &pack.pack.id)
+    {
+        let (mtime, len) = stamp_or_zero(&path);
+        stamps.push((path.display().to_string(), mtime, len));
+    }
+    for entry in enabled_entries(manifest, overlay) {
+        let member_path = pack.pack.dir.join(&entry.path);
+        let (mtime, len) = file_stamp(&member_path)?;
+        stamps.push((member_path.display().to_string(), mtime, len));
+    }
+    stamps.sort_by(|a, b| a.0.cmp(&b.0));
+    Some(PackFingerprint { stamps })
+}
+
+fn remember_compiled_engine(pack_dir: PathBuf, fingerprint: PackFingerprint, engine: Engine) {
+    let mut cache = prewrite_engine_cache();
+    cache.entries.insert(
+        pack_dir,
+        CachedPackEngine {
+            fingerprint,
+            engine,
+        },
+    );
+}
+
 /// Evaluate a single pack under the pass `deadline`. Returns
 /// [`PackEval::Findings`] with one [`RoutedRecord`] per finding (or a single
 /// fail-open warning-class record if the pack cannot be loaded, compiled, or
@@ -274,6 +365,40 @@ fn evaluate_pack(
     let Some(config) = bounded_engine_config(base_config, deadline) else {
         return PackEval::Truncated;
     };
+
+    let overlay = pack
+        .pack
+        .dir
+        .parent()
+        .map(|policies_dir| load_overlay_fail_open(policies_dir, pack_id))
+        .unwrap_or_default();
+    let fingerprint = pack_fingerprint(pack, manifest, &overlay);
+
+    if let Some(fingerprint) = fingerprint.as_ref() {
+        let mut cache = prewrite_engine_cache();
+        if let Some(entry) = cache.entries.get_mut(&pack.pack.dir)
+            && entry.fingerprint == *fingerprint
+            && !entry.engine.is_poisoned()
+        {
+            if Instant::now() >= deadline {
+                return PackEval::Truncated;
+            }
+            let _ = entry.engine.set_eval_timeout(config.eval_timeout);
+            return eval_compiled_engine(
+                &mut entry.engine,
+                policy_input,
+                manifest,
+                pack_id,
+                changed_path,
+            );
+        }
+        if let Some(entry) = cache.entries.get(&pack.pack.dir)
+            && entry.engine.is_poisoned()
+        {
+            cache.entries.remove(&pack.pack.dir);
+        }
+    }
+
     let mut engine = match Engine::new(config) {
         Ok(engine) => engine,
         Err(err) => {
@@ -292,9 +417,19 @@ fn evaluate_pack(
         )]);
     }
 
-    if let Err(early) =
-        compile_enabled_members(pack, manifest, pack_id, &mut engine, deadline, changed_path)
-    {
+    prewrite_engine_cache()
+        .compiles
+        .fetch_add(1, Ordering::Relaxed);
+
+    if let Err(early) = compile_enabled_members(
+        pack,
+        manifest,
+        pack_id,
+        &mut engine,
+        &overlay,
+        deadline,
+        changed_path,
+    ) {
         return early;
     }
 
@@ -303,6 +438,22 @@ fn evaluate_pack(
         return PackEval::Truncated;
     }
 
+    let outcome = eval_compiled_engine(&mut engine, policy_input, manifest, pack_id, changed_path);
+    if !engine.is_poisoned()
+        && let Some(fingerprint) = fingerprint
+    {
+        remember_compiled_engine(pack.pack.dir.clone(), fingerprint, engine);
+    }
+    outcome
+}
+
+fn eval_compiled_engine(
+    engine: &mut Engine,
+    policy_input: &anvil_policy_engine::PolicyInput,
+    manifest: &anvil_policy_engine::pack::PackManifest,
+    pack_id: &str,
+    changed_path: &str,
+) -> PackEval {
     // Evaluation. A regorus error / timeout (the engine's own eval_timeout is
     // min(remaining, budget)) is caught by the facade and surfaced as an `Err`
     // here (the facade guards panics too); it degrades to a warning, never a
@@ -329,16 +480,11 @@ fn compile_enabled_members(
     manifest: &anvil_policy_engine::pack::PackManifest,
     pack_id: &str,
     engine: &mut Engine,
+    overlay: &PackOverlay,
     deadline: Instant,
     changed_path: &str,
 ) -> Result<(), PackEval> {
-    let overlay = pack
-        .pack
-        .dir
-        .parent()
-        .map(|policies_dir| load_overlay_fail_open(policies_dir, pack_id))
-        .unwrap_or_default();
-    for entry in enabled_entries(manifest, &overlay) {
+    for entry in enabled_entries(manifest, overlay) {
         if Instant::now() >= deadline {
             return Err(PackEval::Truncated);
         }
@@ -1313,6 +1459,118 @@ warning contains msg if {
                 !allowed.decision.is_veto(),
                 "grant must lift the crypto veto: {:?}",
                 allowed.decision
+            );
+        });
+    }
+
+    fn bump_mtime(path: &std::path::Path) {
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .expect("open for mtime");
+        let later = std::time::SystemTime::now() + Duration::from_secs(2);
+        file.set_modified(later).expect("set mtime");
+    }
+
+    #[test]
+    fn policy_prewrite_cache_warm_pass_skips_recompile() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            reset_prewrite_engine_cache();
+            let ws = install_pack("deny-pack", VIOLATION_REGO);
+            let first = evaluate(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert_eq!(first.decision, ControlDecision::Interrupt);
+            assert_eq!(prewrite_engine_compile_count(), 1, "cold pass compiles");
+
+            let second = evaluate(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert_eq!(second.decision, ControlDecision::Interrupt);
+            assert_eq!(
+                prewrite_engine_compile_count(),
+                1,
+                "warm pass must be eval-only"
+            );
+        });
+    }
+
+    #[test]
+    fn policy_prewrite_cache_member_mtime_invalidates() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            reset_prewrite_engine_cache();
+            let ws = install_pack("deny-pack", VIOLATION_REGO);
+            let _ = evaluate(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert_eq!(prewrite_engine_compile_count(), 1);
+
+            let member = ws
+                .path()
+                .join(".anvil/policies/deny-pack/policies/policy.rego");
+            bump_mtime(&member);
+            let _ = evaluate(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert_eq!(
+                prewrite_engine_compile_count(),
+                2,
+                "edited member must recompile"
+            );
+        });
+    }
+
+    #[test]
+    fn policy_prewrite_cache_overlay_change_invalidates() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            reset_prewrite_engine_cache();
+            let ws = install_pack("deny-pack", VIOLATION_REGO);
+            let blocked = evaluate(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert!(blocked.decision.is_veto());
+            assert_eq!(prewrite_engine_compile_count(), 1);
+
+            let mut overlay = PackOverlay::default();
+            overlay.disabled.push("deny-pack-policy".into());
+            anvil_policy_engine::pack::save_overlay(
+                &ws.path().join(".anvil/policies"),
+                "deny-pack",
+                &overlay,
+            )
+            .expect("overlay");
+            bump_mtime(&ws.path().join(".anvil/policies/deny-pack.overlay.yaml"));
+
+            let allowed = evaluate(
+                ws.path(),
+                "src/app.rs",
+                ChangeKind::Modified,
+                EnforcementMode::Interrupt,
+            );
+            assert!(
+                !allowed.decision.is_veto(),
+                "disabled member must not veto: {:?}",
+                allowed.decision
+            );
+            assert_eq!(
+                prewrite_engine_compile_count(),
+                2,
+                "overlay change must recompile"
             );
         });
     }
