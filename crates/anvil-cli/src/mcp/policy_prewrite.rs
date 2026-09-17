@@ -303,7 +303,7 @@ fn prewrite_engine_cache() -> std::sync::MutexGuard<'static, PrewriteEngineCache
             })
         })
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 #[cfg(test)]
@@ -412,9 +412,7 @@ fn evaluate_pack(
         let cached = {
             let mut cache = prewrite_engine_cache();
             match cache.entries.remove(&pack.pack.dir) {
-                Some(entry)
-                    if entry.fingerprint == *fingerprint && !entry.engine.is_poisoned() =>
-                {
+                Some(entry) if entry.fingerprint == *fingerprint && !entry.engine.is_poisoned() => {
                     Some(entry)
                 }
                 Some(entry) if entry.engine.is_poisoned() => None,

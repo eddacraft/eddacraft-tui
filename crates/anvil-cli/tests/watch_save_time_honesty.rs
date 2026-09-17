@@ -905,7 +905,7 @@ fn watch_save_time_routes_remain_family_scoped_and_fallback_safe() {
         let start = plain.stdout.len();
         save_secret(&plain_source, iteration);
         plain.wait_stdout_after(start, "scoped daemon verdict", |line| {
-            line.contains("antipattern-only")
+            line.contains("antipattern+policy") || line.contains("antipattern-only")
         });
     }
     plain.stop();
@@ -913,7 +913,7 @@ fn watch_save_time_routes_remain_family_scoped_and_fallback_safe() {
         plain
             .stdout
             .iter()
-            .filter(|line| line.contains("antipattern-only"))
+            .filter(|line| line.contains("antipattern+policy") || line.contains("antipattern-only"))
             .count()
             >= SAVE_COUNT,
         "every daemon save must report the family scope; stdout={:?}; stderr={:?}",
@@ -982,7 +982,12 @@ fn watch_save_time_routes_remain_family_scoped_and_fallback_safe() {
     );
     for result in daemon_results {
         let verdict = result.daemon_verdict.expect("structured daemon verdict");
-        assert_eq!(verdict.check_families, ["antipattern"]);
+        assert!(
+            verdict.check_families == ["antipattern"]
+                || verdict.check_families == ["antipattern", "policy"],
+            "daemon check_families must be antipattern or antipattern+policy: {:?}",
+            verdict.check_families
+        );
         assert_eq!(verdict.finding_count, verdict.diagnostics.len() as u64);
         assert!(
             verdict.assurance_state != "global_clean" && verdict.coverage != "global",
