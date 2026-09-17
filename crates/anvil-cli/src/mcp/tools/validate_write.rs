@@ -415,17 +415,13 @@ fn merge_prewrite_policy(
     diagnostics: &mut Vec<Diagnostic>,
     enforcement_mode: EnforcementMode,
 ) -> ControlDecision {
-    // Base decision from the intercept-rules scan, over the scan diagnostics
-    // only (before the policy diagnostics are appended).
-    let scan_decision = enforcement::decision_for(diagnostics, enforcement_mode);
-    let policy = crate::mcp::policy_prewrite::evaluate(
+    crate::mcp::policy_prewrite::merge_scan_with_policy(
         &request.workspace_root,
         &request.relative_path,
         request.operation.policy_change_kind(),
+        diagnostics,
         enforcement_mode,
-    );
-    diagnostics.extend(policy.diagnostics);
-    crate::mcp::policy_prewrite::strictest_decision(scan_decision, policy.decision)
+    )
 }
 
 /// CIB-005: apply the caller's patch to the on-disk file in memory

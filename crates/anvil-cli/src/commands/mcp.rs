@@ -672,6 +672,10 @@ mod tests {
             s.contains("diagnostics"),
             "instructions must tell agents `block` is paired with diagnostics"
         );
+        assert!(
+            s.contains("pack policies"),
+            "instructions must say apply_patch evaluates installed pack policies"
+        );
     }
 
     #[test]

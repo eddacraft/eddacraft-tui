@@ -17,9 +17,9 @@ that you use together:
   decision, and never block.
 - **`anvil_validate_write`** / **`anvil_apply_patch`** are the pre-write
   enforcement gate for edits. Call them _before_ applying a write; they return a
-  decision based on secrets, **regex** anti-patterns, and boundary rules. They
-  do **not** run the AST catalogue. `allow` is not proof `anvil_check` would be
-  clean.
+  decision based on secrets, **regex** anti-patterns, boundary rules, and
+  installed pack policies. They do **not** run the AST catalogue. `allow` is not
+  proof `anvil_check` would be clean.
 
 Rule of thumb: reach for the **graph-context tools** when you are trying to
 _understand_ code, and for the **pre-write gate** when you are about to _change_
@@ -126,8 +126,9 @@ Before you touch a file, learn what depends on it.
 
 Prefer the **smallest complete** validation unit:
 
-1. **`anvil_apply_patch`** + `unifiedDiff` — edits as a diff (scans added
-   lines). Preferred lean path.
+1. **`anvil_apply_patch`** + `unifiedDiff` — edits as a diff (added-line
+   secret/antipattern scan; pack policies still evaluate the path). Preferred
+   lean path.
 2. **`anvil_validate_write`** with **`patch` only** — full post-image after
    in-memory apply (no disk write).
 3. **`anvil_validate_write`** + full **`proposedContent`** — creates, or when
@@ -167,16 +168,16 @@ A worked safe-refactor sequence ties the loop together:
 
 ## Tools at a glance
 
-| Tool                     | Use it to…                                           | Watch out for                                                                                 |
-| ------------------------ | ---------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `anvil_search_symbols`   | Find where a symbol is                               | Substring match is case-insensitive; paginates                                                |
-| `anvil_find_dependents`  | File-level blast radius (who imports this file)      | Caps the walk at 2 hops                                                                       |
-| `anvil_find_callers`     | Symbol-level callers (who calls this function)       | Per-edge `exact`/`heuristic`; caller `heuristic` is a summary; `partial`; no dynamic dispatch |
-| `anvil_impact_of_change` | What breaks if I change these files                  | Paths only, never diffs; ≤200 files; 2-hop depth; read `attestation.bounds`                   |
-| `anvil_affected_tests`   | Which tests to run; coverage gaps                    | Import heuristic, not verified coverage                                                       |
-| `anvil_symbol_context`   | Understand one symbol without reading the whole file | Snippets are opt-in; can return `bounded` partials                                            |
-| `anvil_validate_write`   | Check a write before applying it                     | Regex + secrets, not AST; honour `block`; `decision` alone on allow                           |
-| `anvil_apply_patch`      | Lean pre-write check of a unified diff               | Scans added lines only; same decision table as validate_write                                 |
+| Tool                     | Use it to…                                           | Watch out for                                                                                  |
+| ------------------------ | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `anvil_search_symbols`   | Find where a symbol is                               | Substring match is case-insensitive; paginates                                                 |
+| `anvil_find_dependents`  | File-level blast radius (who imports this file)      | Caps the walk at 2 hops                                                                        |
+| `anvil_find_callers`     | Symbol-level callers (who calls this function)       | Per-edge `exact`/`heuristic`; caller `heuristic` is a summary; `partial`; no dynamic dispatch  |
+| `anvil_impact_of_change` | What breaks if I change these files                  | Paths only, never diffs; ≤200 files; 2-hop depth; read `attestation.bounds`                    |
+| `anvil_affected_tests`   | Which tests to run; coverage gaps                    | Import heuristic, not verified coverage                                                        |
+| `anvil_symbol_context`   | Understand one symbol without reading the whole file | Snippets are opt-in; can return `bounded` partials                                             |
+| `anvil_validate_write`   | Check a write before applying it                     | Regex + secrets + packs, not AST; honour `block`; `decision` alone on allow                    |
+| `anvil_apply_patch`      | Lean pre-write check of a unified diff               | Added-line secret scan; pack policies evaluate the path; same decision table as validate_write |
 
 For clients that prefer MCP resources to tool calls, three identity-only
 `graph://` resources expose the resident graph directly — `graph://stats`

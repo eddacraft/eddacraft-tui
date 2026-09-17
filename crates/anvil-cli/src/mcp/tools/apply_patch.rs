@@ -23,7 +23,7 @@ const RESPONSE_SCHEMA: &str = "anvil.mcp.validate-write.v1";
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Validate a unified diff before applying it (preferred lean path for edits). Scans added lines for secrets and policy violations. Prefer this over full-file anvil_validate_write when you have a diff. Honour block; on allow, decision alone is authoritative (detail=minimal may omit empty fields).",
+        "description": "Validate a unified diff before applying it (preferred lean path for edits). Scans added lines for secrets and anti-patterns, and evaluates installed pack policies against the changed path. Prefer this over full-file anvil_validate_write when you have a diff. Honour block; on allow, decision alone is authoritative (detail=minimal may omit empty fields).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -37,7 +37,7 @@ pub fn descriptor() -> Value {
                 },
                 "unifiedDiff": {
                     "type": "string",
-                    "description": "Unified diff to validate (--- / +++ / @@ format). Only added lines are scanned; removed lines are ignored."
+                    "description": "Unified diff to validate (--- / +++ / @@ format). Added lines are scanned for secrets and anti-patterns; installed pack policies still evaluate the path. Removed lines are ignored for the content scan."
                 },
                 "expectedSha256": {
                     "type": ["string", "null"],
@@ -167,8 +167,18 @@ fn call_with_validation_client(
         }
     }
 
-    let diagnostics = normalise_response_diagnostics(&diagnostics, backend);
-    let decision = enforcement::decision_for(&diagnostics, enforcement_mode);
+    let mut diagnostics = normalise_response_diagnostics(&diagnostics, backend);
+    // POLRESET-006 / OPAE-007: same pack evaluation as validate_write.
+    // Path-scoped policies fire on the changed path, so they must run even
+    // when the lean path only scanned added lines (or scanned none, for a
+    // deletion-only diff).
+    let decision = crate::mcp::policy_prewrite::merge_scan_with_policy(
+        &request.workspace_root,
+        &request.relative_path,
+        anvil_policy_engine::context::assertion::ChangeKind::Modified,
+        &mut diagnostics,
+        enforcement_mode,
+    );
 
     crate::mcp::prewrite_observation::emit_prewrite_findings(&request.relative_path, &diagnostics);
 
@@ -335,6 +345,7 @@ mod tests {
     use std::cell::RefCell;
 
     use super::*;
+    use crate::mcp::policy_prewrite::POLICY_ENFORCEMENT_ENV;
     use crate::mcp::validation::{
         DaemonValidationClient, DaemonValidationOutcome, PreWriteValidationRequest,
     };
@@ -603,6 +614,117 @@ mod tests {
         assert_eq!(payload["decision"], "allow");
     }
 
+    /// Path-scoped pack policies must fire on apply-patch, not only on
+    /// full-content validate-write. Mirrors the ledger-service demo:
+    /// `crypto-change-signoff` on `src/crypto/**` under interrupt.
+    fn write_crypto_signoff_pack(ws: &std::path::Path) {
+        let pack_dir = ws.join(".anvil/policies/demo-controls");
+        std::fs::create_dir_all(pack_dir.join("policies")).expect("pack dirs");
+        std::fs::write(
+            pack_dir.join("policies/policy.rego"),
+            r#"package anvil.policies.crypto_signoff
+import rego.v1
+
+violation contains msg if {
+    some f in input.diff.changed_files
+    startswith(f, "src/crypto/")
+    msg := sprintf("crypto-change-signoff: %s", [f])
+}
+"#,
+        )
+        .expect("member rego");
+        std::fs::write(
+            pack_dir.join("pack.yaml"),
+            "id: demo-controls\n\
+             name: Demo controls\n\
+             version: 1.0.0\n\
+             description: Path-scoped crypto signoff.\n\
+             owner: platform-security\n\
+             policies:\n\
+             \x20 - path: policies/policy.rego\n\
+             \x20   metadata:\n\
+             \x20     id: crypto-change-signoff\n\
+             \x20     title: Crypto change signoff\n\
+             \x20     severity: high\n\
+             \x20     owner: platform-security\n\
+             \x20     rationale: Exercises apply-patch pack evaluation.\n\
+             \x20     scope: 'src/crypto/**'\n\
+             \x20     tags: [test]\n",
+        )
+        .expect("manifest");
+    }
+
+    #[test]
+    fn pack_policy_on_crypto_path_interrupts_like_validate_write() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let workspace = tempdir().expect("workspace exists");
+            write_crypto_signoff_pack(workspace.path());
+            let payload = call_payload(
+                workspace.path(),
+                &json!({
+                    "path": "src/crypto/cipher-suites.ts",
+                    "unifiedDiff": "@@ -1,3 +1,4 @@\n export const suites = [\n+'TLS_RSA_WITH_AES_128_CBC_SHA',\n ];\n",
+                    "detail": "full"
+                }),
+            );
+
+            assert_crypto_signoff_interrupt(&payload);
+        });
+    }
+
+    #[test]
+    fn pack_policy_on_crypto_path_interrupts_deletion_only_diff() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let workspace = tempdir().expect("workspace exists");
+            write_crypto_signoff_pack(workspace.path());
+            let payload = call_payload(
+                workspace.path(),
+                &json!({
+                    "path": "src/crypto/cipher-suites.ts",
+                    "unifiedDiff": "@@ -1 +0,0 @@\n-export const suites = [];\n",
+                    "detail": "full"
+                }),
+            );
+
+            assert_crypto_signoff_interrupt(&payload);
+        });
+    }
+
+    #[test]
+    fn pack_policy_on_unrelated_path_allows_write() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let workspace = tempdir().expect("workspace exists");
+            write_crypto_signoff_pack(workspace.path());
+            let payload = call_payload(
+                workspace.path(),
+                &json!({
+                    "path": "src/example.ts",
+                    "unifiedDiff": "@@ -1,3 +1,4 @@\n const a = 1;\n+const b = 2;\n const c = 3;\n",
+                    "detail": "full"
+                }),
+            );
+
+            assert_eq!(payload["decision"], "allow", "got {payload}");
+        });
+    }
+
+    fn assert_crypto_signoff_interrupt(payload: &Value) {
+        assert_eq!(payload["decision"], "interrupt", "got {payload}");
+        assert_eq!(payload["safeDefault"], "do-not-write");
+        let diagnostics = payload["diagnostics"].as_array().expect("diagnostics");
+        assert!(
+            diagnostics.iter().any(|d| {
+                d["source"]["source_module"]
+                    .as_str()
+                    .is_some_and(|m| m.contains("anvil-policy-engine::pack::demo-controls"))
+                    && d["summary"]
+                        .as_str()
+                        .is_some_and(|s| s.contains("crypto-change-signoff"))
+            }),
+            "expected crypto-change-signoff pack diagnostic, got {payload}"
+        );
+    }
+
     #[test]
     fn missing_path_is_rejected() {
         let workspace = tempdir().expect("workspace exists");
@@ -686,6 +808,11 @@ mod tests {
         let d = descriptor();
         assert_eq!(d["annotations"]["destructiveHint"], true);
         assert_eq!(d["annotations"]["readOnlyHint"], false);
+        let description = d["description"].as_str().expect("description");
+        assert!(
+            description.contains("pack policies"),
+            "descriptor must advertise pack evaluation: {description}"
+        );
     }
 
     #[test]

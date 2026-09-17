@@ -11,6 +11,13 @@ engineering maintenance are recorded in the
 > **Draft.** This section accumulates customer-relevant changes landed on
 > `main`; the version and date are set at the next release.
 
+### Fixed
+
+- **MCP `anvil_apply_patch` evaluates installed pack policies.** A path-scoped
+  Rego pack that interrupts `anvil_validate_write` now interrupts apply-patch
+  for the same path, including deletion-only diffs. Previously the lean path
+  scanned added lines only and skipped pack evaluation.
+
 ## [0.11.1-beta] — 2026-09-16 — Gate and inspect honesty
 
 Secret detection now covers the source types a React, Python, Go, or shell

@@ -19,6 +19,7 @@ use anvil_policy_engine::pack::{
 use anvil_policy_engine::result::{Finding, Severity as FindingSeverity};
 use anvil_policy_engine::{Engine, EngineConfig, GraphFacts, PrewriteBudget, PrewriteInput};
 
+use crate::mcp::enforcement;
 use crate::mcp::validation::{PRE_WRITE_MODE, sanitise_id_part};
 
 /// The out-of-band policy kill switch (ADR-098 AD-5). Re-read per call and
@@ -724,6 +725,26 @@ fn suppress_excepted_records(
             !is_suppressed(&violation, &exceptions)
         })
         .collect()
+}
+
+/// Append pack diagnostics to `diagnostics` and return the strictest of the
+/// intercept-rules scan decision (from current diagnostics) and the routed
+/// policy decision. Additive — never suppresses a scan finding; a broken pack
+/// or eval failure warns rather than blocks (ADR-098 AD-5).
+///
+/// Shared by `anvil_validate_write` and `anvil_apply_patch` so path-scoped
+/// packs cannot be skipped on the lean added-line path.
+pub(crate) fn merge_scan_with_policy(
+    workspace_root: &Path,
+    changed_path: &str,
+    change_kind: ChangeKind,
+    diagnostics: &mut Vec<Diagnostic>,
+    posture: EnforcementMode,
+) -> ControlDecision {
+    let scan_decision = enforcement::decision_for(diagnostics, posture);
+    let policy = evaluate(workspace_root, changed_path, change_kind, posture);
+    diagnostics.extend(policy.diagnostics);
+    strictest_decision(scan_decision, policy.decision)
 }
 
 /// Strictest-wins merge of two [`ControlDecision`]s (the caller merges the
