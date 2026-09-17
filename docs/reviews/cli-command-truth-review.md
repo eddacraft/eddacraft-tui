@@ -113,7 +113,7 @@ expose subcommands; **25** are flags/positional-only surfaces. Hidden
 compatibility aliases (`login`, `logout`, `whoami`) dispatch to `auth` and are
 tracked as auth-surface notes, not separate command families. `settings`
 (row 46) was added 2026-09-17 by CLICT-008; the live registry on 0.11.1-beta
-lists **49** families, and the full recount is owed to CLICT-007.
+lists **48** families, and the full recount is owed to CLICT-007.
 
 ### Registry
 
@@ -669,8 +669,10 @@ write path by SETPREF-001..006 (#4741). Subcommands `show`, `explain <key>`,
 ### Wiring and substitutes (settings)
 
 - Class A writes (`interface.compact`, `interface.timestamps`,
-  `interface.motion`, `interface.hints`) are TUI-only: `space` toggle, `d` reset
-  preview, `enter` confirm. Class B/C stay read-only until SETGOV.
+  `interface.motion`, `interface.hints`) are TUI-only: `space` toggles a boolean
+  key, `enter` cycles the enum key `interface.motion`, `d` previews a reset to
+  the catalogue default, `enter` confirms. Class B/C stay read-only until
+  SETGOV.
 - `--focus` without a TTY falls through to text `show`.
 - Exit registry via `anvil_settings::exit_codes::code_for` (SETCON-009 /
   ADR-132): 0 success, 1 internal, 2 check-failed or usage, 3 access, 4
@@ -681,6 +683,19 @@ write path by SETPREF-001..006 (#4741). Subcommands `show`, `explain <key>`,
 - No CLI-level test pins the `explain` or `sources` output shape.
 - No test pins family-flag placement; a future `global = true` on `--format`
   would silently change the documented synopsis.
+
+### Documentation drift hotspots (settings)
+
+- Runbook flag placement and examples (`show --format text`) — fixed 2026-09-17.
+- Runbook exit codes ("0, 1, 8"; `--check` implied 8) — fixed: 2 on not-healthy
+  (unhealthy or indeterminate), 3/4 possible, 8 redaction only.
+- Runbook `explain` row overclaimed class and sources — fixed to the emitted
+  shape (text: display name, key, CLI equivalent; JSON: requested / resolved /
+  runtime).
+- Public reference exit-8 row rendered the raw constant — fixed in the
+  generator.
+- Inspect-only copy in `--help`, the TUI and the FLAGCAT manifest — open, #4782
+  and #4783.
 
 ### APS cross-links (settings)
 
@@ -697,5 +712,6 @@ write path by SETPREF-001..006 (#4741). Subcommands `show`, `explain <key>`,
 - [x] Public reference exit-8 row rendered from the generator meaning table
 - [x] Slice-queue row 8 Done; SETINS and RELEASE-PLAN "no public-docs claim"
       gates lifted
-- [ ] Follow-up: `--help` / TUI copy says inspect-only (code copy, not CLICT)
-- [ ] Follow-up: feature catalogue manifest says inspect-only (FLAGCAT)
+- [ ] Follow-up #4782: `--help` / TUI copy says inspect-only (code copy, not
+      CLICT)
+- [ ] Follow-up #4783: feature catalogue manifest says inspect-only (FLAGCAT)

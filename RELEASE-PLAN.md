@@ -66,7 +66,7 @@ window (operator 2026-09-17).
 
 **Minor scope:** complete `/settings` v0.1 through the settings service. No
 Class B/C mutation (SETGOV). No public-docs claim that `anvil settings` is a
-released product until CLICT-008 landed (re-audit landed 2026-09-17; claim now
+released product until CLICT-008 merges (re-audit in PR #4781, 2026-09-17; claim
 owed).
 
 ### Primary claim
@@ -78,7 +78,7 @@ owed).
 
 ### Secondaries
 
-- **CLICT-008** — re-audit landed 2026-09-17 (slice 8 Done); the public docs
+- **CLICT-008** — re-audit in PR #4781 (2026-09-17, slice 8); the public docs
   claim for the family is now owed
   ([cli-command-truth review](./docs/reviews/cli-command-truth-review.md))
 - SKPKG-010/011 may ride; do not silently become the headline
@@ -104,13 +104,13 @@ SHIPREP, ABASE, and SKOBS stay programme (Ready/ADR first). SETGOV stays later.
 
 ### Phase plan
 
-| Phase          | Scope                                              | State                                        |
-| -------------- | -------------------------------------------------- | -------------------------------------------- |
-| **0.11.1 tag** | Gate and inspect honesty                           | Tagged `e7024b7a6`                           |
-| **Claim lock** | SETPREF + `/settings` v0.1 closeout                | Locked                                       |
-| **Implement**  | Remaining `/settings` work (CLICT-008, docs claim) | CLICT-008 landed 2026-09-17; docs claim owed |
-| **Changelog**  | Curate `[Unreleased]`                              | Not started                                  |
-| **Cut**        | Preflight → prepare → readiness → tag              | Not started                                  |
+| Phase          | Scope                                              | State                                  |
+| -------------- | -------------------------------------------------- | -------------------------------------- |
+| **0.11.1 tag** | Gate and inspect honesty                           | Tagged `e7024b7a6`                     |
+| **Claim lock** | SETPREF + `/settings` v0.1 closeout                | Locked                                 |
+| **Implement**  | Remaining `/settings` work (CLICT-008, docs claim) | CLICT-008 in PR #4781; docs claim owed |
+| **Changelog**  | Curate `[Unreleased]`                              | Not started                            |
+| **Cut**        | Preflight → prepare → readiness → tag              | Not started                            |
 
 ### Cut criteria
 

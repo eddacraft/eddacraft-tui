@@ -8,8 +8,8 @@
 | SETINS | —     | medium   | Done     | 10/10     |
 
 **Last reviewed:** 2026-09-14 — SETINS-003..010 Merged via #4696 after SETINS-001/002
-via #4681. CLICT-008 re-audit Done 2026-09-17 (slice 8); the public-docs claim that `anvil settings`
-is a released product is unblocked (RELEASE-PLAN `v0.12.0-beta`). Module created 2026-08-06 from the operator-supplied
+via #4681. CLICT-008 re-audit in PR #4781 (2026-09-17, slice 8); the public-docs claim that `anvil settings`
+is a released product follows once it merges (RELEASE-PLAN `v0.12.0-beta`). Module created 2026-08-06 from the operator-supplied
 `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 1). Gated on SETCON; no release window claimed.
@@ -88,7 +88,7 @@ Audit tab would imply historical coverage Anvil cannot evidence.
 - [daemon-protection-observability](./daemon-protection-observability.aps.md) —
   status/attestation signals the Status view reports rather than re-derives
 - [cli-command-truth](./cli-command-truth.aps.md) (CLICT) — command-truth slice
-  before public docs describe `anvil settings` (CLICT-008 Done 2026-09-17)
+  before public docs describe `anvil settings` (CLICT-008 in PR #4781, 2026-09-17)
 - [documentation-sync](./documentation-sync.aps.md) (DOCSYNC) — user docs
 
 ## Constraints

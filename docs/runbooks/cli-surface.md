@@ -655,25 +655,26 @@ accepted in either position.
 
 **Subcommands:**
 
-| Subcommand      | Description                                                           |
-| --------------- | --------------------------------------------------------------------- |
-| `show`          | Grouped settings rows: requested, resolved and runtime value per key. |
-| `explain <key>` | One canonical key: description, class, sources and CLI equivalent.    |
-| `status`        | Operational status summary and settings health.                       |
-| `sources`       | Resolution sources and provenance.                                    |
+| Subcommand      | Description                                                                                                     |
+| --------------- | --------------------------------------------------------------------------------------------------------------- |
+| `show`          | Grouped settings rows: requested, resolved and runtime value per key.                                           |
+| `explain <key>` | One canonical key: display name, key and CLI equivalent as text; requested, resolved and runtime value as JSON. |
+| `status`        | Operational status summary and settings health.                                                                 |
+| `sources`       | Resolution sources and provenance.                                                                              |
 
 **Flags:**
 
-| Flag                    | Description                                                                             |
-| ----------------------- | --------------------------------------------------------------------------------------- |
-| `--format <text\|json>` | Non-interactive output format (implies no TUI). A non-TTY stdout gets text without it.  |
-| `--check`               | Health check; exit 2 when settings health is unhealthy. Implies non-interactive output. |
-| `--focus <key>`         | Focus a canonical key or deprecated alias in the TUI. Ignored when no TUI is available. |
+| Flag                    | Description                                                                                                            |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `--format <text\|json>` | Non-interactive output format (implies no TUI). A non-TTY stdout gets text without it.                                 |
+| `--check`               | Health check; exit 2 when settings health is not healthy (unhealthy or indeterminate). Implies non-interactive output. |
+| `--focus <key>`         | Focus a canonical key or deprecated alias in the TUI. Ignored when no TUI is available.                                |
 
 **Mutation:** Only the four Class A interface preferences (`interface.compact`,
 `interface.timestamps`, `interface.motion`, `interface.hints`) are writable, and
-only from the TUI: `space` toggles, `d` previews a reset to the inherited value,
-`enter` confirms. Writes go through the settings service to
+only from the TUI: `space` toggles a boolean key, `enter` cycles an enum key
+(`interface.motion`), `d` previews a reset to the catalogue default and `enter`
+confirms it. Writes go through the settings service to
 `user-config/settings.yaml` with an atomic replace and a stale-revision check.
 Class B/C protection settings stay read-only; there is no `set` / `unset`
 subcommand.
@@ -687,7 +688,7 @@ terminal, otherwise prints the CLI equivalent); read-only MCP tools
 `anvil_settings_show` / `anvil_settings_explain` / `anvil_settings_status` /
 `anvil_settings_sources` return the same envelope.
 
-**Exit codes:** 0 (success), 1 (internal error), 2 (`--check` unhealthy, or
+**Exit codes:** 0 (success), 1 (internal error), 2 (`--check` not healthy, or
 usage error), 3 (access error), 4 (resolution error), 8 (redaction failure; no
 payload emitted)
 
