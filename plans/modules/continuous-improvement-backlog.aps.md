@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 342/424  |
+| CIB | —     | In Progress | 342/427  |
 
 ## Purpose
 
@@ -14519,3 +14519,110 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
   `kindling-client` spawn-log cap (upstream, not this item)
 - **Confidence:** high — the call site and the `Option::or_else` fallback were
   both read directly during CIB-381 verification
+
+### CIB-430: Paginate PR required-status discovery
+
+- **Status:** Ready
+- **Priority:** P2 — live mode can exit 0 while GitHub still blocks merge when an
+  unresolved thread or required context lands on a later page
+- **Currency:** current — sibling residual of CIB-404; pagination of discovery
+  APIs was explicitly left to GH [#4389](https://github.com/eddacraft/anvil-001/issues/4389)
+- **Intent:** `scripts/ci/pr-required-status.mjs` must discover *every* review
+  thread and *every* repository ruleset page in live mode, so an unresolved
+  thread or required context beyond the first page cannot be omitted.
+- **Expected Outcome:** Live mode paginates GraphQL `reviewThreads` until
+  `hasNextPage` is false and counts unresolved threads across all pages. Live
+  mode retrieves every ruleset list page before computing required contexts and
+  the thread-resolution gate. An incomplete page fails closed. Mocked live-mode
+  tests cover a second page that adds an unresolved thread (exit 3) and a second
+  page that adds a required context (exit 2).
+- **Non-scope / do not:** do not reopen CIB-404's mergeability classification
+  (conflicting PR reported as "not finished"). Do not treat fixture injection
+  via `--required-json` / `--checks-json` / `--threads-json` as covering live
+  pagination.
+- **Files:** `scripts/ci/pr-required-status.mjs`,
+  `scripts/ci/pr-required-status.test.mjs`
+- **Validation:** mock `gh` so the first GraphQL page has 100 resolved threads
+  with `hasNextPage: true` and the second has one unresolved thread — assert
+  exit 3; mock paginated ruleset-list responses where a later page adds a
+  missing required context — assert exit 2;
+  `node --test scripts/ci/pr-required-status.test.mjs`
+- **Identified From:** GH [#4389](https://github.com/eddacraft/anvil-001/issues/4389);
+  Clawpatch run `20260904T074935-2c02a1` findings
+  `fnd_sig-feat-library-0aad9458b7-52f0_eb02556fc2`,
+  `fnd_sig-feat-library-0aad9458b7-9206_8beb6015d2`. Numbered **CIB-430** because
+  **CIB-429** is the kindling spawn-log residual; this is the pagination owner
+  CIB-404 pointed at.
+- **Coordinates with:** CIB-404 (mergeability classification; Merged)
+- **Confidence:** high — first-page-only GraphQL/REST calls and fixture-only
+  pagination gaps were read from the issue's current-source anchor.
+
+### CIB-431: Isolate Nx graph proof and clean up partial setup
+
+- **Status:** Ready
+- **Priority:** P2 — partial `mktemp` failure leaks a temp dir; the RED proof
+  mutates tracked checkout files and is unsafe under concurrent runs
+- **Currency:** current — residual of the delivered graph gate (CIB-320 / GH
+  #4313), not a reopening of that gate
+- **Intent:** `scripts/ci/nx-graph-check.sh` must install cleanup immediately
+  after the first temporary directory is created, and
+  `scripts/ci/nx-graph-check.test.sh` must run the RED proof in an isolated
+  temporary copy or worktree with collision-safe paths.
+- **Expected Outcome:** Every partial-setup failure removes resources already
+  acquired. The RED proof does not mutate the caller's tracked checkout.
+  Pre-existing filesystem state at old temp paths is preserved. Two concurrent
+  proof instances neither corrupt each other nor the caller's tracked files.
+  The clean/RED/restored behavioural proof remains intact.
+- **Non-scope / do not:** do not change the delivered Nx graph gate semantics
+  owned by CIB-320/#4313. Do not rely on a restore trap alone to make concurrent
+  mutations of tracked files safe.
+- **Files:** `scripts/ci/nx-graph-check.sh`,
+  `scripts/ci/nx-graph-check.test.sh`
+- **Validation:** inject failure into the second `mktemp -d` and prove the first
+  directory is removed; seed the old `.nxignore.tmp` path with sentinel content
+  and prove it is unchanged; run two proof instances concurrently;
+  `bash scripts/ci/nx-graph-check.test.sh`
+- **Identified From:** GH [#4342](https://github.com/eddacraft/anvil-001/issues/4342);
+  Clawpatch findings `fnd_sig-feat-config-4745cd854d-2afba_2db4d9b544`,
+  `fnd_sig-feat-config-f91d741363-334ed_6786566c49`. Numbered **CIB-431** because
+  **CIB-430** is the required-status pagination item.
+- **Coordinates with:** CIB-320 (delivered graph gate)
+- **Confidence:** high — trap ordering and tracked-file mutation in the test
+  harness are direct source paths named by the issue.
+
+### CIB-432: Peel annotated gitleaks tags and test converter decisions
+
+- **Status:** Ready
+- **Priority:** P2 — annotated tags make refresh fetch the wrong revision;
+  converter decisions for multi-capture reject and `secret_group` write are
+  unpinned at the real boundary
+- **Currency:** current — vendored-gitleaks refresh boundary residuals with no
+  other open owner
+- **Intent:** `scripts/secret/refresh-gitleaks-ruleset.sh` must peel annotated
+  or nested tag objects to a commit before downloading content or updating
+  `PIN.toml`, and `scripts/secret/convert_gitleaks_rules_test.py` must call
+  `convert` to pin multi-capture rejection and single named-capture
+  `secret_group` output.
+- **Expected Outcome:** Resolved ref object type is inspected; annotated/nested
+  tags peel to a commit within a documented bound, or the script fails loudly.
+  Focused ref-resolution coverage exists for lightweight and annotated tags.
+  Converter-boundary tests prove multi-capture reject and single named capture
+  → intended `secret_group`. Existing lightweight-tag refresh behaviour remains
+  intact.
+- **Non-scope / do not:** do not broaden into unrelated secret-scanner rule
+  content changes. Do not treat helper-unit returns alone as converter-boundary
+  coverage.
+- **Files:** `scripts/secret/refresh-gitleaks-ruleset.sh`,
+  `scripts/secret/convert-gitleaks-rules.py`,
+  `scripts/secret/convert_gitleaks_rules_test.py`
+- **Validation:** focused Python converter suite; focused refresh-script tests
+  with mocked GitHub ref and tag-object responses; lightweight-tag refresh
+  still succeeds.
+- **Identified From:** GH [#4280](https://github.com/eddacraft/anvil-001/issues/4280);
+  Clawpatch findings `fnd_sig-feat-config-2c88b20c96-038f4_2b0b02cec8`,
+  `fnd_sig-feat-test-suite-c427b9bb24-b_a97d41e5c5`. Numbered **CIB-432** because
+  **CIB-431** is the Nx graph isolation item.
+- **Coordinates with:** prior gitleaks refresh / convert landings (PR #4234
+  review residuals)
+- **Confidence:** high — `object.sha` on annotated tags and missing `convert`
+  boundary tests are named call sites in the issue.
