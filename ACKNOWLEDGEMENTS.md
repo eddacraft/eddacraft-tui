@@ -9940,7 +9940,7 @@ the following restrictions:
 | `fuzzy-matcher` | 0.3.7 | MIT License | https://github.com/lotabout/fuzzy-matcher |
 | `crossbeam-deque` | 0.8.7 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-epoch` | 0.9.20 | MIT License | https://github.com/crossbeam-rs/crossbeam |
-| `crossbeam-utils` | 0.8.22 | MIT License | https://github.com/crossbeam-rs/crossbeam |
+| `crossbeam-utils` | 0.8.23 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `base64` | 0.23.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
 | `hashlink` | 0.12.1 | MIT License | https://github.com/djc/hashlink |
 | `borrow-or-share` | 0.2.4 | MIT No Attribution | https://github.com/yescallop/borrow-or-share |
