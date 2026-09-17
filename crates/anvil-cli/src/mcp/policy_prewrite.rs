@@ -860,9 +860,10 @@ fn truncation_record(
         Mode::Unknown(PRE_WRITE_MODE.to_string()),
     )
     .with_remediation_hint(
-        "The pre-write policy pass hit its wall-clock budget before evaluating every pack (there \
-         is no compiled-policy cache yet — see OPAE-011). Reduce the installed pack count, or run \
-         `anvil gate` for a full, unbudgeted policy evaluation.",
+        "The pre-write policy pass hit its wall-clock budget before evaluating every pack. \
+         Compiled engines are cached, but a cold or invalidated pass still compiles under the \
+         deadline. Reduce the installed pack count, or run `anvil gate` for a full, unbudgeted \
+         policy evaluation.",
     );
     RoutedRecord {
         // Warning-class: routes to `warn` under every enforcing posture and
