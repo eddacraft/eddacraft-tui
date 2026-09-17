@@ -1,8 +1,8 @@
 # Release Documentation Checklist
 
-| Type  | Authority | Owner  | Status | Freshness                                                            |
-| ----- | --------- | ------ | ------ | -------------------------------------------------------------------- |
-| Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-09-09 against ADR-119 D7 / DOCFRESH-007 pin check |
+| Type  | Authority | Owner  | Status | Freshness                                                                                                                                                                                                        |
+| ----- | --------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Advisory  | DOCGOV | Live   | Last reviewed 2026-09-17 against `docs/runbooks/release-runbook.md` upstream move with verify live-host checks; checklist content unchanged. Prior review 2026-09-09 against ADR-119 D7 / DOCFRESH-007 pin check |
 
 | Upstream                                                                                    | Downstream                                     |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------- |

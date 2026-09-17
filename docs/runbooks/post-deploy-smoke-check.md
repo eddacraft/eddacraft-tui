@@ -1,8 +1,8 @@
 # Post-Deploy Smoke Check Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                                                                                  |
-| ------- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-05-24 against post-deploy verification of the Anvil API and `scripts/release/verify.sh` |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                                                                                                         |
+| ------- | ------------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-17 against live-host checks in `scripts/release/verify.sh` (private/public release assets, provenance, install site); runbook topology unchanged. Prior review 2026-05-24 against post-deploy verification of the Anvil API and `scripts/release/verify.sh` |
 
 | Upstream                                                     | Downstream                                            |
 | ------------------------------------------------------------ | ----------------------------------------------------- |
