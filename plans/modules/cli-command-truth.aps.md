@@ -5,9 +5,10 @@
 
 | ID    | Owner | Priority | Status      | Progress |
 | ----- | ----- | -------- | ----------- | -------- |
-| CLICT | —     | high     | In Progress | 6/7      |
+| CLICT | —     | high     | In Progress | 6/8      |
 
-**Last reviewed:** 2026-07-07 (CLICT-004..006 reconciled in docs/runbooks/public
+**Last reviewed:** 2026-09-17 (CLICT-008 added as the `anvil settings` re-audit
+slice, Ready for the `v0.12.0-beta` window; CLICT-004..006 reconciled in docs/runbooks/public
 copy; runtime registry + slices 1–6 tracked in
 `docs/reviews/cli-command-truth-review.md`)
 
@@ -245,3 +246,34 @@ build verdicts when redirects are already known.
 - **Validation:** `pnpm run docs:check`; scripted `--help` vs runbook synopsis diff
 - **Confidence:** medium
 - **Status:** Proposed
+
+### CLICT-008: `anvil settings` re-audit before the public docs claim
+
+- **Intent:** Re-audit the `anvil settings` family against `anvil settings --help`
+  now that SETINS (inspect, #4681/#4696) and SETPREF (Class A persist, #4741)
+  have landed, so public docs can claim the family truthfully.
+- **Expected Outcome:**
+  - Slice 8 in `cli-command-truth-review.md` refreshed with a command-by-command
+    map: `show`, `explain <key>`, `status`, `sources`, the hidden `/settings`
+    alias, the `--json` envelope `anvil.settings.v1`, and the SETPREF Class A
+    write path (TUI `Space` toggle; no `set`/`unset` CLI subcommand).
+  - `docs/runbooks/cli-surface.md` and `docs/public/anvil/reference/cli.md`
+    synopses match `--help` for the family and each subcommand.
+  - Slice-queue row 8 flipped **Auditing** → **Done**; the SETINS and SETPREF
+    "no public-docs claim" notes and the index programme row updated so the
+    `v0.12.0-beta` public docs claim is unblocked ([RELEASE-PLAN](../../RELEASE-PLAN.md)).
+  - Any false-complete APS/CHANGELOG claim found filed as a follow-up item, not
+    an inline TODO.
+- **Scope:** `docs/reviews/cli-command-truth-review.md`,
+  `docs/runbooks/cli-surface.md`, `docs/public/anvil/reference/cli.md`, the
+  CLICT-008 notes in `settings-inspect-surface.aps.md` /
+  `settings-safe-preferences.aps.md`
+- **Non-scope:** Code changes; Class B/C mutation (SETGOV); the `[Unreleased]`
+  changelog curation and the cut itself (RELEASE-PLAN owns those)
+- **Dependencies:** SETINS-005/006 (Merged #4696), SETPREF-001..006 (Merged
+  #4741) — none outstanding
+- **Validation:** `anvil settings --help` and each subcommand `--help` diffed
+  against the runbook and public reference synopses; `pnpm run docs:check`;
+  `pnpm aps:index:check`
+- **Confidence:** high
+- **Status:** Ready
