@@ -464,19 +464,17 @@ mod settings_write_tests {
         assert_eq!(err.class, SafeWriteClass::Concurrent);
     }
 
+    #[cfg(unix)]
     #[test]
     fn settings_safe_write_refuses_leaf_symlink() {
         let dir = tempdir().unwrap();
         let dest = user_settings_path(dir.path());
         let outside = dir.path().join("outside.yaml");
         fs::write(&outside, "stolen: true\n").unwrap();
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(&outside, &dest).unwrap();
-            let err = persist_user_settings(dir.path(), &BTreeMap::new()).expect_err("symlink");
-            assert_eq!(err.class, SafeWriteClass::Symlink);
-            assert_eq!(fs::read_to_string(&outside).unwrap(), "stolen: true\n");
-        }
+        std::os::unix::fs::symlink(&outside, &dest).unwrap();
+        let err = persist_user_settings(dir.path(), &BTreeMap::new()).expect_err("symlink");
+        assert_eq!(err.class, SafeWriteClass::Symlink);
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "stolen: true\n");
     }
 
     #[test]
