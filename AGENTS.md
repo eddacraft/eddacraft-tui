@@ -10,9 +10,8 @@ nested `CONTEXT.md` files.
 
 ## Start Here
 
-- This repository dogfoods the explicitly promoted `anvil-main` channel. Bare
-  `anvil` is the published-release comparison path. Before relying on the
-  dogfood binary, run `scripts/dev/promote-main.sh --status`; see the
+- This repository uses the published `anvil` CLI by default. The rolling
+  `anvil-main` channel is an optional dogfood path; see the
   [rolling-main runbook](docs/runbooks/anvil-home-side-by-side.md).
 
 ## Operating Rules

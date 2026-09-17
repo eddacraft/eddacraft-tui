@@ -1,8 +1,8 @@
 # Rolling `main` Dogfood Channel — Operator Runbook
 
-| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                          |
-| ------- | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-12 for the explicit rolling `anvil-main` promotion path and isolated harness configuration. First filed 2026-05-31 for DISTRIB-006 (ADR-060) |
+| Type    | Authority     | Owner  | Status | Freshness                                                                                                                                                                                            |
+| ------- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki | Live   | Last reviewed 2026-09-17: published `anvil` is the default CLI and harness path; this runbook is the optional rolling `anvil-main` dogfood channel. First filed 2026-05-31 for DISTRIB-006 (ADR-060) |
 
 | Upstream                                                                                                                                                                                                                                                                                    | Downstream                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -10,8 +10,9 @@
 
 This runbook shows an internal developer how to promote and run the exact
 fetched `origin/main` commit as `anvil-main` alongside the published `anvil`
-install. This is a rolling dogfood channel, not a stamped release candidate.
-Promotion is always explicit.
+install. Published `anvil` is the default CLI and harness path. This rolling
+dogfood channel is optional, not a stamped release candidate. Promotion is
+always explicit.
 
 It replaces the old workaround (stop the prod daemon, symlink an `anvil-beta`
 binary, test only under `/tmp`, and accept that user state leaks into the prod
@@ -140,6 +141,9 @@ candidate, `ANVIL_LICENSE` is the supported explicit token override. The helper
 refuses to recycle the daemon while candidate authentication is missing.
 
 ## Harness configuration
+
+Skip this section unless you are dogfooding. Default harness MCP entries stay on
+the published `anvil` command with no `ANVIL_HOME` override.
 
 Each dogfood harness must make both the binary and its isolated state explicit:
 

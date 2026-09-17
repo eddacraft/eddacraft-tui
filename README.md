@@ -192,16 +192,16 @@ Flag inventory / override contract:
 
 ### Dogfood current `main`
 
-Explicitly promote the fetched `origin/main` commit into the rolling
-`anvil-main` channel. It uses isolated state and a separate daemon; the
-published `anvil` command remains available for comparison:
+The default CLI and harness MCP entry is the published `anvil` command. To
+dogfood fetched `origin/main`, explicitly promote it into the rolling
+`anvil-main` channel. It uses isolated state and a separate daemon:
 
 ```bash
 scripts/dev/promote-main.sh
 scripts/dev/promote-main.sh --status
 
-ANVIL_HOME="$HOME/.anvil-main" anvil-main status --json
-anvil status --json # published release comparison
+anvil status --json # published default
+ANVIL_HOME="$HOME/.anvil-main" anvil-main status --json # optional dogfood
 ```
 
 Under a non-default `ANVIL_HOME`, durable **project** writes (baseline, witness,

@@ -119,21 +119,21 @@ pnpm test:coverage
 
 ### Dogfooding rolling `main` alongside the published release
 
-Use `scripts/dev/promote-main.sh` to explicitly promote the exact fetched
-`origin/main` commit into the rolling `anvil-main` channel. The published
-`anvil` command remains available for comparison. The candidate has its own
-`ANVIL_HOME` and daemon, so both versions can run concurrently.
+Default developer CLI and harness MCP entries use the published `anvil` command.
+Use `scripts/dev/promote-main.sh` only when you want to promote the exact
+fetched `origin/main` commit into the optional rolling `anvil-main` channel. The
+candidate has its own `ANVIL_HOME` and daemon, so both versions can run
+concurrently.
 
 ```bash
 scripts/dev/promote-main.sh          # fetch, build, promote, restart candidate daemon
 scripts/dev/promote-main.sh --status # verify provenance and origin/main drift
 ```
 
-Harness MCP entries must explicitly select `~/.local/bin/anvil-main` and set
-`ANVIL_HOME=~/.anvil-main`; do not export that value globally because bare
-`anvil` must continue to use published-release state. See the authoritative
-[rolling main dogfood runbook](docs/runbooks/anvil-home-side-by-side.md) for the
-configuration, write guard, operational checks, and recovery details.
+Do not point default harness MCP entries at `anvil-main`, and do not export
+`ANVIL_HOME=~/.anvil-main` globally — bare `anvil` must keep published-release
+state. Optional dogfood harness configuration is in the
+[rolling main dogfood runbook](docs/runbooks/anvil-home-side-by-side.md).
 
 ## Code Standards
 
