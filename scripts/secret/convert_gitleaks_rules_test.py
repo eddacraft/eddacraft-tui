@@ -74,5 +74,44 @@ class LiteralPrefixTests(unittest.TestCase):
         )
 
 
+class ConvertBoundaryTests(unittest.TestCase):
+    """Pin the converter decisions the helpers exist to serve.
+
+    Counting groups and finding prefixes is not the product: `convert` either
+    rejects a rule or writes `secret_group`. Tests that never call `convert`
+    cannot catch a helper/decision mismatch.
+    """
+
+    def convert(self, pattern: str, rule_id: str = "demo-rule") -> list:
+        return SUBJECT.convert(
+            {rule_id: {"regex": pattern, "description": "demo"}},
+            [rule_id],
+        )
+
+    def test_multi_capture_is_rejected(self) -> None:
+        with self.assertRaises(SUBJECT.ConversionError) as ctx:
+            self.convert(r"(?P<a>foo_)(tok_[a-z]{8})")
+        message = str(ctx.exception)
+        self.assertIn("demo-rule", message)
+        self.assertIn("2 capture groups", message)
+
+    def test_numbered_multi_capture_is_rejected(self) -> None:
+        with self.assertRaises(SUBJECT.ConversionError) as ctx:
+            self.convert(r"(foo_)(tok_[a-z]{8})")
+        self.assertIn("capture groups", str(ctx.exception))
+
+    def test_single_python_named_capture_sets_secret_group(self) -> None:
+        rules = self.convert(r"\b(?P<secret>tok_[a-z]{8})")
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0]["secret_group"], 1)
+        self.assertEqual(rules[0]["pattern"], r"\b(?P<secret>tok_[a-z]{8})")
+        self.assertEqual(rules[0]["prefix"], "tok_")
+
+    def test_single_rust_named_capture_sets_secret_group(self) -> None:
+        rules = self.convert(r"\b(?<secret>tok_[a-z]{8})")
+        self.assertEqual(rules[0]["secret_group"], 1)
+        self.assertEqual(rules[0]["id"], "demo-rule")
+
+
 if __name__ == "__main__":
     unittest.main()
