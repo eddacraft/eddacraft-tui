@@ -522,6 +522,78 @@ fn remember_compiled_engine(pack_dir: PathBuf, fingerprint: PackFingerprint, eng
     );
 }
 
+/// Warm-cache hit: take the engine out under a short lock, eval unlocked, put
+/// back. Returns `None` on miss/stale/poison so the caller compiles cold.
+fn try_eval_cached_pack(
+    pack: &LoadedPack,
+    fingerprint: &PackFingerprint,
+    eval_timeout: Option<Duration>,
+    inputs: &[PathInput],
+    manifest: &anvil_policy_engine::pack::PackManifest,
+    anchor_path: &str,
+    deadline: Instant,
+) -> Option<PackEval> {
+    let pack_id = pack.pack.id.as_str();
+    let cached = {
+        let mut cache = prewrite_engine_cache();
+        match cache.entries.remove(&pack.pack.dir) {
+            Some(entry) if entry.fingerprint == *fingerprint && !entry.engine.is_poisoned() => {
+                Some(entry)
+            }
+            Some(entry) if entry.engine.is_poisoned() => None,
+            Some(_stale) => None,
+            None => None,
+        }
+    }?;
+    let mut entry = cached;
+    if Instant::now() >= deadline {
+        remember_compiled_engine(pack.pack.dir.clone(), entry.fingerprint, entry.engine);
+        return Some(PackEval::Truncated(Vec::new()));
+    }
+    let _ = entry.engine.set_eval_timeout(eval_timeout);
+    let outcome = eval_compiled_engine(
+        &mut entry.engine,
+        inputs,
+        manifest,
+        pack_id,
+        anchor_path,
+        deadline,
+    );
+    if !entry.engine.is_poisoned() {
+        remember_compiled_engine(pack.pack.dir.clone(), entry.fingerprint, entry.engine);
+    }
+    Some(outcome)
+}
+
+/// Cold-path engine construction + builtin registration for a pre-write pack.
+fn new_prewrite_engine(
+    config: EngineConfig,
+    pack_id: &str,
+    anchor_path: &str,
+) -> Result<Engine, PackEval> {
+    let mut engine = match Engine::new(config) {
+        Ok(engine) => engine,
+        Err(err) => {
+            return Err(PackEval::Findings(vec![degraded_record(
+                pack_id,
+                anchor_path,
+                &format!("policy engine unavailable: {err}"),
+            )]));
+        }
+    };
+    if let Err(err) = anvil_policy_engine::builtins::register_all(&mut engine) {
+        return Err(PackEval::Findings(vec![degraded_record(
+            pack_id,
+            anchor_path,
+            &format!("policy engine setup failed: {err}"),
+        )]));
+    }
+    prewrite_engine_cache()
+        .compiles
+        .fetch_add(1, Ordering::Relaxed);
+    Ok(engine)
+}
+
 /// Evaluate a single pack under the pass `deadline`. Returns
 /// [`PackEval::Findings`] with one [`RoutedRecord`] per finding (or a single
 /// fail-open warning-class record if the pack cannot be loaded, compiled, or
@@ -564,64 +636,24 @@ fn evaluate_pack(
         .unwrap_or_default();
     let fingerprint = pack_fingerprint(pack, manifest, &overlay);
 
-    // Take the engine out under a short lock, evaluate without holding the
-    // process-global cache mutex (save-time + MCP share this cache), then put
-    // it back. Holding the lock across regorus eval would serialise every
-    // concurrent pre-write/save-time pass.
-    if let Some(fingerprint) = fingerprint.as_ref() {
-        let cached = {
-            let mut cache = prewrite_engine_cache();
-            match cache.entries.remove(&pack.pack.dir) {
-                Some(entry) if entry.fingerprint == *fingerprint && !entry.engine.is_poisoned() => {
-                    Some(entry)
-                }
-                Some(entry) if entry.engine.is_poisoned() => None,
-                Some(_stale) => None,
-                None => None,
-            }
-        };
-        if let Some(mut entry) = cached {
-            if Instant::now() >= deadline {
-                remember_compiled_engine(pack.pack.dir.clone(), entry.fingerprint, entry.engine);
-                return PackEval::Truncated(Vec::new());
-            }
-            let _ = entry.engine.set_eval_timeout(config.eval_timeout);
-            let outcome = eval_compiled_engine(
-                &mut entry.engine,
-                inputs,
-                manifest,
-                pack_id,
-                anchor_path,
-                deadline,
-            );
-            if !entry.engine.is_poisoned() {
-                remember_compiled_engine(pack.pack.dir.clone(), entry.fingerprint, entry.engine);
-            }
-            return outcome;
-        }
-    }
-
-    let mut engine = match Engine::new(config) {
-        Ok(engine) => engine,
-        Err(err) => {
-            return PackEval::Findings(vec![degraded_record(
-                pack_id,
-                anchor_path,
-                &format!("policy engine unavailable: {err}"),
-            )]);
-        }
-    };
-    if let Err(err) = anvil_policy_engine::builtins::register_all(&mut engine) {
-        return PackEval::Findings(vec![degraded_record(
-            pack_id,
+    if let Some(fp) = fingerprint.as_ref()
+        && let Some(outcome) = try_eval_cached_pack(
+            pack,
+            fp,
+            config.eval_timeout,
+            inputs,
+            manifest,
             anchor_path,
-            &format!("policy engine setup failed: {err}"),
-        )]);
+            deadline,
+        )
+    {
+        return outcome;
     }
 
-    prewrite_engine_cache()
-        .compiles
-        .fetch_add(1, Ordering::Relaxed);
+    let mut engine = match new_prewrite_engine(config, pack_id, anchor_path) {
+        Ok(engine) => engine,
+        Err(early) => return early,
+    };
 
     if let Err(early) = compile_enabled_members(
         pack,

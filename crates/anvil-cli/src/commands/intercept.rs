@@ -1653,7 +1653,7 @@ fn round_to_int(value: f64) -> u64 {
 #[cfg(any(unix, windows))]
 #[must_use]
 pub(crate) fn policy_evaluator_injection_enabled() -> bool {
-    !std::env::var_os("ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR").is_some_and(|value| value == "1")
+    std::env::var_os("ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR").is_none_or(|value| value != "1")
 }
 
 /// ADR-149: inject the CLI policy evaluator into the daemon options unless the
@@ -1831,6 +1831,7 @@ mod tests {
         });
     }
 
+    #[cfg(unix)]
     #[test]
     fn status_names_stale_produce_locks_and_points_at_doctor_fix() {
         use anvil_intercept::snapshot_io::base_store::{ProduceLock, ProduceLockClass};

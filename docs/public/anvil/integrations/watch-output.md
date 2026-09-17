@@ -146,11 +146,11 @@ allocator and stdout ordering as the other watch events. For a daemon result,
 
 The daemon verdict's `diagnostics` are canonical `anvil.diagnostic.v1` objects.
 `check_families` is the exact evaluated scope. The live daemon route reports
-`["antipattern"]`, or `["antipattern", "policy"]` when the ADR-149 save-time
-policy hook actually evaluated installed packs. It does not attest secret
-detection or another family absent from the array. `coverage: certified` remains
-graph plus antipattern; policy findings are extra diagnostics, not a
-structural-safety claim.
+`["antipattern"]`, or `["antipattern", "policy"]` when the save-time policy hook
+actually evaluated installed packs. It does not attest secret detection or
+another family absent from the array. `coverage: certified` remains graph plus
+antipattern; policy findings are extra diagnostics, not a structural-safety
+claim.
 
 A fallback subprocess result omits `daemon_verdict`. Its absence means the
 result carries no daemon assurance, coverage, or exact daemon check-family
