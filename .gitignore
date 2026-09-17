@@ -76,6 +76,11 @@ docs/analysis/claude-code-safety-net-review.md
 # the last legacy files) — matches what `anvil init` seeds for consumers.
 .anvil/
 
+# Adopter CI templates that `anvil start` copies locally. This repository must
+# not enable them as live workflows (CIB-294); keep `anvil.yml.example`.
+.github/workflows/anvil.yml
+.github/workflows/anvil-audit.yml
+
 # Claude Code — ignore local state, keep declarative config and vendored hooks
 # Committed: agents/*.md, skills/, rules/*.md, commands/, selected hooks
 # Ignored: council scripts, agent-bus, settings, mcp, sessions, local hook extras
