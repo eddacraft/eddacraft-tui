@@ -186,6 +186,20 @@ so the `status` below reflects the borrow, not the upstream project.
     - Add security/privacy review for what transcripts contain before enabling
       default push
 
+- **source repo + link:** `iii-hq/iii` — https://github.com/iii-hq/iii
+  - **what to borrow/adopt:** held-call gate shape (`continue` / `deny` / `hold`
+    with fail-closed evaluation order and a human-only `resolve`) and the
+    strip-at-entry rule for mutable hook points; nothing at code level
+  - **adopt type:** borrow-pattern
+  - **integration effort:** S
+  - **expected impact:** Low
+  - **status:** candidate
+  - **deep-dive:**
+    [`plans/brainstorms/2026-09-17-iii-borrow-assessment.md`](../../plans/brainstorms/2026-09-17-iii-borrow-assessment.md)
+  - **assessment:** Decline the codebase (Elastic-2.0 engine + patent notice,
+    wrong layer — runtime composition/orchestration) and the dependency. Track
+    only; no APS module filed.
+
 ---
 
 ## 2026-03-08
@@ -670,3 +684,28 @@ so the `status` below reflects the borrow, not the upstream project.
       warnings-over-blocks posture.
   - **licence note:** dual MIT / Apache-2.0 (Morgan's summary said MIT-only) —
     clean-room borrow of schema/wording carries no licence friction.
+
+## 2026-09-17
+
+- **source repo + link:** `iii-hq/iii` — https://github.com/iii-hq/iii
+  - **what to borrow/adopt:** (1) **Held call with fail-closed resolution** — a
+    pre-trigger hook answering `continue` / `deny` / `hold`; a hold parks the
+    agent turn with a resumable identity and a human-only `resolve` releases or
+    denies it; policy error or timeout degrades to deny, never to allow. A
+    candidate third outcome beside warn / fence / interrupt, gated on the
+    ADR-098 AD-4 interception ADR. (2) **Strip at entry** — a hook that runs
+    after content has streamed cannot mutate, so redaction happens where
+    evidence enters persistence. (3) Distribution channel only: an `anvil gate`
+    iii worker bound to `harness::hook::pre_trigger` (Apache-2.0 SDK), if a
+    prospect runs agents on iii.
+  - **adopt type:** borrow-pattern
+  - **integration effort:** S
+  - **expected impact:** Low
+  - **status:** candidate
+  - **deep-dive:**
+    [`plans/brainstorms/2026-09-17-iii-borrow-assessment.md`](../../plans/brainstorms/2026-09-17-iii-borrow-assessment.md)
+  - **assessment:** Engine is Elastic License 2.0 with a patent-pending notice;
+    runtime composition/orchestration is the out-of-scope layer. Decline code
+    and dependency; Track. Development-side adoption (replacing the file bus /
+    council fan-out) also declined until drain mode needs long-lived unattended
+    processes — note against ADR-024.
