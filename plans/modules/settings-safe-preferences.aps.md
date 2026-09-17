@@ -5,13 +5,17 @@
 
 | ID      | Owner | Priority | Status   | Progress |
 | ------- | ----- | -------- | -------- | -------- |
-| SETPREF | —     | medium   | Ready    | 0/6      |
+| SETPREF | —     | medium   | Done     | 6/6      |
 
-**Last reviewed:** 2026-09-16 — Ready checklist complete. Operator locked this
-module as the `v0.12.0-beta` next-minor claim (not the active `v0.11.1-beta`
-patch). SETINS Done via #4696. Class A v0.1 keys: `interface.compact`,
-`interface.timestamps`, `interface.motion`, `interface.hints`. Canonical writer:
-user scope → settings-service `user-config`. Safe-write policy:
+**Last reviewed:** 2026-09-16 — SETPREF-001..006 Merged via #4741 (closed
+#4735–#4740); module Done. Validation re-run on `main` at `e7024b7a6`: the
+`settings_write_class_a`, `settings_scope`, `settings_reset`, `settings_persist`,
+`settings_concurrency` and `settings_safe_write` tests pass (the unwritable-target
+case needs a non-root runner, as in CI). Operator locked this module as the
+`v0.12.0-beta` next-minor claim (not the active `v0.11.1-beta` patch). SETINS
+Done via #4696. Class A v0.1 keys: `interface.compact`, `interface.timestamps`,
+`interface.motion`, `interface.hints`. Canonical writer: user scope →
+settings-service `user-config`. Safe-write policy:
 [`2026-09-16-settings-class-a-safe-write.md`](../specs/2026-09-16-settings-class-a-safe-write.md).
 Created 2026-08-06 from the operator-supplied `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
@@ -142,7 +146,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-config -- settings_write_class_a`; `cargo test -p eddacraft-anvil-settings -- settings_write_class_a`
 - **Files:** `crates/anvil-config/src/settings_write.rs`, `crates/anvil-settings/src/mutate.rs`, `crates/anvil-tui/src/surfaces/settings/mod.rs`, `crates/anvil-cli/src/commands/settings.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-16 via PR #4741
 
 ### SETPREF-002: Target scope and override disclosure
 
@@ -159,7 +163,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-settings -- settings_scope`
 - **Files:** `crates/anvil-settings/src/mutate.rs`, `crates/anvil-tui/src/surfaces/settings/mod.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-16 via PR #4741
 
 ### SETPREF-003: Reset with inheritance preview
 
@@ -175,7 +179,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-config -- settings_reset`; `cargo test -p eddacraft-anvil-settings -- settings_reset`
 - **Files:** `crates/anvil-config/src/settings_write.rs`, `crates/anvil-settings/src/mutate.rs`, `crates/anvil-tui/src/surfaces/settings/mod.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-16 via PR #4741
 
 ### SETPREF-004: Atomic persistence
 
@@ -190,7 +194,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-config -- settings_persist`
 - **Files:** `crates/anvil-config/src/settings_write.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-16 via PR #4741
 
 ### SETPREF-005: Concurrent-change detection
 
@@ -204,7 +208,7 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-config -- settings_concurrency`
 - **Files:** `crates/anvil-config/src/settings_write.rs`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-16 via PR #4741
 
 ### SETPREF-006: Safe-write hardening
 
@@ -220,4 +224,4 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-anvil-config -- settings_safe_write`
 - **Files:** `crates/anvil-config/src/settings_write.rs`, `plans/specs/2026-09-16-settings-class-a-safe-write.md`
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-09-16 via PR #4741

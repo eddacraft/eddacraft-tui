@@ -1,8 +1,8 @@
 # anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                   |
-| ------------ | --------- | ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | 2026-09-17: closeout record for **`v0.11.1-beta`** published; active window remains **`v0.12.0-beta`** (SETPREF remaining after Class A persist shipped on the 0.11.1 tip). |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                        |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | 2026-09-17: closeout record for **`v0.11.1-beta`** published; active window remains **`v0.12.0-beta`** (remaining `/settings` work after SETPREF landed Done on the 0.11.1 tip). |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -42,25 +42,27 @@ nothing else.
 - **Cadence:** current-minor patches when user signal warrants; next minor when
   a named capability is Ready. See
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** **`v0.12.0-beta`** — SETPREF remaining after Class A
-  persist shipped on the `v0.11.1-beta` tip.
+- **Active window:** **`v0.12.0-beta`** — remaining `/settings` work after
+  SETPREF (Class A safe preferences) landed Done on the `v0.11.1-beta` tip.
 
 ---
 
 ## Active window — `v0.12.0-beta`
 
-**Theme:** Finish Class A safe preferences (`/settings` v0.1) after the persist
-path that landed on `v0.11.1-beta`.
+**Theme:** Close `/settings` v0.1 — the remaining settings work after SETPREF
+landed on `v0.11.1-beta`.
 
-**Status:** **Claim named.** SETPREF remains the locked next-minor headline.
-Class A persist already shipped as tip freight on `v0.11.1-beta` (#4741); this
-window is the rest of the module, not a second write path.
+**Status:** **Claim named.** SETPREF remains the locked next-minor headline;
+SETPREF-001..006 Merged via #4741 on the `v0.11.1-beta` tip, so the module is
+Done. This window is the remaining `/settings` work around it, not a second
+write path.
 
 **Customer one-liner:** Interface preferences you change in settings stay
 changed, with a visible scope and a safe write.
 
 **Authority:** Operator 2026-09-16 locked SETPREF as the next minor. The 0.11.1
-tag then included the persist commits; remaining SETPREF items stay this window.
+tag then included the whole module; the remaining `/settings` work stays this
+window (operator 2026-09-17).
 
 **Minor scope:** complete `/settings` v0.1 through the settings service. No
 Class B/C mutation (SETGOV). No public-docs claim that `anvil settings` is a
@@ -68,9 +70,10 @@ released product until CLICT-008 is Done.
 
 ### Primary claim
 
-- **[SETPREF](./plans/modules/settings-safe-preferences.aps.md)** — remaining
-  Class A work after persist: scope honesty, reset preview, and the v0.1
-  closeout. Persist itself is already on `v0.11.1-beta`.
+- **[SETPREF](./plans/modules/settings-safe-preferences.aps.md)** — Done:
+  SETPREF-001..006 Merged via #4741 on `v0.11.1-beta`. What this window ships is
+  the `/settings` v0.1 closeout around it: CLICT-008, then the public docs claim
+  for `anvil settings`, a curated changelog, and the cut.
 
 ### Secondaries
 
@@ -100,19 +103,20 @@ SHIPREP, ABASE, and SKOBS stay programme (Ready/ADR first). SETGOV stays later.
 
 ### Phase plan
 
-| Phase          | Scope                                 | State                             |
-| -------------- | ------------------------------------- | --------------------------------- |
-| **0.11.1 tag** | Gate and inspect honesty              | Tagged `e7024b7a6`                |
-| **Claim lock** | SETPREF remaining                     | Locked                            |
-| **Implement**  | Remaining SETPREF items               | Persist already on 0.11.1 (#4741) |
-| **Changelog**  | Curate `[Unreleased]`                 | Not started                       |
-| **Cut**        | Preflight → prepare → readiness → tag | Not started                       |
+| Phase          | Scope                                              | State                          |
+| -------------- | -------------------------------------------------- | ------------------------------ |
+| **0.11.1 tag** | Gate and inspect honesty                           | Tagged `e7024b7a6`             |
+| **Claim lock** | SETPREF + `/settings` v0.1 closeout                | Locked                         |
+| **Implement**  | Remaining `/settings` work (CLICT-008, docs claim) | SETPREF Done on 0.11.1 (#4741) |
+| **Changelog**  | Curate `[Unreleased]`                              | Not started                    |
+| **Cut**        | Preflight → prepare → readiness → tag              | Not started                    |
 
 ### Cut criteria
 
 - Standing bar: full Cross matrix, release-readiness on source SHA,
   ACKNOWLEDGEMENTS fresh, dashboard openapi `check:api` green.
-- SETPREF remaining items Merged or waived in the cut note.
+- Remaining `/settings` work (CLICT-008, public docs claim) Merged or waived in
+  the cut note.
 - Strategy: **direct** unless readiness forces stabilisation.
 
 ### Risks

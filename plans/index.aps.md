@@ -8,8 +8,8 @@
 > [`v0.11.1-beta`](./releases/v0.11.1-beta.md). Per-tag records under
 > [`plans/releases/`](./releases/).
 >
-> The active release window is **`v0.12.0-beta`** (SETPREF remaining after
-> Class A persist shipped on the `v0.11.1-beta` tip). Highest-value programme
+> The active release window is **`v0.12.0-beta`** (remaining `/settings` work
+> after SETPREF landed Done on the `v0.11.1-beta` tip). Highest-value programme
 > track beside the cut remains Graph Trust Surfaces Wave 0 (**CGBDG**). See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) and NBI.
 
@@ -103,7 +103,7 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | SETPREF — remaining Class A safe preferences | Ready | [SETPREF](./modules/settings-safe-preferences.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | Locked `v0.12.0-beta` active window. Class A persist already shipped on `v0.11.1-beta` (#4741). | Remaining SETPREF items: scope honesty, reset preview, and the v0.1 closeout. |
+| 1 | `/settings` v0.1 closeout — remaining settings work after SETPREF | Ready | [SETPREF](./modules/settings-safe-preferences.aps.md), [CLICT-008](./modules/cli-command-truth.aps.md), [RELEASE-PLAN](../RELEASE-PLAN.md) | Locked `v0.12.0-beta` active window. SETPREF-001..006 Merged via #4741 on `v0.11.1-beta`; module Done. | CLICT-008 audit, then the public docs claim for `anvil settings`; curate `[Unreleased]`; cut. |
 | 2 | CGBDG-001..006 — council-gate bridge discovery | Ready | [council-gate-bridge](./modules/council-gate-bridge.aps.md), [Graph Trust Surfaces](./specs/2026-07-28-graph-trust-surfaces.md) | Highest-value programme track beside the cut. Not a release claim. | Execute discovery; prefer thin witness-lines path; CGBDG-006 report + follow-on implement/spec or park. |
 | 3 | MCPLH-007 — live-heal soak (supervisor residual) | Schedule | [mcp-live-heal](./modules/mcp-live-heal.aps.md), [design](./specs/2026-08-09-mcp-live-heal-without-harness-restart.md) | Residual after `v0.9.5-beta`. Session restart remains honest. | Stays Draft until soak; do not block the next cut. |
 ## Release Plan
@@ -119,8 +119,8 @@ Windows through `v0.7.4-beta` have their per-window tables and slice records in
 live under [`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
 (2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
 was cut for testing and is **not** a promoted headline window. The **active**
-window is **`v0.12.0-beta`** (SETPREF remaining after Class A persist shipped
-on the `v0.11.1-beta` tip), declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md);
+window is **`v0.12.0-beta`** (remaining `/settings` work after SETPREF landed
+Done on the `v0.11.1-beta` tip), declared in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md);
 see also the header above and the NBI table. Shipped windows through
 `v0.11.1-beta` are promoted headlines.
 
@@ -796,7 +796,7 @@ the shipped graph into agent- and team-lead trust answers. Framing and clearance
 checklist:
 [`plans/specs/2026-07-28-graph-trust-surfaces.md`](./specs/2026-07-28-graph-trust-surfaces.md).
 **Not** a second `RELEASE-PLAN.md` window. While the active window is
-`v0.12.0-beta` (SETPREF remaining), module rows below
+`v0.12.0-beta` (remaining `/settings` work after SETPREF), module rows below
 remain owned by their home sections where they already live; this band is the
 programme hub, not a release claim.
 
@@ -876,8 +876,8 @@ enforces.
 
 SETCON's truth-contract ADR is
 [ADR-132](./decisions/132-settings-truth-contract.md). Inspect (SETINS) shipped
-in `v0.11.0-beta`. The **active** window is **SETPREF** (`v0.12.0-beta`); Class A
-persist already rode `v0.11.1-beta`. Slices map one-to-one onto modules;
+in `v0.11.0-beta`. The **active** window is `v0.12.0-beta` (remaining `/settings`
+work); SETPREF landed Done on `v0.11.1-beta` via #4741. Slices map one-to-one onto modules;
 `/settings`
 v0.1 = SETCON + SETINS +
 SETPREF (`Settings | Status | Sources` only — the `Audit` tab ships with SETGOV,
@@ -892,7 +892,7 @@ Not a release claim.
 | [settings-truth-contract](./archive/modules/settings-truth-contract.aps.md) | SETCON | 0 — truth contract | Complete | 12/12 | **archived 2026-08-31.** All 12 SETCON work items are Merged via PR #4140 and PR #4216. SETINS remains gated on a named release window. |
 | [protection-posture-board](./modules/protection-posture-board.aps.md) | POSBRD | Status panel — v1 `anvil status` | Proposed | 5/5 | POSBRD-001/-002 Merged via #4680; POSBRD-003/-004/-005 Merged via #4697. SETINS Status later consumes the snapshot. |
 | [settings-inspect-surface](./modules/settings-inspect-surface.aps.md) | SETINS | 1 — inspect | Done | 10/10 | SETINS-001/-002 Merged via #4681; SETINS-003..010 Merged via #4696. [CLICT-008](./modules/cli-command-truth.aps.md) Auditing before public docs claim `anvil settings`. Next: SETPREF |
-| [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Ready | 0/6 | `v0.12.0-beta` claim. Ready 2026-09-16. Next: SETPREF-001 Class A mutation path. |
+| [settings-safe-preferences](./modules/settings-safe-preferences.aps.md) | SETPREF | 2 — safe preferences | Done | 6/6 | `v0.12.0-beta` claim. SETPREF-001..006 Merged via #4741 (2026-09-16). Next: SETGOV needs its audit-store and approval-authority decisions. |
 | [settings-governed-changes](./modules/settings-governed-changes.aps.md) | SETGOV | 3 — governed changes and audit | Draft | 0/9 | Post-v0.1; needs the audit-store reuse decision and an approval-authority model with [ORGHIER](./modules/org-policy-hierarchy.aps.md)/[POLLC](./modules/policy-lifecycle.aps.md) |
 | [settings-nl-proposals](./modules/settings-nl-proposals.aps.md) | SETNL | 4 — natural-language proposals | Draft | 0/4 | Horizon; authoring input only, never an authority or mutation path |
 
