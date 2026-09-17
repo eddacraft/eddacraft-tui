@@ -231,7 +231,14 @@ function unresolvedThreadCount(gh, repo, prNumber) {
 }
 
 function loadLiveRulesets(gh, repo) {
-  const rulesetList = ghJson(gh, ['api', '--paginate', `repos/${repo}/rulesets`]);
+  // --paginate alone emits one JSON document per page; JSON.parse then fails
+  // once a second page exists. --slurp wraps pages in one array; flatten so
+  // detail lookups see every id (CIB-430 Copilot review).
+  const pages = ghJson(gh, ['api', '--paginate', '--slurp', `repos/${repo}/rulesets`]);
+  if (!Array.isArray(pages)) {
+    failClosed('incomplete ruleset page: slurped list is not an array');
+  }
+  const rulesetList = pages.every((page) => Array.isArray(page)) ? pages.flat() : pages;
   if (!Array.isArray(rulesetList)) {
     failClosed('incomplete ruleset page: list is not an array');
   }

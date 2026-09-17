@@ -317,8 +317,19 @@ if (pathArg) {
   }
   if (/\\/rulesets$/.test(pathOnly)) {
     const pages = fixture.rulesetPages || [];
-    const body = args.includes('--paginate') ? pages.flat() : pages[0] || [];
-    reply(body);
+    // Real gh: --paginate alone emits one JSON document per page; --paginate
+    // --slurp returns one JSON array of those page documents.
+    if (args.includes('--paginate') && args.includes('--slurp')) {
+      reply(pages);
+      process.exit(0);
+    }
+    if (args.includes('--paginate')) {
+      for (const page of pages) {
+        process.stdout.write(JSON.stringify(page) + '\\n');
+      }
+      process.exit(0);
+    }
+    reply(pages[0] || []);
     process.exit(0);
   }
 }
@@ -446,6 +457,6 @@ test('live mode fail-closes on an incomplete review-thread page, not a pass', ()
       },
     },
   });
-  assert.notEqual(r.status, 0, r.stdout + r.stderr);
+  assert.equal(r.status, 2, r.stdout + r.stderr);
   assert.doesNotMatch(r.stdout, /all required contexts reported and passed/);
 });
