@@ -136,12 +136,45 @@ pub trait SymbolParser: Send + Sync + std::fmt::Debug {
 /// injects the MCP pre-write evaluator via
 /// [`crate::ForegroundOpts::with_policy_evaluator`]. `None` ⇒ `validate_paths`
 /// stays antipattern-only, matching today's envelope.
+/// Outcome of a save-time [`PolicyEvaluator`] call (ADR-149).
+///
+/// `evaluated` is false when the hook was inert (kill switch, no packs, empty
+/// paths) so `validate_paths` can withhold the `policy` check family rather
+/// than claiming a family that did not run.
+#[derive(Debug, Clone)]
+pub struct PolicyEvalOutcome {
+    /// Diagnostics produced by the evaluator (including fail-open warnings).
+    pub diagnostics: Vec<Diagnostic>,
+    /// True when policy packs were actually evaluated.
+    pub evaluated: bool,
+}
+
+impl PolicyEvalOutcome {
+    /// Inert outcome: no diagnostics, family must not be claimed.
+    #[must_use]
+    pub fn inert() -> Self {
+        Self {
+            diagnostics: Vec::new(),
+            evaluated: false,
+        }
+    }
+
+    /// Evaluated outcome (packs ran, even if findings are empty).
+    #[must_use]
+    pub fn evaluated(diagnostics: Vec<Diagnostic>) -> Self {
+        Self {
+            diagnostics,
+            evaluated: true,
+        }
+    }
+}
+
 pub trait PolicyEvaluator: Send + Sync + std::fmt::Debug {
     /// Evaluate installed packs against the save's changed paths.
     ///
     /// Must fail open: panics and eval errors become warning diagnostics, never
     /// unwind into the daemon.
-    fn evaluate(&self, workspace_root: &Path, changed_paths: &[String]) -> Vec<Diagnostic>;
+    fn evaluate(&self, workspace_root: &Path, changed_paths: &[String]) -> PolicyEvalOutcome;
 }
 
 /// ADR-069 §10 structured snapshot I/O counters. One cumulative counter per

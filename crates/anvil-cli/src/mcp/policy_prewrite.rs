@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use anvil_intercept_rules::{PolicyOutcome, PolicySeverityClass, route_policy_outcome};
@@ -54,6 +54,12 @@ pub(crate) struct PolicyPrewriteOutcome {
     /// The strictest routed [`ControlDecision`] across every outcome, or
     /// [`ControlDecision::Allow`] when nothing fired.
     pub decision: ControlDecision,
+    /// Whether installed packs were actually evaluated. `false` for every
+    /// inert early-out (kill switch, no changed paths, discovery failed open,
+    /// no packs installed) so a caller such as the ADR-149 save-time hook can
+    /// withhold the `policy` check family rather than claim a scope that never
+    /// ran.
+    pub evaluated: bool,
 }
 
 impl PolicyPrewriteOutcome {
@@ -63,6 +69,7 @@ impl PolicyPrewriteOutcome {
         Self {
             diagnostics: Vec::new(),
             decision: ControlDecision::Allow,
+            evaluated: false,
         }
     }
 }
@@ -72,16 +79,39 @@ impl PolicyPrewriteOutcome {
 struct RoutedRecord {
     outcome: PolicyOutcome,
     diagnostic: Diagnostic,
+    /// True when the record is attributed to a specific changed path (a real
+    /// finding, evaluated against that path's own policy input). False for
+    /// pack-level machinery records — degradation and truncation warnings —
+    /// which describe the pass, not a file, and must therefore never be
+    /// suppressed by a per-file exception grant.
+    path_scoped: bool,
+}
+
+/// One changed path in the pass, paired with the deterministic pre-write input
+/// that localises evaluation to it.
+///
+/// ADR-149 coalesces a save into several changed paths. Each path gets its own
+/// [`PolicyInput`](anvil_policy_engine::PolicyInput) so every finding,
+/// exception lookup, and diagnostic location names the file it actually came
+/// from, instead of collapsing the batch onto its first entry. The compiled
+/// engine is shared across the batch (OPAE-011), so the extra cost is one
+/// bounded eval per path, not one compile.
+struct PathInput {
+    path: String,
+    input: anvil_policy_engine::PolicyInput,
 }
 
 /// The outcome of evaluating a single pack under the pass deadline.
 enum PackEval {
-    /// The pack was evaluated; its (possibly empty) findings.
+    /// The pack was evaluated against every changed path; its (possibly empty)
+    /// findings.
     Findings(Vec<RoutedRecord>),
-    /// The pass deadline was reached mid-pack (before a member compile or the
-    /// eval); the caller collapses this and every remaining pack into one
+    /// The pass deadline was reached mid-pack (before a member compile, or
+    /// between two changed paths' evals). Carries the records already produced
+    /// for this pack so a partial batch is not silently dropped; the caller
+    /// keeps them and collapses this and every remaining pack into one
     /// truncation warning.
-    Truncated,
+    Truncated(Vec<RoutedRecord>),
 }
 
 /// Whether pre-write policy evaluation is enabled, reading the
@@ -152,10 +182,13 @@ fn evaluate_many_with_budget(
     posture: EnforcementMode,
     pass_budget: Duration,
 ) -> PolicyPrewriteOutcome {
-    let Some((changed_path, _)) = changes.first() else {
+    let Some((anchor_path, _)) = changes.first() else {
         return PolicyPrewriteOutcome::inert();
     };
-    let changed_path = *changed_path;
+    // The anchor localises pack-level machinery records only (degradation and
+    // truncation warnings, which describe the pass rather than a file). Real
+    // findings are attributed to their own changed path — see [`PathInput`].
+    let anchor_path = *anchor_path;
     // Kill switch first (AD-5): a single debug-level log, never per-call spam.
     if !policy_enforcement_enabled() {
         tracing::debug!(
@@ -173,7 +206,9 @@ fn evaluate_many_with_budget(
     // Discovery failing open: a containment breach or unreadable policies dir
     // must not block the write (AD-5) — degrade to no policy diagnostics. The
     // no-packs case (missing dir) is a single stat then this early-out.
-    let loaded = match discover_and_load(workspace_root) {
+    // OPAE-011: warm passes reuse loaded pack/manifest metadata when the
+    // policies-dir mtime fingerprint is unchanged (eval-only; no rescan).
+    let loaded = match cached_discover_and_load(workspace_root) {
         Ok(loaded) => loaded,
         Err(err) => {
             tracing::debug!(
@@ -188,10 +223,28 @@ fn evaluate_many_with_budget(
         return PolicyPrewriteOutcome::inert();
     }
 
-    // One deterministic pre-write input (OPAE-006), projected to the Rego pack
-    // shape. Its budget carries the pass budget through; each pack's engine is
-    // then bounded by min(remaining, that budget).
-    let prewrite = PrewriteInput::from_parts(
+    // One deterministic pre-write input (OPAE-006) per changed path, projected
+    // to the Rego pack shape. Per-path inputs keep finding attribution, the
+    // exception lookup, and the diagnostic location honest for a coalesced
+    // save; the budget carries the pass budget through, and each pack's engine
+    // is then bounded by min(remaining, that budget).
+    let inputs: Vec<PathInput> = changes
+        .iter()
+        .map(|(path, kind)| {
+            let prewrite = PrewriteInput::from_parts(
+                WorkflowPhase::Save,
+                [ChangedPath::new(*path, *kind)],
+                [],
+                GraphFacts::default(),
+                PrewriteBudget::new(pass_budget),
+            );
+            PathInput {
+                path: (*path).to_string(),
+                input: prewrite.to_policy_input(),
+            }
+        })
+        .collect();
+    let base_config = PrewriteInput::from_parts(
         WorkflowPhase::Save,
         changes
             .iter()
@@ -199,19 +252,18 @@ fn evaluate_many_with_budget(
         [],
         GraphFacts::default(),
         PrewriteBudget::new(pass_budget),
-    );
-    let policy_input = prewrite.to_policy_input();
-    let base_config = prewrite.engine_config();
+    )
+    .engine_config();
 
     let total = loaded.len();
     let mut records: Vec<RoutedRecord> = Vec::new();
     let mut evaluated = 0usize;
-    for pack in &loaded {
+    for pack in loaded.iter() {
         // Deadline gate before each pack's expensive compile/eval work. On
         // exhaustion, collapse this and every remaining pack into one
         // truncation warning (never a veto) and stop.
         if Instant::now() >= deadline {
-            records.push(truncation_record(evaluated, total, started, changed_path));
+            records.push(truncation_record(evaluated, total, started, anchor_path));
             break;
         }
         // Defence in depth (AD-5): the engine facade already guards regorus
@@ -220,21 +272,22 @@ fn evaluate_many_with_budget(
         // panic degrades the pack to a warning, exactly like any other failure.
         let pack_id = pack.pack.id.clone();
         let pack_eval = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            evaluate_pack(pack, &policy_input, &base_config, deadline, changed_path)
+            evaluate_pack(pack, &inputs, &base_config, deadline, anchor_path)
         }));
         match pack_eval {
             Ok(PackEval::Findings(pack_records)) => {
                 records.extend(pack_records);
                 evaluated += 1;
             }
-            Ok(PackEval::Truncated) => {
-                records.push(truncation_record(evaluated, total, started, changed_path));
+            Ok(PackEval::Truncated(partial)) => {
+                records.extend(partial);
+                records.push(truncation_record(evaluated, total, started, anchor_path));
                 break;
             }
             Err(_) => {
                 records.push(degraded_record(
                     &pack_id,
-                    changed_path,
+                    anchor_path,
                     "policy evaluation panicked",
                 ));
                 evaluated += 1;
@@ -242,7 +295,7 @@ fn evaluate_many_with_budget(
         }
     }
 
-    let records = suppress_excepted_records(workspace_root, changed_path, records);
+    let records = suppress_excepted_records(workspace_root, records);
 
     let mut decision = ControlDecision::Allow;
     let mut diagnostics = Vec::with_capacity(records.len());
@@ -254,6 +307,7 @@ fn evaluate_many_with_budget(
     PolicyPrewriteOutcome {
         diagnostics,
         decision,
+        evaluated: true,
     }
 }
 
@@ -311,11 +365,117 @@ fn reset_prewrite_engine_cache() {
     let mut cache = prewrite_engine_cache();
     cache.entries.clear();
     cache.compiles.store(0, Ordering::Relaxed);
+    reset_prewrite_discovery_cache();
 }
 
 #[cfg(test)]
 fn prewrite_engine_compile_count() -> u64 {
     prewrite_engine_cache().compiles.load(Ordering::Relaxed)
+}
+
+/// Process-local loaded pack/manifest cache (OPAE-011 warm path). Keyed by the
+/// workspace policies directory; invalidated when any pack.yaml, overlay, or
+/// member mtime/len stamp changes.
+struct PrewriteDiscoveryCache {
+    entry: Option<CachedDiscovery>,
+    discoveries: AtomicU64,
+}
+
+struct CachedDiscovery {
+    policies_dir: PathBuf,
+    fingerprint: PackFingerprint,
+    packs: Arc<Vec<LoadedPack>>,
+}
+
+fn prewrite_discovery_cache() -> std::sync::MutexGuard<'static, PrewriteDiscoveryCache> {
+    static CACHE: OnceLock<Mutex<PrewriteDiscoveryCache>> = OnceLock::new();
+    CACHE
+        .get_or_init(|| {
+            Mutex::new(PrewriteDiscoveryCache {
+                entry: None,
+                discoveries: AtomicU64::new(0),
+            })
+        })
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+#[cfg(test)]
+fn reset_prewrite_discovery_cache() {
+    let mut cache = prewrite_discovery_cache();
+    cache.entry = None;
+    cache.discoveries.store(0, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+fn prewrite_discovery_count() -> u64 {
+    prewrite_discovery_cache()
+        .discoveries
+        .load(Ordering::Relaxed)
+}
+
+/// Stamp every immediate pack.yaml, overlay, and member under the policies
+/// directory. Missing dir => empty fingerprint (cold empty install).
+fn discovery_fingerprint(policies_dir: &Path) -> PackFingerprint {
+    let mut stamps = Vec::new();
+    let Ok(entries) = std::fs::read_dir(policies_dir) else {
+        return PackFingerprint { stamps };
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let manifest = path.join("pack.yaml");
+            if let Some((mtime, len)) = file_stamp(&manifest) {
+                stamps.push((manifest.display().to_string(), mtime, len));
+            }
+            let members = path.join("policies");
+            if let Ok(members_it) = std::fs::read_dir(&members) {
+                for member in members_it.flatten() {
+                    let mp = member.path();
+                    if mp.is_file()
+                        && let Some((mtime, len)) = file_stamp(&mp)
+                    {
+                        stamps.push((mp.display().to_string(), mtime, len));
+                    }
+                }
+            }
+        } else if path.is_file() {
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if name.ends_with(".overlay.yaml")
+                && let Some((mtime, len)) = file_stamp(&path)
+            {
+                stamps.push((path.display().to_string(), mtime, len));
+            }
+        }
+    }
+    stamps.sort_by(|a, b| a.0.cmp(&b.0));
+    PackFingerprint { stamps }
+}
+
+fn cached_discover_and_load(
+    workspace_root: &Path,
+) -> Result<Arc<Vec<LoadedPack>>, anvil_policy_engine::pack::DiscoveryError> {
+    let policies_dir = workspace_root.join(".anvil/policies");
+    let fingerprint = discovery_fingerprint(&policies_dir);
+    {
+        let cache = prewrite_discovery_cache();
+        if let Some(entry) = cache.entry.as_ref()
+            && entry.policies_dir == policies_dir
+            && entry.fingerprint == fingerprint
+        {
+            return Ok(Arc::clone(&entry.packs));
+        }
+    }
+    let loaded = discover_and_load(workspace_root)?;
+    let packs = Arc::new(loaded);
+    let mut cache = prewrite_discovery_cache();
+    cache.discoveries.fetch_add(1, Ordering::Relaxed);
+    cache.entry = Some(CachedDiscovery {
+        policies_dir,
+        fingerprint,
+        packs: Arc::clone(&packs),
+    });
+    Ok(packs)
 }
 
 fn file_stamp(path: &Path) -> Option<(u128, u64)> {
@@ -369,10 +529,10 @@ fn remember_compiled_engine(pack_dir: PathBuf, fingerprint: PackFingerprint, eng
 /// pack's compile or eval completes (AD-5).
 fn evaluate_pack(
     pack: &LoadedPack,
-    policy_input: &anvil_policy_engine::PolicyInput,
+    inputs: &[PathInput],
     base_config: &EngineConfig,
     deadline: Instant,
-    changed_path: &str,
+    anchor_path: &str,
 ) -> PackEval {
     let pack_id = pack.pack.id.as_str();
 
@@ -384,7 +544,7 @@ fn evaluate_pack(
         Err(err) => {
             return PackEval::Findings(vec![degraded_record(
                 pack_id,
-                changed_path,
+                anchor_path,
                 &format!("pack manifest failed to load: {err}"),
             )]);
         }
@@ -393,7 +553,7 @@ fn evaluate_pack(
     // Bound the engine's eval by the time remaining in the pass; a passed
     // deadline truncates.
     let Some(config) = bounded_engine_config(base_config, deadline) else {
-        return PackEval::Truncated;
+        return PackEval::Truncated(Vec::new());
     };
 
     let overlay = pack
@@ -423,15 +583,16 @@ fn evaluate_pack(
         if let Some(mut entry) = cached {
             if Instant::now() >= deadline {
                 remember_compiled_engine(pack.pack.dir.clone(), entry.fingerprint, entry.engine);
-                return PackEval::Truncated;
+                return PackEval::Truncated(Vec::new());
             }
             let _ = entry.engine.set_eval_timeout(config.eval_timeout);
             let outcome = eval_compiled_engine(
                 &mut entry.engine,
-                policy_input,
+                inputs,
                 manifest,
                 pack_id,
-                changed_path,
+                anchor_path,
+                deadline,
             );
             if !entry.engine.is_poisoned() {
                 remember_compiled_engine(pack.pack.dir.clone(), entry.fingerprint, entry.engine);
@@ -445,7 +606,7 @@ fn evaluate_pack(
         Err(err) => {
             return PackEval::Findings(vec![degraded_record(
                 pack_id,
-                changed_path,
+                anchor_path,
                 &format!("policy engine unavailable: {err}"),
             )]);
         }
@@ -453,7 +614,7 @@ fn evaluate_pack(
     if let Err(err) = anvil_policy_engine::builtins::register_all(&mut engine) {
         return PackEval::Findings(vec![degraded_record(
             pack_id,
-            changed_path,
+            anchor_path,
             &format!("policy engine setup failed: {err}"),
         )]);
     }
@@ -469,17 +630,24 @@ fn evaluate_pack(
         &mut engine,
         &overlay,
         deadline,
-        changed_path,
+        anchor_path,
     ) {
         return early;
     }
 
     // Deadline gate before the eval itself.
     if Instant::now() >= deadline {
-        return PackEval::Truncated;
+        return PackEval::Truncated(Vec::new());
     }
 
-    let outcome = eval_compiled_engine(&mut engine, policy_input, manifest, pack_id, changed_path);
+    let outcome = eval_compiled_engine(
+        &mut engine,
+        inputs,
+        manifest,
+        pack_id,
+        anchor_path,
+        deadline,
+    );
     if !engine.is_poisoned()
         && let Some(fingerprint) = fingerprint
     {
@@ -490,27 +658,46 @@ fn evaluate_pack(
 
 fn eval_compiled_engine(
     engine: &mut Engine,
-    policy_input: &anvil_policy_engine::PolicyInput,
+    inputs: &[PathInput],
     manifest: &anvil_policy_engine::pack::PackManifest,
     pack_id: &str,
-    changed_path: &str,
+    anchor_path: &str,
+    deadline: Instant,
 ) -> PackEval {
-    // Evaluation. A regorus error / timeout (the engine's own eval_timeout is
-    // min(remaining, budget)) is caught by the facade and surfaced as an `Err`
-    // here (the facade guards panics too); it degrades to a warning, never a
-    // veto (AD-5 fail-open budget).
-    let value = match engine.eval(policy_input, POLICY_QUERY) {
-        Ok(result) => result.value,
-        Err(err) => {
-            return PackEval::Findings(vec![degraded_record(
-                pack_id,
-                changed_path,
-                &format!("policy evaluation failed: {err}"),
-            )]);
+    // One eval per changed path against the already-compiled engine, so each
+    // finding carries the path it fired on rather than the batch's first entry.
+    let mut records = Vec::new();
+    for input in inputs {
+        // Deadline gate between paths: a long batch must not outrun the pass
+        // budget. Records produced so far travel with the truncation.
+        if Instant::now() >= deadline {
+            return PackEval::Truncated(records);
         }
-    };
-
-    findings_from_eval(value.as_ref(), manifest, pack_id, changed_path)
+        // Evaluation. A regorus error / timeout (the engine's own eval_timeout
+        // is min(remaining, budget)) is caught by the facade and surfaced as an
+        // `Err` here (the facade guards panics too); it degrades to a warning,
+        // never a veto (AD-5 fail-open budget). The degradation is pack-level,
+        // so it anchors at the pass anchor and stops the pack's batch.
+        let value = match engine.eval(&input.input, POLICY_QUERY) {
+            Ok(result) => result.value,
+            Err(err) => {
+                records.push(degraded_record(
+                    pack_id,
+                    anchor_path,
+                    &format!("policy evaluation failed: {err}"),
+                ));
+                return PackEval::Findings(records);
+            }
+        };
+        match findings_from_eval(value.as_ref(), manifest, pack_id, &input.path) {
+            PackEval::Findings(path_records) => records.extend(path_records),
+            PackEval::Truncated(partial) => {
+                records.extend(partial);
+                return PackEval::Truncated(records);
+            }
+        }
+    }
+    PackEval::Findings(records)
 }
 
 /// Compile overlay-enabled members into `engine`. Disabled members are skipped
@@ -527,7 +714,7 @@ fn compile_enabled_members(
 ) -> Result<(), PackEval> {
     for entry in enabled_entries(manifest, overlay) {
         if Instant::now() >= deadline {
-            return Err(PackEval::Truncated);
+            return Err(PackEval::Truncated(Vec::new()));
         }
         let member_path = pack.pack.dir.join(&entry.path);
         if let Ok(meta) = std::fs::metadata(&member_path)
@@ -726,6 +913,9 @@ fn record_from_finding(
             class: finding.class,
         },
         diagnostic,
+        // A real finding: evaluated against `changed_path`'s own policy input,
+        // so its diagnostic location is the file the exception lookup must use.
+        path_scoped: true,
     }
 }
 
@@ -827,6 +1017,9 @@ fn degraded_record(pack_id: &str, changed_path: &str, message: &str) -> RoutedRe
         // never vetoes (OPAE-007).
         outcome: PolicyOutcome::warning(rule_id),
         diagnostic,
+        // Pack-level machinery, not a per-file finding: its location is the
+        // pass anchor, so a per-file exception grant must not suppress it.
+        path_scoped: false,
     }
 }
 
@@ -882,6 +1075,9 @@ fn truncation_record(
         // never vetoes (OPAE-007).
         outcome: PolicyOutcome::warning(rule_id),
         diagnostic,
+        // Pass-level machinery, not a per-file finding: never suppressible by
+        // a per-file exception grant.
+        path_scoped: false,
     }
 }
 
@@ -889,7 +1085,6 @@ fn truncation_record(
 /// fail open (keep the findings) so a broken store cannot hide a veto.
 fn suppress_excepted_records(
     workspace_root: &Path,
-    changed_path: &str,
     records: Vec<RoutedRecord>,
 ) -> Vec<RoutedRecord> {
     let Ok(store) = ExceptionStore::load(workspace_root) else {
@@ -902,9 +1097,17 @@ fn suppress_excepted_records(
     records
         .into_iter()
         .filter(|record| {
+            // Pack-level degradation and truncation warnings describe the pass,
+            // not a file; a per-file grant must never hide them.
+            if !record.path_scoped {
+                return true;
+            }
             let violation = Violation {
                 policy_id: record.outcome.rule_id.clone(),
-                file: changed_path.to_string(),
+                // The record's own path — for a coalesced multi-path save this
+                // is the file the finding fired on, so one file's grant cannot
+                // suppress (or fail to suppress) another file's finding.
+                file: record.diagnostic.location.file.clone(),
                 message: String::new(),
                 severity: String::new(),
                 category: None,
@@ -1505,6 +1708,149 @@ warning contains msg if {
         });
     }
 
+    /// ADR-149 batch attribution: a coalesced save carries several changed
+    /// paths, and every finding must name the file it fired on — not the
+    /// batch's first entry.
+    #[test]
+    fn policy_prewrite_batch_attributes_findings_to_their_own_path() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let ws = install_pack("deny-pack", VIOLATION_REGO);
+            let outcome = evaluate_many(
+                ws.path(),
+                &[
+                    ("src/first.rs", ChangeKind::Modified),
+                    ("src/second.rs", ChangeKind::Modified),
+                    ("src/third.rs", ChangeKind::Modified),
+                ],
+                EnforcementMode::Warn,
+            );
+            let files: Vec<&str> = outcome
+                .diagnostics
+                .iter()
+                .map(|d| d.location.file.as_str())
+                .collect();
+            for expected in ["src/first.rs", "src/second.rs", "src/third.rs"] {
+                assert!(
+                    files.contains(&expected),
+                    "every changed path must carry its own finding, got {files:?}"
+                );
+            }
+            assert!(
+                outcome.evaluated,
+                "installed packs ran, so the pass must report evaluated"
+            );
+            // Each finding's message names its own file, not the anchor.
+            for diagnostic in &outcome.diagnostics {
+                assert!(
+                    diagnostic.summary.contains(&diagnostic.location.file),
+                    "finding message must describe its own path: {diagnostic:?}"
+                );
+            }
+        });
+    }
+
+    /// A grant scoped to one file of a coalesced save must not suppress
+    /// another file's finding for the same policy.
+    #[test]
+    fn policy_prewrite_batch_exception_suppresses_only_the_granted_path() {
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let ws = TempDir::new().expect("ws");
+            let pack_dir = ws.path().join(".anvil/policies/demo");
+            std::fs::create_dir_all(pack_dir.join("policies")).expect("dirs");
+            write_member(
+                &pack_dir,
+                "crypto-human-signoff",
+                "crypto_human_signoff",
+                "crypto_human_signoff",
+                "violation",
+            );
+
+            let mut store = anvil_policy::exceptions::ExceptionStore::empty();
+            store
+                .add(anvil_policy::exceptions::PolicyException {
+                    schema_version: String::new(),
+                    id: String::new(),
+                    policy_id: "crypto-human-signoff".into(),
+                    file_pattern: "crypto/src/aes.rs".into(),
+                    finding_hash: None,
+                    reason: "human reviewed".into(),
+                    owner: Some("reviewer".into()),
+                    created_by: Some("reviewer@example.test".into()),
+                    created_at: chrono::Utc::now(),
+                    expires_at: None,
+                    revoked: None,
+                })
+                .expect("add");
+            let _ = store.save(ws.path()).expect("save store");
+
+            let outcome = evaluate_many(
+                ws.path(),
+                &[
+                    ("crypto/src/aes.rs", ChangeKind::Modified),
+                    ("crypto/src/rsa.rs", ChangeKind::Modified),
+                ],
+                EnforcementMode::Interrupt,
+            );
+            let files: Vec<&str> = outcome
+                .diagnostics
+                .iter()
+                .map(|d| d.location.file.as_str())
+                .collect();
+            assert!(
+                !files.contains(&"crypto/src/aes.rs"),
+                "the granted path's finding must be suppressed: {files:?}"
+            );
+            assert!(
+                files.contains(&"crypto/src/rsa.rs"),
+                "an ungranted path's finding must survive the batch: {files:?}"
+            );
+            assert!(
+                outcome.decision.is_veto(),
+                "the ungranted path still vetoes under interrupt: {:?}",
+                outcome.decision
+            );
+        });
+    }
+
+    /// An inert pass (kill switch, no packs, empty change set) must report
+    /// `evaluated: false` so the ADR-149 save-time hook withholds the `policy`
+    /// check family instead of claiming a scope that never ran.
+    #[test]
+    fn policy_prewrite_inert_pass_reports_not_evaluated() {
+        temp_env::with_var(POLICY_ENFORCEMENT_ENV, Some("off"), || {
+            let ws = install_pack("deny-pack", VIOLATION_REGO);
+            let outcome = evaluate_many(
+                ws.path(),
+                &[("src/app.rs", ChangeKind::Modified)],
+                EnforcementMode::Interrupt,
+            );
+            assert!(!outcome.evaluated, "kill switch must report not evaluated");
+        });
+        temp_env::with_var_unset(POLICY_ENFORCEMENT_ENV, || {
+            let ws = TempDir::new().expect("workspace");
+            let outcome = evaluate_many(
+                ws.path(),
+                &[("src/app.rs", ChangeKind::Modified)],
+                EnforcementMode::Interrupt,
+            );
+            assert!(!outcome.evaluated, "no packs must report not evaluated");
+
+            let ws = install_pack("deny-pack", VIOLATION_REGO);
+            let empty = evaluate_many(ws.path(), &[], EnforcementMode::Interrupt);
+            assert!(
+                !empty.evaluated,
+                "an empty change set must report not evaluated"
+            );
+
+            let ran = evaluate_many(
+                ws.path(),
+                &[("src/app.rs", ChangeKind::Modified)],
+                EnforcementMode::Interrupt,
+            );
+            assert!(ran.evaluated, "an installed pack pass reports evaluated");
+        });
+    }
+
     fn bump_mtime(path: &std::path::Path) {
         let file = std::fs::OpenOptions::new()
             .write(true)
@@ -1527,6 +1873,7 @@ warning contains msg if {
             );
             assert_eq!(first.decision, ControlDecision::Interrupt);
             assert_eq!(prewrite_engine_compile_count(), 1, "cold pass compiles");
+            assert_eq!(prewrite_discovery_count(), 1, "cold pass discovers once");
 
             let second = evaluate(
                 ws.path(),
@@ -1539,6 +1886,11 @@ warning contains msg if {
                 prewrite_engine_compile_count(),
                 1,
                 "warm pass must be eval-only"
+            );
+            assert_eq!(
+                prewrite_discovery_count(),
+                1,
+                "warm pass must reuse cached pack/manifest metadata"
             );
         });
     }

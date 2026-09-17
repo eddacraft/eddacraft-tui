@@ -1648,6 +1648,34 @@ fn round_to_int(value: f64) -> u64 {
     }
 }
 
+/// ADR-149 break-glass: when `ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR=1`,
+/// withhold the CLI policy evaluator so save-time stays antipattern-only.
+#[cfg(any(unix, windows))]
+#[must_use]
+pub(crate) fn policy_evaluator_injection_enabled() -> bool {
+    !std::env::var_os("ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR").is_some_and(|value| value == "1")
+}
+
+/// ADR-149: inject the CLI policy evaluator into the daemon options unless the
+/// break-glass env var withholds it. Factored out of `run_start` so the wiring
+/// itself — not just the env predicate — carries a regression test.
+#[cfg(any(unix, windows))]
+#[must_use]
+pub(crate) fn apply_policy_evaluator(opts: ForegroundOpts) -> ForegroundOpts {
+    if policy_evaluator_injection_enabled() {
+        opts.with_policy_evaluator(std::sync::Arc::new(
+            crate::intercept_policy_evaluator::CliPolicyEvaluator::new(),
+        ))
+    } else {
+        tracing::warn!(
+            target: "anvil_intercept::save_time",
+            "ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR=1 — policy evaluator withheld; \
+             validate_paths stays antipattern-only",
+        );
+        opts
+    }
+}
+
 fn run_start(args: &StartArgs) -> Result<()> {
     if !args.foreground {
         anyhow::bail!(
@@ -1749,20 +1777,7 @@ fn run_start(args: &StartArgs) -> Result<()> {
         // ADR-149: inject the CLI policy evaluator so save-time validate_paths
         // runs installed packs without linking regorus into anvil-intercept.
         #[cfg(any(unix, windows))]
-        let opts = if std::env::var_os("ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR")
-            .is_some_and(|value| value == "1")
-        {
-            tracing::warn!(
-                target: "anvil_intercept::save_time",
-                "ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR=1 — policy evaluator withheld; \
-                 validate_paths stays antipattern-only",
-            );
-            opts
-        } else {
-            opts.with_policy_evaluator(std::sync::Arc::new(
-                crate::intercept_policy_evaluator::CliPolicyEvaluator::new(),
-            ))
-        };
+        let opts = apply_policy_evaluator(opts);
         run_foreground(opts, token).await
     })
 }
@@ -1776,7 +1791,46 @@ mod tests {
 
     use super::*;
 
-    #[cfg(unix)]
+    /// ADR-149 break-glass regression: the env var must reach the real
+    /// `ForegroundOpts` wiring, not just the predicate. Reverting
+    /// `apply_policy_evaluator`'s branch turns this red.
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn policy_evaluator_break_glass_env_leaves_daemon_antipattern_only() {
+        const BREAK_GLASS: &str = "ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR";
+
+        temp_env::with_var(BREAK_GLASS, Some("1"), || {
+            assert!(
+                !policy_evaluator_injection_enabled(),
+                "break-glass must disable injection"
+            );
+            assert!(
+                !apply_policy_evaluator(ForegroundOpts::default()).has_policy_evaluator(),
+                "{BREAK_GLASS}=1 must leave the daemon antipattern-only"
+            );
+        });
+
+        // Any other value keeps the evaluator wired, so a wiring regression
+        // that silently drops injection also fails here.
+        temp_env::with_var(BREAK_GLASS, Some("0"), || {
+            assert!(
+                policy_evaluator_injection_enabled(),
+                "non-`1` values must keep injection enabled"
+            );
+            assert!(
+                apply_policy_evaluator(ForegroundOpts::default()).has_policy_evaluator(),
+                "policy evaluator must be wired unless the break-glass is set to 1"
+            );
+        });
+
+        temp_env::with_var_unset(BREAK_GLASS, || {
+            assert!(
+                apply_policy_evaluator(ForegroundOpts::default()).has_policy_evaluator(),
+                "unset break-glass must keep injection enabled"
+            );
+        });
+    }
+
     #[test]
     fn status_names_stale_produce_locks_and_points_at_doctor_fix() {
         use anvil_intercept::snapshot_io::base_store::{ProduceLock, ProduceLockClass};

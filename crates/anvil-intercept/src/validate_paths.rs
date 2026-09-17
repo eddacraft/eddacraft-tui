@@ -391,9 +391,14 @@ where
     if let Some(evaluator) = env.policy {
         let changed: Vec<String> = order.clone();
         let root = PathBuf::from(&request.workspace_root);
-        diagnostics.extend(evaluator.evaluate(&root, &changed));
+        let policy_outcome = evaluator.evaluate(&root, &changed);
+        diagnostics.extend(policy_outcome.diagnostics);
         sort_diagnostics(&mut diagnostics);
-        check_families.push(CheckFamily::Policy);
+        // Only claim the family when packs actually ran (not inert kill-switch /
+        // no-packs). Presence of an evaluator alone is not enough.
+        if policy_outcome.evaluated {
+            check_families.push(CheckFamily::Policy);
+        }
     }
 
     // CIB-095b: a restored-but-not-reconciled warm-start stand-in carries an
@@ -1410,15 +1415,14 @@ mod tests {
             &self,
             _workspace_root: &std::path::Path,
             changed_paths: &[String],
-        ) -> Vec<Diagnostic> {
-            changed_paths
+        ) -> crate::save_time::PolicyEvalOutcome {
+            let diagnostics = changed_paths
                 .iter()
-                .filter(|path| path.contains("crypto/"))
                 .map(|path| {
                     Diagnostic::new(
                         "crypto-human-signoff",
                         Severity::Error,
-                        format!("`{path}` looks like cryptographic code"),
+                        format!("`{path}` looks like policy-gated code"),
                         Location {
                             file: path.clone(),
                             line: None,
@@ -1434,26 +1438,52 @@ mod tests {
                         Mode::known(KnownMode::SaveTime),
                     )
                 })
-                .collect()
+                .collect();
+            crate::save_time::PolicyEvalOutcome::evaluated(diagnostics)
+        }
+    }
+
+    #[derive(Debug)]
+    struct InertPolicy;
+
+    impl crate::save_time::PolicyEvaluator for InertPolicy {
+        fn evaluate(
+            &self,
+            _workspace_root: &std::path::Path,
+            _changed_paths: &[String],
+        ) -> crate::save_time::PolicyEvalOutcome {
+            crate::save_time::PolicyEvalOutcome::inert()
         }
     }
 
     #[test]
     fn validate_paths_policy_hook_labels_family_and_appends_diagnostics() {
-        let bytes = b"pub fn version() -> u8 { 1 }".to_vec();
+        // Pre-warm like the certified fixture so coverage can be Certified; the
+        // stub emits a policy Error that must not degrade that structural verdict.
         let cache = KernelGraphCache::new();
+        cache.apply_delta(
+            &wt(),
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["foo"], &[], 0),
+        );
+        let clean = b"export function foo() { return 1; }".to_vec();
+        let reads: HashMap<String, Vec<u8>> = HashMap::from([("src/a.ts".to_string(), clean)]);
+        let fed = |p: &str, _: &[u8]| {
+            (p == "src/a.ts").then(|| file_symbols("src/a.ts", &["foo"], &[], 0))
+        };
         let mut assurance = AssuranceMachine::new();
         let stub = StubPolicy;
         let resp = validate_paths(
-            &request(vec![desc(
-                "crypto/src/aes.rs",
-                ChangeKindWire::Modified,
-                None,
-            )]),
+            &request(vec![desc("src/a.ts", ChangeKindWire::Modified, None)]),
             &cache,
             &mut assurance,
-            |_| Ok(bytes.clone()),
-            |_, _| None,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            fed,
             &ValidateEnv {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
@@ -1474,6 +1504,32 @@ mod tests {
             "injected policy diagnostics must appear: {:?}",
             resp.diagnostics
         );
+        // Policy Error diagnostics must not degrade graph+antipattern coverage.
+        assert_eq!(resp.coverage, Coverage::Certified);
+    }
+
+    #[test]
+    fn validate_paths_inert_policy_hook_withholds_policy_family() {
+        let bytes = b"pub fn version() -> u8 { 1 }".to_vec();
+        let cache = KernelGraphCache::new();
+        let mut assurance = AssuranceMachine::new();
+        let stub = InertPolicy;
+        let resp = validate_paths(
+            &request(vec![desc("src/app.rs", ChangeKindWire::Modified, None)]),
+            &cache,
+            &mut assurance,
+            |_| Ok(bytes.clone()),
+            |_, _| None,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                reverse_impact_depth: 1,
+                caps: &DosCaps::default(),
+                policy: Some(&stub),
+            },
+        );
+        assert_eq!(resp.check_families, vec![CheckFamily::Antipattern]);
     }
 
     #[test]

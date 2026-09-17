@@ -669,6 +669,16 @@ impl ForegroundOpts {
         self
     }
 
+    /// Whether a [`save_time::PolicyEvaluator`] is wired. Lets the CLI assert
+    /// the ADR-149 `ANVIL_INTERCEPT_DISABLE_POLICY_EVALUATOR=1` break-glass
+    /// really leaves the daemon antipattern-only, rather than only testing the
+    /// env predicate in isolation.
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn has_policy_evaluator(&self) -> bool {
+        self.policy_evaluator.is_some()
+    }
+
     /// DSV-047: enable save-time driver supervision — one detached
     /// `anvil watch --save-time-driver` child per durable registered worktree,
     /// spawned from `current_exe()`. Only the production daemon entry
