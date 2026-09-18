@@ -625,7 +625,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-024: Tell public save-time docs that installed packs can fire
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-18 via PR #4799
 - **Claim:** #4796
 - **PR:** #4799
 - **Intent:** Stop public save-time docs claiming the catalogue is regex plus
