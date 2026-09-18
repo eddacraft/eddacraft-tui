@@ -29,6 +29,12 @@ pub fn animate_tick(delta_ms: usize) {
 ///
 /// The returned activity is also folded into the frame-level
 /// [`is_animating`] signal consumed by downstream event loops.
+///
+/// # Stability
+///
+/// **unstable**. The signature names `animate-core` `Tween` and `Activity`
+/// types; those remain an implementation detail of the shim and may change
+/// when the engine pin moves.
 pub fn advance<T>(tween: &mut Tween<T>) -> Activity
 where
     T: Interpolate + Clone + PartialEq,
