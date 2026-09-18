@@ -331,7 +331,8 @@ physical path and serialises the sorted, deduplicated set through one repair
 lock. It then holds the daemon start and PID locks and re-probes before
 unlinking. A live or concurrently rebound socket blocks the fix instead of being
 removed; opposite canonical ordering and ancestor aliases cannot deadlock two
-repairs.
+repairs. Stale managed agent skills are auto-fixable: `--fix` refreshes those
+copies from this binary and skips dirty or unmanaged directories.
 
 **Synopsis:** `anvil doctor [--fix]`
 

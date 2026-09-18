@@ -90,12 +90,12 @@ anvil doctor
 ```
 
 When managed skills are present, doctor can report freshness (for example fresh,
-stale, dirty, unmanaged, absent, or broken). Reinstall through the skill command
-when the report says the managed copy is stale or broken. If install refuses an
-unmanaged skill directory or entry, move that content outside the relevant
-skills directory tree (or to another path the client does not scan). Do not
-hand-edit managed skill directories if you want doctor to keep treating them as
-managed.
+stale, dirty, unmanaged, absent, or broken). `anvil doctor --fix` refreshes
+stale managed copies and leaves dirty or unmanaged directories in place. If
+install refuses an unmanaged skill directory or entry, move that content outside
+the relevant skills directory tree (or to another path the client does not
+scan). Do not hand-edit managed skill directories if you want doctor to keep
+treating them as managed.
 
 ## Relationship to MCP
 
@@ -104,10 +104,9 @@ Skills and MCP are complementary:
 1. Configure the client with [MCP integration](mcp.md) so it can call anvil.
    Interactive `anvil start` also installs the managed skills for the MCP
    clients you choose.
-2. Repair or refresh later with `anvil update` (or the managed-refresh flag
-   listed by `anvil skill install --help` on your binary) if doctor reports
-   stale copies. Unmanaged directories still need a manual move before a normal
-   install.
+2. Repair or refresh later with `anvil update`, `anvil doctor --fix`, or
+   `anvil skill install --refresh-managed` if doctor reports stale copies.
+   Unmanaged directories still need a manual move before a normal install.
 3. Verify protection with `anvil start --verify`. On later days, bare `anvil`
    turns protection on without reinstalling.
 

@@ -19,6 +19,10 @@ engineering maintenance are recorded in the
   skipped. `--check` does not write. `anvil skill install --refresh-managed`
   does the same refresh without selecting clients.
 
+- **`anvil doctor --fix` refreshes stale managed skills.** The managed-skills
+  check is auto-fixable when copies are stale. Dirty or unmanaged directories
+  stay skipped.
+
 ### Fixed
 
 - **MCP `anvil_apply_patch` evaluates installed pack policies.** A path-scoped

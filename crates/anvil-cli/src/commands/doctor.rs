@@ -2341,15 +2341,12 @@ fn classify_managed_skill_status(
             ),
             Remediation {
                 summary:
-                    "Reinstall the managed skills so they match the bundle shipped with this anvil."
+                    "Refresh the managed skills so they match the bundle shipped with this anvil."
                         .to_string(),
-                command: Some("anvil skill install".to_string()),
+                command: Some("anvil doctor --fix".to_string()),
                 doc_url: None,
             },
-            // `apply_fixes` has no handler for "managed-skills" — doctor is
-            // read-only here, and remediation runs through the printed
-            // `anvil skill install` command, not `--fix`.
-            false,
+            true,
         );
     }
     if broken > 0 && dirty == 0 && unmanaged == 0 && stale == 0 && !missing_required_fresh {
@@ -2436,14 +2433,14 @@ fn classify_mixed_skill_issues(
     };
     let (remediation_summary, command) = if dirty > 0 || unmanaged > 0 || broken > 0 {
         (
-            "Inspect dirty, unmanaged, or broken skill directories before reinstalling; move local changes aside, then run `anvil skill install`."
+            "Inspect dirty, unmanaged, or broken skill directories before reinstalling; move local changes aside, then run `anvil skill install`. `anvil doctor --fix` refreshes stale managed copies only."
                 .to_string(),
             Some("anvil skill install".to_string()),
         )
     } else {
         (
-            "Install or refresh the managed skills with `anvil skill install`.".to_string(),
-            Some("anvil skill install".to_string()),
+            "Install or refresh the managed skills with `anvil skill install --refresh-managed` or `anvil doctor --fix`.".to_string(),
+            Some("anvil doctor --fix".to_string()),
         )
     };
     (
@@ -2454,7 +2451,7 @@ fn classify_mixed_skill_issues(
             command,
             doc_url: None,
         },
-        false,
+        stale > 0,
     )
 }
 
@@ -2564,6 +2561,48 @@ fn compile_check_from_diagnostics(
 
 /// Apply a fix to a single check by index. Used by the welcome hub
 /// when the user presses 'f' in the doctor TUI.
+fn apply_managed_skills_fix(check: &mut DiagnosticCheck, speak: bool) {
+    let home = crate::util::user_home_dir();
+    let project = std::env::current_dir().ok();
+    apply_managed_skills_fix_at(check, speak, home.as_deref(), project.as_deref());
+}
+
+fn apply_managed_skills_fix_at(
+    check: &mut DiagnosticCheck,
+    speak: bool,
+    home: Option<&Path>,
+    project: Option<&Path>,
+) {
+    let entries = crate::commands::skill::refresh_managed_installs(home, project);
+    let updated = entries
+        .iter()
+        .filter(|entry| entry.status == "updated")
+        .count();
+    let skipped = entries
+        .iter()
+        .filter(|entry| entry.status.starts_with("skipped"))
+        .count();
+    *check = check_managed_skills_at(home, project);
+    if !speak {
+        return;
+    }
+    if updated > 0 {
+        println!(
+            "  Fixed: managed-skills — refreshed {updated} managed skill cop{}",
+            if updated == 1 { "y" } else { "ies" }
+        );
+    }
+    if skipped > 0 {
+        println!(
+            "  Skipped: managed-skills — left {skipped} dirty, unmanaged, or broken cop{} in place",
+            if skipped == 1 { "y" } else { "ies" }
+        );
+    }
+    if updated == 0 && skipped == 0 {
+        println!("  Skipped: managed-skills — no managed copies to refresh");
+    }
+}
+
 pub fn apply_fix_at(checks: &mut [DiagnosticCheck], index: usize) {
     if let Some(check) = checks.get_mut(index) {
         let slice = std::slice::from_mut(check);
@@ -3071,6 +3110,7 @@ fn apply_fixes(checks: &mut [DiagnosticCheck], json: bool) {
             "intercept-socket-rendezvous" => {
                 apply_intercept_socket_rendezvous_fix(check, speak);
             }
+            "managed-skills" => apply_managed_skills_fix(check, speak),
             "plans-dir" => match std::fs::create_dir_all("plans") {
                 Ok(()) => {
                     check.status = CheckStatus::Pass;
@@ -6025,18 +6065,100 @@ mod tests {
             check.message
         );
         assert!(
-            !check.auto_fixable,
-            "apply_fixes has no managed-skills handler; must not claim auto-fixable"
+            check.auto_fixable,
+            "stale managed skills must be auto-fixable via doctor --fix"
         );
         assert_eq!(
             check.remediation.command.as_deref(),
-            Some("anvil skill install")
+            Some("anvil doctor --fix")
         );
         assert!(
             check.remediation.summary.contains("skills"),
             "stale remediation should pluralise the bundled set: {}",
             check.remediation.summary
         );
+    }
+
+    fn canonical_tempdir() -> (tempfile::TempDir, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let canonical = std::fs::canonicalize(root.path()).unwrap();
+        (root, canonical)
+    }
+
+    #[test]
+    fn apply_fixes_refreshes_stale_managed_skills_and_skips_dirty() {
+        use crate::commands::skill_state::{MANIFEST_NAME, bundled_skills, expected_manifest_for};
+
+        let (_keep_home, home) = canonical_tempdir();
+        let (_keep_project, project) = canonical_tempdir();
+        let skill_root = project.join(".agents/skills");
+        write_expected_skill_install(&skill_root);
+        for skill in bundled_skills() {
+            let destination = skill_root.join(skill.name);
+            let mut stale = expected_manifest_for(skill);
+            stale.anvil_version = "0.0.0-stale".to_string();
+            let body = format!("{}\n", serde_json::to_string_pretty(&stale).unwrap());
+            std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+        }
+        let dirty_skill = bundled_skills()[0];
+        let dirty_dir = home.join(".claude/skills").join(dirty_skill.name);
+        write_expected_skill_install(dirty_dir.parent().unwrap());
+        std::fs::write(dirty_dir.join("SKILL.md"), "operator edited this").unwrap();
+
+        let mut check = check_managed_skills_at(Some(&home), Some(&project));
+        assert!(
+            check.auto_fixable,
+            "mixed stale+dirty must still be fixable"
+        );
+        apply_managed_skills_fix_at(&mut check, false, Some(&home), Some(&project));
+
+        for skill in bundled_skills() {
+            let live: crate::commands::skill_state::ManagedManifest = serde_json::from_str(
+                &std::fs::read_to_string(skill_root.join(skill.name).join(MANIFEST_NAME)).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                live.anvil_version,
+                expected_manifest_for(skill).anvil_version
+            );
+        }
+        assert_eq!(
+            std::fs::read_to_string(dirty_dir.join("SKILL.md")).unwrap(),
+            "operator edited this"
+        );
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check.message.contains("dirty"),
+            "dirty copies must remain after --fix: {}",
+            check.message
+        );
+        assert!(
+            !check.auto_fixable,
+            "remaining dirty-only must not loop --fix"
+        );
+    }
+
+    #[test]
+    fn apply_fixes_clears_pure_stale_managed_skills() {
+        use crate::commands::skill_state::{MANIFEST_NAME, bundled_skills, expected_manifest_for};
+
+        let (_keep, project) = canonical_tempdir();
+        let skill_root = project.join(".agents/skills");
+        write_expected_skill_install(&skill_root);
+        for skill in bundled_skills() {
+            let destination = skill_root.join(skill.name);
+            let mut stale = expected_manifest_for(skill);
+            stale.anvil_version = "0.0.0-stale".to_string();
+            let body = format!("{}\n", serde_json::to_string_pretty(&stale).unwrap());
+            std::fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+        }
+
+        let mut check = check_managed_skills_at(None, Some(&project));
+        assert_eq!(check.status, CheckStatus::Warn);
+        apply_managed_skills_fix_at(&mut check, false, None, Some(&project));
+        assert_eq!(check.status, CheckStatus::Pass, "message={}", check.message);
+        assert!(check.message.contains("fresh"));
+        assert!(!check.auto_fixable);
     }
 
     #[test]
