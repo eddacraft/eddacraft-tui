@@ -1348,7 +1348,7 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         let store = store_in(&temp);
         let worktree = tempfile::tempdir().expect("worktree tempdir");
-        let canonical = worktree.path().canonicalize().expect("canonicalise");
+        let canonical = dunce::canonicalize(worktree.path()).expect("canonicalise");
 
         // Manually inject a cascade record via the store's
         // internal save (the public engage path lands in F2; this
@@ -1381,7 +1381,7 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         let store = store_in(&temp);
         let worktree = tempfile::tempdir().expect("worktree tempdir");
-        let canonical = worktree.path().canonicalize().expect("canonicalise");
+        let canonical = dunce::canonicalize(worktree.path()).expect("canonicalise");
 
         assert!(
             !store.is_cascaded(worktree.path()),
@@ -1409,7 +1409,7 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         let store = store_in(&temp);
         let worktree = tempfile::tempdir().expect("worktree tempdir");
-        let canonical = worktree.path().canonicalize().expect("canonicalise");
+        let canonical = dunce::canonicalize(worktree.path()).expect("canonicalise");
 
         let mut state = store.load().expect("load");
         state.upsert_cascade(CascadeRecord {
@@ -1624,7 +1624,7 @@ mod tests {
         // include_paths = true → worktree present (the canonical path).
         let temp_on = tempfile::tempdir().expect("tempdir");
         let worktree_on = make_worktree();
-        let canonical = worktree_on.path().canonicalize().expect("canonicalise");
+        let canonical = dunce::canonicalize(worktree_on.path()).expect("canonicalise");
         let recorder_on = Arc::new(RecordingKindlingObservationSink::new());
         let store_on = store_in(&temp_on).with_observation_sink(
             Arc::clone(&recorder_on) as Arc<dyn KindlingObservationSink>,

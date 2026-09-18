@@ -291,10 +291,10 @@ pub fn build_status(
     let worktrees = sessions
         .iter()
         .map(|session| {
-            // Fence.rs still persists `std::fs::canonicalize` keys (`\\?\`
-            // on Windows) while the registry now stores dunce-plain paths.
-            // PathBuf set/map equality misses that pair; same_path does not
-            // (CIB-419).
+            // Fence/cascade records and registry keys are both dunce-plain
+            // after the Nightly path-identity align; leftover verbatim
+            // `\\?\` forms from pre-migration disk still need same_path
+            // (CIB-419 residual).
             let fenced = fence_records.iter().any(|fence| {
                 path_identity::same_path(&fence.worktree, &session.worktree)
                     || fence
