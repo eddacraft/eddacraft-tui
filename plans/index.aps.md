@@ -36,6 +36,7 @@
 - [Graph Trust Surfaces](#graph-trust-surfaces)
 - [Project Scaffolding](#project-scaffolding)
 - [Agent Baseline Assurance](#agent-baseline-assurance)
+- [Governed Workflows](#governed-workflows)
 - [Settings Truth Surface](#settings-truth-surface)
 - [Future](#future)
 - [Dormant: Not Yet Scheduled](#dormant-not-yet-scheduled)
@@ -863,6 +864,30 @@ ORGHIER/POLLC/POLFED own Rego policy hierarchy, lifecycle, and federation;
 SKPKG owns anvil-authored bundled skills; SKOBS supplies observed inventory;
 SETGOV and EXCEPT own governed mutation and exceptions. The full dependency and
 non-overlap map lives in the ABASE module.
+
+### Governed Workflows
+
+Planning intake 2026-09-18 from the requirement that engineering workflow
+controls remain enforceable as agents, prompts, models, IDEs, and automation
+change. The operator-approved design is recorded in the
+[governed workflows specification](./specs/2026-09-18-governed-workflows.md),
+with [ADR-150](./decisions/150-governed-workflow-transition-authority.md)
+proposed.
+
+The first product slice is a repository-scoped, exact-head GitHub required
+check: workflow authority resolves from the protected base; registered
+capabilities produce attributable receipts; Regorus evaluates transition
+policy; and only an allowed transition satisfies merge/completion governance.
+External tools execute work. anvil governs the transition.
+
+| Module | Scope | Status | Programme next |
+| --- | --- | --- | --- |
+| [governed-workflows](./modules/governed-workflows.aps.md) | GOVWF | Draft | Accept ADR-150 and close workflow schema, trusted-base, capability registry, receipt durability, policy, approval, provenance, and design-partner readiness gates before promoting the twelve Draft slices |
+
+`/dev-loop` is internal developer tooling and may dogfood a later local
+transition API; it is not the customer-facing capability or evidence of GOVWF
+delivery. Organisation-level workflow composition remains a future extension
+through ORGHIER/POLLC/POLFED, not part of the first repository slice.
 
 ### Settings Truth Surface
 
