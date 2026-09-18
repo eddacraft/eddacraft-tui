@@ -277,8 +277,7 @@ mod tests {
             .active_fences()
             .iter()
             .find(|r| {
-                let canonical =
-                    dunce::canonicalize(&worktree).unwrap_or_else(|_| worktree.clone());
+                let canonical = dunce::canonicalize(&worktree).unwrap_or_else(|_| worktree.clone());
                 crate::path_identity::same_path(&r.worktree, &canonical)
             })
             .expect("worktree fenced");
