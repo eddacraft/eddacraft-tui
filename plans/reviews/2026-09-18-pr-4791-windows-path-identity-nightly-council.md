@@ -3,82 +3,73 @@
 **Status:** Converged
 **Tier:** full
 **Target:** `origin/main...HEAD` on `fix/windows-path-identity-nightly`
-(protected: `crates/anvil-intercept/src/registry.rs`, `save_time.rs`)
+(protected: `crates/anvil-intercept/src/registry.rs`,
+`crates/anvil-intercept/src/save_time.rs`)
 **Date:** 2026-09-18
 **PR:** https://github.com/eddacraft/anvil-001/pull/4791
-**Contract:** CIB-419 residual after #4703 / #4702. Registry and registration
-keys are already dunce-plain. Nightly Cross (`x86_64-pc-windows-msvc`) smoke
-still failed ~15 `anvil-intercept` tests because fence, rule_cache, save_time
-(gctx/originating session), and save_time_driver maps persisted or compared with
-`std::fs::canonicalize` (verbatim `\\?\` on Windows). Align those maps on
-dunce persist/lookup and `path_identity::same_path` for leftover mixed forms.
-Workspace-package and `workspace_admission` git-parity canonicalize are out of
-scope for this residual.
+**Contract:** Residual of CIB-419 / #4703. After registry keys became
+dunce-plain, fence / rule-cache / save-time / driver maps still keyed or
+compared with `std::fs::canonicalize` (verbatim `\\?\` on Windows). Nightly
+Cross (`x86_64-pc-windows-msvc`) smoke on `eddacraft-anvil-intercept --lib`
+failed ~15 tests at `0c7669a31` because PathBuf equality and HashMap lookups
+missed. Production must persist and look up with `dunce::canonicalize`, and
+join leftover verbatim records with `path_identity::same_path`. No
+auth/confinement widening; workspace admission and IPC unchanged.
 **Session:** `council-pr4791-full` (assurance / full)
-**Code head reviewed:** `ba51c772ef95b3224fbeade28265720cdb23cd3c`
-(feature + clippy/docs cascade + governance triage). Protected `registry.rs`
-diff is test-expectation-only (dunce); protected `save_time.rs` production
-change is `dunce::canonicalize` for `set_originating_session`,
-`canonical_root`, and `authorise_gctx_root`. Later commits on this branch
-after the label must be this review only; re-council if `registry.rs` or
-`save_time.rs` production paths move after the label.
+**Code head reviewed:** `66d4deec1c3857b0c690b9f3f313bade0922a776` (bounded
+repair after the first pass). Protected `save_time.rs` production identity
+changed in the feature commit; `registry.rs` test expectations only. Later
+commits on this branch, if any, must be this review only; re-council if
+`registry.rs` or `save_time.rs` production paths move after the label.
 
 ## Change under review
 
 | File | Change | Production impact |
 | --- | --- | --- |
-| `fence.rs` | Persist/lookup via `dunce`; `FenceRecord`/`CascadeRecord`/`session` filter via `same_path` | Leftover verbatim fence files still match dunce-plain registry keys |
-| `rule_cache.rs` | `WorktreeKey::canonicalise` + parent invalidation use `dunce` | Unregister hooks and cache keys share one Windows identity |
-| `save_time.rs` | Originating session, `canonical_root`, `authorise_gctx_root` use `dunce`; GCTX TOCTOU test split for clippy | GCTX/admission keys match registry dunce form |
-| `save_time_driver.rs` | `driver_map_key` via `dunce` for map get/spawn/stop | Membership hooks no longer miss drivers under plain vs `\\?\` |
-| `registry.rs` | Test expectations use `dunce::canonicalize` | No production registry algorithm change on this PR |
-| `unregistered.rs` / `watcher.rs` / `lib.rs` | Test lookups/expectations use `dunce` + `same_path` | Host-free identity assertions |
-| ARCHITECTURE + downstream docs | Freshness cascade for `src/**` | diagram-impact satisfied; diagrams unchanged |
+| `fence.rs` | `canonicalise_worktree` / `lookup_path` → dunce; `FenceRecord` / `CascadeRecord::matches` + fanout filter → `same_path`; fixture expects dunce | Fence/cascade join registry sessions on Windows; leftover verbatim disk rows still match |
+| `rule_cache.rs` | `WorktreeKey::canonicalise` + invalidate parent → dunce | Unregister hooks invalidate the same key the cache stores |
+| `save_time.rs` | `canonical_root`, `authorise_gctx_root`, `set_originating_session` → dunce | GCTX / save-time admission keys match registry identity |
+| `save_time_driver.rs` | `driver_map_key` (dunce) on handle / `driver_status` | Driver status no longer looks absent after register |
+| `registry.rs` | Test expectations: dunce forms | Test-only; production registry already dunce from #4703 |
+| `unregistered.rs` / `lib.rs` / `watcher.rs` / `status.rs` | Test expectations / same_path lookup; status comment | Align fixtures; document leftover verbatim only |
+| Docs | ARCHITECTURE + downstream freshness | diagram-impact owns `src/**` |
 
 ## Seats
 
 | Role | Verdict | Summary |
 | --- | --- | --- |
-| general | approve | Completes the #4703 contract for the maps Nightly actually missed. Persist and lookup now share dunce; leftover mixed forms still join via `same_path`. |
-| adversarial | approve | No widening of admission or fence triggers. Failed canonicalize still fails closed (originating session cleared; fence path errors unchanged). Driver fallback to raw path on canonicalize failure matches prior unwrap_or pattern — dual-key risk only when the path vanishes mid-flight, same as before. |
-| security | approve | Comparison stays location-identity only. No auth/IPC/confinement/save-time policy change. Prefix boundaries unchanged. |
-| operations | approve (GO) | Driver map, fence overlay, and rule-cache invalidation now agree with registry keys on Windows. Clippy `too_many_lines` / `implicit_clone` and diagram-impact cascade cleared on the reviewed tip. |
-| pragmatic | approve | Residual scope is tight: the four Nightly-hot maps, not a wholesale `workspace_admission` rewrite. Test helper split for the GCTX TOCTOU case is justified against `clippy::too_many_lines`. |
-| **judge** | **Ship** (decision PASS, gate PASS) | No `must_fix`. Considers recorded below; none block Nightly residual land. |
+| general | repair then approve | Production call sites correctly switch to dunce + `same_path` for the #4703 residual. First pass: fence observation / cascade fixtures still expected `Path::canonicalize` while `fence_worktree` persists dunce — Windows Nightly display/equality miss. Repaired at `66d4deec1`. |
+| adversarial | repair then approve | HashMap miss on verbatim vs plain is the Nightly failure mode; `driver_map_key` unwrap_or raw path matches prior canonicalize miss semantics. Leftover verbatim fence files still matched via `same_path`. No admission bypass. |
+| security | approve | Comparison stays location-identity only. No auth, IPC, confinement, or workspace-admission widening. |
+| operations | approve (GO) | Unregister → rule-cache invalidate, fence fanout, and driver status share registry keying. Stale status comment corrected. |
+| pragmatic | approve | Narrow residual of #4703; clippy GCTX test split is test-only. Docs freshness is bookkeeping. |
+| **judge** | **Ship** (decision PASS, gate PASS) | First pass REPAIR. Bounded repairs landed on reviewed tip. No remaining must_fix. |
 
 ## Findings
 
-### In-contract must_fix
+### In-contract must_fix (fixed on reviewed tip)
 
-None on `ba51c772e`.
+- **C-001** (general + adversarial): `fence.rs` fixtures still used
+  `worktree.path().canonicalize()` while production `canonicalise_worktree`
+  persists dunce-plain. On Windows Nightly, `include_paths=true` observation
+  assert compared display strings to a verbatim form. Repair: expect
+  `dunce::canonicalize` in the four cascade/observation fixtures.
+- **C-002** (operations): `status.rs` comment still claimed fence persists
+  `std::fs::canonicalize` after this PR moved fence to dunce. Repair: comment
+  now describes leftover verbatim disk rows only.
 
 ### Consider (not must-fix)
 
-- **C-001** (general): `workspace_admission.rs` and some `confinement.rs`
-  paths still call `std::fs::canonicalize`. Git-parity and ACL admission are
-  outside this Nightly residual; do not expand scope here. File a follow-on
-  only if Cross smoke shows admission keys diverging from dunce registry keys.
-- **C-002** (pragmatic): many `save_time.rs` unit fixtures still build
-  `WorktreeKey` via `std::fs::canonicalize`. On Unix dunce ≡ std; on Windows
-  Cross those fixtures may need dunce if they assert `PathBuf` equality
-  against production keys. Not observed as a Nightly miss for this tip; leave
-  unless Cross fails those tests after land.
+- Unrelated `save_time.rs` tests still call `std::fs::canonicalize` when
+  building local `WorktreeKey` fixtures. Fine on Linux; only matters when
+  asserted against production keys on Windows — out of this Nightly residual
+  unless Cross smoke names them.
+- `driver_map_key` falls back to the raw path when canonicalize fails — same
+  as prior `fs::canonicalize` callers; missing-dir empty lookup remains
+  intentional.
 
-## Evidence
+## Decision
 
-- `cargo clippy -p eddacraft-anvil-intercept --all-targets -- -D warnings` —
-  exit 0 on deus after the clippy split / `PathBuf::clone` fix.
-- `cargo test -p eddacraft-anvil-intercept --lib path_identity` — 4 passed.
-- `node scripts/docs/check-diagram-impact.mjs --since origin/main --head HEAD`
-  — 0 errors after ARCHITECTURE + overview / save-to-validation /
-  trust-and-deployment-boundaries + governance triage cascade.
-- Contract continuity with #4703 council
-  (`plans/reviews/2026-09-15-pr-4703-windows-readiness-identity-council.md`):
-  this PR implements the prior "fence persist to dunce" consider for the
-  Nightly-failing maps.
-
-## Label
-
-Maintainer applies `council:reviewed` to the **live** PR head after this
-review file lands. Do not label a stale SHA. The label is dismissed on
-synchronize.
+PASS — ship after `council:reviewed` on the live tip that includes the bounded
+repair and this evidence commit only (no further protected-surface edits after
+the label).
