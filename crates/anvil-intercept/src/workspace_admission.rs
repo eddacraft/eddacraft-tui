@@ -108,6 +108,8 @@ pub struct AdmittedRoots {
     /// Roots permitted in `Allowlist` mode. Empty in `Open` mode.
     allow: AllowPolicy,
     /// Canonical root → held anchor. Insertion-once; never re-resolved.
+    /// Keys are dunce-plain (`dunce::canonicalize`) so they match save-time,
+    /// registry, fence, and rule-cache identity on Windows.
     admitted: BTreeMap<PathBuf, WorkspaceAnchor>,
     /// CIB-154: the per-connection ceiling on distinct admitted roots. Once
     /// `admitted.len()` reaches this budget, a not-yet-admitted root that would
@@ -141,7 +143,7 @@ impl AdmittedRoots {
     {
         let exact = allowed
             .into_iter()
-            .filter_map(|p| std::fs::canonicalize(p).ok());
+            .filter_map(|p| dunce::canonicalize(p).ok());
         Self::new_allowlist_with_policy(AllowPolicy::new(exact, std::iter::empty()))
     }
 
@@ -202,7 +204,7 @@ impl AdmittedRoots {
     /// refusal.
     #[must_use]
     pub fn root_budget_would_block(&self, workspace_root: &Path) -> bool {
-        let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
+        let Ok(canonical) = dunce::canonicalize(workspace_root) else {
             return false;
         };
         self.budget_would_block_canonical(&canonical)
@@ -238,7 +240,7 @@ impl AdmittedRoots {
     /// Propagates canonicalisation / open failures (root missing or not a
     /// directory).
     pub fn admit(&mut self, root: &Path) -> io::Result<()> {
-        let canonical = std::fs::canonicalize(root)?;
+        let canonical = dunce::canonicalize(root)?;
         if self.admitted.contains_key(&canonical) {
             return Ok(());
         }
@@ -262,7 +264,7 @@ impl AdmittedRoots {
     pub fn authorise(&mut self, workspace_root: &Path) -> io::Result<Option<&WorkspaceAnchor>> {
         // A root that does not resolve is never authorised — but this is a
         // refusal, not a hard error (the client named a vanished path).
-        let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
+        let Ok(canonical) = dunce::canonicalize(workspace_root) else {
             return Ok(None);
         };
         self.authorise_canonical(&canonical)
@@ -310,7 +312,7 @@ impl AdmittedRoots {
         workspace_root: &Path,
     ) -> io::Result<AdmitOutcome<'_>> {
         // Canonicalise ONCE; every subsequent decision uses `canonical`.
-        let Ok(canonical) = std::fs::canonicalize(workspace_root) else {
+        let Ok(canonical) = dunce::canonicalize(workspace_root) else {
             // A vanished/unresolvable root is a plain refusal, not an error.
             return Ok(AdmitOutcome::Refused);
         };
@@ -736,7 +738,7 @@ fn gitfile_is_main_worktree(git_dir: &Path) -> bool {
     if !is_non_symlink_dir(git_dir) {
         return false;
     }
-    let Ok(canonical) = std::fs::canonicalize(git_dir) else {
+    let Ok(canonical) = dunce::canonicalize(git_dir) else {
         return false;
     };
     let Some(parent) = canonical.parent() else {
@@ -785,10 +787,10 @@ fn gitfile_layout_matches_linked_worktree(dot_git: &Path, git_dir: &Path) -> boo
         return false;
     }
     let common = resolve_common_dir(git_dir);
-    let Ok(common) = std::fs::canonicalize(&common) else {
+    let Ok(common) = dunce::canonicalize(&common) else {
         return false;
     };
-    let Ok(git_dir) = std::fs::canonicalize(git_dir) else {
+    let Ok(git_dir) = dunce::canonicalize(git_dir) else {
         return false;
     };
     let worktrees = common.join("worktrees");
@@ -798,7 +800,7 @@ fn gitfile_layout_matches_linked_worktree(dot_git: &Path, git_dir: &Path) -> boo
     if worktrees_meta.file_type().is_symlink() || !worktrees_meta.is_dir() {
         return false;
     }
-    let Ok(worktrees) = std::fs::canonicalize(&worktrees) else {
+    let Ok(worktrees) = dunce::canonicalize(&worktrees) else {
         return false;
     };
     let Some(name) = git_dir
@@ -813,7 +815,7 @@ fn gitfile_layout_matches_linked_worktree(dot_git: &Path, git_dir: &Path) -> boo
     if parent != worktrees.as_path() {
         return false;
     }
-    let Ok(expected) = std::fs::canonicalize(worktrees.join(name)) else {
+    let Ok(expected) = dunce::canonicalize(worktrees.join(name)) else {
         return false;
     };
     if expected != git_dir {
@@ -838,10 +840,10 @@ fn gitfile_layout_matches_linked_worktree(dot_git: &Path, git_dir: &Path) -> boo
     } else {
         lexical_join(&git_dir, target)
     };
-    let Ok(pointed) = std::fs::canonicalize(&pointed) else {
+    let Ok(pointed) = dunce::canonicalize(&pointed) else {
         return false;
     };
-    let Ok(dot_git) = std::fs::canonicalize(dot_git) else {
+    let Ok(dot_git) = dunce::canonicalize(dot_git) else {
         return false;
     };
     if pointed != dot_git {
@@ -850,7 +852,7 @@ fn gitfile_layout_matches_linked_worktree(dot_git: &Path, git_dir: &Path) -> boo
     let Some(forward) = parse_gitdir_pointer(&dot_git) else {
         return false;
     };
-    let Ok(forward) = std::fs::canonicalize(&forward) else {
+    let Ok(forward) = dunce::canonicalize(&forward) else {
         return false;
     };
     forward == git_dir
@@ -940,14 +942,14 @@ fn registered_worktree_roots(repo_root: &Path) -> Vec<PathBuf> {
         return Vec::new();
     };
     let common = resolve_common_dir(&git_dir);
-    let Ok(common) = std::fs::canonicalize(&common) else {
+    let Ok(common) = dunce::canonicalize(&common) else {
         return Vec::new();
     };
 
     let mut roots = Vec::new();
     if common.file_name().is_some_and(|name| name == ".git")
         && let Some(parent) = common.parent()
-        && let Ok(main) = std::fs::canonicalize(parent)
+        && let Ok(main) = dunce::canonicalize(parent)
     {
         roots.push(main);
     }
@@ -986,7 +988,7 @@ fn registered_worktree_roots(repo_root: &Path) -> Vec<PathBuf> {
         let Some(root) = pointed.parent() else {
             continue;
         };
-        if let Ok(canonical) = std::fs::canonicalize(root)
+        if let Ok(canonical) = dunce::canonicalize(root)
             && !roots.iter().any(|existing| existing == &canonical)
         {
             roots.push(canonical);
@@ -1014,7 +1016,7 @@ mod tests {
     #[test]
     fn nested_dir_inside_a_non_git_admitted_root_is_refused_by_the_admitted_set() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let root = std::fs::canonicalize(tmp.path()).expect("root canonicalises");
+        let root = dunce::canonicalize(tmp.path()).expect("root canonicalises");
         let nested = root.join("secrets");
         std::fs::create_dir_all(&nested).expect("nested dir");
 
@@ -1047,15 +1049,15 @@ mod tests {
         std::fs::write(admin.join("gitdir"), format!("{}\n", git_file.display()))
             .expect("gitdir back-pointer");
 
-        let main = std::fs::canonicalize(&main).expect("main canonicalises");
-        let linked = std::fs::canonicalize(&linked).expect("linked canonicalises");
+        let main = dunce::canonicalize(&main).expect("main canonicalises");
+        let linked = dunce::canonicalize(&linked).expect("linked canonicalises");
         (main, linked)
     }
 
     fn nested_secrets_dir(main: &Path) -> PathBuf {
         let nested = main.join("secrets");
         std::fs::create_dir_all(&nested).expect("nested dir");
-        std::fs::canonicalize(&nested).expect("nested canonicalises")
+        dunce::canonicalize(&nested).expect("nested canonicalises")
     }
 
     /// Git's minimum-viable repository (`is_git_directory`): `HEAD` plus
@@ -1082,7 +1084,7 @@ mod tests {
             format!("gitdir: {}\n", git_dir.display()),
         )
         .expect("gitfile");
-        std::fs::canonicalize(&main).expect("main canonicalises")
+        dunce::canonicalize(&main).expect("main canonicalises")
     }
 
     fn assert_nested_secrets_refused_parent_authorised(main: &Path) {
@@ -1299,11 +1301,11 @@ mod tests {
             let main = tmp.path().join("main");
             std::fs::create_dir_all(&main).expect("worktree");
             std::fs::write(main.join(".git"), &bytes).expect("unparsable .git file");
-            let main = std::fs::canonicalize(&main).expect("main canonicalises");
+            let main = dunce::canonicalize(&main).expect("main canonicalises");
             let nested = nested_secrets_dir(&main);
             let deeper = nested.join("deep").join("deeper");
             std::fs::create_dir_all(&deeper).expect("deeper dir");
-            let deeper = std::fs::canonicalize(&deeper).expect("deeper canonicalises");
+            let deeper = dunce::canonicalize(&deeper).expect("deeper canonicalises");
 
             let roots = AdmittedRoots::new_open();
             assert!(
@@ -1337,7 +1339,7 @@ mod tests {
         std::fs::remove_file(&head).expect("remove HEAD");
         nix::unistd::mkfifo(&head, nix::sys::stat::Mode::from_bits_truncate(0o600))
             .expect("fifo HEAD");
-        let main = std::fs::canonicalize(&main).expect("canonical");
+        let main = dunce::canonicalize(&main).expect("canonical");
         let nested = nested_secrets_dir(&main);
         let roots = AdmittedRoots::new_open();
         assert!(
@@ -1406,8 +1408,8 @@ mod tests {
         write_git_directory(&ancestor);
         let descendant = ancestor.join("projects").join("app");
         write_git_directory(&descendant);
-        let ancestor = std::fs::canonicalize(&ancestor).expect("ancestor canonicalises");
-        let descendant = std::fs::canonicalize(&descendant).expect("descendant canonicalises");
+        let ancestor = dunce::canonicalize(&ancestor).expect("ancestor canonicalises");
+        let descendant = dunce::canonicalize(&descendant).expect("descendant canonicalises");
 
         assert!(
             is_graph_root(&ancestor),
@@ -1442,7 +1444,7 @@ mod tests {
         write_minimum_viable_git_dir(&git_dir);
         std::fs::create_dir_all(&main).expect("worktree");
         std::os::unix::fs::symlink(&git_dir, main.join(".git")).expect("symlink .git");
-        let main = std::fs::canonicalize(&main).expect("main canonicalises");
+        let main = dunce::canonicalize(&main).expect("main canonicalises");
         assert!(
             is_graph_root(&main),
             "a .git symlink to a directory is a graph root"
@@ -1569,7 +1571,7 @@ mod tests {
             roots.authorise(other.path()).expect("io").is_none(),
             "an unlisted root must be refused in allowlist mode"
         );
-        let canonical_other = std::fs::canonicalize(other.path()).unwrap();
+        let canonical_other = dunce::canonicalize(other.path()).unwrap();
         assert!(!roots.is_admitted(&canonical_other));
     }
 
@@ -1577,7 +1579,7 @@ mod tests {
     fn root_set_grows_on_first_touch_in_open_mode() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let mut roots = AdmittedRoots::new_open();
-        let canonical = std::fs::canonicalize(tmp.path()).unwrap();
+        let canonical = dunce::canonicalize(tmp.path()).unwrap();
 
         assert!(
             !roots.is_admitted(&canonical),
@@ -1690,8 +1692,8 @@ mod tests {
 
         let allow = AllowPolicy::new(
             [
-                std::fs::canonicalize(a.path()).unwrap(),
-                std::fs::canonicalize(b.path()).unwrap(),
+                dunce::canonicalize(a.path()).unwrap(),
+                dunce::canonicalize(b.path()).unwrap(),
             ],
             std::iter::empty(),
         );
@@ -1740,7 +1742,7 @@ mod tests {
             roots.authorise_within_budget(c.path()).expect("io"),
             AdmitOutcome::OverBudget
         ));
-        let canonical_c = std::fs::canonicalize(c.path()).unwrap();
+        let canonical_c = dunce::canonicalize(c.path()).unwrap();
         assert!(
             !roots.is_admitted(&canonical_c),
             "an over-budget root must never be admitted (no descriptor opened)"
@@ -1762,8 +1764,8 @@ mod tests {
 
         let allow = AllowPolicy::new(
             [
-                std::fs::canonicalize(a.path()).unwrap(),
-                std::fs::canonicalize(b.path()).unwrap(),
+                dunce::canonicalize(a.path()).unwrap(),
+                dunce::canonicalize(b.path()).unwrap(),
             ],
             std::iter::empty(),
         );
@@ -1813,7 +1815,7 @@ mod tests {
             roots.authorise_within_budget(&link_to_b).expect("io"),
             AdmitOutcome::OverBudget
         ));
-        let canonical_b = std::fs::canonicalize(dir_b.path()).unwrap();
+        let canonical_b = dunce::canonicalize(dir_b.path()).unwrap();
         assert!(
             !roots.is_admitted(&canonical_b),
             "a symlinked over-budget root must not slip past the budget guard"

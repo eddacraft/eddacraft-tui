@@ -423,7 +423,7 @@ impl Confinement {
         // that does not resolve — a silent drop would mask operator
         // misconfiguration as an unexplained `workspace-not-admitted` refusal.
         fn canonicalise(p: &Path, what: &str) -> Option<PathBuf> {
-            match std::fs::canonicalize(p) {
+            match dunce::canonicalize(p) {
                 Ok(canonical) => Some(canonical),
                 Err(error) => {
                     tracing::warn!(

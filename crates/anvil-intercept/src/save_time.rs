@@ -4000,7 +4000,7 @@ mod tests {
     fn spawn_route_restore_wires_per_worktree_restore() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir = tmp.path().join("graph-cache");
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonicalize");
         let key = WorktreeKey::from_canonical(canonical.clone());
 
         // Stage a per-worktree snapshot on disk.
@@ -4041,7 +4041,7 @@ mod tests {
     fn spawn_route_restore_base_absent_falls_through_to_snapshot() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir = tmp.path().join("graph-cache");
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonicalize");
         let key = WorktreeKey::from_canonical(canonical.clone());
 
         // Stage a per-worktree snapshot — the resilient fallback source.
@@ -4132,7 +4132,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let snap_dir = tmp.path().join("graph-cache");
         let base_dir = tmp.path().join("base-store");
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonicalize");
         let key = WorktreeKey::from_canonical(canonical.clone());
         let sha = "a".repeat(40);
         let parser = HashingLineParser;
@@ -4192,7 +4192,7 @@ mod tests {
     fn spawn_route_restore_base_without_parser_degrades_to_per_worktree() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir = tmp.path().join("graph-cache");
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonicalize");
         let key = WorktreeKey::from_canonical(canonical.clone());
 
         let writer = state().with_snapshot_dir(dir.clone());
@@ -4321,7 +4321,7 @@ mod tests {
         // value the registry's unregister hook reconstructs from the canonical
         // worktree path.
         let key = WorktreeKey::from_canonical(
-            std::fs::canonicalize(tmp.path()).expect("canonicalize root"),
+            dunce::canonicalize(tmp.path()).expect("canonicalize root"),
         );
         assert!(
             state.cache.contains(&key),
@@ -4416,7 +4416,7 @@ mod tests {
         }));
         // Pre-warm the cache with the prior surface (foo) under the canonical
         // key the verdict will use, so a body-only re-edit is self-contained.
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonical");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonical");
         let key = WorktreeKey::from_canonical(canonical);
         state.cache.apply_delta(
             &key,
@@ -4825,7 +4825,7 @@ mod tests {
             "second append chains off the tip (no reseed): {second:?}",
         );
 
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonical");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonical");
         let paths = anvil_witness::witness_paths(&canonical);
         let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
         let dag = anvil_witness::verify_chain_dag(&refs).expect("chain verifies");
@@ -4932,7 +4932,7 @@ mod tests {
             .expect("admitted");
 
         // Corrupt the tip: an unparseable trailing line breaks the chain.
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonical");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonical");
         let active = canonical
             .join("anvil")
             .join("witness")
@@ -4964,7 +4964,7 @@ mod tests {
     }
 
     fn warm(state: &SaveTimeState, root: &Path, file: &str, names: &[&str], base: u64) {
-        let key = WorktreeKey::from_canonical(std::fs::canonicalize(root).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(root).expect("canonical"));
         state
             .cache
             .apply_delta(&key, ChangeKind::Create, file_symbols(file, names, base));
@@ -5029,8 +5029,7 @@ mod tests {
         // `Running → Clean` on the background pool, which would race this
         // assertion; we assert the GCTX *state mapping* — a non-terminal scan
         // suppresses results — deterministically here.)
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
         state
             .machine_handle(&key)
             .lock()
@@ -5057,8 +5056,7 @@ mod tests {
         let state = state();
         warm(&state, tmp.path(), "src/a.ts", &["alpha"], 0);
 
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
         {
             let handle = state.machine_handle(&key);
             let mut m = handle.lock().expect("machine lock");
@@ -5691,7 +5689,7 @@ mod tests {
         import: &str,
         base: u64,
     ) {
-        let key = WorktreeKey::from_canonical(std::fs::canonicalize(root).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(root).expect("canonical"));
         let mut symbols = file_symbols(file, names, base);
         symbols.imports = vec![anvil_kernel_types::ImportEdge {
             from_file: file.to_string(),
@@ -5771,7 +5769,7 @@ mod tests {
     /// the resident `Calls` edge the caller traversal reads.
     fn warm_with_call(state: &SaveTimeState, root: &Path, file: &str) {
         use anvil_kernel_types::{CallSite, CalleeRef, LocalSymbolRef};
-        let key = WorktreeKey::from_canonical(std::fs::canonicalize(root).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(root).expect("canonical"));
         let mut symbols = file_symbols(file, &["callee", "caller"], 0);
         symbols.calls = vec![CallSite {
             from: LocalSymbolRef {
@@ -5868,8 +5866,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let state = state();
         warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
         let clean = assurance(AssuranceState::Clean, None);
 
         let disabled = gctx_find_dependents_outcome(
@@ -6076,8 +6073,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let state = state();
         warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
         let clean = assurance(AssuranceState::Clean, None);
         let disabled = gctx_impact_outcome(
             &state,
@@ -6253,8 +6249,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let state = state();
         warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
         let clean = assurance(AssuranceState::Clean, None);
         let disabled = gctx_affected_tests_outcome(
             &state,
@@ -6491,8 +6486,7 @@ mod tests {
     fn gctx_search_pending_without_parser_names_the_platform_cap() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let state = state();
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
         let pending = assurance(AssuranceState::Pending, None);
         let outcome = gctx_search_outcome(
             &state,
@@ -6523,8 +6517,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let state = state();
         warm(&state, tmp.path(), "src/a.ts", &["a"], 0);
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
         let clean = assurance(AssuranceState::Clean, None);
 
         let disabled =
@@ -6581,8 +6574,7 @@ mod tests {
             file: "src/a.ts".to_string(),
             names: vec!["a".to_string()],
         }));
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
 
         // A fresh cold key is `Stale` (never clean before a scan, B6).
         assert_eq!(
@@ -6619,8 +6611,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let state = state();
         warm(&state, tmp.path(), "src/a.ts", &["alpha"], 0);
-        let key =
-            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let key = WorktreeKey::from_canonical(dunce::canonicalize(tmp.path()).expect("canonical"));
         let clean = assurance(AssuranceState::Clean, None);
 
         let hit = gctx_search_outcome(
@@ -6867,7 +6858,7 @@ mod tests {
         fs::write(src.join("a.ts"), b"export function alpha() {}").expect("write");
         let dir = tmp.path().join("graph-cache");
         // The cache + machine key on the CANONICAL root (what validate_paths uses).
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonicalize");
         let key = WorktreeKey::from_canonical(canonical.clone());
 
         // Stage a snapshot on disk for this worktree, then restore it.
@@ -6916,7 +6907,7 @@ mod tests {
     fn gctx_find_dependents_triggers_first_contact_restore() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir = tmp.path().join("graph-cache");
-        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let canonical = dunce::canonicalize(tmp.path()).expect("canonicalize");
         let key = WorktreeKey::from_canonical(canonical.clone());
 
         // Stage a snapshot on disk for this worktree.
