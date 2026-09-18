@@ -54,9 +54,10 @@ The current surface supports:
 - scripts pass explicit `--client` values (repeatable) and optional
   `--scope global|project`;
 - `--verify` checks an existing managed install without writing;
-- `--dry-run` previews destinations without writing;
-- `--refresh-managed` rewrites existing managed copies from this binary without
-  selecting clients (skips dirty or unmanaged directories).
+- `--dry-run` previews destinations without writing.
+
+Additional flags (including managed-copy refresh when your binary ships it)
+appear in `anvil skill install --help` on that same binary.
 
 For a non-interactive scripted fleet, enumerate every destination by repeating
 `--client`. Omitting it is an error when clients are detected, so a script
@@ -75,14 +76,14 @@ your binary.
 upgrade (and when the binary is already current). Dirty or unmanaged directories
 are skipped. `--check` does not write.
 
-A package-manager upgrade that never runs `anvil update` (for example a bare
-`brew upgrade`) does not refresh skills. Repair those with:
-
 ```text
-anvil skill install --refresh-managed
+anvil update
 ```
 
-or run:
+A package-manager upgrade that never runs `anvil update` (for example a bare
+`brew upgrade`) does not refresh skills. Repair those by running `anvil update`,
+or — when your binary lists it under `anvil skill install --help` — refreshing
+managed copies in place. You can also run:
 
 ```text
 anvil doctor
@@ -103,9 +104,10 @@ Skills and MCP are complementary:
 1. Configure the client with [MCP integration](mcp.md) so it can call anvil.
    Interactive `anvil start` also installs the managed skills for the MCP
    clients you choose.
-2. Repair or refresh later with `anvil update` or
-   `anvil skill install --refresh-managed` if doctor reports stale copies.
-   Unmanaged directories still need a manual move before a normal install.
+2. Repair or refresh later with `anvil update` (or the managed-refresh flag
+   listed by `anvil skill install --help` on your binary) if doctor reports
+   stale copies. Unmanaged directories still need a manual move before a normal
+   install.
 3. Verify protection with `anvil start --verify`. On later days, bare `anvil`
    turns protection on without reinstalling.
 

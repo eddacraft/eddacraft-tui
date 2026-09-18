@@ -42,7 +42,8 @@ anvil update
 A successful `anvil update` also refreshes existing managed agent skills from
 the new binary. Dirty or unmanaged skill directories are skipped. `--check` does
 not write. A bare `brew upgrade` / `winget upgrade` / `scoop update` that never
-runs `anvil update` still needs `anvil skill install --refresh-managed`.
+runs `anvil update` does not refresh skills — run `anvil update`, or use the
+managed-refresh flag listed by `anvil skill install --help` on your binary.
 
 When anvil was installed through Homebrew, Scoop, or WinGet, the updater offers
 that manager's allowlisted upgrade command after explicit consent. Use `-y` only

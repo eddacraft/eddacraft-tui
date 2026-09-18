@@ -347,7 +347,21 @@ pub(crate) fn refresh_managed_installs(
     for skill in bundled_skills() {
         let expected = expected_manifest_for(skill);
         for (destination, clients) in skill_state::discover_skill_paths(home, project, skill.name) {
-            if !destination.exists() {
+            // Match install_bundle: refuse symlink destinations before any
+            // follow-through evaluate/read (installer safety contract).
+            let exists = match path_exists_nofollow(&destination) {
+                Ok(exists) => exists,
+                Err(error) => {
+                    entries.push(SkillRefreshEntry {
+                        skill: skill.name.to_string(),
+                        path: crate::display_path::shown(&destination).to_string(),
+                        clients: clients.into_iter().map(str::to_string).collect(),
+                        status: format!("skipped ({error:#})"),
+                    });
+                    continue;
+                }
+            };
+            if !exists {
                 continue;
             }
             let status = match skill_state::evaluate_install(&destination, &expected) {
@@ -1746,6 +1760,42 @@ mod tests {
         assert!(
             entries.is_empty(),
             "absent clients must not be invented, got {entries:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refresh_managed_installs_skips_symlinked_destinations_without_reading() {
+        use std::os::unix::fs::symlink;
+
+        let (_keep, home) = canonical_tempdir();
+        let skill = developer_functions();
+        let outside = tempfile::tempdir().unwrap();
+        let outside_skill = outside.path().join(skill.name);
+        let expected = expected_manifest_for(skill);
+        write_bundle_files(&outside_skill, skill, &expected);
+
+        let link_parent = home.join(".claude/skills");
+        fs::create_dir_all(&link_parent).unwrap();
+        let destination = link_parent.join(skill.name);
+        symlink(&outside_skill, &destination).unwrap();
+
+        // Poison the far-side manifest so a follow-through evaluate would break.
+        fs::write(outside_skill.join(MANIFEST_NAME), "not-json").unwrap();
+
+        let entries = refresh_managed_installs(Some(&home), None);
+        let entry = entries
+            .iter()
+            .find(|entry| entry.path == crate::display_path::shown(&destination).to_string())
+            .unwrap_or_else(|| panic!("expected symlink destination entry, got {entries:?}"));
+        assert!(
+            entry.status.contains("symlinked path") || entry.status.contains("symlink"),
+            "must skip without following, got {}",
+            entry.status
+        );
+        assert!(
+            !entries.iter().any(|entry| entry.status.contains("broken")),
+            "must not evaluate through the symlink: {entries:?}"
         );
     }
 }
