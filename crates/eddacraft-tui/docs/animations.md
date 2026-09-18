@@ -66,5 +66,10 @@ The prelude re-exports the two functions the host application needs:
 - `is_animating() -> bool` — returns `true` while any animated value is still
   transitioning.
 
+Custom tweens use `eddacraft_tui::animation::advance(&mut tween)` on the same
+clock. Widget internals already call it; host loops that only drive
+`ProgressBar` / `ParallelProgress` do not need to. `advance` is **unstable**
+and names `animate-core` types in its signature.
+
 Internal widget state (easing curve, duration, interpolation) is not part of the
 public API and may change between minor versions.
