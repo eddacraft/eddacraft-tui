@@ -44,6 +44,10 @@ packages:
   - crates/anvil-checks-napi
 
 overrides:
+  # GHSA-9rgm-9g3h-6x36 (DoS via malformed input). astro@7.3.x declares
+  # devalue ^5.8.1 so 5.9.2 is in range, but Dependabot could not unlock
+  # the lockfile (security_update_not_possible; alert #310).
+  'devalue': '5.9.2'
   '@docusaurus/mdx-loader@3.10.1>image-size': '-'
   'glob': '^13.0.0'
   'braces': '3.0.3'
