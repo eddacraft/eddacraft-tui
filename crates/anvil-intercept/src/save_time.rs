@@ -5402,6 +5402,80 @@ mod tests {
         }
     }
 
+    /// Client spelling of `main` that stays OsStr-distinct after dunce (plain)
+    /// canonicalisation. `Path::join("..")` pops on non-verbatim paths, and
+    /// `join(".")` can be treated as equal by Path `PartialEq` on some hosts —
+    /// so synthesise a redundant `src/../` segment in the `OsString` instead of
+    /// relying on join normalisation.
+    fn redundant_src_parent_spelling(main: &Path) -> PathBuf {
+        let sep = std::path::MAIN_SEPARATOR_STR;
+        let mut raw = main.as_os_str().to_owned();
+        raw.push(sep);
+        raw.push("src");
+        raw.push(sep);
+        raw.push("..");
+        PathBuf::from(raw)
+    }
+
+    /// Drive every GCTX handler with the same non-canonical `workspace_root` so
+    /// admission keys stay pinned to the authorised canonical path.
+    fn exercise_all_gctx_handlers(conn: &mut SaveTimeConn<'_>, root: &str) {
+        let snippet = SnippetQuery {
+            target: dummy_symbol(),
+            include_source: false,
+        };
+        let context = SymbolContextQuery {
+            selector: ContextSelector::Symbol(dummy_symbol()),
+            token_budget: None,
+            include_source: false,
+        };
+
+        conn.search_symbols(&GctxSearchSymbolsRequest {
+            workspace_root: root.to_owned(),
+            query: SearchSymbolsQuery::default(),
+        })
+        .expect("search_symbols");
+        conn.find_dependents(&GctxFindDependentsRequest {
+            workspace_root: root.to_owned(),
+            query: FindDependentsQuery::default(),
+        })
+        .expect("find_dependents");
+        conn.find_callers(&GctxFindCallersRequest {
+            workspace_root: root.to_owned(),
+            query: FindCallersQuery::default(),
+        })
+        .expect("find_callers");
+        conn.graph_stats(&GctxGraphStatsRequest {
+            workspace_root: root.to_owned(),
+        })
+        .expect("graph_stats");
+        conn.graph_edges(&GctxGraphEdgesRequest {
+            workspace_root: root.to_owned(),
+            query: GraphEdgesQuery::default(),
+        })
+        .expect("graph_edges");
+        conn.impact_of_change(&GctxImpactOfChangeRequest {
+            workspace_root: root.to_owned(),
+            query: ImpactQuery::default(),
+        })
+        .expect("impact_of_change");
+        conn.affected_tests(&GctxAffectedTestsRequest {
+            workspace_root: root.to_owned(),
+            query: AffectedTestsQuery::default(),
+        })
+        .expect("affected_tests");
+        conn.get_snippet(&GctxGetSnippetRequest {
+            workspace_root: root.to_owned(),
+            query: snippet,
+        })
+        .expect("get_snippet");
+        conn.symbol_context(&GctxSymbolContextRequest {
+            workspace_root: root.to_owned(),
+            query: context,
+        })
+        .expect("symbol_context");
+    }
+
     /// CIB-414 TOCTOU: every `anvil/gctx/*` handler keys the graph on the
     /// canonical path `authorise_gctx_root` resolved, never a second
     /// independent `canonicalize` of the client spelling.
@@ -5410,20 +5484,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let (main, _linked) = repo_with_linked_worktree(tmp.path());
         fs::create_dir_all(main.join("src")).expect("src dir");
-        // Build a client spelling that stays OsStr-distinct after dunce
-        // (plain) canonicalisation. `Path::join("..")` pops on non-verbatim
-        // paths, and `join(".")` can be treated as equal by Path PartialEq
-        // on some hosts — so synthesise a redundant `src/../` segment in
-        // the OsString instead of relying on join normalisation.
-        let spelled = {
-            let sep = std::path::MAIN_SEPARATOR_STR;
-            let mut raw = main.as_os_str().to_owned();
-            raw.push(sep);
-            raw.push("src");
-            raw.push(sep);
-            raw.push("..");
-            PathBuf::from(raw)
-        };
+        let spelled = redundant_src_parent_spelling(&main);
         assert_ne!(
             spelled.as_os_str(),
             main.as_os_str(),
@@ -5455,60 +5516,7 @@ mod tests {
         let state = state();
         let mut conn = SaveTimeConn::new(&state);
         let root = spelled.to_string_lossy().into_owned();
-        let snippet = SnippetQuery {
-            target: dummy_symbol(),
-            include_source: false,
-        };
-        let context = SymbolContextQuery {
-            selector: ContextSelector::Symbol(dummy_symbol()),
-            token_budget: None,
-            include_source: false,
-        };
-
-        conn.search_symbols(&GctxSearchSymbolsRequest {
-            workspace_root: root.clone(),
-            query: SearchSymbolsQuery::default(),
-        })
-        .expect("search_symbols");
-        conn.find_dependents(&GctxFindDependentsRequest {
-            workspace_root: root.clone(),
-            query: FindDependentsQuery::default(),
-        })
-        .expect("find_dependents");
-        conn.find_callers(&GctxFindCallersRequest {
-            workspace_root: root.clone(),
-            query: FindCallersQuery::default(),
-        })
-        .expect("find_callers");
-        conn.graph_stats(&GctxGraphStatsRequest {
-            workspace_root: root.clone(),
-        })
-        .expect("graph_stats");
-        conn.graph_edges(&GctxGraphEdgesRequest {
-            workspace_root: root.clone(),
-            query: GraphEdgesQuery::default(),
-        })
-        .expect("graph_edges");
-        conn.impact_of_change(&GctxImpactOfChangeRequest {
-            workspace_root: root.clone(),
-            query: ImpactQuery::default(),
-        })
-        .expect("impact_of_change");
-        conn.affected_tests(&GctxAffectedTestsRequest {
-            workspace_root: root.clone(),
-            query: AffectedTestsQuery::default(),
-        })
-        .expect("affected_tests");
-        conn.get_snippet(&GctxGetSnippetRequest {
-            workspace_root: root.clone(),
-            query: snippet,
-        })
-        .expect("get_snippet");
-        conn.symbol_context(&GctxSymbolContextRequest {
-            workspace_root: root,
-            query: context,
-        })
-        .expect("symbol_context");
+        exercise_all_gctx_handlers(&mut conn, &root);
 
         let set = conn
             .admitted
