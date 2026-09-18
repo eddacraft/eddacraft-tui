@@ -623,6 +623,32 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 - **Dependencies:** OPAE-011, ADR-149
 - **Confidence:** medium
 
+### OPAE-024: Tell public save-time docs that installed packs can fire
+
+- **Status:** Proposed
+- **Claim:** #4796
+- **Intent:** Stop public save-time docs claiming the catalogue is regex plus
+  secrets only, now that OPAE-023 / ADR-149 evaluates installed packs on the
+  daemon `validate_paths` path. Filed from verify-loop F1 on PR #4788.
+- **Expected Outcome:** `docs/public/anvil/guides/save-time-validation.md`,
+  `docs/public/anvil/concepts/evaluation-model.md`, and
+  `docs/public/anvil/reference/what-anvil-can-do.md` state that when the
+  CLI-started daemon has the policy hook, installed packs can emit save-time
+  diagnostics and `check_families` includes `policy`. Coverage remains graph
+  plus antipattern (no AST; no new save-time interrupt). MCP pre-write still
+  owns interrupt-before-write. The regex-and-secrets catalogue remains the
+  cheap always-on scan.
+- **Files:** `docs/public/anvil/guides/save-time-validation.md`,
+  `docs/public/anvil/concepts/evaluation-model.md`,
+  `docs/public/anvil/reference/what-anvil-can-do.md`
+- **Validation:** `pnpm docs:check && pnpm docs:public:check`
+- **Dependencies:** OPAE-023
+- **Coordinates with:** documentation-governance change-impact review
+- **Confidence:** high
+- **Related residue** (not this item's acceptance; same #4788 verify-loop):
+  F3 kill-switch untested; F4 no Certified+policy-Error coverage test; F5 warm
+  pre-write still rediscovers manifests.
+
 ## Designs
 
 - [Policy Authoring Lint and Agent Guidance Pilot](../specs/2026-07-15-policy-authoring-lint-and-agent-guidance.md)
