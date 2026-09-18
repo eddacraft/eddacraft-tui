@@ -570,6 +570,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn evaluate_symlink_destination_is_broken_not_stale() {
         // A directory symlink to an otherwise-valid old bundle must not be
         // Stale (auto-fixable): refresh refuses symlink destinations, so
