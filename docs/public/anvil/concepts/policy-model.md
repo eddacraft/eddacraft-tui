@@ -22,6 +22,8 @@ upstream:
   - plans/decisions/129-policy-surface-inventory-and-precedence.md
   - plans/decisions/131-registry-override-explicit-only.md
   - plans/decisions/037-witness-chain-and-l4-policy.md
+  - plans/decisions/149-save-time-policy-evaluator-hook.md
+  - crates/anvil-cli/src/intercept_policy_evaluator.rs
 verified_against: 0.11.1-beta
 ---
 
@@ -36,9 +38,11 @@ rather than a single stack, and how packs are installed and enforced
 
 ## What you are looking at
 
-A **policy** is a project rule evaluated by a **gate**. It is not a planless
-`anvil check` engine. `anvil check` will not run `policy`, even if `policy`
-appears in top-level `checks:`.
+A **policy** is a project rule evaluated as the `policy` **gate** check. It is
+not a planless `anvil check` engine. `anvil check` will not run `policy`, even
+if `policy` appears in top-level `checks:`. The same installed packs also
+evaluate on MCP pre-write, and on save-time as diagnostics when the CLI-started
+daemon injected the policy hook. Save-time does not interrupt.
 
 Policy is shipped as **packs**. The installer writes them under
 `.anvil/policies/`. Begin with the bundled `anvil-baseline` pack rather than
@@ -130,16 +134,16 @@ Default `on_warn: allow` admits it.
 
 ## Pack lifecycle
 
-| Step           | Command                           | Meaning                                                               |
-| -------------- | --------------------------------- | --------------------------------------------------------------------- |
-| Discover packs | `anvil policy install --list`     | What can be installed. Not `anvil policy list`.                       |
-| Inspect a pack | `anvil policy show <pack>`        | What a pack contains, without writing files.                          |
-| Install        | `anvil policy install <pack>`     | Writes under `.anvil/policies/`. `--off <member>` writes the overlay. |
-| Members        | `anvil policy members <pack>`     | List overlay state; `--off` / `--on` toggle members.                  |
-| Validate       | `anvil policy validate <path>`    | Manifest and pack well-formedness.                                    |
-| Test           | `anvil policy test [path]`        | Pack tests. Path is optional.                                         |
-| Enforce        | `anvil gate --only-checks policy` | Policy is a **gate** check. `anvil check` will not run it.            |
-| Exceptions     | `anvil exception`                 | Recorded exceptions to a policy finding.                              |
+| Step           | Command                           | Meaning                                                                                                                                                                                                                     |
+| -------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Discover packs | `anvil policy install --list`     | What can be installed. Not `anvil policy list`.                                                                                                                                                                             |
+| Inspect a pack | `anvil policy show <pack>`        | What a pack contains, without writing files.                                                                                                                                                                                |
+| Install        | `anvil policy install <pack>`     | Writes under `.anvil/policies/`. `--off <member>` writes the overlay.                                                                                                                                                       |
+| Members        | `anvil policy members <pack>`     | List overlay state; `--off` / `--on` toggle members.                                                                                                                                                                        |
+| Validate       | `anvil policy validate <path>`    | Manifest and pack well-formedness.                                                                                                                                                                                          |
+| Test           | `anvil policy test [path]`        | Pack tests. Path is optional.                                                                                                                                                                                               |
+| Enforce        | `anvil gate --only-checks policy` | Policy is a **gate** check. `anvil check` will not run it. MCP pre-write evaluates the same packs and can interrupt. Save-time emits pack diagnostics when the CLI-started daemon injected the hook; it does not interrupt. |
+| Exceptions     | `anvil exception`                 | Recorded exceptions to a policy finding.                                                                                                                                                                                    |
 
 Two bundled packs ship in the binary:
 

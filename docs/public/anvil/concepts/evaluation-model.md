@@ -9,6 +9,8 @@ upstream:
   - crates/anvil-cli/src/commands/gate.rs
   - crates/anvil-cli/src/commands/check_catalog.rs
   - plans/decisions/127-always-on-cheap-catalogue.md
+  - plans/decisions/149-save-time-policy-evaluator-hook.md
+  - crates/anvil-cli/src/intercept_policy_evaluator.rs
 verified_against: 0.11.1-beta
 ---
 
@@ -151,12 +153,12 @@ Error-severity findings still fail the gate on their own merit.
 These four layers are **not** the same catalogue. A green save is not proof that
 AST rules ran. Default `anvil watch` is not the full gate.
 
-| Layer                     | What runs                                                                                      | Typical path                                                                                          |
-| ------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Pre-write / save-time** | Regex anti-patterns and secrets. Interactive latency budget. **No AST.**                       | Daemon intercept, MCP `anvil_validate_write` / `anvil_apply_patch`, `anvil watch` save-time.          |
-| **On-demand check**       | Regex **plus AST** anti-patterns, and secrets. Still the planless pair only.                   | CLI `anvil check`, MCP `anvil_check`.                                                                 |
-| **Background follow-up**  | AST after a daemon **allow**. Does not block the write. One stderr line if it finds something. | Watch after save. Kill switch: `ANVIL_AST_FOLLOWUP=0`.                                                |
-| **Merge judgement**       | Full gate set (lint, test, coverage, policy, surfaces, …).                                     | `anvil gate`, Git hooks **if installed**, adopter CI `anvil gate --profile ci`. Default watch is not. |
+| Layer                     | What runs                                                                                                                                                                                                                | Typical path                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| **Pre-write / save-time** | Regex anti-patterns and secrets. Interactive latency budget. **No AST.** Installed packs also run on MCP pre-write, and on save-time when the CLI-started daemon injected the policy hook. Save-time does not interrupt. | Daemon intercept, MCP `anvil_validate_write` / `anvil_apply_patch`, `anvil watch` save-time.          |
+| **On-demand check**       | Regex **plus AST** anti-patterns, and secrets. Still the planless pair only.                                                                                                                                             | CLI `anvil check`, MCP `anvil_check`.                                                                 |
+| **Background follow-up**  | AST after a daemon **allow**. Does not block the write. One stderr line if it finds something.                                                                                                                           | Watch after save. Kill switch: `ANVIL_AST_FOLLOWUP=0`.                                                |
+| **Merge judgement**       | Full gate set (lint, test, coverage, policy, surfaces, …).                                                                                                                                                               | `anvil gate`, Git hooks **if installed**, adopter CI `anvil gate --profile ci`. Default watch is not. |
 
 | Moment                   | What it is                             | Typical path                                                                    |
 | ------------------------ | -------------------------------------- | ------------------------------------------------------------------------------- |
@@ -179,7 +181,9 @@ commands do not follow that gitignore rule.
   treat it as a public engine.
 - Surface checks are shipped with flag status: they are default-on in gate
   today, not list-editable via `checks:`.
-- Save-time / pre-write `allow` is regex plus secrets. It is not an AST pass.
+- Save-time / pre-write `allow` is regex plus secrets, and pack evaluation when
+  the policy hook ran. It is not an AST pass. Save-time pack findings do not
+  veto the write; MCP pre-write can.
 - Default `anvil watch` action is `check`, not `gate`. `--action gate` is
   opt-in.
 

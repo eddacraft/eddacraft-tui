@@ -625,7 +625,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-024: Tell public save-time docs that installed packs can fire
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Claim:** #4796
 - **Intent:** Stop public save-time docs claiming the catalogue is regex plus
   secrets only, now that OPAE-023 / ADR-149 evaluates installed packs on the
@@ -640,7 +640,8 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
   cheap always-on scan.
 - **Files:** `docs/public/anvil/guides/save-time-validation.md`,
   `docs/public/anvil/concepts/evaluation-model.md`,
-  `docs/public/anvil/reference/what-anvil-can-do.md`
+  `docs/public/anvil/reference/what-anvil-can-do.md`,
+  `docs/public/anvil/concepts/policy-model.md`
 - **Validation:** `pnpm docs:check && pnpm docs:public:check`
 - **Dependencies:** OPAE-023
 - **Coordinates with:** documentation-governance change-impact review
