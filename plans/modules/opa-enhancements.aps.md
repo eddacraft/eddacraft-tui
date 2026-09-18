@@ -627,6 +627,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 - **Status:** In Progress
 - **Claim:** #4796
+- **PR:** #4799
 - **Intent:** Stop public save-time docs claiming the catalogue is regex plus
   secrets only, now that OPAE-023 / ADR-149 evaluates installed packs on the
   daemon `validate_paths` path. Filed from verify-loop F1 on PR #4788.
