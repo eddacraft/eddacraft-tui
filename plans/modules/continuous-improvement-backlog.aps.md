@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 342/427  |
+| CIB | —     | In Progress | 345/427  |
 
 ## Purpose
 
@@ -14522,7 +14522,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-430: Paginate PR required-status discovery
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-17 via PR #4778
 - **Priority:** P2 — live mode can exit 0 while GitHub still blocks merge when an
   unresolved thread or required context lands on a later page
 - **Currency:** current — sibling residual of CIB-404; pagination of discovery
@@ -14559,7 +14559,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-431: Isolate Nx graph proof and clean up partial setup
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-17 via PR #4780
 - **Priority:** P2 — partial `mktemp` failure leaks a temp dir; the RED proof
   mutates tracked checkout files and is unsafe under concurrent runs
 - **Currency:** current — residual of the delivered graph gate (CIB-320 / GH
@@ -14592,7 +14592,7 @@ Draw.io exporter as security (P3 small-fix, still filed so it is not lost).
 
 ### CIB-432: Peel annotated gitleaks tags and test converter decisions
 
-- **Status:** Ready
+- **Status:** Merged 2026-09-17 via PR #4779
 - **Priority:** P2 — annotated tags make refresh fetch the wrong revision;
   converter decisions for multi-capture reject and `secret_group` write are
   unpinned at the real boundary

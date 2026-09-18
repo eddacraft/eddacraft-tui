@@ -2,7 +2,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ---- | ----- | -------- | ------ | -------- |
-| OPAE | —     | high     | In Progress | 8/22      |
+| OPAE | —     | high     | In Progress | 10/23      |
 
 **Last reviewed:** 2026-08-22 — the policy-capability audit filed two defects
 against this module (OPAE-021 public authoring door, OPAE-022 gate/pre-write
@@ -379,7 +379,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-011: Compiled-policy cache for the pre-write path
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-17 via PR #4788
 - **Claim:** #4784
 - **PR:** #4788
 - **Intent:** Stop the MCP pre-write policy pass from repeating discovery,
@@ -599,7 +599,7 @@ that save-time/pre-write enforcement can route to `warn`, `fence`, or
 
 ### OPAE-023: Inject policy evaluator into validate_paths
 
-- **Status:** In Progress
+- **Status:** Merged 2026-09-17 via PR #4788
 - **Claim:** #4785
 - **PR:** #4788
 - **Intent:** Run installed policy packs on the daemon save-time path without

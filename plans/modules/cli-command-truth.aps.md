@@ -5,9 +5,9 @@
 
 | ID    | Owner | Priority | Status      | Progress |
 | ----- | ----- | -------- | ----------- | -------- |
-| CLICT | —     | high     | In Progress | 6/8      |
+| CLICT | —     | high     | In Progress | 7/8      |
 
-**Last reviewed:** 2026-09-17 (CLICT-008 added as the `anvil settings` re-audit
+**Last reviewed:** 2026-09-18 (CLICT-008 Merged via #4781: `anvil settings` re-audit landed, slice 8 Done; #4782 copy follow-up open; CLICT-007 remains the only open item. Prior 2026-09-17: CLICT-008 added as the `anvil settings` re-audit
 slice, Ready for the `v0.12.0-beta` window; CLICT-004..006 reconciled in docs/runbooks/public
 copy; runtime registry + slices 1–6 tracked in
 `docs/reviews/cli-command-truth-review.md`)
@@ -276,4 +276,4 @@ build verdicts when redirects are already known.
   against the runbook and public reference synopses; `pnpm run docs:check`;
   `pnpm aps:index:check`
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Merged 2026-09-17 via PR #4781

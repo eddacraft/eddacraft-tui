@@ -243,7 +243,7 @@ skill.
 
 ### SKPKG-010: Install `using-anvil` with the managed bundle
 
-- **Status:** In Progress
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13). Merged 2026-09-01 via PR #4263
 - **Intent:** Materialise the already-vendored `using-anvil` companion on
   `anvil skill install` so the hand-off in `anvil-developer-functions` can
   load. Do not add named skill selection (SKPKG-009) or change client
@@ -265,7 +265,7 @@ skill.
 
 ### SKPKG-011: `anvil start` installs skills for chosen MCP clients
 
-- **Status:** In Progress
+- **Status:** Released/Shipped via v0.10.0-beta (bd6e4c98 · 2026-09-13). Merged 2026-09-01 via PR #4263
 - **Intent:** When the operator selects MCP clients on `anvil start` (TUI
   consent ticks, `--mcp-client`, or `--all-mcp-clients`), also install the
   managed skill bundle for those clients at the same scope. Skip clients with

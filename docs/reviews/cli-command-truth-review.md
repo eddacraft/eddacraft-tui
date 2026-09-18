@@ -715,4 +715,5 @@ write path by SETPREF-001..006 (#4741). Subcommands `show`, `explain <key>`,
       gates lifted
 - [ ] Follow-up #4782: `--help` / TUI copy says inspect-only (code copy, not
       CLICT)
-- [ ] Follow-up #4783: feature catalogue manifest says inspect-only (FLAGCAT)
+- [x] Follow-up #4783: feature catalogue manifest says inspect-only (FLAGCAT) —
+      closed 2026-09-18 via #4790

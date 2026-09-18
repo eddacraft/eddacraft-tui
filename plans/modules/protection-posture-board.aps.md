@@ -5,7 +5,7 @@
 
 | ID     | Owner | Priority | Status   | Progress |
 | ------ | ----- | -------- | -------- | -------- |
-| POSBRD | —     | medium   | Proposed | 5/5      |
+| POSBRD | —     | medium   | Done     | 5/5      |
 
 **Last reviewed:** 2026-09-14 — POSBRD-003/004/005 Merged via #4697.
 POSBRD-001/002 Merged via #4680 (status reconciled in #4682). Design
