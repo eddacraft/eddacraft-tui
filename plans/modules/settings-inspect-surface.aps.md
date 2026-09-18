@@ -9,8 +9,8 @@
 
 **Last reviewed:** 2026-09-17 — CLICT-008 re-audit Merged via #4781 (slice 8 Done). SETINS-003..010
 Merged via #4696 after SETINS-001/002 via #4681. The public-docs claim that
-`anvil settings` is a released product follows once CLICT-008 merges
-(RELEASE-PLAN `v0.12.0-beta`). Module created 2026-08-06 from the
+`anvil settings` is a released product is now owed (CLICT-008 Merged via #4781;
+RELEASE-PLAN `v0.12.0-beta`). Module created 2026-08-06 from the
 operator-supplied `/settings` specification v1.1
 ([`plans/specs/2026-08-06-settings-truth-surface.md`](../specs/2026-08-06-settings-truth-surface.md),
 spec §22 Slice 1). At module creation it was gated on SETCON with no release

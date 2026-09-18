@@ -66,8 +66,8 @@ window (operator 2026-09-17).
 
 **Minor scope:** complete `/settings` v0.1 through the settings service. No
 Class B/C mutation (SETGOV). No public-docs claim that `anvil settings` is a
-released product before CLICT-008 (re-audit Merged via #4781, 2026-09-17; claim
-owed).
+released product until after CLICT-008 has merged (re-audit Merged via #4781,
+2026-09-17; claim now owed).
 
 ### Primary claim
 
