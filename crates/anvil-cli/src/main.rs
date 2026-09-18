@@ -390,7 +390,7 @@ enum Commands {
     Policy(commands::policy::PolicyArgs),
     /// Graph-context operator settings (snippet-egress opt-in).
     Gctx(commands::gctx::GctxArgs),
-    /// Update anvil to the latest version.
+    /// Update anvil to the latest version and refresh managed agent skills.
     Update(commands::update::UpdateArgs),
     /// Remove project anvil state; use `--global` for user state and daemon.
     Uninstall(commands::uninstall::UninstallArgs),

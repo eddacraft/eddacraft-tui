@@ -70,7 +70,7 @@ pub fn run(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         if global.verbose {
             eprintln!("Using sidecar: {}", sidecar.display());
         }
-        return run_sidecar(&sidecar, args, global.json);
+        return run_sidecar(&sidecar, args, global);
     }
 
     // 3. Library fallback
@@ -171,7 +171,7 @@ fn run_package_manager_update(
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     let stderr = std::io::stderr();
-    run_package_manager_update_with(
+    let flow = run_package_manager_update_with(
         current,
         args,
         global.json,
@@ -180,7 +180,12 @@ fn run_package_manager_update(
         &mut stdout.lock(),
         &mut stderr.lock(),
         execute_package_manager_command,
-    )
+    )?;
+    if flow == PackageManagerFlow::Completed {
+        let exe = std::env::current_exe().ok();
+        apply_skill_refresh_best_effort(exe.as_deref(), global.json);
+    }
+    Ok(())
 }
 
 fn execute_package_manager_command(
@@ -321,7 +326,7 @@ fn run_package_manager_update_with<R, W, E, F>(
     stdout: &mut W,
     stderr: &mut E,
     execute: F,
-) -> anyhow::Result<()>
+) -> anyhow::Result<PackageManagerFlow>
 where
     R: BufRead,
     W: Write,
@@ -344,7 +349,7 @@ where
 
     if args.check {
         write_package_manager_check(current, json, command, stdout, stderr)?;
-        return Ok(());
+        return Ok(PackageManagerFlow::CheckOnly);
     }
 
     if json && !args.yes {
@@ -365,7 +370,7 @@ where
         input.read_line(&mut answer)?;
         if !matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
             writeln!(stderr, "Update declined; no changes made.")?;
-            return Ok(());
+            return Ok(PackageManagerFlow::Declined);
         }
     }
 
@@ -417,7 +422,85 @@ where
             command.display_name
         )?;
     }
-    Ok(())
+    Ok(PackageManagerFlow::Completed)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PackageManagerFlow {
+    CheckOnly,
+    Declined,
+    Completed,
+}
+
+fn apply_skill_refresh_best_effort(new_binary: Option<&Path>, json: bool) {
+    let entries = refresh_after_update(new_binary);
+    if json {
+        // Package-manager JSON already emitted its one document; extra
+        // stdout would break that contract. Library/sidecar paths fold
+        // `skills` into their own document instead.
+        return;
+    }
+    emit_skill_refresh_human(&entries);
+}
+
+fn emit_skill_refresh_human(entries: &[crate::commands::skill::SkillRefreshEntry]) {
+    if entries.is_empty() {
+        return;
+    }
+    let stderr = std::io::stderr();
+    let mut stderr = stderr.lock();
+    for line in crate::commands::skill::format_refresh_lines(entries) {
+        let _ = writeln!(stderr, "{line}");
+    }
+}
+
+fn refresh_after_update(
+    new_binary: Option<&Path>,
+) -> Vec<crate::commands::skill::SkillRefreshEntry> {
+    match new_binary {
+        Some(exe) => match spawn_skill_refresh(exe) {
+            Ok(entries) => entries,
+            Err(error) => {
+                eprintln!("anvil: managed skill refresh skipped: {error:#}");
+                Vec::new()
+            }
+        },
+        None => crate::commands::skill::refresh_managed_installs(
+            crate::util::user_home_dir().as_deref(),
+            std::env::current_dir().ok().as_deref(),
+        ),
+    }
+}
+
+fn spawn_skill_refresh(
+    exe: &Path,
+) -> anyhow::Result<Vec<crate::commands::skill::SkillRefreshEntry>> {
+    let output = Command::new(exe)
+        .args([
+            "--no-tui",
+            "--json",
+            "skill",
+            "install",
+            "--refresh-managed",
+        ])
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .stdin(Stdio::null())
+        .output()
+        .with_context(|| format!("running {} skill install --refresh-managed", exe.display()))?;
+    if !output.status.success() {
+        anyhow::bail!(
+            "exited {}: {}",
+            output.status.code().unwrap_or(1),
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .with_context(|| format!("parsing skill refresh JSON from {}", exe.display()))?;
+    let targets = value
+        .get("targets")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    serde_json::from_value(targets).context("decoding skill refresh targets")
 }
 
 // ── Sidecar resolution ─────────────────────────────────────────────
@@ -518,7 +601,8 @@ fn maybe_warn_sidecar_skip_verify<W: std::io::Write>(
     Ok(())
 }
 
-fn run_sidecar(path: &Path, args: &UpdateArgs, json_mode: bool) -> anyhow::Result<()> {
+fn run_sidecar(path: &Path, args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+    let json_mode = global.json;
     // Surface a dropped --insecure-skip-verify loudly rather than silently
     // (#1735). `.expect` matches the library path's ADR-045 convention: the
     // security warning is a contract, so a failed stderr write is fatal.
@@ -550,6 +634,10 @@ fn run_sidecar(path: &Path, args: &UpdateArgs, json_mode: bool) -> anyhow::Resul
     };
 
     if status.success() {
+        if !args.check {
+            let exe = std::env::current_exe().ok();
+            apply_skill_refresh_best_effort(exe.as_deref(), json_mode);
+        }
         Ok(())
     } else {
         let code = status.code().unwrap_or(1);
@@ -706,13 +794,20 @@ fn run_library_update(args: &UpdateArgs, global: &GlobalArgs) -> anyhow::Result<
         updater.enable_installer_output();
     }
     let outcome = perform_update(updater, current, global);
-    if let Some(parked) = parked {
+    if let Some(parked) = parked.as_ref() {
         settle_windows_swap(
-            &parked,
+            parked,
             outcome.is_ok(),
             global,
             &mut std::io::stderr().lock(),
         );
+    }
+    if outcome.is_ok() {
+        let exe = parked
+            .as_ref()
+            .map(|item| item.original.clone())
+            .or_else(|| std::env::current_exe().ok());
+        apply_skill_refresh_best_effort(exe.as_deref(), global.json);
     }
     outcome
 }
@@ -1025,6 +1120,8 @@ pub(crate) fn windows_swap_failure_message(method: InstallMethod) -> String {
 fn report_up_to_date(current: &str, global: &GlobalArgs) {
     write_up_to_date(current, global.json, &mut std::io::stdout().lock())
         .expect("stdout write for already-current report");
+    // Same binary, so in-process refresh is the snapshot this process ships.
+    apply_skill_refresh_best_effort(None, global.json);
 }
 
 fn perform_update(

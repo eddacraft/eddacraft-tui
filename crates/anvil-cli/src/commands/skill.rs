@@ -7,14 +7,15 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::GlobalArgs;
 use crate::activation::agent_registry::{AgentClientId, InstallScope};
 use crate::activation::detect_agents::RealDetectionEnv;
 use crate::commands::skill_state::{
-    self, BundledSkill, MANIFEST_NAME, ManagedManifest, bundled_skills, expected_manifest_for,
+    self, BundledSkill, MANIFEST_NAME, ManagedManifest, SkillInstallOutcome, bundled_skills,
+    expected_manifest_for,
 };
 
 #[derive(Debug, Args)]
@@ -52,6 +53,14 @@ struct SkillInstallArgs {
     /// Preview resolved destinations without writing.
     #[arg(long)]
     dry_run: bool,
+
+    /// Refresh existing managed installs without selecting clients.
+    ///
+    /// Skips dirty or unmanaged copies. `anvil update` uses this after a
+    /// successful upgrade so agents pick up the skill snapshot shipped in
+    /// the new binary.
+    #[arg(long, conflicts_with_all = ["client", "verify", "dry_run"])]
+    refresh_managed: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -80,6 +89,16 @@ impl TargetReport {
     }
 }
 
+/// One existing managed skill site considered by `--refresh-managed`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SkillRefreshEntry {
+    pub skill: String,
+    pub path: String,
+    pub clients: Vec<String>,
+    pub status: String,
+}
+
 pub fn run(args: &SkillArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         SkillCommand::Install(install) => run_install(install, global),
@@ -87,6 +106,11 @@ pub fn run(args: &SkillArgs, global: &GlobalArgs) -> Result<()> {
 }
 
 fn run_install(args: &SkillInstallArgs, global: &GlobalArgs) -> Result<()> {
+    if args.refresh_managed {
+        run_refresh_managed(args, global);
+        return Ok(());
+    }
+
     let interactive =
         !global.json && !global.no_tui && io::stdin().is_terminal() && io::stderr().is_terminal();
     let scope = resolve_scope(args.scope, interactive)?;
@@ -286,6 +310,88 @@ pub(crate) fn install_for_activation(
         lines.push(format!("anvil: {names} skills {status} at {path}"));
     }
     lines
+}
+
+fn run_refresh_managed(args: &SkillInstallArgs, global: &GlobalArgs) {
+    let home = crate::util::user_home_dir();
+    let project = match &args.workspace {
+        Some(path) => Some(path.clone()),
+        None => std::env::current_dir().ok(),
+    };
+    let entries = refresh_managed_installs(home.as_deref(), project.as_deref());
+    if global.json {
+        println!(
+            "{}",
+            json!({
+                "refreshManaged": true,
+                "targets": entries,
+            })
+        );
+    } else {
+        for line in format_refresh_lines(&entries) {
+            println!("{line}");
+        }
+    }
+}
+
+/// Refresh existing managed skill copies under `home` (global) and `project`.
+///
+/// Only destinations that already exist are considered. Dirty, unmanaged, and
+/// broken copies are skipped rather than overwritten. Missing companions are
+/// not invented.
+pub(crate) fn refresh_managed_installs(
+    home: Option<&Path>,
+    project: Option<&Path>,
+) -> Vec<SkillRefreshEntry> {
+    let mut entries = Vec::new();
+    for skill in bundled_skills() {
+        let expected = expected_manifest_for(skill);
+        for (destination, clients) in skill_state::discover_skill_paths(home, project, skill.name) {
+            if !destination.exists() {
+                continue;
+            }
+            let status = match skill_state::evaluate_install(&destination, &expected) {
+                SkillInstallOutcome::Absent => continue,
+                SkillInstallOutcome::Fresh => "already installed".to_string(),
+                SkillInstallOutcome::Stale { .. } => match install_bundle(&destination, skill) {
+                    Ok(status) => status.to_string(),
+                    Err(error) => format!("skipped ({error:#})"),
+                },
+                SkillInstallOutcome::Dirty => "skipped (dirty)".to_string(),
+                SkillInstallOutcome::Unmanaged => "skipped (unmanaged)".to_string(),
+                SkillInstallOutcome::Broken { reason } => {
+                    format!("skipped (broken: {reason})")
+                }
+            };
+            entries.push(SkillRefreshEntry {
+                skill: skill.name.to_string(),
+                path: crate::display_path::shown(&destination).to_string(),
+                clients: clients.into_iter().map(str::to_string).collect(),
+                status,
+            });
+        }
+    }
+    entries
+}
+
+pub(crate) fn format_refresh_lines(entries: &[SkillRefreshEntry]) -> Vec<String> {
+    if entries.is_empty() {
+        return vec!["No managed skill installs found to refresh.".to_string()];
+    }
+    entries
+        .iter()
+        .map(|entry| {
+            let clients = if entry.clients.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", entry.clients.join(", "))
+            };
+            format!(
+                "{}{clients} ({}) — {}",
+                entry.path, entry.skill, entry.status
+            )
+        })
+        .collect()
 }
 
 fn preview_bundle(destination: &Path, skill: &BundledSkill) -> Result<()> {
@@ -1529,6 +1635,117 @@ mod tests {
         assert!(
             !outside.path().join("anvil-developer-functions").exists(),
             "must not commit a skill bundle through a symlinked parent"
+        );
+    }
+
+    fn canonical_tempdir() -> (tempfile::TempDir, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let canonical = fs::canonicalize(root.path()).unwrap();
+        (root, canonical)
+    }
+
+    fn developer_functions() -> &'static BundledSkill {
+        bundled_skills()
+            .iter()
+            .find(|skill| skill.name == skill_state::DEFAULT_SKILL_NAME)
+            .expect("anvil-developer-functions is bundled")
+    }
+
+    fn write_bundle_files(destination: &Path, skill: &BundledSkill, manifest: &ManagedManifest) {
+        for (relative, content) in skill.files {
+            let path = crate::display_path::join_relative(destination, relative);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(path, content).unwrap();
+        }
+        let body = format!("{}\n", serde_json::to_string_pretty(manifest).unwrap());
+        fs::write(destination.join(MANIFEST_NAME), body).unwrap();
+    }
+
+    fn claude_skill_dir(home: &Path) -> PathBuf {
+        home.join(".claude/skills")
+            .join(skill_state::DEFAULT_SKILL_NAME)
+    }
+
+    #[test]
+    fn refresh_managed_installs_updates_stale_and_skips_dirty_and_unmanaged() {
+        let (_keep, home) = canonical_tempdir();
+        let skill = developer_functions();
+        let expected = expected_manifest_for(skill);
+
+        let stale_dir = claude_skill_dir(&home);
+        let mut stale = expected.clone();
+        stale.anvil_version = "0.0.0-stale".to_string();
+        write_bundle_files(&stale_dir, skill, &stale);
+
+        let dirty_home = home.join(".cursor/skills").join(skill.name);
+        write_bundle_files(&dirty_home, skill, &expected);
+        fs::write(dirty_home.join("SKILL.md"), "operator edited this").unwrap();
+
+        let unmanaged = home.join(".agents/skills").join(skill.name);
+        fs::create_dir_all(&unmanaged).unwrap();
+        fs::write(unmanaged.join("SKILL.md"), "hand-authored").unwrap();
+
+        let entries = refresh_managed_installs(Some(&home), None);
+        let by_path: std::collections::HashMap<_, _> = entries
+            .iter()
+            .map(|entry| (entry.path.clone(), entry.status.as_str()))
+            .collect();
+
+        let stale_status = by_path
+            .get(&crate::display_path::shown(&stale_dir).to_string())
+            .copied()
+            .unwrap_or("missing");
+        assert_eq!(stale_status, "updated", "stale managed copy must refresh");
+        let refreshed = expected_manifest_for(skill);
+        let live: ManagedManifest =
+            serde_json::from_str(&fs::read_to_string(stale_dir.join(MANIFEST_NAME)).unwrap())
+                .unwrap();
+        assert_eq!(live.anvil_version, refreshed.anvil_version);
+
+        let dirty_status = by_path
+            .get(&crate::display_path::shown(&dirty_home).to_string())
+            .copied()
+            .unwrap_or("missing");
+        assert_eq!(dirty_status, "skipped (dirty)");
+        assert_eq!(
+            fs::read_to_string(dirty_home.join("SKILL.md")).unwrap(),
+            "operator edited this"
+        );
+
+        let unmanaged_status = by_path
+            .get(&crate::display_path::shown(&unmanaged).to_string())
+            .copied()
+            .unwrap_or("missing");
+        assert_eq!(unmanaged_status, "skipped (unmanaged)");
+    }
+
+    #[test]
+    fn refresh_managed_installs_noops_fresh_copies() {
+        let (_keep, home) = canonical_tempdir();
+        let skill = developer_functions();
+        let expected = expected_manifest_for(skill);
+        let destination = claude_skill_dir(&home);
+        write_bundle_files(&destination, skill, &expected);
+
+        let entries = refresh_managed_installs(Some(&home), None);
+        assert!(
+            entries.iter().any(|entry| {
+                entry.path == crate::display_path::shown(&destination).to_string()
+                    && entry.status == "already installed"
+            }),
+            "fresh copy must no-op, got {entries:?}"
+        );
+    }
+
+    #[test]
+    fn refresh_managed_installs_ignores_absent_destinations() {
+        let (_keep, home) = canonical_tempdir();
+        let entries = refresh_managed_installs(Some(&home), None);
+        assert!(
+            entries.is_empty(),
+            "absent clients must not be invented, got {entries:?}"
         );
     }
 }

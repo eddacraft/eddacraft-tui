@@ -1413,7 +1413,7 @@ Skill bundle. **When to use:** To make Anvil's agent-skill guidance
 detected agent harnesses without fetching the private skill catalogue.
 
 **Synopsis:**
-`anvil skill install [--client <client>]... [--scope <global|project>]`
+`anvil skill install [--client <client>]... [--scope <global|project>] [--refresh-managed]`
 
 With an interactive terminal and no `--client`, Anvil detects supported
 harnesses and asks which ones to install into. Scope remains a choice and
@@ -1424,13 +1424,14 @@ harnesses.
 
 **`install` flags:**
 
-| Flag                 | Description                                             |
-| -------------------- | ------------------------------------------------------- |
-| `--client <client>`  | Client to install into. Repeat to select more than one. |
-| `--scope <scope>`    | Install globally (default) or into the current project. |
-| `--workspace <path>` | Override the selected scope root.                       |
-| `--verify`           | Verify the installed managed bundle without writing.    |
-| `--dry-run`          | Preview resolved destinations without writing.          |
+| Flag                 | Description                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| `--client <client>`  | Client to install into. Repeat to select more than one.                                         |
+| `--scope <scope>`    | Install globally (default) or into the current project.                                         |
+| `--workspace <path>` | Override the selected scope root.                                                               |
+| `--verify`           | Verify the installed managed bundle without writing.                                            |
+| `--dry-run`          | Preview resolved destinations without writing.                                                  |
+| `--refresh-managed`  | Rewrite existing managed copies from this binary; skip dirty/unmanaged. No `--client` required. |
 
 **Safety:** Anvil records per-file hashes and bundle provenance. Repeat
 installation is idempotent; unmanaged, modified, or symlinked destinations are
@@ -1446,6 +1447,7 @@ before retrying.
 $ anvil skill install --client codex
 $ anvil skill install --client claude-code --client opencode --scope project
 $ anvil skill install --client codex --verify
+$ anvil skill install --refresh-managed
 ```
 
 See
@@ -2168,10 +2170,13 @@ $ anvil gctx egress disable
 
 ## anvil update
 
-**Class:** User-explicit **Purpose:** Update Anvil to the latest version. **When
-to use:** To check for or install a newer release. Package-manager installs
-(Homebrew, Scoop, WinGet) remain owned by their package manager; anvil can run
-the manager's fixed latest-version command after explicit consent.
+**Class:** User-explicit **Purpose:** Update Anvil to the latest version and
+refresh managed agent skills. **When to use:** To check for or install a newer
+release. Package-manager installs (Homebrew, Scoop, WinGet) remain owned by
+their package manager; anvil can run the manager's fixed latest-version command
+after explicit consent. After a successful non-`--check` run, anvil refreshes
+existing managed skill copies from the new binary and skips dirty or unmanaged
+directories.
 
 **Synopsis:** `anvil update [--check] [--version <ver>] [--force] [--yes]`
 

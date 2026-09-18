@@ -11,6 +11,14 @@ engineering maintenance are recorded in the
 > **Draft.** This section accumulates customer-relevant changes landed on
 > `main`; the version and date are set at the next release.
 
+### Added
+
+- **`anvil update` refreshes managed agent skills.** After a successful upgrade
+  (and when the binary is already current), existing managed skill copies are
+  rewritten from the snapshot in this binary. Dirty or unmanaged directories are
+  skipped. `--check` does not write. `anvil skill install --refresh-managed`
+  does the same refresh without selecting clients.
+
 ### Fixed
 
 - **MCP `anvil_apply_patch` evaluates installed pack policies.** A path-scoped

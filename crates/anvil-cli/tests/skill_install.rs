@@ -589,3 +589,69 @@ fn refuses_a_symlinked_managed_manifest_before_reading_it() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("symlinked path"));
 }
+
+#[test]
+fn help_mentions_refresh_managed() {
+    let output = Command::new(ANVIL_BIN)
+        .args(["--no-tui", "skill", "install", "--help"])
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .output()
+        .expect("invoke anvil skill install help");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("--refresh-managed"), "stdout: {stdout}");
+}
+
+#[test]
+fn refresh_managed_updates_stale_project_install_without_client_flag() {
+    let root = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    assert!(
+        run(root.path(), &["--client", "codex", "--scope", "project"])
+            .status
+            .success()
+    );
+    let skill = fs::canonicalize(root.path())
+        .unwrap()
+        .join(".agents/skills/anvil-developer-functions");
+    let manifest_path = skill.join(".anvil-managed.json");
+    let mut manifest: Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    manifest["anvilVersion"] = Value::String("0.0.0-stale".to_string());
+    fs::write(
+        &manifest_path,
+        format!("{}\n", serde_json::to_string_pretty(&manifest).unwrap()),
+    )
+    .unwrap();
+
+    let workspace = fs::canonicalize(root.path()).unwrap();
+    let output = Command::new(ANVIL_BIN)
+        .args([
+            "--no-tui",
+            "skill",
+            "install",
+            "--refresh-managed",
+            "--workspace",
+        ])
+        .arg(&workspace)
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .output()
+        .expect("invoke anvil skill install --refresh-managed");
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("updated"),
+        "refresh must rewrite the stale copy: {stdout}"
+    );
+    let live: Value = serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    assert_ne!(live["anvilVersion"], "0.0.0-stale");
+}
