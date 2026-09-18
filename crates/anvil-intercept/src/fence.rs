@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::path_identity;
 use crate::rate_window::{RateDecision, RateWindow};
 use crate::registry::SessionRegistry;
 use crate::store_io::{
@@ -131,7 +132,9 @@ pub struct CascadeRecord {
 
 impl CascadeRecord {
     fn matches(&self, worktree: &Path) -> bool {
-        self.worktree == worktree
+        // Registry / status keys are dunce-plain; leftover fence files may
+        // still carry verbatim `\\?\` forms from pre-migration writes.
+        path_identity::same_path(&self.worktree, worktree)
     }
 }
 
@@ -247,7 +250,11 @@ impl FenceState {
 
 impl FenceRecord {
     fn matches(&self, worktree: &Path) -> bool {
-        self.worktree == worktree || self.aliases.iter().any(|alias| alias == worktree)
+        path_identity::same_path(&self.worktree, worktree)
+            || self
+                .aliases
+                .iter()
+                .any(|alias| path_identity::same_path(alias, worktree))
     }
 }
 
@@ -715,7 +722,7 @@ impl FenceStore {
             .registry
             .active_sessions()
             .into_iter()
-            .filter(|session| session.worktree == worktree)
+            .filter(|session| path_identity::same_path(&session.worktree, worktree))
             .collect();
         if sessions.is_empty() {
             return;
@@ -928,14 +935,16 @@ fn non_empty_env(
 }
 
 fn canonicalise_worktree(worktree: &Path) -> Result<PathBuf, FenceStoreError> {
-    fs::canonicalize(worktree).map_err(|source| FenceStoreError::WorktreePathInvalid {
+    // Match registry / registration_store: dunce-plain keys so Windows
+    // plain drive paths and leftover verbatim forms share one identity.
+    dunce::canonicalize(worktree).map_err(|source| FenceStoreError::WorktreePathInvalid {
         path: worktree.to_path_buf(),
         source,
     })
 }
 
 fn lookup_path(worktree: &Path) -> Option<PathBuf> {
-    fs::canonicalize(worktree)
+    dunce::canonicalize(worktree)
         .ok()
         .or_else(|| worktree.is_absolute().then(|| worktree.to_path_buf()))
 }

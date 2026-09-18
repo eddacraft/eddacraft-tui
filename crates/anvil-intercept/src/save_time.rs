@@ -1509,7 +1509,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
     }
 
     fn set_originating_session(&mut self, session_id: &str, worktree: &Path) {
-        let Ok(worktree) = std::fs::canonicalize(worktree) else {
+        let Ok(worktree) = dunce::canonicalize(worktree) else {
             self.originating_session = None;
             return;
         };
@@ -3589,7 +3589,7 @@ fn has_uri_scheme_prefix(value: &str) -> bool {
 /// The root resolved at admission, so a failure here is an internal error
 /// (a race that removed the root between admission and keying).
 fn canonical_root(root: &Path) -> Result<PathBuf, SaveTimeError> {
-    std::fs::canonicalize(root).map_err(SaveTimeError::Io)
+    dunce::canonicalize(root).map_err(SaveTimeError::Io)
 }
 
 /// Authorise `root` against the connection's admitted set, building it on first
@@ -3701,7 +3701,7 @@ fn authorise_gctx_root<'f>(
     };
     // A vanished/unresolvable root is the same plain refusal `authorise_root`
     // reports for it.
-    let Ok(canonical) = std::fs::canonicalize(root) else {
+    let Ok(canonical) = dunce::canonicalize(root) else {
         return Err(refused());
     };
     // Single non-bypassable entry point: the graph-root rule and the admit
@@ -5148,8 +5148,8 @@ mod tests {
         fs::write(admin.join("gitdir"), format!("{}\n", git_file.display()))
             .expect("gitdir back-pointer");
 
-        let main = fs::canonicalize(&main).expect("main canonicalises");
-        let linked = fs::canonicalize(&linked).expect("linked canonicalises");
+        let main = dunce::canonicalize(&main).expect("main canonicalises");
+        let linked = dunce::canonicalize(&linked).expect("linked canonicalises");
         (main, linked)
     }
 
@@ -5157,7 +5157,7 @@ mod tests {
     fn nested_secrets_dir(main: &Path) -> PathBuf {
         let nested = main.join("secrets");
         fs::create_dir_all(&nested).expect("nested dir");
-        fs::canonicalize(&nested).expect("nested canonicalises")
+        dunce::canonicalize(&nested).expect("nested canonicalises")
     }
 
     /// CIB-414 / CIB-398: in `Open` mode the daemon first-touch-adopts the first
@@ -5410,11 +5410,29 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let (main, _linked) = repo_with_linked_worktree(tmp.path());
         fs::create_dir_all(main.join("src")).expect("src dir");
-        let spelled = main.join("src").join("..");
+        // Build a client spelling that stays OsStr-distinct after dunce
+        // (plain) canonicalisation. `Path::join("..")` pops on non-verbatim
+        // paths, and `join(".")` can be treated as equal by Path PartialEq
+        // on some hosts — so synthesise a redundant `src/../` segment in
+        // the OsString instead of relying on join normalisation.
+        let spelled = {
+            let sep = std::path::MAIN_SEPARATOR_STR;
+            let mut raw = main.as_os_str().to_owned();
+            raw.push(sep);
+            raw.push("src");
+            raw.push(sep);
+            raw.push("..");
+            PathBuf::from(raw)
+        };
         assert_ne!(
             spelled.as_os_str(),
             main.as_os_str(),
             "fixture must use a distinct client spelling of the same root"
+        );
+        assert_eq!(
+            dunce::canonicalize(&spelled).expect("spelling resolves"),
+            main,
+            "the redundant src/.. segment must still resolve to the repo root"
         );
 
         let mut admitted = None;

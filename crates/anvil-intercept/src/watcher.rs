@@ -562,7 +562,7 @@ mod tests {
             } => {
                 assert_eq!(session_id.as_str(), "sess-a");
                 // worktree mirrors the canonicalised registry key.
-                assert_eq!(*worktree, std::fs::canonicalize(wt.path()).unwrap());
+                assert_eq!(*worktree, dunce::canonicalize(wt.path()).unwrap());
                 // Empty rule registry → Allow.
                 assert!(matches!(decision, EnforcementDecision::Allow { .. }));
             }

@@ -3824,7 +3824,7 @@ mod tests {
     fn worktree_for_lineage_returns_registered_session_worktree() {
         let registry = SessionRegistry::new();
         let wt = make_worktree();
-        let canonical = wt.path().canonicalize().expect("canonicalise");
+        let canonical = dunce::canonicalize(wt.path()).expect("canonicalise");
         let issued = tag("anvil-run", "launcher", 1_700_000_900);
 
         registry
@@ -4189,7 +4189,7 @@ mod tests {
             hits_for_hook.lock().unwrap().push(worktree.to_path_buf());
         }));
         let wt = make_worktree();
-        let canonical = wt.path().canonicalize().unwrap();
+        let canonical = dunce::canonicalize(wt.path()).unwrap();
 
         registry
             .register(&sid("u1"), wt.path(), None, Instant::now())
@@ -4224,7 +4224,7 @@ mod tests {
         assert!(!refused, "second install must be refused, not replace");
 
         let wt = make_worktree();
-        let canonical = wt.path().canonicalize().unwrap();
+        let canonical = dunce::canonicalize(wt.path()).unwrap();
         registry
             .register(&sid("p1"), wt.path(), None, Instant::now())
             .unwrap();
@@ -4246,7 +4246,7 @@ mod tests {
             hits_for_hook.lock().unwrap().push(worktree.to_path_buf());
         }));
         let wt = make_worktree();
-        let canonical = wt.path().canonicalize().unwrap();
+        let canonical = dunce::canonicalize(wt.path()).unwrap();
         let now = Instant::now();
         let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
         let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
@@ -4282,7 +4282,7 @@ mod tests {
             }),
         );
         let wt = make_worktree();
-        let canonical = wt.path().canonicalize().unwrap();
+        let canonical = dunce::canonicalize(wt.path()).unwrap();
         let registered_at = Instant::now();
         let tag_a = tag("anvil-run", "claude-1", 1_700_000_001);
         let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
@@ -4332,8 +4332,8 @@ mod tests {
         );
         let wt_a = make_worktree();
         let wt_b = make_worktree();
-        let canon_a = wt_a.path().canonicalize().unwrap();
-        let canon_b = wt_b.path().canonicalize().unwrap();
+        let canon_a = dunce::canonicalize(wt_a.path()).unwrap();
+        let canon_b = dunce::canonicalize(wt_b.path()).unwrap();
         let registered_at = Instant::now();
         registry
             .register(&sid("e1"), wt_a.path(), None, registered_at)

@@ -436,6 +436,10 @@ pub struct SaveTimeDriverSupervisor {
     inner: Arc<SupervisorInner>,
 }
 
+fn driver_map_key(worktree: &Path) -> PathBuf {
+    dunce::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf())
+}
+
 impl SaveTimeDriverSupervisor {
     /// Build a supervisor with explicit seams. `dir` is the driver artefact
     /// directory (PID files, findings logs, spawn logs); production passes
@@ -677,9 +681,10 @@ impl SaveTimeDriverSupervisor {
     /// moment a death is noticed), so the map is taken mutably here.
     #[must_use]
     pub fn driver_status(&self, worktree: &Path) -> Option<DriverStatus> {
+        let key = driver_map_key(worktree);
         let mut drivers = self.inner.drivers.lock().expect("driver map lock poisoned");
-        let entry = drivers.get_mut(worktree)?;
-        Some(self.inner.status_of(worktree, entry))
+        let entry = drivers.get_mut(&key)?;
+        Some(self.inner.status_of(&key, entry))
     }
 
     /// Snapshot of every tracked worktree's driver state (DSV-049 renders
@@ -696,15 +701,16 @@ impl SaveTimeDriverSupervisor {
 
 impl SupervisorInner {
     fn handle(&self, change: MembershipChange, worktree: &Path) {
+        let worktree = driver_map_key(worktree);
         match change {
             // JREL-003: a durable refresh is "ensure a live driver" — a live
             // child is kept, a dead or never-spawned one is (re)spawned
             // within the failure bound.
             MembershipChange::Registered | MembershipChange::Refreshed => {
-                self.spawn_driver(worktree);
+                self.spawn_driver(&worktree);
             }
             MembershipChange::Unregistered | MembershipChange::Reaped => {
-                self.stop_driver(worktree, true);
+                self.stop_driver(&worktree, true);
             }
         }
     }
@@ -2399,7 +2405,7 @@ mod tests {
 
         let h = harness();
         let tmp = tempfile::tempdir().expect("tempdir");
-        let worktree = std::fs::canonicalize(tmp.path()).expect("canonical worktree");
+        let worktree = dunce::canonicalize(tmp.path()).expect("canonical worktree");
         let registry = SessionRegistry::new();
         assert!(registry.set_membership_hook(h.supervisor.membership_hook()));
         let session = SessionId::new("sess-jrel003");
@@ -2473,7 +2479,7 @@ mod tests {
 
         let h = harness();
         let tmp = tempfile::tempdir().expect("tempdir");
-        let worktree = std::fs::canonicalize(tmp.path()).expect("canonical worktree");
+        let worktree = dunce::canonicalize(tmp.path()).expect("canonical worktree");
         let registry = SessionRegistry::new();
         assert!(registry.set_membership_hook(h.supervisor.membership_hook()));
         let session = SessionId::new("sess-jrel003-race");

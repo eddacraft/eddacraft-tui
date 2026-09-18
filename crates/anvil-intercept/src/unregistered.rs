@@ -276,7 +276,11 @@ mod tests {
         let record = state
             .active_fences()
             .iter()
-            .find(|r| r.worktree == std::fs::canonicalize(&worktree).unwrap())
+            .find(|r| {
+                let canonical =
+                    dunce::canonicalize(&worktree).unwrap_or_else(|_| worktree.to_path_buf());
+                crate::path_identity::same_path(&r.worktree, &canonical)
+            })
             .expect("worktree fenced");
         assert!(
             record.reason.contains("unknown-agent"),

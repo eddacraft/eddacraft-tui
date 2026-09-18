@@ -51,7 +51,9 @@ impl WorktreeKey {
     /// directly so the caller can decide whether to treat a missing
     /// directory as "no cache entry" or an error.
     pub fn canonicalise(path: &Path) -> std::io::Result<Self> {
-        std::fs::canonicalize(path).map(Self)
+        // Dunce-plain so unregister hooks (registry keys) and cache keys match
+        // on Windows plain vs verbatim spellings.
+        dunce::canonicalize(path).map(Self)
     }
 
     /// Borrow the underlying canonical path.
@@ -382,7 +384,7 @@ impl RuleSetCache {
     /// Touches of unrelated files — even those that happen to share
     /// a worktree — are a no-op.
     ///
-    /// If `std::fs::canonicalize` fails on the changed file's parent
+    /// If `dunce::canonicalize` fails on the changed file's parent
     /// directory (e.g. it was deleted between the watcher event and
     /// the lookup), the cache cannot match the raw path against its
     /// canonical keys. In that case we conservatively invalidate
@@ -432,7 +434,7 @@ impl RuleSetCache {
         // entry on the fast path, at most `map.len()` on the
         // canonicalise-failure fallback.
         let mut touched: Vec<WorktreeKey> = Vec::new();
-        if let Ok(parent_canon) = std::fs::canonicalize(parent) {
+        if let Ok(parent_canon) = dunce::canonicalize(parent) {
             let worktree = WorktreeKey::from_canonical(parent_canon);
             if consume_invalidation_token(
                 &mut guard.invalidation_windows,

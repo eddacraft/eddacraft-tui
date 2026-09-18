@@ -3029,7 +3029,7 @@ mod tests {
         let home = tempfile::tempdir().expect("home");
         let store = registration_store::RegistrationStore::at_path(secure_store_path(&home));
         let live = tempfile::tempdir().expect("live worktree");
-        let live_canonical = fs::canonicalize(live.path()).expect("canonicalise");
+        let live_canonical = dunce::canonicalize(live.path()).expect("canonicalise");
         let spine = anvil_intercept_proto::session::AgentTag::new(
             "anvil-start",
             anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID,
@@ -3057,7 +3057,7 @@ mod tests {
         store
             .upsert(registration_store::RegistrationRecord::new(
                 SessionId::new("sess_activation_file"),
-                fs::canonicalize(&file_path).expect("canonicalise file"),
+                dunce::canonicalize(&file_path).expect("canonicalise file"),
                 Some(spine),
             ))
             .expect("persist file");
@@ -3089,8 +3089,8 @@ mod tests {
     fn register_configured_worktrees_registers_live_and_skips_missing() {
         let wt_a = tempfile::tempdir().expect("worktree a");
         let wt_b = tempfile::tempdir().expect("worktree b");
-        let a_canonical = fs::canonicalize(wt_a.path()).expect("canonicalise a");
-        let b_canonical = fs::canonicalize(wt_b.path()).expect("canonicalise b");
+        let a_canonical = dunce::canonicalize(wt_a.path()).expect("canonicalise a");
+        let b_canonical = dunce::canonicalize(wt_b.path()).expect("canonicalise b");
         let a_activation_canonical = registration_store::canonicalise_for_registration(wt_a.path());
         let paths = vec![
             wt_a.path().to_path_buf(),
