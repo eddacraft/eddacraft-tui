@@ -127,17 +127,40 @@ pub fn expected_developer_functions_manifest() -> ManagedManifest {
 /// [`SkillInstallOutcome::Broken`] for a corrupt or unusable marker.
 #[must_use]
 pub fn evaluate_install(destination: &Path, expected: &ManagedManifest) -> SkillInstallOutcome {
-    if !destination.exists() {
-        return SkillInstallOutcome::Absent;
-    }
-    if !destination.is_dir() {
-        return SkillInstallOutcome::Broken {
-            // CIB-287: doctor interpolates this reason into the broken: row.
-            reason: format!(
-                "skill path {} exists but is not a directory",
-                crate::display_path::shown(destination)
-            ),
-        };
+    // Match install/refresh: refuse a symlink *leaf* destination. `exists` /
+    // `is_dir` follow links, which would otherwise classify a symlink to an old
+    // valid bundle as Stale and leave doctor --fix retrying forever while
+    // refresh_managed_installs skips the unsafe path.
+    match fs::symlink_metadata(destination) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return SkillInstallOutcome::Absent;
+        }
+        Err(error) => {
+            return SkillInstallOutcome::Broken {
+                reason: format!(
+                    "could not inspect skill path {}: {error}",
+                    crate::display_path::shown(destination)
+                ),
+            };
+        }
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return SkillInstallOutcome::Broken {
+                reason: format!(
+                    "skill path {} is a symlink; refuse to treat as a managed destination",
+                    crate::display_path::shown(destination)
+                ),
+            };
+        }
+        Ok(meta) if !meta.is_dir() => {
+            return SkillInstallOutcome::Broken {
+                // CIB-287: doctor interpolates this reason into the broken: row.
+                reason: format!(
+                    "skill path {} exists but is not a directory",
+                    crate::display_path::shown(destination)
+                ),
+            };
+        }
+        Ok(_) => {}
     }
 
     let manifest_path = destination.join(MANIFEST_NAME);
@@ -544,6 +567,46 @@ mod tests {
             evaluate_install(&destination, &expected),
             SkillInstallOutcome::Dirty
         );
+    }
+
+    #[test]
+    fn evaluate_symlink_destination_is_broken_not_stale() {
+        // A directory symlink to an otherwise-valid old bundle must not be
+        // Stale (auto-fixable): refresh refuses symlink destinations, so
+        // classifying Stale would infinite-retry doctor --fix.
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().join("real-skill");
+        let link = root.path().join(DEFAULT_SKILL_NAME);
+        fs::create_dir_all(&real).unwrap();
+        let skill = bundled_skills()
+            .iter()
+            .find(|s| s.name == DEFAULT_SKILL_NAME)
+            .expect("default skill bundled");
+        for (relative, content) in skill.files {
+            let path = real.join(relative);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(&path, content).unwrap();
+        }
+        let mut stale = expected_manifest_for(skill);
+        stale.anvil_version = "0.0.0-stale".to_string();
+        let body = format!("{}\n", serde_json::to_string_pretty(&stale).unwrap());
+        fs::write(real.join(MANIFEST_NAME), body).unwrap();
+        symlink(&real, &link).unwrap();
+
+        let outcome = evaluate_install(&link, &expected_manifest_for(skill));
+        match outcome {
+            SkillInstallOutcome::Broken { reason } => {
+                assert!(
+                    reason.contains("symlink"),
+                    "broken reason should mention symlink: {reason}"
+                );
+            }
+            other => panic!("symlink destination must be Broken, got {other:?}"),
+        }
     }
 
     #[test]

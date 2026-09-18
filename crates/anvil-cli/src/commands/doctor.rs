@@ -2431,9 +2431,15 @@ fn classify_mixed_skill_issues(
     } else {
         CheckStatus::Warn
     };
-    let (remediation_summary, command) = if dirty > 0 || unmanaged > 0 || broken > 0 {
+    let (remediation_summary, command) = if stale > 0 {
         (
-            "Inspect dirty, unmanaged, or broken skill directories before reinstalling; move local changes aside, then run `anvil skill install`. `anvil doctor --fix` refreshes stale managed copies only."
+            "Run `anvil doctor --fix` to refresh stale managed copies. Inspect dirty, unmanaged, or broken skill directories separately; move local changes aside, then run `anvil skill install` for those."
+                .to_string(),
+            Some("anvil doctor --fix".to_string()),
+        )
+    } else if dirty > 0 || unmanaged > 0 || broken > 0 {
+        (
+            "Inspect dirty, unmanaged, or broken skill directories before reinstalling; move local changes aside, then run `anvil skill install`."
                 .to_string(),
             Some("anvil skill install".to_string()),
         )
@@ -2594,7 +2600,7 @@ fn apply_managed_skills_fix_at(
     }
     if skipped > 0 {
         println!(
-            "  Skipped: managed-skills — left {skipped} dirty, unmanaged, or broken cop{} in place",
+            "  Skipped: managed-skills — left {skipped} managed skill cop{} in place",
             if skipped == 1 { "y" } else { "ies" }
         );
     }
@@ -6109,6 +6115,11 @@ mod tests {
         assert!(
             check.auto_fixable,
             "mixed stale+dirty must still be fixable"
+        );
+        assert_eq!(
+            check.remediation.command.as_deref(),
+            Some("anvil doctor --fix"),
+            "stale coexistence must advertise doctor --fix, not skill install"
         );
         apply_managed_skills_fix_at(&mut check, false, Some(&home), Some(&project));
 

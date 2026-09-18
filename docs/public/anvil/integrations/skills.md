@@ -8,6 +8,7 @@ owner: SKPKG
 upstream:
   - crates/anvil-cli/src/commands/skill.rs
   - crates/anvil-cli/src/commands/skill_state.rs
+  - crates/anvil-cli/src/commands/doctor.rs
 verified_against: 0.11.1-beta
 ---
 
