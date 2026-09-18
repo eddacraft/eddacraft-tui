@@ -984,14 +984,14 @@
     },
     {
       "key": "settings",
-      "name": "anvil settings inspect",
+      "name": "anvil settings",
       "groupKey": "foundational",
       "owner": "SETINS",
       "status": "active",
       "requires": [],
       "flagLinkage": {
         "disposition": "unflagged",
-        "reason": "Inspect-only control centre; no operational rollout, entitlement, or kill-switch currently controls this feature."
+        "reason": "Control centre for preferences: Class A interface keys are writable from the TUI since SETPREF; Class B/C remain inspect-only here. No operational rollout, entitlement, or kill-switch flag currently controls this feature."
       },
       "planAvailability": {
         "plan-free": "undecided",
