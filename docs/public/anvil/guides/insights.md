@@ -8,9 +8,9 @@ owner: INSIGHTS
 upstream:
   - crates/anvil-cli/src/commands/insights.rs
   - crates/anvil-cli/src/insights/mod.rs
-  - schemas/anvil-insights.v2.json
+  - schemas/anvil-insights.v1.json
   - schemas/anvil-insights.v3.json
-verified_against: 0.9.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Review local insights

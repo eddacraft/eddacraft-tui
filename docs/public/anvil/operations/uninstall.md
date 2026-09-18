@@ -7,7 +7,7 @@ description:
 owner: DOCSYNC
 upstream:
   - crates/anvil-cli/src/commands/uninstall.rs
-verified_against: 0.9.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Uninstall and clean up
@@ -68,6 +68,10 @@ winget uninstall eddacraft.anvil
 
 ```powershell
 scoop uninstall anvil
+```
+
+```bash
+cargo uninstall anvil
 ```
 
 For the standalone installer, use the path reported by `Get-Command anvil -All`

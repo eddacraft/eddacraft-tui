@@ -22,7 +22,7 @@ upstream:
   - plans/decisions/129-policy-surface-inventory-and-precedence.md
   - plans/decisions/131-registry-override-explicit-only.md
   - plans/decisions/037-witness-chain-and-l4-policy.md
-verified_against: 0.9.7-beta
+verified_against: 0.11.1-beta
 ---
 
 # Policy model

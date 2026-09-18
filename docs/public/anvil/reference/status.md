@@ -12,7 +12,7 @@ upstream:
   - crates/anvil-tui/src/surfaces/status
   - schemas/anvil-status.v1.json
   - plans/specs/2026-08-30-protection-posture-board.md
-verified_against: 0.10.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # anvil status

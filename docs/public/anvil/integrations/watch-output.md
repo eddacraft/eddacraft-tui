@@ -8,7 +8,7 @@ owner: WOUT
 upstream:
   - crates/anvil-kernel-types/src/watch_event.rs
   - crates/anvil-cli/src/commands/watch.rs
-verified_against: 0.9.2-beta
+verified_against: 0.11.1-beta
 ---
 
 # Watch output reference

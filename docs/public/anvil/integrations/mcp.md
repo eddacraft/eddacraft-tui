@@ -10,7 +10,7 @@ upstream:
   - crates/anvil-cli/src/activation/agent_registry.rs
   - crates/anvil-cli/src/commands/start.rs
   - crates/anvil-cli/src/mcp/tools/shared.rs
-verified_against: 0.9.7-beta
+verified_against: 0.11.1-beta
 ---
 
 # Model Context Protocol integration
@@ -119,10 +119,13 @@ client configuration.
 anvil mcp --help
 ```
 
-The current CLI provides `install` and `serve`. Connection readiness is reported
-by `anvil start --verify`, not by a separate MCP status command. Subcommands can
-evolve during beta — prefer installed help over hand-copied configuration
-shapes.
+The current CLI provides `install`, `serve`, `refresh`, `pin`, and `unpin`.
+`refresh` rewrites owned MCP configs, recycles a skewed daemon, and signals live
+sessions — the emergency cascade for a stale or drifted setup. `pin` and `unpin`
+freeze and resume daily MCP self-heal (`ANVIL_MCP_PIN` is the session override).
+Connection readiness is reported by `anvil start --verify`, not by a separate
+MCP status command. Subcommands can evolve during beta — prefer installed help
+over hand-copied configuration shapes.
 
 ## Linked worktrees
 
@@ -132,10 +135,10 @@ sibling Worktrunk or harness worktree. Other repositories and unregistered
 directories are still refused.
 
 The graph-context tools (`anvil_search_symbols`, `anvil_find_callers`,
-`anvil_find_dependents`, `anvil_impact_of_change`, `anvil_affected_tests`, and
-`anvil_symbol_context`) need the checkout or worktree root itself as
-`workspaceRoot`; a subdirectory is refused so that workspace-relative paths keep
-their sensitive-path prefix.
+`anvil_find_dependents`, `anvil_impact_of_change`, `anvil_affected_tests`,
+`anvil_symbol_context`, and `anvil_query_boundary`) need the checkout or
+worktree root itself as `workspaceRoot`; a subdirectory is refused so that
+workspace-relative paths keep their sensitive-path prefix.
 
 ## Security boundary
 
@@ -183,6 +186,33 @@ payloads do.
 
 Managed agent skills that teach this loop ship with anvil when your binary
 exposes them — see [managed agent skills](skills.md).
+
+## Execution and inspection tools
+
+Beyond pre-write validation and graph context, the server exposes tools that run
+anvil's checks and report project state directly, without a subprocess:
+
+| Tool             | Purpose                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| `anvil_check`    | Validate files against antipattern rules; returns warnings with locations, severity, and suggestions |
+| `anvil_gate`     | Run the quality gate — a planless scan over `targetFiles`, or a full config-driven run               |
+| `anvil_fix`      | Apply deterministic auto-fixes for known antipattern warnings (currently AP-001, AP-003, AP-004)     |
+| `anvil_suppress` | Insert a time-boxed inline suppression comment (reason required, 30-day default expiry, 365-day max) |
+| `anvil_status`   | Quick project health summary: available checks, configuration, baseline status                       |
+
+`anvil_check` and `anvil_gate` cover antipattern warnings today; architecture
+check parity is deferred to a follow-up slice.
+
+## Settings tools
+
+Read-only tools over the same settings read model as `anvil settings`:
+
+| Tool                     | Purpose                                           |
+| ------------------------ | ------------------------------------------------- |
+| `anvil_settings_show`    | Full settings envelope (`anvil.settings.v1`)      |
+| `anvil_settings_explain` | Explain one settings key from the same read model |
+| `anvil_settings_status`  | Settings status envelope                          |
+| `anvil_settings_sources` | Settings sources envelope                         |
 
 ## Next step
 

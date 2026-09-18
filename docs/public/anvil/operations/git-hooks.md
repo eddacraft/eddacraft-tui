@@ -11,7 +11,7 @@ upstream:
   - crates/anvil-hook/src/coexistence.rs
   - crates/anvil-cli/src/policy_load.rs
   - crates/anvil-cli/src/commands/status.rs
-verified_against: 0.9.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Add Git hooks

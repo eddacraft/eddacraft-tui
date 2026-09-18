@@ -9,7 +9,7 @@ upstream:
   - crates/anvil-config/src/format.rs
   - crates/anvil-cli/src/commands/config.rs
   - crates/anvil-checks/src/antipattern/generated.rs
-verified_against: 0.9.7-beta
+verified_against: 0.11.1-beta
 ---
 
 # Inspect and migrate configuration

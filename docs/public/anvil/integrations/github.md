@@ -10,7 +10,7 @@ upstream:
   - crates/anvil-cli/src/commands/check.rs
   - crates/anvil-sarif/src/lib.rs
   - install.sh
-verified_against: 0.9.4-beta
+verified_against: 0.11.1-beta
 ---
 
 # Add anvil to GitHub Actions
@@ -50,7 +50,7 @@ jobs:
   gate:
     runs-on: ubuntu-latest
     env:
-      ANVIL_VERSION: 0.9.4-beta
+      ANVIL_VERSION: 0.11.1-beta
     steps:
       - uses: actions/checkout@v4
 

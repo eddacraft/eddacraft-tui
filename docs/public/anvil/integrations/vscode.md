@@ -9,7 +9,7 @@ upstream:
   - crates/anvil-cli/src/activation/agent_registry.rs
   - crates/anvil-cli/src/commands/watch.rs
   - crates/anvil-cli/src/commands/start.rs
-verified_against: 0.9.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Use Visual Studio Code

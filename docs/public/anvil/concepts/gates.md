@@ -6,7 +6,7 @@ owner: DOCSYNC
 upstream:
   - crates/anvil-cli/src/commands/gate.rs
   - crates/anvil-cli/src/commands/check.rs
-verified_against: 0.9.7-beta
+verified_against: 0.11.1-beta
 ---
 
 # Checks, findings, and gates

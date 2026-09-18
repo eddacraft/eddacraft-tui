@@ -7,7 +7,7 @@ upstream:
   - crates/anvil-cli/src/commands/mcp_installer.rs
   - crates/anvil-cli/src/activation/agent_registry.rs
   - crates/anvil-cli/src/commands/start.rs
-verified_against: 0.9.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Protect AI-assisted writes
@@ -68,8 +68,9 @@ Inspect the available MCP operations without changing configuration:
 anvil mcp --help
 ```
 
-The current CLI provides `install` and `serve`. Connection readiness is reported
-by `anvil start --verify`, not by a separate MCP status command.
+The current CLI provides `install`, `serve`, `refresh`, `pin`, and `unpin`.
+Connection readiness is reported by `anvil start --verify`, not by a separate
+MCP status command.
 
 Optionally install a managed [agent skill](../integrations/skills.md) when your
 binary exposes the skill surface (`anvil --help` lists `skill`). Skills are

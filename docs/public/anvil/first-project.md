@@ -9,7 +9,7 @@ upstream:
   - crates/anvil-architecture/src/definition.rs
   - crates/anvil-architecture/src/validator.rs
   - crates/anvil-cli/src/commands/architecture.rs
-verified_against: 0.9.4-beta
+verified_against: 0.11.1-beta
 ---
 
 # Define architecture boundaries

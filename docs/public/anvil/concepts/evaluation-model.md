@@ -9,7 +9,7 @@ upstream:
   - crates/anvil-cli/src/commands/gate.rs
   - crates/anvil-cli/src/commands/check_catalog.rs
   - plans/decisions/127-always-on-cheap-catalogue.md
-verified_against: 0.9.7-beta
+verified_against: 0.11.1-beta
 ---
 
 # How anvil evaluates a project

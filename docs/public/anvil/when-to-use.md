@@ -9,7 +9,7 @@ upstream:
   - crates/anvil-cli/src/commands/welcome.rs
   - crates/anvil-kernel/src/parser/languages.rs
   - crates/anvil-cli/src/main.rs
-verified_against: 0.9.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # When to use anvil

@@ -8,7 +8,7 @@ upstream:
   - crates/anvil-cli/src/commands/plan.rs
   - crates/anvil-cli/src/commands/config.rs
   - crates/anvil-cli/src/commands/check.rs
-verified_against: 0.9.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Plans and project checks

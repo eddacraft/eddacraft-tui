@@ -10,7 +10,7 @@ upstream:
   - docs/public/anvil/tutorials/first-save-caught.md
   - docs/public/anvil/tutorials/policies.md
   - docs/public/anvil/tutorials/rust-project.md
-verified_against: 0.9.0-beta
+verified_against: 0.11.1-beta
 ---
 
 # Tutorials

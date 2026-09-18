@@ -7,7 +7,7 @@ description:
 owner: DOCDEF
 upstream:
   - crates/anvil-cli/src/commands/baseline.rs
-verified_against: 0.9.6-beta
+verified_against: 0.11.1-beta
 ---
 
 # Introduction baseline

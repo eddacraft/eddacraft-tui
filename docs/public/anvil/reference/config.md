@@ -11,7 +11,7 @@ upstream:
   - crates/anvil-config/src/migrations.rs
   - crates/anvil-config/src/discover.rs
   - crates/anvil-cli/src/commands/config.rs
-verified_against: 0.9.7-beta
+verified_against: 0.11.1-beta
 ---
 
 # Configuration fields
