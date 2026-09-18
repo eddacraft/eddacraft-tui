@@ -190,7 +190,11 @@ exposes them — see [managed agent skills](skills.md).
 ## Execution and inspection tools
 
 Beyond pre-write validation and graph context, the server exposes tools that run
-anvil's checks and report project state directly, without a subprocess:
+anvil's checks and report project state. Most run in-process. The exception is
+`anvil_gate` in full mode (omit `targetFiles`): that shells out to
+`anvil gate --json`, so operators should account for its subprocess timeout,
+environment, and side-effects. Planless `anvil_gate` with `targetFiles` stays
+in-process:
 
 | Tool             | Purpose                                                                                              |
 | ---------------- | ---------------------------------------------------------------------------------------------------- |
