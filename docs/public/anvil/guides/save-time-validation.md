@@ -43,8 +43,9 @@ Wait for the ready message before editing a file.
 2. Edit a supported source file.
 3. Save it.
 4. Confirm the watcher names the file and reports findings or an explicit clean
-   result. A clean save is regex plus secrets, and pack-clean if the policy hook
-   ran.
+   result. A clean save is regex plus secrets. When packs were evaluated, daemon
+   scope shows as `antipattern+policy` (`check_families` includes `policy`);
+   `coverage: certified` remains graph plus antipattern.
 
 Use the [ten-minute tutorial](../first-gate.md) for a safe deliberate finding.
 
@@ -55,11 +56,14 @@ fallback protection, but it is not equivalent to stopping an unsafe AI write
 before it reaches disk.
 
 The save-time catalogue is regex anti-patterns and secrets. **No AST.** When
-`anvil start` / `anvil intercept start` injected the policy evaluator, installed
-packs can add diagnostics and `check_families` includes `policy`. Coverage stays
-graph plus antipattern. Save-time does not interrupt; the file is already on
-disk. MCP `anvil_validate_write` still owns interrupt-before-write. A daemon
-started without that CLI hook stays regex and secrets only.
+`anvil start` / `anvil intercept start` injected the policy evaluator **and an
+enabled pack was actually evaluated**, packs can add diagnostics and
+`check_families` includes `policy` (daemon scope `antipattern+policy`). No
+packs, discovery failure, or `ANVIL_POLICY_ENFORCEMENT=off` returns
+`evaluated: false` and withholds the policy family. `coverage: certified`
+remains graph plus antipattern. Save-time does not interrupt; the file is
+already on disk. MCP `anvil_validate_write` still owns interrupt-before-write. A
+daemon started without that CLI hook stays regex and secrets only.
 
 Default `anvil watch` action is `check`, not `gate`. After an allow, watch may
 print one stderr line if a background AST follow-up finds something; that line
@@ -67,7 +71,7 @@ does not block the write. Run `anvil check --changed` when you want regex and
 AST anti-patterns, plus secrets, on demand, and `anvil gate` when you need a
 merge judgement.
 
-The four layers are in
+The evaluation layers are in
 [How anvil evaluates a project](../concepts/evaluation-model.md).
 
 ## Common problems
