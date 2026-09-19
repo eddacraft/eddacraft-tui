@@ -9,6 +9,38 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-09-18
+
+### Added
+
+- **`animation::advance`** (unstable): advance one tween on the shared frame
+  clock. The returned activity is folded into `is_animating()`, so custom
+  tweens keep the host event loop pumping after `animate-core` 0.5 dropped
+  global tick tracking. `ProgressBar` and `ParallelProgress` use it
+  internally; the prelude still re-exports only `animate_tick` and
+  `is_animating`.
+
+### Changed
+
+- Depend on `animate-core` `=0.7.0` (was `=0.4.1`). The animation shim now
+  owns the frame clock so `animate_tick` / `is_animating` stay correct for
+  in-crate widgets.
+- Default `EddaCraftTheme` text colours now clear the WCAG AA 4.5:1 floor on
+  The Void: anvil Ember `#CC5500` → `#D95A00`, Brick Red `#C94A4A` →
+  `#CF5E5E`. Highlighted rows (The Void on Ember) rise with the accent.
+
+### Fixed
+
+- `Select` selected-row descriptions no longer paint muted grey on the
+  accent (1.18:1). The description keeps the highlight foreground and drops
+  weight instead.
+- `Toast::measured_height` measures the icon with `unicode-width` instead of
+  assuming a 1-cell prefix, so stacked toasts with emoji or CJK icons no
+  longer overlap or clip.
+- `is_animating()` keeps one extra frame after a tween finishes, so the
+  terminal draws the settled value instead of leaving the last interpolated
+  frame on screen.
+
 ## [0.5.2] - 2026-08-27
 
 ### Added
@@ -462,7 +494,8 @@ contains breaking changes — see **Breaking** below.
 - `vyfor/animate` powers the new animation runtime — credited in README.
 - `pretext-tui` provides the layout engine integrated as the `pretext` module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.2...HEAD
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.3...HEAD
+[0.5.3]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.2...eddacraft-tui-v0.5.3
 [0.5.2]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.1...eddacraft-tui-v0.5.2
 [0.5.1]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.0...eddacraft-tui-v0.5.1
 [0.5.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.1...eddacraft-tui-v0.5.0
