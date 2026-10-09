@@ -108,9 +108,19 @@ impl<T: Theme> StatefulWidget for ProgressBar<'_, T> {
             return;
         }
 
-        // Sync animation target when the logical fraction changes.
+        // Half a count, not an absolute `f64::EPSILON`. One unit at totals
+        // around 2^53 (~9e15) is smaller than that epsilon and was dropped.
+        // A relative epsilon misses the same step near 1.0. An unchanged
+        // fraction (delta == 0) still does not restart the tween. `total == 0`
+        // has no count; `fraction()` is then always 0.
         let target = state.fraction();
-        if (target - state.target_fraction).abs() > f64::EPSILON {
+        #[allow(clippy::cast_precision_loss)]
+        let threshold = if state.total == 0 {
+            f64::EPSILON
+        } else {
+            0.5 / (state.total as f64)
+        };
+        if (target - state.target_fraction).abs() > threshold {
             state.display_fraction.to(target);
             state.target_fraction = target;
         }
@@ -212,6 +222,120 @@ mod tests {
         assert!(
             diff < 1e-6,
             "expected convergence within duration, diff={diff}"
+        );
+    }
+
+    #[test]
+    fn single_unit_step_updates_target_when_total_exceeds_f64_epsilon() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        use crate::theme::EddaCraftTheme;
+
+        // 2^53 counts: one step is 2^-53, below f64::EPSILON (2^-52, about
+        // 2.22e-16). Totals near 9e15 hit the same gap. The bar must still
+        // retarget on a single increment.
+        const TOTAL: u64 = 1 << 53;
+
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 1);
+        let mut buf = Buffer::empty(area);
+        let mut state = ProgressBarState {
+            current: 0,
+            total: TOTAL,
+            ..Default::default()
+        };
+
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+        assert_eq!(state.target_fraction.to_bits(), 0.0_f64.to_bits());
+
+        state.current = 1;
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+
+        let step = state.fraction();
+        assert!(
+            step < f64::EPSILON,
+            "fixture must be invisible to an absolute f64::EPSILON check, step={step}"
+        );
+        assert_eq!(
+            state.target_fraction.to_bits(),
+            step.to_bits(),
+            "one-unit step at total={TOTAL} must update target_fraction"
+        );
+
+        state.current = 2;
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+        assert_eq!(state.target_fraction.to_bits(), state.fraction().to_bits());
+    }
+
+    #[test]
+    fn unchanged_fraction_does_not_restart_animation() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        use crate::theme::EddaCraftTheme;
+
+        const TOTAL: u64 = 1 << 53;
+
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 1);
+        let mut buf = Buffer::empty(area);
+        let mut state = ProgressBarState {
+            current: 1,
+            total: TOTAL,
+            ..Default::default()
+        };
+
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+        state.display_fraction.finish();
+        assert!(!state.display_fraction.is_running());
+
+        let target_bits = state.target_fraction.to_bits();
+        let display_bits = state.display_fraction().to_bits();
+
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+
+        assert_eq!(state.target_fraction.to_bits(), target_bits);
+        assert_eq!(
+            state.display_fraction().to_bits(),
+            display_bits,
+            "re-rendering an unchanged fraction must not restart the tween"
+        );
+        assert!(!state.display_fraction.is_running());
+    }
+
+    #[test]
+    fn sub_count_drift_does_not_restart_animation() {
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        use crate::theme::EddaCraftTheme;
+
+        // Quarter of a count is above `f64::EPSILON` and below half a count,
+        // so an absolute epsilon would retarget and the scaled threshold must not.
+        const TOTAL: u64 = 128;
+        let drift = 0.25 / 128.0;
+
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 40, 1);
+        let mut buf = Buffer::empty(area);
+        let mut state = ProgressBarState {
+            current: TOTAL / 2,
+            total: TOTAL,
+            ..Default::default()
+        };
+
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+        state.display_fraction.finish();
+        state.target_fraction = state.fraction() - drift;
+        let poked = state.target_fraction.to_bits();
+
+        ProgressBar::new(&theme).render(area, &mut buf, &mut state);
+
+        assert_eq!(state.target_fraction.to_bits(), poked);
+        assert!(
+            !state.display_fraction.is_running(),
+            "drift below half a count must not restart the tween"
         );
     }
 }
