@@ -1,5 +1,6 @@
 use super::exclusion::{ExclusionZone, RowBand, compute_row_band, compute_row_bands};
 use super::prepare::PreparedText;
+use super::segment::MeasuredWord;
 use ratatui::style::Style;
 use textwrap::wrap_algorithms::wrap_first_fit;
 
@@ -128,8 +129,15 @@ pub(crate) fn layout_with_cap(
     };
 
     // Clamp before the u16 cast so huge width estimates cannot truncate.
-    let mut estimated_max_lines = (prepared.total_width() / safe_width + 1)
-        .min(max_rows_cap as usize)
+    // Hard breaks add rows that carry no display width, so the estimate
+    // has to count them or later rows miss their exclusion bands.
+    let break_rows = words.iter().fold(0usize, |total, word| {
+        total.saturating_add(usize::from(word.hard_breaks))
+    });
+    let mut estimated_max_lines = (prepared.total_width() / safe_width)
+        .saturating_add(1)
+        .saturating_add(break_rows)
+        .min(usize::from(max_rows_cap))
         .max(50) as u16;
     estimated_max_lines = estimated_max_lines.min(max_rows_cap);
     let mut row_bands: Vec<RowBand> = build_bands(estimated_max_lines);
@@ -194,79 +202,177 @@ pub(crate) fn layout_with_cap(
         };
     }
 
-    // Use textwrap's first-fit algorithm with our pre-measured words.
-    // The Fragment trait on MeasuredWord provides the cached widths.
-    let wrapped = wrap_first_fit(words, &filtered_widths);
+    // Hard breaks split the words into runs. Each run is wrapped with
+    // `wrap_first_fit`, then the row cursor advances by the break count.
+    // The Fragment trait on MeasuredWord still supplies the cached widths.
+    layout_paragraphs(
+        words,
+        &mut placement,
+        &mut filtered_widths,
+        container_width,
+        exclusions,
+        safe_width,
+    )
+}
 
-    // Convert wrapped lines into positioned words with (x, y) coordinates,
-    // mapping each wrapped index back to its (real_row, band) via placement.
-    let mut lines = Vec::with_capacity(wrapped.len());
+fn is_visible_word(word: &MeasuredWord) -> bool {
+    !word.text.is_empty() || word.whitespace_width > 0
+}
+
+/// Split on hard breaks. The `u16` is the break count that ends the slice
+/// (`0` for a tail that does not end on a break).
+fn split_paragraphs(words: &[MeasuredWord]) -> Vec<(&[MeasuredWord], u16)> {
+    let mut paragraphs = Vec::new();
+    let mut start = 0;
+    for (index, word) in words.iter().enumerate() {
+        if word.hard_breaks > 0 {
+            paragraphs.push((&words[start..=index], word.hard_breaks));
+            start = index + 1;
+        }
+    }
+    if start < words.len() {
+        paragraphs.push((&words[start..], 0));
+    }
+    paragraphs
+}
+
+/// Grow `placement` until it contains an unblocked row at or below `min_row`.
+fn extend_placement_through(
+    placement: &mut Vec<(u16, RowBand)>,
+    filtered_widths: &mut Vec<f64>,
+    min_row: u16,
+    container_width: u16,
+    exclusions: &[ExclusionZone],
+) {
+    if placement.last().is_some_and(|(row, _)| *row == u16::MAX) {
+        return;
+    }
+    let mut next = placement.last().map_or(0, |(row, _)| row.saturating_add(1));
+    while placement.last().is_none_or(|(row, _)| *row < min_row) {
+        let band = compute_row_band(container_width, next, exclusions);
+        if !band.is_blocked() {
+            filtered_widths.push(band.width as f64);
+            placement.push((next, band));
+        }
+        if next == u16::MAX {
+            break;
+        }
+        next = next.saturating_add(1);
+    }
+}
+
+fn row_band_at(
+    virtual_row: usize,
+    placement: &[(u16, RowBand)],
+    safe_width: usize,
+) -> Option<(u16, RowBand)> {
+    if virtual_row < placement.len() {
+        return Some(placement[virtual_row]);
+    }
+    let last = placement.last().map_or(0, |(row, _)| *row);
+    let extra_usize = virtual_row - placement.len() + 1;
+    let extra = u16::try_from(extra_usize).ok()?;
+    let real_row = last.checked_add(extra)?;
+    Some((
+        real_row,
+        RowBand {
+            left: 0,
+            width: safe_width,
+        },
+    ))
+}
+
+fn push_line(
+    lines: &mut Vec<LayoutLine>,
+    line_words: &[MeasuredWord],
+    real_row: u16,
+    band: RowBand,
+) {
+    let mut positioned = Vec::with_capacity(line_words.len());
+    let mut x: u16 = band.left;
+    for word in line_words {
+        let word_width = word.width.min(u16::MAX as usize) as u16;
+        let whitespace_width = word.whitespace_width.min(u16::MAX as usize) as u16;
+        positioned.push(PositionedWord {
+            text: word.text.clone(),
+            x,
+            y: real_row,
+            width: word_width,
+            style_runs: word.style_runs.clone(),
+        });
+        x = x
+            .saturating_add(word_width)
+            .saturating_add(whitespace_width);
+    }
+    lines.push(LayoutLine {
+        words: positioned,
+        y: real_row,
+    });
+}
+
+fn layout_paragraphs(
+    words: &[MeasuredWord],
+    placement: &mut Vec<(u16, RowBand)>,
+    filtered_widths: &mut Vec<f64>,
+    container_width: u16,
+    exclusions: &[ExclusionZone],
+    safe_width: usize,
+) -> LayoutResult {
+    let mut lines = Vec::new();
     let mut max_row: u16 = 0;
+    let mut saw_line = false;
+    let mut min_row: u16 = 0;
 
-    for (virtual_row, line_words) in wrapped.iter().enumerate() {
-        // If wrap_first_fit produced more lines than placement holds (extreme
-        // pathological inputs: probe limit hit or capacity still insufficient),
-        // fall back to synthesized free rows so we never panic. These are a
-        // last-resort and may not honor distant exclusions, but they only
-        // activate when the probe loop above already gave up.
-        let (real_row, band) = if virtual_row < placement.len() {
-            placement[virtual_row]
-        } else {
-            let last = placement.last().map_or(0, |(r, _)| *r);
-            let extra_usize = virtual_row - placement.len() + 1;
-            // Saturating conversion: u16 row index can't exceed u16::MAX.
-            // If we'd walk past the end of the row space, stop emitting
-            // further lines rather than collapsing them all onto the same
-            // row via saturating_add (which would stack duplicate words).
-            let extra = if extra_usize > u16::MAX as usize {
-                break;
-            } else {
-                extra_usize as u16
-            };
-            let Some(real_row) = last.checked_add(extra) else {
-                break;
-            };
-            (
-                real_row,
-                RowBand {
-                    left: 0,
-                    width: safe_width,
-                },
-            )
-        };
-        let mut positioned = Vec::with_capacity(line_words.len());
-        let mut x: u16 = band.left;
-
-        for word in *line_words {
-            let word_width = word.width.min(u16::MAX as usize) as u16;
-            let whitespace_width = word.whitespace_width.min(u16::MAX as usize) as u16;
-
-            positioned.push(PositionedWord {
-                text: word.text.clone(),
-                x,
-                y: real_row,
-                width: word_width,
-                style_runs: word.style_runs.clone(),
-            });
-            x = x
-                .saturating_add(word_width)
-                .saturating_add(whitespace_width);
+    for (paragraph, hard_breaks) in split_paragraphs(words) {
+        if !paragraph.iter().any(is_visible_word) {
+            min_row = min_row.saturating_add(hard_breaks);
+            continue;
         }
 
-        lines.push(LayoutLine {
-            words: positioned,
-            y: real_row,
-        });
-        max_row = max_row.max(real_row);
+        extend_placement_through(
+            placement,
+            filtered_widths,
+            min_row,
+            container_width,
+            exclusions,
+        );
+        let Some(start) = placement.iter().position(|(row, _)| *row >= min_row) else {
+            break;
+        };
+        let widths = &filtered_widths[start..];
+        if widths.is_empty() {
+            break;
+        }
+
+        let wrapped = wrap_first_fit(paragraph, widths);
+        let mut last_row = min_row;
+        let mut placed = false;
+        for (offset, line_words) in wrapped.iter().enumerate() {
+            let Some((real_row, band)) = row_band_at(start + offset, placement, safe_width) else {
+                break;
+            };
+            push_line(&mut lines, line_words, real_row, band);
+            last_row = real_row;
+            placed = true;
+            saw_line = true;
+            max_row = max_row.max(real_row);
+        }
+
+        let advance = if hard_breaks == 0 {
+            u16::from(placed)
+        } else {
+            hard_breaks
+        };
+        min_row = last_row.saturating_add(advance);
     }
 
-    // Saturate at u16::MAX: max_row + 1 would overflow to 0 in release mode
-    // (and panic in debug) when layout reaches row 65535, which is possible
-    // with very long streamed text in narrow layouts.
-    let total_height = if lines.is_empty() {
-        0
+    // A trailing run of breaks reserves blank rows past the last glyph.
+    // Saturate at `u16::MAX`: `max_row + 1` would overflow when layout
+    // reaches row 65535.
+    let total_height = if saw_line {
+        max_row.saturating_add(1).max(min_row)
     } else {
-        max_row.saturating_add(1)
+        min_row
     };
     LayoutResult {
         lines,
@@ -593,6 +699,148 @@ mod tests {
                         word.width
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn hard_break_puts_following_word_on_the_next_row() {
+        // `\n` is a forced row boundary. `bar` sits on the row directly
+        // below `foo` even when the container could hold both words.
+        let prepared = PreparedText::new("foo\nbar");
+        let wide = layout(&prepared, 80, &[]);
+        assert_eq!(
+            wide.lines.len(),
+            2,
+            "wide layout stacked the break: {wide:?}"
+        );
+        assert_eq!(wide.lines[0].words[0].text, "foo");
+        assert_eq!(wide.lines[0].words[0].y, 0);
+        assert_eq!(wide.lines[1].words[0].text, "bar");
+        assert_eq!(wide.lines[1].words[0].y, 1);
+
+        let narrow = layout(&prepared, 1, &[]);
+        let foo_y = word_y(&narrow, "foo");
+        let bar_y = word_y(&narrow, "bar");
+        assert_eq!(bar_y, foo_y + 1);
+    }
+
+    fn word_y(result: &LayoutResult, text: &str) -> u16 {
+        result
+            .lines
+            .iter()
+            .flat_map(|line| &line.words)
+            .find(|word| word.text == text)
+            .unwrap_or_else(|| panic!("missing {text}"))
+            .y
+    }
+
+    #[test]
+    fn crlf_matches_a_single_newline() {
+        let lf = layout(&PreparedText::new("foo\nbar"), 80, &[]);
+        let crlf = layout(&PreparedText::new("foo\r\nbar"), 80, &[]);
+        assert_eq!(word_y(&lf, "bar"), 1);
+        assert_eq!(word_y(&crlf, "bar"), word_y(&lf, "bar"));
+        assert_eq!(word_y(&crlf, "foo"), 0);
+    }
+
+    #[test]
+    fn consecutive_breaks_insert_a_blank_row() {
+        let prepared = PreparedText::new("foo\n\nbar");
+        let result = layout(&prepared, 40, &[]);
+        assert_eq!(word_y(&result, "foo"), 0);
+        assert_eq!(word_y(&result, "bar"), 2);
+        assert!(
+            result
+                .lines
+                .iter()
+                .all(|line| line.y != 1 || line.words.iter().all(|word| word.text.is_empty())),
+            "row 1 should be blank: {result:?}"
+        );
+        assert_eq!(result.total_height, 3);
+    }
+
+    #[test]
+    fn leading_break_starts_content_on_the_next_row() {
+        let result = layout(&PreparedText::new("\nfoo"), 20, &[]);
+        assert_eq!(word_y(&result, "foo"), 1);
+        assert!(result.total_height >= 2);
+    }
+
+    #[test]
+    fn trailing_break_is_kept_for_the_next_row() {
+        let prepared = PreparedText::new("foo\n");
+        assert_eq!(prepared.words()[0].hard_breaks, 1);
+        let result = layout(&prepared, 30, &[]);
+        assert_eq!(word_y(&result, "foo"), 0);
+        // One trailing break ends the row. It does not add a blank row of
+        // its own; a second break does.
+        assert_eq!(result.total_height, 1);
+
+        let mut streamed = PreparedText::new("foo");
+        streamed.append("\n");
+        streamed.append("bar");
+        let streamed_layout = layout(&streamed, 80, &[]);
+        assert_eq!(word_y(&streamed_layout, "bar"), 1);
+
+        let blank = layout(&PreparedText::new("foo\n\n"), 30, &[]);
+        assert_eq!(blank.total_height, 2);
+    }
+
+    #[test]
+    fn lone_cr_is_a_hard_break() {
+        let result = layout(&PreparedText::new("foo\rbar"), 80, &[]);
+        assert_eq!(word_y(&result, "foo"), 0);
+        assert_eq!(word_y(&result, "bar"), 1);
+    }
+
+    #[test]
+    fn tab_stays_on_the_same_row() {
+        let prepared = PreparedText::new("foo\tbar");
+        assert_eq!(prepared.words()[0].hard_breaks, 0);
+        let result = layout(&prepared, 80, &[]);
+        assert_eq!(result.lines.len(), 1);
+        assert_eq!(word_y(&result, "foo"), word_y(&result, "bar"));
+    }
+
+    #[test]
+    fn prepare_cache_distinguishes_a_break_from_a_space() {
+        let broken = PreparedText::new("foo\nbar");
+        let spaced = PreparedText::new("foo bar");
+        assert_eq!(broken.words()[0].hard_breaks, 1);
+        assert_eq!(broken.words()[0].whitespace_width, 0);
+        assert_eq!(spaced.words()[0].hard_breaks, 0);
+        assert_eq!(spaced.words()[0].whitespace_width, 1);
+
+        let broken_layout = layout(&broken, 80, &[]);
+        let spaced_layout = layout(&spaced, 80, &[]);
+        assert_eq!(broken_layout.lines.len(), 2);
+        assert_eq!(spaced_layout.lines.len(), 1);
+        assert_ne!(
+            broken_layout.total_height, spaced_layout.total_height,
+            "layout cache of a break must not match a soft space"
+        );
+    }
+
+    #[test]
+    fn hard_break_respects_exclusion_bands() {
+        let prepared = PreparedText::new("foo\nbar baz");
+        let zones = vec![ExclusionZone::rect(4, 0, 20, 20)];
+        let result = layout(&prepared, 24, &zones);
+        assert_eq!(word_y(&result, "bar"), word_y(&result, "foo") + 1);
+        for line in &result.lines {
+            for word in &line.words {
+                if word.text.is_empty() {
+                    continue;
+                }
+                assert!(
+                    word.x + word.width <= 4,
+                    "word '{}' at x={} width={} y={} enters the exclusion",
+                    word.text,
+                    word.x,
+                    word.width,
+                    word.y
+                );
             }
         }
     }
