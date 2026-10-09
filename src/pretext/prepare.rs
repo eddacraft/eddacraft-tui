@@ -405,6 +405,18 @@ mod tests {
     }
 
     #[test]
+    fn append_empty_chunk_keeps_a_pending_cr() {
+        let mut prepared = PreparedText::new("foo\r");
+        prepared.append("");
+        prepared.append("\nbar");
+        assert_eq!(prepared.word_count(), 2);
+        assert_eq!(prepared.words()[0].text, "foo");
+        assert_eq!(prepared.words()[0].hard_breaks, 1);
+        assert_eq!(prepared.words()[1].text, "bar");
+        assert_eq!(prepared.words()[1].hard_breaks, 0);
+    }
+
+    #[test]
     fn append_after_a_break_keeps_leading_soft_space_on_the_new_row() {
         let mut prepared = PreparedText::new("foo");
         prepared.append("\n bar");
