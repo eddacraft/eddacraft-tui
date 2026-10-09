@@ -263,4 +263,26 @@ mod tests {
         assert_eq!(buf[(1, 0)].symbol(), "i");
         assert_eq!(buf[(6, 0)].symbol(), " ");
     }
+
+    #[test]
+    fn layout_cache_distinguishes_a_break_from_a_space() {
+        let widget = PretextWidget::new();
+        let area = Rect::new(0, 0, 20, 4);
+
+        let mut state = PretextState::new("foo bar");
+        let mut buf = Buffer::empty(area);
+        widget.render(area, &mut buf, &mut state);
+        assert_eq!(buf[(4, 0)].symbol(), "b");
+        assert_eq!(buf[(0, 1)].symbol(), " ");
+        let spaced_lines = state.layout_result().map(|result| result.lines.len());
+
+        state.set_text("foo\nbar");
+        widget.render(area, &mut buf, &mut state);
+        assert_eq!(buf[(0, 0)].symbol(), "f");
+        assert_eq!(buf[(0, 1)].symbol(), "b");
+        assert_eq!(buf[(4, 0)].symbol(), " ");
+        let broken_lines = state.layout_result().map(|result| result.lines.len());
+        assert_eq!(spaced_lines, Some(1));
+        assert_eq!(broken_lines, Some(2));
+    }
 }

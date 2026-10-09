@@ -9,6 +9,12 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+### Fixed
+
+- `pretext` keeps `\n` and `\r\n` as forced row boundaries. A lone `\r` is
+  one break as well, and a CR/LF pair split across two `append_styled`
+  calls stays a single break. Tabs and other Unicode spaces stay soft.
+
 ## [0.5.3] - 2026-09-18
 
 ### Added
