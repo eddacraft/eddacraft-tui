@@ -108,19 +108,14 @@ impl<T: Theme> StatefulWidget for ProgressBar<'_, T> {
             return;
         }
 
-        // Half a count, not an absolute `f64::EPSILON`. One unit at totals
-        // around 2^53 (~9e15) is smaller than that epsilon and was dropped.
-        // A relative epsilon misses the same step near 1.0. An unchanged
-        // fraction (delta == 0) still does not restart the tween. `total == 0`
-        // has no count; `fraction()` is then always 0.
+        // Retarget from the integer-derived fraction by exact bit compare.
+        // Absolute `f64::EPSILON` dropped one-unit steps near 2^53; a half-count
+        // threshold fixed that but then suppressed real updates when only
+        // `total` changed (e.g. 1/100 → 1/101). `fraction()` is deterministic
+        // from `current`/`total`, so identical inputs keep the same bits and
+        // do not restart the tween. `total == 0` always yields 0.
         let target = state.fraction();
-        #[allow(clippy::cast_precision_loss)]
-        let threshold = if state.total == 0 {
-            f64::EPSILON
-        } else {
-            0.5 / (state.total as f64)
-        };
-        if (target - state.target_fraction).abs() > threshold {
+        if target.to_bits() != state.target_fraction.to_bits() {
             state.display_fraction.to(target);
             state.target_fraction = target;
         }
@@ -305,37 +300,40 @@ mod tests {
     }
 
     #[test]
-    fn sub_count_drift_does_not_restart_animation() {
+    fn total_only_change_updates_target_even_when_delta_is_tiny() {
         use ratatui::buffer::Buffer;
         use ratatui::layout::Rect;
 
         use crate::theme::EddaCraftTheme;
 
-        // Quarter of a count is above `f64::EPSILON` and below half a count,
-        // so an absolute epsilon would retarget and the scaled threshold must not.
-        const TOTAL: u64 = 128;
-        let drift = 0.25 / 128.0;
-
+        // Copilot: after 1/100, bumping total to 101 yields ~9.9e-5 delta —
+        // below a half-count threshold of 0.5/101 — but must still retarget.
         let theme = EddaCraftTheme;
         let area = Rect::new(0, 0, 40, 1);
         let mut buf = Buffer::empty(area);
         let mut state = ProgressBarState {
-            current: TOTAL / 2,
-            total: TOTAL,
+            current: 1,
+            total: 100,
             ..Default::default()
         };
 
         ProgressBar::new(&theme).render(area, &mut buf, &mut state);
         state.display_fraction.finish();
-        state.target_fraction = state.fraction() - drift;
-        let poked = state.target_fraction.to_bits();
+        let before = state.target_fraction.to_bits();
+
+        state.total = 101;
+        let expected = state.fraction();
+        assert!(
+            (expected - f64::from_bits(before)).abs() < 0.5 / 101.0,
+            "fixture must be invisible to a half-count threshold"
+        );
 
         ProgressBar::new(&theme).render(area, &mut buf, &mut state);
-
-        assert_eq!(state.target_fraction.to_bits(), poked);
-        assert!(
-            !state.display_fraction.is_running(),
-            "drift below half a count must not restart the tween"
+        assert_eq!(
+            state.target_fraction.to_bits(),
+            expected.to_bits(),
+            "changing only total must update target_fraction"
         );
+        assert!(state.display_fraction.is_running());
     }
 }
