@@ -176,10 +176,14 @@ without touching widget code.
 | Structure   | `rgb(42, 42, 46)`    |
 | Off-White   | `rgb(235, 235, 235)` |
 | Ghost Grey  | `rgb(133, 133, 138)` |
-| anvil Ember | `rgb(204, 85, 0)`    |
+| anvil Ember | `rgb(217, 90, 0)`    |
 | edda Growth | `rgb(46, 139, 87)`   |
-| Brick Red   | `rgb(201, 74, 74)`   |
+| Brick Red   | `rgb(207, 94, 94)`   |
 | Dull Amber  | `rgb(208, 140, 56)`  |
+
+These are the values in `src/theme/eddacraft.rs`. They follow brand v1.2; the
+move to brand design system 2.0 (Growth `rgb(59, 151, 98)` and the new Raised,
+Iron, Ash and Fjord roles) is a later release.
 
 The `Role` enum (`Primary`, `Accent`, `Success`, `BorderEmphasis`, …) gives
 widgets a semantic handle; custom themes can override `role_style` centrally.
