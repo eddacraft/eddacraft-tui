@@ -96,7 +96,7 @@ pub mod prelude {
     pub use crate::pretext::{ExclusionZone, LayoutResult, PositionedWord, PreparedText};
     pub use crate::shell::{ShellBranding, render_shell};
     pub use crate::surface::Surface;
-    pub use crate::theme::{EddaCraftTheme, Role, Theme};
+    pub use crate::theme::{EddaCraftTheme, Role, Theme, adapt_buffer, adapt_color};
     pub use crate::widgets::confirm::{Confirm, ConfirmState};
     pub use crate::widgets::container::{Container, ContainerVariant};
     pub use crate::widgets::data_table::{DataTable, DataTableState, SortDirection, SortIndicator};

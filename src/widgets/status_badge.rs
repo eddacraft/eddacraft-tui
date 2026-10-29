@@ -15,6 +15,10 @@ pub enum BadgeStatus {
     Info,
     Running,
     Skipped,
+    /// A refused or held state. Added in 0.6.0 (ADR-195).
+    Blocked,
+    /// A state the tool could not determine. Added in 0.6.0 (ADR-195).
+    Unknown,
 }
 
 impl BadgeStatus {
@@ -27,8 +31,10 @@ impl BadgeStatus {
             Self::Success => theme.status_ok(),
             Self::Error => theme.status_error(),
             Self::Warning => theme.status_warning(),
-            Self::Info | Self::Running => theme.title(),
+            Self::Info | Self::Running => theme.status_info(),
             Self::Skipped => theme.disabled(),
+            Self::Blocked => theme.status_blocked(),
+            Self::Unknown => theme.status_unknown(),
         }
     }
 }
@@ -54,14 +60,19 @@ impl<'a, T: Theme> StatusBadge<'a, T> {
         self
     }
 
-    fn status_config(&self) -> (char, Style, &'a str) {
+    /// The bracket marker and default label for each status. The markers are
+    /// the grammar the web surfaces and the plain CLI share (ADR-195), so a
+    /// status reads the same with or without colour.
+    fn status_config(&self) -> (&'static str, Style, &'a str) {
         let (icon, default_label) = match self.status {
-            BadgeStatus::Success => ('◆', "Passed"),
-            BadgeStatus::Error => ('✖', "Failed"),
-            BadgeStatus::Warning => ('◈', "Warning"),
-            BadgeStatus::Info => ('◇', "Info"),
-            BadgeStatus::Running => ('●', "Running"),
-            BadgeStatus::Skipped => ('○', "Skipped"),
+            BadgeStatus::Success => ("[ OK ]", "Passed"),
+            BadgeStatus::Error => ("[ ERR ]", "Failed"),
+            BadgeStatus::Warning => ("[ WARN ]", "Warning"),
+            BadgeStatus::Info => ("[ i ]", "Info"),
+            BadgeStatus::Running => ("[ .. ]", "Running"),
+            BadgeStatus::Skipped => ("[ N/A ]", "Skipped"),
+            BadgeStatus::Blocked => ("[ BLOCKED ]", "Blocked"),
+            BadgeStatus::Unknown => ("[ ?? ]", "Unknown"),
         };
 
         (icon, self.status.severity_style(self.theme), default_label)
@@ -78,7 +89,7 @@ impl<T: Theme> Widget for StatusBadge<'_, T> {
         let label = self.label.unwrap_or(default_label);
 
         let line = Line::from(vec![
-            Span::styled(icon.to_string(), style),
+            Span::styled(icon, style),
             Span::raw(" "),
             Span::styled(label, style),
         ]);
@@ -93,11 +104,16 @@ mod tests {
     use super::*;
     use crate::theme::EddaCraftTheme;
 
-    fn icon_for(status: BadgeStatus) -> String {
+    fn rendered(status: BadgeStatus) -> String {
         let theme = EddaCraftTheme;
-        let mut buf = Buffer::empty(Rect::new(0, 0, 12, 1));
-        StatusBadge::new(status, &theme).render(Rect::new(0, 0, 12, 1), &mut buf);
-        buf[(0, 0)].symbol().to_string()
+        let area = Rect::new(0, 0, 24, 1);
+        let mut buf = Buffer::empty(area);
+        StatusBadge::new(status, &theme).render(area, &mut buf);
+        (0..area.width)
+            .map(|x| buf[(x, 0)].symbol().to_string())
+            .collect::<String>()
+            .trim_end()
+            .to_string()
     }
 
     #[test]
@@ -110,7 +126,7 @@ mod tests {
         StatusBadge::new(BadgeStatus::Info, &theme).render(area, &mut actual);
         let style = BadgeStatus::Info.severity_style(&theme);
         Line::from(vec![
-            Span::styled("◇", style),
+            Span::styled("[ i ]", style),
             Span::raw(" "),
             Span::styled("Info", style),
         ])
@@ -122,16 +138,36 @@ mod tests {
     }
 
     #[test]
-    fn renders_expected_icons_for_positive_statuses() {
-        assert_eq!(icon_for(BadgeStatus::Success), "◆");
-        assert_eq!(icon_for(BadgeStatus::Info), "◇");
-        assert_eq!(icon_for(BadgeStatus::Running), "●");
+    fn renders_the_bracket_grammar_for_positive_statuses() {
+        assert_eq!(rendered(BadgeStatus::Success), "[ OK ] Passed");
+        assert_eq!(rendered(BadgeStatus::Info), "[ i ] Info");
+        assert_eq!(rendered(BadgeStatus::Running), "[ .. ] Running");
     }
 
     #[test]
-    fn renders_expected_icons_for_other_statuses() {
-        assert_eq!(icon_for(BadgeStatus::Error), "✖");
-        assert_eq!(icon_for(BadgeStatus::Warning), "◈");
-        assert_eq!(icon_for(BadgeStatus::Skipped), "○");
+    fn renders_the_bracket_grammar_for_other_statuses() {
+        assert_eq!(rendered(BadgeStatus::Error), "[ ERR ] Failed");
+        assert_eq!(rendered(BadgeStatus::Warning), "[ WARN ] Warning");
+        assert_eq!(rendered(BadgeStatus::Skipped), "[ N/A ] Skipped");
+        assert_eq!(rendered(BadgeStatus::Blocked), "[ BLOCKED ] Blocked");
+        assert_eq!(rendered(BadgeStatus::Unknown), "[ ?? ] Unknown");
+    }
+
+    #[test]
+    fn info_and_running_use_the_info_colour_not_the_accent() {
+        let theme = EddaCraftTheme;
+        for status in [BadgeStatus::Info, BadgeStatus::Running] {
+            let style = status.severity_style(&theme);
+            assert_eq!(style.fg, Some(theme.info()));
+            assert_ne!(style.fg, Some(theme.accent()));
+        }
+        assert_eq!(
+            BadgeStatus::Blocked.severity_style(&theme),
+            theme.status_blocked()
+        );
+        assert_eq!(
+            BadgeStatus::Unknown.severity_style(&theme),
+            theme.status_unknown()
+        );
     }
 }

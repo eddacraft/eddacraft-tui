@@ -30,10 +30,11 @@ impl TuiComponent for Badge {
             .unwrap_or_default();
         let colour = match str_prop(props, "variant").unwrap_or("default") {
             "destructive" => theme.error(),
-            "secondary" => theme.muted(),
             "success" => theme.success(),
             "warning" => theme.warning(),
-            _ => theme.accent(),
+            // `secondary` and the default chip are neutral: the accent is
+            // never a status.
+            _ => theme.muted(),
         };
         let chip = Span::styled(format!(" {label} "), Style::default().fg(colour));
         frame.render_widget(Paragraph::new(Line::from(chip)), area);

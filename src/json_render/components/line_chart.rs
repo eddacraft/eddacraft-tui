@@ -60,7 +60,7 @@ impl TuiComponent for LineChart {
             Dataset::default()
                 .marker(Marker::Braille)
                 .graph_type(GraphType::Line)
-                .style(Style::default().fg(theme.accent()))
+                .style(Style::default().fg(theme.chart_series(0)))
                 .data(&points),
         ];
 

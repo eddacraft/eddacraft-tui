@@ -170,23 +170,35 @@ The built-in `EddaCraftTheme` follows the eddacraft Terminal Standard palette.
 All colours are exposed through the `Theme` trait, so you can implement your own
 without touching widget code.
 
-| Token       | Colour               |
-| ----------- | -------------------- |
-| Void        | `rgb(13, 13, 15)`    |
-| Structure   | `rgb(42, 42, 46)`    |
-| Off-White   | `rgb(235, 235, 235)` |
-| Ghost Grey  | `rgb(133, 133, 138)` |
-| anvil Ember | `rgb(217, 90, 0)`    |
-| edda Growth | `rgb(46, 139, 87)`   |
-| Brick Red   | `rgb(207, 94, 94)`   |
-| Dull Amber  | `rgb(208, 140, 56)`  |
+| Token       | `Theme` method                        | Colour               |
+| ----------- | ------------------------------------- | -------------------- |
+| Void        | `bg`                                  | `rgb(13, 13, 15)`    |
+| Structure   | `border`                              | `rgb(42, 42, 46)`    |
+| Off-White   | `fg`                                  | `rgb(235, 235, 235)` |
+| Ghost Grey  | `muted`                               | `rgb(133, 133, 138)` |
+| anvil Ember | `accent`                              | `rgb(217, 90, 0)`    |
+| edda Growth | `success`                             | `rgb(59, 151, 98)`   |
+| Brick Red   | `error`                               | `rgb(207, 94, 94)`   |
+| Dull Amber  | `warning`                             | `rgb(208, 140, 56)`  |
+| Fjord       | `info`                                | `rgb(97, 163, 230)`  |
+| Ash         | `text_secondary`                      | `rgb(183, 183, 186)` |
+| Iron        | `text_disabled`, `border_interactive` | `rgb(103, 103, 108)` |
+| Surface     | `surface`                             | `rgb(20, 20, 22)`    |
+| Raised      | `overlay`                             | `rgb(24, 24, 27)`    |
 
-These are the values in `src/theme/eddacraft.rs`. They follow brand v1.2; the
-move to brand design system 2.0 (Growth `rgb(59, 151, 98)` and the new Raised,
-Iron, Ash and Fjord roles) is a later release.
+These are the values in `src/theme/eddacraft.rs`, from brand-and-design 2.x.
+`chart_series(n)` cycles Ember, Fjord, Growth, Heather `rgb(176, 138, 218)`,
+Lingon `rgb(214, 126, 169)` and Glacier `rgb(0, 179, 194)`.
 
-The `Role` enum (`Primary`, `Accent`, `Success`, `BorderEmphasis`, …) gives
-widgets a semantic handle; custom themes can override `role_style` centrally.
+The `Role` enum (`Primary`, `Accent`, `Success`, `Info`, `Blocked`, `Muted`,
+`BorderEmphasis`, …) gives widgets a semantic handle; custom themes can override
+`role_style` centrally. Status badges use the bracket grammar (`[ OK ]`,
+`[ ERR ]`, `[ WARN ]`, `[ i ]`, `[ ?? ]`, `[ BLOCKED ]`), so a status reads the
+same without colour.
+
+`theme::adapt_buffer` maps a rendered frame to the terminal's `ColourDepth`:
+the brand's own indexes at 256 colours, the nearest ANSI slot at 16, and no
+colour under `NO_COLOR` or `TERM=dumb`, with highlights in reverse video.
 
 ## Widgets
 

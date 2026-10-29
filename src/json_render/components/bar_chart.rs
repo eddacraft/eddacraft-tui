@@ -59,7 +59,7 @@ impl TuiComponent for BarChart {
                 .data(&refs[..])
                 .bar_width(3)
                 .bar_gap(1)
-                .bar_style(Style::default().fg(theme.accent()))
+                .bar_style(Style::default().fg(theme.chart_series(0)))
                 .value_style(theme.base()),
             area,
         );

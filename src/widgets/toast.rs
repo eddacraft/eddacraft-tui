@@ -73,10 +73,11 @@ impl<'a, T: Theme> Toast<'a, T> {
     fn default_icon(&self) -> &'static str {
         match self.severity {
             BadgeStatus::Success => "✓",
-            BadgeStatus::Error => "✖",
+            BadgeStatus::Error | BadgeStatus::Blocked => "✖",
             BadgeStatus::Warning => "!",
             BadgeStatus::Info | BadgeStatus::Running => "i",
             BadgeStatus::Skipped => "·",
+            BadgeStatus::Unknown => "?",
         }
     }
 

@@ -21,6 +21,27 @@ pub enum Role {
     Error,
     BorderSubtle,
     BorderEmphasis,
+    /// Informational status (brand `status.info`). Added in 0.6.0 (ADR-195).
+    Info,
+    /// A refused or held state, solid fill (brand `status.blocked`). Added in
+    /// 0.6.0 (ADR-195).
+    Blocked,
+    /// A state the tool could not determine (brand `status.unknown`). Added in
+    /// 0.6.0 (ADR-195).
+    Unknown,
+    /// Disabled text (brand `text.disabled`). Added in 0.6.0 (ADR-195).
+    Disabled,
+    /// The boundary of an interactive control (brand `border.interactive`).
+    /// Added in 0.6.0 (ADR-195).
+    BorderInteractive,
+    /// A raised panel (brand `surface.raised`). Added in 0.6.0 (ADR-195).
+    Surface,
+    /// A floating layer such as a popup (brand `surface.overlay`). Added in
+    /// 0.6.0 (ADR-195).
+    Overlay,
+    /// Muted text: the brand's name for what [`Role::Secondary`] has always
+    /// resolved to. Added in 0.6.0 (ADR-195); `Secondary` keeps its meaning.
+    Muted,
 }
 
 /// Visual theme for eddacraft-tui widgets.
@@ -49,6 +70,57 @@ pub trait Theme {
     fn warning(&self) -> Color;
     fn muted(&self) -> Color;
     fn border(&self) -> Color;
+
+    // Palette slots added in 0.6.0 (ADR-195). Each default falls back to one
+    // of the eight required colours, so existing implementors keep compiling
+    // and keep today's rendering until they override it.
+
+    /// Informational status colour. Defaults to [`Theme::accent`], which is
+    /// what info badges used before 0.6.0.
+    fn info(&self) -> Color {
+        self.accent()
+    }
+
+    /// Secondary text, one step below [`Theme::fg`] (brand `text.secondary`).
+    /// Not the [`Role::Secondary`] colour, which stays muted text.
+    fn text_secondary(&self) -> Color {
+        self.fg()
+    }
+
+    /// Disabled text (brand `text.disabled`). Defaults to [`Theme::muted`].
+    fn text_disabled(&self) -> Color {
+        self.muted()
+    }
+
+    /// The boundary of an interactive control. Defaults to [`Theme::border`].
+    fn border_interactive(&self) -> Color {
+        self.border()
+    }
+
+    /// A raised panel background. Defaults to [`Theme::bg`].
+    fn surface(&self) -> Color {
+        self.bg()
+    }
+
+    /// A floating layer background. Defaults to [`Theme::bg`].
+    fn overlay(&self) -> Color {
+        self.bg()
+    }
+
+    /// The colour of chart series `n`, cycling through a fixed order. The
+    /// default draws on the palette above; themes with a categorical palette
+    /// override it.
+    fn chart_series(&self, n: usize) -> Color {
+        let series = [
+            self.accent(),
+            self.info(),
+            self.success(),
+            self.warning(),
+            self.error(),
+            self.muted(),
+        ];
+        series[n % series.len()]
+    }
 
     fn base(&self) -> Style {
         Style::default().fg(self.fg()).bg(self.bg())
@@ -104,10 +176,31 @@ pub trait Theme {
         Style::default().fg(self.muted())
     }
 
+    /// Informational status: [`Theme::info`], bold.
+    fn status_info(&self) -> Style {
+        Style::default()
+            .fg(self.info())
+            .add_modifier(Modifier::BOLD)
+    }
+
+    /// Blocked status: the background colour on a solid [`Theme::error`]
+    /// fill, bold. The only solid status by default.
+    fn status_blocked(&self) -> Style {
+        Style::default()
+            .fg(self.bg())
+            .bg(self.error())
+            .add_modifier(Modifier::BOLD)
+    }
+
+    /// Unknown status: muted, so it never reads as a pass or a failure.
+    fn status_unknown(&self) -> Style {
+        Style::default().fg(self.muted())
+    }
+
     fn role_style(&self, role: Role) -> Style {
         match role {
             Role::Primary => self.base(),
-            Role::Secondary => self.disabled(),
+            Role::Secondary | Role::Muted => self.disabled(),
             Role::Accent => self.title(),
             Role::Highlight => self.highlighted(),
             Role::HighlightInactive => self.highlight_inactive(),
@@ -116,12 +209,19 @@ pub trait Theme {
             Role::Error => self.status_error(),
             Role::BorderSubtle => self.border_unfocused(),
             Role::BorderEmphasis => self.border_focused(),
+            Role::Info => self.status_info(),
+            Role::Blocked => self.status_blocked(),
+            Role::Unknown => self.status_unknown(),
+            Role::Disabled => Style::default().fg(self.text_disabled()),
+            Role::BorderInteractive => Style::default().fg(self.border_interactive()),
+            Role::Surface => Style::default().fg(self.fg()).bg(self.surface()),
+            Role::Overlay => Style::default().fg(self.fg()).bg(self.overlay()),
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// A minimal implementor that defines only the eight required palette
@@ -157,6 +257,49 @@ mod tests {
         }
     }
 
+    /// Every [`Role`] variant, so a new one cannot be added without a test
+    /// noticing.
+    pub(crate) const ALL_ROLES: [Role; 18] = [
+        Role::Primary,
+        Role::Secondary,
+        Role::Accent,
+        Role::Highlight,
+        Role::HighlightInactive,
+        Role::Success,
+        Role::Warning,
+        Role::Error,
+        Role::BorderSubtle,
+        Role::BorderEmphasis,
+        Role::Info,
+        Role::Blocked,
+        Role::Unknown,
+        Role::Disabled,
+        Role::BorderInteractive,
+        Role::Surface,
+        Role::Overlay,
+        Role::Muted,
+    ];
+
+    #[test]
+    fn new_palette_slots_default_to_todays_colours() {
+        let t = MinimalTheme;
+        assert_eq!(t.info(), t.accent());
+        assert_eq!(t.text_secondary(), t.fg());
+        assert_eq!(t.text_disabled(), t.muted());
+        assert_eq!(t.border_interactive(), t.border());
+        assert_eq!(t.surface(), t.bg());
+        assert_eq!(t.overlay(), t.bg());
+        assert_eq!(t.chart_series(0), t.accent());
+        assert_eq!(t.chart_series(6), t.chart_series(0));
+    }
+
+    #[test]
+    fn secondary_and_muted_roles_resolve_alike() {
+        let t = MinimalTheme;
+        assert_eq!(t.role_style(Role::Secondary), t.role_style(Role::Muted));
+        assert_eq!(t.role_style(Role::Secondary), t.disabled());
+    }
+
     #[test]
     fn default_style_methods_populate_fg_for_any_impl() {
         let t = MinimalTheme;
@@ -171,6 +314,9 @@ mod tests {
             ("status_error", t.status_error()),
             ("status_warning", t.status_warning()),
             ("disabled", t.disabled()),
+            ("status_info", t.status_info()),
+            ("status_blocked", t.status_blocked()),
+            ("status_unknown", t.status_unknown()),
         ];
         for (name, style) in styles {
             assert!(style.fg.is_some(), "default {name} must populate fg");
@@ -180,18 +326,7 @@ mod tests {
     #[test]
     fn role_style_dispatches_every_role_for_any_impl() {
         let t = MinimalTheme;
-        for role in [
-            Role::Primary,
-            Role::Secondary,
-            Role::Accent,
-            Role::Highlight,
-            Role::HighlightInactive,
-            Role::Success,
-            Role::Warning,
-            Role::Error,
-            Role::BorderSubtle,
-            Role::BorderEmphasis,
-        ] {
+        for role in ALL_ROLES {
             let style = t.role_style(role);
             // The trait contract requires fg to be set; role_style is built from
             // the style methods, so every role must resolve to an fg-bearing style.

@@ -33,7 +33,7 @@ impl TuiComponent for SparklineChart {
         frame.render_widget(
             Sparkline::default()
                 .data(&data)
-                .style(Style::default().fg(theme.accent())),
+                .style(Style::default().fg(theme.chart_series(0))),
             area,
         );
     }

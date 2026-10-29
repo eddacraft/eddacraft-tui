@@ -29,12 +29,13 @@
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
 use crate::json_render::sanitize::sanitize;
 use crate::json_render::{RenderSpec, TuiRegistry};
+use crate::theme::{EddaCraftTheme, Theme};
 
 /// Maximum element-tree depth the renderer descends before drawing a guard
 /// placeholder and stopping.
@@ -122,8 +123,8 @@ fn render_element(
 /// It is intentionally plain (dim text, no border) so it reads as a diagnostic
 /// rather than real content, and truncates to the area rather than wrapping.
 fn draw_placeholder(frame: &mut Frame, area: Rect, label: &str) {
-    let widget =
-        Paragraph::new(Line::raw(label.to_owned())).style(Style::default().fg(Color::DarkGray));
+    let widget = Paragraph::new(Line::raw(label.to_owned()))
+        .style(Style::default().fg(EddaCraftTheme.muted()));
     frame.render_widget(widget, area);
 }
 

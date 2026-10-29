@@ -9,6 +9,44 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+Targets 0.6.0, a minor bump: it extends the stable `Theme` and `Role` surface
+(ADR-195, anvil DSYS-006). The version itself moves in the release-cut PR.
+
+### Added
+
+- **Brand design system 2.x palette slots** on `Theme`, each with a default
+  that falls back to one of the eight required colours, so existing
+  implementors keep compiling and rendering as before: `info()`,
+  `text_secondary()`, `text_disabled()`, `border_interactive()`, `surface()`,
+  `overlay()` and `chart_series(n)`, plus the styles `status_info()`,
+  `status_blocked()` and `status_unknown()`.
+- **`Role` variants** (`Role` is `#[non_exhaustive]`): `Info`, `Blocked`,
+  `Unknown`, `Disabled`, `BorderInteractive`, `Surface`, `Overlay` and `Muted`.
+  `Secondary` keeps resolving to muted text; `Muted` is the brand's name for
+  the same role.
+- **`BadgeStatus::Blocked` and `BadgeStatus::Unknown`** (`BadgeStatus` is
+  `#[non_exhaustive]`).
+- **`theme::adapt_color` and `theme::adapt_buffer`** (experimental): map
+  rendered colour to a `ColourDepth`, using the brand terminal table for
+  256- and 16-colour terminals. With no colour, highlighted cells switch to
+  reverse video and accent text to bold. This is the first consumer of
+  `mode::ColourDepth`.
+
+### Changed
+
+- **Status badges use the bracket grammar** shared with the web surfaces and
+  the plain CLI: `[ OK ]`, `[ ERR ]`, `[ WARN ]`, `[ i ]`, `[ .. ]` (running),
+  `[ N/A ]` (skipped), `[ BLOCKED ]` and `[ ?? ]`, in place of
+  `◆ ✖ ◈ ◇ ● ○`. Statuses now read the same without colour.
+- **`EddaCraftTheme` follows brand-and-design 2.x:** edda Growth is
+  `#3B9762` (was `#2E8B57`); info and running badges use Fjord `#61A3E6`
+  instead of the accent; and the new slots take Ash, Iron, the raised and
+  overlay surfaces, and the categorical chart colours.
+- **json-render:** `Alert` and `Badge` render unrecognised kinds in the muted
+  colour instead of the accent (an explicit `info` alert uses `info()`);
+  charts take their colour from `chart_series`; placeholders use `muted()`
+  instead of `Color::DarkGray`.
+
 ### Fixed
 
 - `pretext` keeps `\n` and `\r\n` as forced row boundaries. A lone `\r` is

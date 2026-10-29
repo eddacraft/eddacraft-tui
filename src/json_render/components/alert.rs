@@ -28,7 +28,9 @@ impl Alert {
             "warning" | "warn" => theme.warning(),
             "error" | "destructive" => theme.error(),
             "success" => theme.success(),
-            _ => theme.accent(),
+            "info" => theme.info(),
+            // An unrecognised kind is neutral: the accent is never a status.
+            _ => theme.muted(),
         }
     }
 }

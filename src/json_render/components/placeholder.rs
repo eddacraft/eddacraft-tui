@@ -9,11 +9,12 @@
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
 use crate::json_render::{Props, TuiComponent};
+use crate::theme::{EddaCraftTheme, Theme};
 
 /// A component that renders a labelled "not available in terminal" marker.
 pub struct Placeholder {
@@ -35,7 +36,7 @@ impl TuiComponent for Placeholder {
         }
         let label = format!("[{}: not available in terminal]", self.component_name);
         frame.render_widget(
-            Paragraph::new(Line::raw(label)).style(Style::default().fg(Color::DarkGray)),
+            Paragraph::new(Line::raw(label)).style(Style::default().fg(EddaCraftTheme.muted())),
             area,
         );
     }

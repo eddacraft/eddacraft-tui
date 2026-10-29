@@ -26,6 +26,8 @@ fn badge_status(status: &str) -> BadgeStatus {
         "warn" | "warning" => BadgeStatus::Warning,
         "running" => BadgeStatus::Running,
         "skip" | "skipped" => BadgeStatus::Skipped,
+        "blocked" => BadgeStatus::Blocked,
+        "unknown" => BadgeStatus::Unknown,
         _ => BadgeStatus::Info,
     }
 }
