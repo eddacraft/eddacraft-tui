@@ -32,8 +32,8 @@ const ANVIL_EMBER: Color = Color::Rgb(217, 90, 0);
 const EDDA_GROWTH: Color = Color::Rgb(59, 151, 98);
 const BRICK_RED: Color = Color::Rgb(207, 94, 94);
 const DULL_AMBER: Color = Color::Rgb(208, 140, 56);
-const SURFACE: Color = Color::Rgb(20, 20, 22);
-const RAISED: Color = Color::Rgb(24, 24, 27);
+const SURFACE_RAISED: Color = Color::Rgb(20, 20, 22);
+const SURFACE_OVERLAY: Color = Color::Rgb(24, 24, 27);
 const IRON: Color = Color::Rgb(103, 103, 108);
 const ASH: Color = Color::Rgb(183, 183, 186);
 const FJORD: Color = Color::Rgb(97, 163, 230);
@@ -91,11 +91,11 @@ impl Theme for EddaCraftTheme {
     }
 
     fn surface(&self) -> Color {
-        SURFACE
+        SURFACE_RAISED
     }
 
     fn overlay(&self) -> Color {
-        RAISED
+        SURFACE_OVERLAY
     }
 
     fn chart_series(&self, n: usize) -> Color {
@@ -307,8 +307,8 @@ mod tests {
         assert_eq!(theme.role_style(Role::Muted), theme.disabled());
         assert_eq!(theme.role_style(Role::Disabled).fg, Some(IRON));
         assert_eq!(theme.role_style(Role::BorderInteractive).fg, Some(IRON));
-        assert_eq!(theme.role_style(Role::Surface).bg, Some(SURFACE));
-        assert_eq!(theme.role_style(Role::Overlay).bg, Some(RAISED));
+        assert_eq!(theme.role_style(Role::Surface).bg, Some(SURFACE_RAISED));
+        assert_eq!(theme.role_style(Role::Overlay).bg, Some(SURFACE_OVERLAY));
     }
 
     #[test]

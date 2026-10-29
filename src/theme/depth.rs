@@ -34,9 +34,9 @@ const fn entry(rgb: (u8, u8, u8), xterm256: u8, ansi: Option<Color>) -> Entry {
 }
 
 /// The sixteen ANSI slots of the brand terminal palette, the canvas and the
-/// accent, from `eddacraft-dark.json`. The canvas has no ANSI slot of its own:
-/// at 16 colours it becomes the terminal default.
-const BRAND: [Entry; 18] = [
+/// accent, from `eddacraft-dark.json`, plus Lingon. The canvas has no ANSI
+/// slot of its own: at 16 colours it becomes the terminal default.
+const BRAND: [Entry; 19] = [
     entry((0x2A, 0x2A, 0x2E), 235, Some(Color::Black)),
     entry((0xCF, 0x5E, 0x5E), 167, Some(Color::Red)),
     entry((0x3B, 0x97, 0x62), 65, Some(Color::Green)),
@@ -58,6 +58,10 @@ const BRAND: [Entry; 18] = [
     // anvil Ember, the accent: no ANSI slot, so yellow (made bold by
     // `adapt_buffer`).
     entry(EMBER, 166, Some(Color::Yellow)),
+    // Lingon, the fifth chart colour, has no slot in the token file. Pinned to
+    // bright magenta (guide §5(f)) so series 4 does not read as a red at 16
+    // colours; 175 is its nearest xterm index.
+    entry((0xD6, 0x7E, 0xA9), 175, Some(Color::LightMagenta)),
 ];
 
 const EMBER: (u8, u8, u8) = (0xD9, 0x5A, 0x00);
@@ -240,6 +244,7 @@ mod tests {
             (t.error(), 167, Color::Red),
             (t.info(), 75, Color::Blue),
             (t.chart_series(3), 140, Color::Magenta),
+            (t.chart_series(4), 175, Color::LightMagenta),
             (t.chart_series(5), 37, Color::Cyan),
         ];
         for (color, xterm, ansi) in cases {
@@ -342,5 +347,148 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A frame with the shapes whose meaning matters: plain text, a
+    /// highlighted row, every status badge and a blocked fill.
+    fn sample_frame(depth: ColourDepth) -> Buffer {
+        use ratatui::widgets::Widget;
+
+        use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
+
+        let t = EddaCraftTheme;
+        let area = Rect::new(0, 0, 24, 10);
+        let mut buffer = Buffer::empty(area);
+        buffer.set_style(area, t.base());
+        buffer.set_string(0, 0, "plain text", t.base());
+        buffer.set_string(0, 1, "selected row", t.highlighted());
+        for (row, status) in [
+            BadgeStatus::Success,
+            BadgeStatus::Error,
+            BadgeStatus::Warning,
+            BadgeStatus::Info,
+            BadgeStatus::Unknown,
+            BadgeStatus::Blocked,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let y = 2 + u16::try_from(row).expect("row fits");
+            StatusBadge::new(status, &t).render(Rect::new(0, y, 24, 1), &mut buffer);
+        }
+        buffer.set_string(0, 8, "blocked fill", t.status_blocked());
+        adapt_buffer(&mut buffer, depth);
+        buffer
+    }
+
+    /// Guide §8 item 4: how a frame reads at 16 colours and with none.
+    #[test]
+    fn snapshot_frame_at_16_colours() {
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(
+            &sample_frame(ColourDepth::Ansi16)
+        ));
+    }
+
+    #[test]
+    fn snapshot_frame_without_colour() {
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(
+            &sample_frame(ColourDepth::None)
+        ));
+    }
+
+    /// The SGR parameters a terminal receives when the adapted frame is
+    /// flushed through the crossterm backend.
+    fn emitted_bytes(depth: ColourDepth) -> String {
+        use ratatui::Terminal;
+        use ratatui::backend::CrosstermBackend;
+
+        let mut out = Vec::new();
+        {
+            let backend = CrosstermBackend::new(&mut out);
+            let mut terminal = Terminal::with_options(
+                backend,
+                ratatui::TerminalOptions {
+                    viewport: ratatui::Viewport::Fixed(Rect::new(0, 0, 24, 10)),
+                },
+            )
+            .expect("terminal");
+            terminal
+                .draw(|frame| {
+                    let sample = sample_frame(ColourDepth::TrueColor);
+                    frame.buffer_mut().merge(&sample);
+                    adapt_buffer(frame.buffer_mut(), depth);
+                })
+                .expect("draw");
+        }
+        String::from_utf8(out).expect("utf-8 output")
+    }
+
+    /// Colour-setting SGR parameters (guide §8 item 7(b)): 30–37, 40–47,
+    /// 90–97, 100–107, and the 38;/48; extended forms. Defaults (39, 49),
+    /// bold, underline, reverse and resets are allowed.
+    fn colour_parameters(bytes: &str) -> Vec<String> {
+        let mut found = Vec::new();
+        for sequence in bytes.split("\x1b[").skip(1) {
+            let Some(end) = sequence.find(|c: char| c.is_ascii_alphabetic()) else {
+                continue;
+            };
+            if &sequence[end..=end] != "m" {
+                continue;
+            }
+            let params: Vec<&str> = sequence[..end].split(';').collect();
+            let mut i = 0;
+            while i < params.len() {
+                let n: u16 = params[i].parse().unwrap_or(0);
+                if n == 38 || n == 48 {
+                    found.push(params[i..].join(";"));
+                    break;
+                }
+                if (30..=37).contains(&n)
+                    || (40..=47).contains(&n)
+                    || (90..=97).contains(&n)
+                    || (100..=107).contains(&n)
+                {
+                    found.push(n.to_string());
+                }
+                i += 1;
+            }
+        }
+        found
+    }
+
+    #[test]
+    fn emitted_escapes_match_each_depth() {
+        let none = emitted_bytes(ColourDepth::None);
+        assert!(
+            colour_parameters(&none).is_empty(),
+            "no colour must emit no colour SGR: {:?}",
+            colour_parameters(&none)
+        );
+        assert!(none.contains("\x1b[7m"), "highlights need reverse video");
+
+        // crossterm writes even the sixteen named colours in the indexed form
+        // (`38;5;1` for red), so at 16 colours every index must be one of the
+        // ANSI slots 0–15 and nothing may be truecolour.
+        let ansi16 = emitted_bytes(ColourDepth::Ansi16);
+        let params16 = colour_parameters(&ansi16);
+        assert!(!params16.is_empty(), "16 colours still colours the frame");
+        assert!(!ansi16.contains("38;2;") && !ansi16.contains("48;2;"));
+        for param in &params16 {
+            let parts: Vec<&str> = param.split(';').collect();
+            if let ["38" | "48", "5", index, ..] = parts.as_slice() {
+                let index: u8 = index.parse().expect("an index");
+                assert!(index < 16, "16 colours emitted index {index}: {param}");
+            }
+        }
+
+        let ansi256 = emitted_bytes(ColourDepth::Ansi256);
+        assert!(ansi256.contains("38;5;"), "256 colours use indexed colour");
+        assert!(
+            !ansi256.contains("38;2;"),
+            "256 colours must not emit truecolour"
+        );
+
+        let truecolor = emitted_bytes(ColourDepth::TrueColor);
+        assert!(truecolor.contains("38;2;"), "truecolour uses RGB colour");
     }
 }

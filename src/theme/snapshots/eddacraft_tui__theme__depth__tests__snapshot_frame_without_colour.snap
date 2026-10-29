@@ -1,0 +1,13 @@
+---
+source: crates/eddacraft-tui/src/theme/depth.rs
+expression: "crate::test_utils::snapshot::buffer_to_string(&sample_frame(ColourDepth::None))"
+---
+plain text              
+s[bold,reversed]e[bold,reversed]l[bold,reversed]e[bold,reversed]c[bold,reversed]t[bold,reversed]e[bold,reversed]d[bold,reversed] [bold,reversed]r[bold,reversed]o[bold,reversed]w[bold,reversed]            
+[[bold] [bold]O[bold]K[bold] [bold]][bold] P[bold]a[bold]s[bold]s[bold]e[bold]d[bold]           
+[[bold] [bold]E[bold]R[bold]R[bold] [bold]][bold] F[bold]a[bold]i[bold]l[bold]e[bold]d[bold]          
+[[bold] [bold]W[bold]A[bold]R[bold]N[bold] [bold]][bold] W[bold]a[bold]r[bold]n[bold]i[bold]n[bold]g[bold]        
+[[bold] [bold]i[bold] [bold]][bold] I[bold]n[bold]f[bold]o[bold]              
+[ ?? ] Unknown          
+[[bold,reversed] [bold,reversed]B[bold,reversed]L[bold,reversed]O[bold,reversed]C[bold,reversed]K[bold,reversed]E[bold,reversed]D[bold,reversed] [bold,reversed]][bold,reversed] B[bold,reversed]l[bold,reversed]o[bold,reversed]c[bold,reversed]k[bold,reversed]e[bold,reversed]d[bold,reversed]     
+b[bold,reversed]l[bold,reversed]o[bold,reversed]c[bold,reversed]k[bold,reversed]e[bold,reversed]d[bold,reversed] [bold,reversed]f[bold,reversed]i[bold,reversed]l[bold,reversed]l[bold,reversed]

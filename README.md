@@ -170,21 +170,21 @@ The built-in `EddaCraftTheme` follows the eddacraft Terminal Standard palette.
 All colours are exposed through the `Theme` trait, so you can implement your own
 without touching widget code.
 
-| Token       | `Theme` method                        | Colour               |
-| ----------- | ------------------------------------- | -------------------- |
-| Void        | `bg`                                  | `rgb(13, 13, 15)`    |
-| Structure   | `border`                              | `rgb(42, 42, 46)`    |
-| Off-White   | `fg`                                  | `rgb(235, 235, 235)` |
-| Ghost Grey  | `muted`                               | `rgb(133, 133, 138)` |
-| anvil Ember | `accent`                              | `rgb(217, 90, 0)`    |
-| edda Growth | `success`                             | `rgb(59, 151, 98)`   |
-| Brick Red   | `error`                               | `rgb(207, 94, 94)`   |
-| Dull Amber  | `warning`                             | `rgb(208, 140, 56)`  |
-| Fjord       | `info`                                | `rgb(97, 163, 230)`  |
-| Ash         | `text_secondary`                      | `rgb(183, 183, 186)` |
-| Iron        | `text_disabled`, `border_interactive` | `rgb(103, 103, 108)` |
-| Surface     | `surface`                             | `rgb(20, 20, 22)`    |
-| Raised      | `overlay`                             | `rgb(24, 24, 27)`    |
+| Brand token                           | Name        | `Theme` method                        | Colour               |
+| ------------------------------------- | ----------- | ------------------------------------- | -------------------- |
+| `surface.canvas`                      | Void        | `bg`                                  | `rgb(13, 13, 15)`    |
+| `border.default`                      | Structure   | `border`                              | `rgb(42, 42, 46)`    |
+| `text.primary`                        | Off-White   | `fg`                                  | `rgb(235, 235, 235)` |
+| `text.muted`                          | Ghost Grey  | `muted`                               | `rgb(133, 133, 138)` |
+| `accent.default`                      | anvil Ember | `accent`                              | `rgb(217, 90, 0)`    |
+| `status.success.fg`                   | edda Growth | `success`                             | `rgb(59, 151, 98)`   |
+| `status.error.fg`                     | Brick Red   | `error`                               | `rgb(207, 94, 94)`   |
+| `status.warning.fg`                   | Dull Amber  | `warning`                             | `rgb(208, 140, 56)`  |
+| `status.info.fg`                      | Fjord       | `info`                                | `rgb(97, 163, 230)`  |
+| `text.secondary`                      | Ash         | `text_secondary`                      | `rgb(183, 183, 186)` |
+| `text.disabled`, `border.interactive` | Iron        | `text_disabled`, `border_interactive` | `rgb(103, 103, 108)` |
+| `surface.raised`                      | —           | `surface`                             | `rgb(20, 20, 22)`    |
+| `surface.overlay`                     | —           | `overlay`                             | `rgb(24, 24, 27)`    |
 
 These are the values in `src/theme/eddacraft.rs`, from brand-and-design 2.x.
 `chart_series(n)` cycles Ember, Fjord, Growth, Heather `rgb(176, 138, 218)`,
