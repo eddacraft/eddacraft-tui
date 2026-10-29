@@ -35,7 +35,9 @@ const fn entry(rgb: (u8, u8, u8), xterm256: u8, ansi: Option<Color>) -> Entry {
 
 /// The sixteen ANSI slots of the brand terminal palette, the canvas and the
 /// accent, from `eddacraft-dark.json`, plus Lingon. The canvas has no ANSI
-/// slot of its own: at 16 colours it becomes the terminal default.
+/// slot of its own: at 16 colours it becomes the terminal default. Lingon is
+/// also a nearest-match target, so off-palette pinks and magentas map to
+/// bright magenta at 16 colours.
 const BRAND: [Entry; 19] = [
     entry((0x2A, 0x2A, 0x2E), 235, Some(Color::Black)),
     entry((0xCF, 0x5E, 0x5E), 167, Some(Color::Red)),
@@ -290,6 +292,11 @@ mod tests {
         assert_eq!(
             adapt_color(Color::Indexed(9), ColourDepth::Ansi16),
             Color::Indexed(9)
+        );
+        // Pinks land on Lingon's slot rather than red.
+        assert_eq!(
+            adapt_color(Color::Indexed(175), ColourDepth::Ansi16),
+            Color::LightMagenta
         );
     }
 
