@@ -36,7 +36,7 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Widget, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::theme::Theme;
 use crate::widgets::status_badge::BadgeStatus;
@@ -97,7 +97,7 @@ impl<T: Theme> Widget for Modal<'_, T> {
         let border_style = self.severity.severity_style(self.theme);
         let mut block = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
+            .border_set(self.severity.box_border())
             .border_style(border_style)
             .style(self.theme.base());
 
@@ -169,6 +169,18 @@ mod tests {
         Modal::new(&theme).body("hello").render(area, &mut buf);
         let body_row: String = (1..9).map(|x| buf[(x, 1)].symbol().to_string()).collect();
         assert!(body_row.starts_with("hello"));
+    }
+
+    #[test]
+    fn unknown_modal_draws_a_dashed_border() {
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 8, 3);
+        let mut buf = Buffer::empty(area);
+        Modal::new(&theme)
+            .severity(BadgeStatus::Unknown)
+            .render(area, &mut buf);
+        assert_eq!(buf[(0, 0)].symbol(), "┌");
+        assert_eq!(buf[(0, 1)].symbol(), "╎");
     }
 
     #[test]

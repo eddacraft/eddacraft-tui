@@ -56,10 +56,9 @@ fn pty_child_frame() {
 /// output, or `None` when `script` is not installed.
 fn run_under_pty(env: &[(&str, &str)]) -> Option<String> {
     let exe = std::env::current_exe().expect("test binary");
-    let child = format!(
-        "{} --exact pty_child_frame --nocapture --test-threads=1",
-        exe.display()
-    );
+    // Single-quoted for `sh -c`, so a target path with spaces still runs.
+    let exe = format!("'{}'", exe.display().to_string().replace('\'', r"'\''"));
+    let child = format!("{exe} --exact pty_child_frame --nocapture --test-threads=1");
     let mut command = Command::new("script");
     if cfg!(target_os = "macos") {
         command.args(["-q", "/dev/null", "/bin/sh", "-c", &child]);
@@ -86,21 +85,33 @@ fn run_under_pty(env: &[(&str, &str)]) -> Option<String> {
 /// A foreground or background colour set by an SGR sequence.
 #[derive(Debug)]
 enum SgrColour {
+    /// `30`–`37`, `40`–`47`, `90`–`97` or `100`–`107`: one of the 16 slots.
+    Basic,
     Indexed(u8),
     Rgb,
 }
 
-/// Every extended foreground and background colour in the output, read by
-/// walking each `ESC[ … m` parameter list (`38;5;n`, `38;2;r;g;b` and the `48`
-/// forms), so one sequence can carry several.
+/// Every foreground and background colour in the output, read by walking each
+/// `ESC[ … m` parameter list: the basic codes, `38;5;n`, `38;2;r;g;b` and the
+/// `48` forms, so one sequence can carry several.
 fn sgr_colours(output: &str) -> Vec<SgrColour> {
     let mut colours = Vec::new();
     for chunk in output.split("\x1b[").skip(1) {
         let Some((params, _)) = chunk.split_once('m') else {
             continue;
         };
+        // Only SGR parameter lists; a cursor move such as `1;1H` is not one.
+        if !params.chars().all(|c| c.is_ascii_digit() || c == ';') {
+            continue;
+        }
         let mut parts = params.split(';');
         while let Some(part) = parts.next() {
+            if let Ok(code) = part.parse::<u8>()
+                && matches!(code, 30..=37 | 40..=47 | 90..=97 | 100..=107)
+            {
+                colours.push(SgrColour::Basic);
+                continue;
+            }
             if part != "38" && part != "48" {
                 continue;
             }
@@ -151,7 +162,7 @@ fn a_real_terminal_gets_the_escapes_for_its_depth() {
             .iter()
             .filter_map(|c| match c {
                 SgrColour::Indexed(index) => Some(*index),
-                SgrColour::Rgb => None,
+                SgrColour::Basic | SgrColour::Rgb => None,
             })
             .collect();
         match expected {

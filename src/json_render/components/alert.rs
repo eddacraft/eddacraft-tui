@@ -33,6 +33,7 @@ impl Alert {
             "error" | "destructive" => theme.error(),
             "success" => theme.success(),
             "info" => theme.info(),
+            "unknown" => theme.status_unknown().fg.unwrap_or_else(|| theme.muted()),
             // An unrecognised kind is neutral: the accent is never a status.
             _ => theme.muted(),
         }
@@ -115,6 +116,17 @@ mod tests {
         let text = render(p.as_object().expect("obj"), 16, 3);
         assert!(text.contains('╌'), "dashed edge: {text:?}");
         assert!(text.contains('╎'), "dashed side: {text:?}");
+    }
+
+    #[test]
+    fn unknown_kind_takes_the_unknown_status_colour() {
+        let p = json!({ "type": "unknown" });
+        let mut terminal = Terminal::new(TestBackend::new(16, 3)).expect("backend");
+        terminal
+            .draw(|frame| Alert.render(p.as_object().expect("obj"), frame, frame.area()))
+            .expect("draw");
+        let edge = &terminal.backend().buffer()[(1, 0)];
+        assert_eq!(edge.fg, EddaCraftTheme.status_unknown().fg.unwrap());
     }
 
     #[test]

@@ -18,14 +18,13 @@ minor version bump indicates a breaking change.
 - **`ContainerVariant::Unknown`**: the unknown status colour on the dashed
   border. `ContainerVariant` is not `#[non_exhaustive]`, so an exhaustive
   `match` on it needs the new arm; this makes the next release a minor bump.
-- **json-render `Alert` with `type: "unknown"`** draws the dashed border.
+- **json-render `Alert` with `type: "unknown"`** draws the dashed border in
+  the unknown status colour.
 
 ### Changed
 
-- A test renders a frame under a real pseudo-terminal (`script(1)`, Unix
-  only) and checks that `ColourDepth::detect()` and `adapt_buffer` together
-  emit truecolour, 256-colour, 16-colour or no colour escapes for the
-  terminal they find.
+- **`Modal` and `Toast` with `BadgeStatus::Unknown`** draw the dashed border
+  in place of the rounded one.
 
 ## [0.6.0] - 2026-10-30
 

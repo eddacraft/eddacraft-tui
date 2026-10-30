@@ -1,10 +1,11 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
+use ratatui::symbols::border;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
 
-use crate::theme::Theme;
+use crate::theme::{DASHED_BORDER, Theme};
 
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
@@ -35,6 +36,16 @@ impl BadgeStatus {
             Self::Skipped => theme.disabled(),
             Self::Blocked => theme.status_blocked(),
             Self::Unknown => theme.status_unknown(),
+        }
+    }
+
+    /// The border for a box showing this status: dashed for [`Self::Unknown`],
+    /// the brand's mark for an undetermined state, and rounded otherwise.
+    /// Shared by `Modal` and `Toast`.
+    pub(crate) fn box_border(self) -> border::Set<'static> {
+        match self {
+            Self::Unknown => DASHED_BORDER,
+            _ => border::ROUNDED,
         }
     }
 }

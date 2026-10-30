@@ -21,7 +21,7 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Widget, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap};
 use unicode_width::UnicodeWidthStr;
 
 use crate::theme::Theme;
@@ -115,7 +115,7 @@ impl<T: Theme> Widget for Toast<'_, T> {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
+            .border_set(self.severity.box_border())
             .border_style(style)
             .style(self.theme.base());
 
@@ -285,6 +285,19 @@ mod tests {
         assert_eq!(buf[(0, 0)].symbol(), "╭");
         let inner: String = (1..15).map(|x| buf[(x, 1)].symbol().to_string()).collect();
         assert!(inner.contains("ok"), "got: {inner:?}");
+    }
+
+    #[test]
+    fn unknown_toast_draws_a_dashed_border() {
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 16, 3);
+        let mut buf = Buffer::empty(area);
+        Toast::new(&theme, "state?")
+            .severity(BadgeStatus::Unknown)
+            .render(area, &mut buf);
+        assert_eq!(buf[(0, 0)].symbol(), "┌");
+        assert_eq!(buf[(1, 0)].symbol(), "╌");
+        assert_eq!(buf[(1, 0)].fg, theme.status_unknown().fg.unwrap());
     }
 
     #[test]
