@@ -44,8 +44,8 @@ crates.io. Older minor versions are not patched — users should upgrade.
 
 | Version | Supported |
 | ------- | --------- |
-| 0.5.x   | ✔︎         |
-| < 0.5   | ✘         |
+| 0.6.x   | ✔︎         |
+| < 0.6   | ✘         |
 
 ## Scope
 

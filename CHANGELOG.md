@@ -9,8 +9,10 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
-Targets 0.6.0, a minor bump: it extends the stable `Theme` and `Role` surface
-(ADR-195, anvil DSYS-006). The version itself moves in the release-cut PR.
+## [0.6.0] - 2026-10-30
+
+A minor bump: it extends the stable `Theme` and `Role` surface (ADR-195, anvil
+DSYS-006).
 
 ### Added
 
@@ -538,7 +540,8 @@ contains breaking changes — see **Breaking** below.
 - `vyfor/animate` powers the new animation runtime — credited in README.
 - `pretext-tui` provides the layout engine integrated as the `pretext` module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.3...HEAD
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.6.0...HEAD
+[0.6.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.3...eddacraft-tui-v0.6.0
 [0.5.3]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.2...eddacraft-tui-v0.5.3
 [0.5.2]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.1...eddacraft-tui-v0.5.2
 [0.5.1]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.5.0...eddacraft-tui-v0.5.1

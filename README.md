@@ -53,7 +53,7 @@ LLM-generated interfaces, etc.).
 
 ```toml
 [dependencies]
-eddacraft-tui = { version = "0.5", features = ["json-render"] }
+eddacraft-tui = { version = "0.6", features = ["json-render"] }
 ```
 
 ```rust
@@ -127,7 +127,7 @@ the convenience spinner presets, but are never required.
 
 ```toml
 [dependencies]
-eddacraft-tui = "0.5"
+eddacraft-tui = "0.6"
 ```
 
 ```rust
@@ -233,7 +233,7 @@ The `widgets/` module ships a curated component set. Highlights:
 
 ```toml
 [dependencies]
-eddacraft-tui = { version = "0.5", features = ["image", "big-text"] }
+eddacraft-tui = { version = "0.6", features = ["image", "big-text"] }
 ```
 
 [`ratatui-image`]: https://crates.io/crates/ratatui-image
@@ -250,7 +250,7 @@ internally).
 
 ```toml
 [dependencies]
-eddacraft-tui = { version = "0.5", features = ["runner"] }
+eddacraft-tui = { version = "0.6", features = ["runner"] }
 ```
 
 ```rust,ignore
@@ -273,7 +273,7 @@ independent of your `clap` major version.
 ```toml
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-eddacraft-tui = { version = "0.5", features = ["runner"] }
+eddacraft-tui = { version = "0.6", features = ["runner"] }
 ```
 
 ```rust,ignore
