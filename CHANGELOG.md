@@ -9,6 +9,24 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+### Added
+
+- **`theme::DASHED_BORDER`** (experimental): plain corners with light dashed
+  edges (`┌╌┐`, `╎`), the brand's mark for a boxed state that could not be
+  determined. It is drawn at every colour depth, since the dash is the cue
+  that survives without colour.
+- **`ContainerVariant::Unknown`**: the unknown status colour on the dashed
+  border. `ContainerVariant` is not `#[non_exhaustive]`, so an exhaustive
+  `match` on it needs the new arm; this makes the next release a minor bump.
+- **json-render `Alert` with `type: "unknown"`** draws the dashed border.
+
+### Changed
+
+- A test renders a frame under a real pseudo-terminal (`script(1)`, Unix
+  only) and checks that `ColourDepth::detect()` and `adapt_buffer` together
+  emit truecolour, 256-colour, 16-colour or no colour escapes for the
+  terminal they find.
+
 ## [0.6.0] - 2026-10-30
 
 A minor bump: it extends the stable `Theme` and `Role` surface (ADR-195, anvil

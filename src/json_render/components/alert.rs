@@ -2,7 +2,8 @@
 //! shadcn built-in).
 //!
 //! Severity comes from `type` (or `variant`): `info` (default), `warning`,
-//! `error`/`destructive`, `success`. `title` styles the border title; the body
+//! `error`/`destructive`, `success`, and `unknown`, which draws a dashed
+//! border. `title` styles the border title; the body
 //! is the `children` (or `description`) string. Leaf component.
 
 use ratatui::Frame;
@@ -13,18 +14,21 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 
 use super::props::{disp, disp_or, str_prop};
 use crate::json_render::{Props, TuiComponent};
-use crate::theme::{EddaCraftTheme, Theme};
+use crate::theme::{DASHED_BORDER, EddaCraftTheme, Theme};
 
 /// Renders the `Alert` component.
 pub struct Alert;
 
 impl Alert {
-    fn severity_colour(props: &Props, theme: &EddaCraftTheme) -> Color {
+    fn kind(props: &Props) -> &str {
         // `type` is the shadcn field; `variant` is a common alias.
-        let kind = str_prop(props, "type")
+        str_prop(props, "type")
             .or_else(|| str_prop(props, "variant"))
-            .unwrap_or("info");
-        match kind {
+            .unwrap_or("info")
+    }
+
+    fn severity_colour(props: &Props, theme: &EddaCraftTheme) -> Color {
+        match Self::kind(props) {
             "warning" | "warn" => theme.warning(),
             "error" | "destructive" => theme.error(),
             "success" => theme.success(),
@@ -47,6 +51,9 @@ impl TuiComponent for Alert {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(colour));
+        if Self::kind(props) == "unknown" {
+            block = block.border_set(DASHED_BORDER);
+        }
         if !title.is_empty() {
             block = block.title(Span::styled(title, Style::default().fg(colour)));
         }
@@ -100,6 +107,22 @@ mod tests {
         let text = render(p.as_object().expect("obj"), 30, 5);
         assert!(text.contains("Heads up"), "title: {text:?}");
         assert!(text.contains("two open"), "body: {text:?}");
+    }
+
+    #[test]
+    fn unknown_kind_draws_a_dashed_border() {
+        let p = json!({ "type": "unknown", "title": "State" });
+        let text = render(p.as_object().expect("obj"), 16, 3);
+        assert!(text.contains('╌'), "dashed edge: {text:?}");
+        assert!(text.contains('╎'), "dashed side: {text:?}");
+    }
+
+    #[test]
+    fn known_kinds_keep_the_rounded_border() {
+        let p = json!({ "type": "warning" });
+        let text = render(p.as_object().expect("obj"), 16, 3);
+        assert!(text.contains('╭'), "rounded corner: {text:?}");
+        assert!(!text.contains('╌'), "no dashed edge: {text:?}");
     }
 
     #[test]
