@@ -133,7 +133,8 @@ fn with_ellipsis(line: &str, width: usize) -> String {
 impl<T: Theme> Widget for Toast<'_, T> {
     /// The marker is drawn whole on the first row; the message wraps in the
     /// columns beside it. When the toast is too small for the message, the
-    /// message is cut with an ellipsis, never the marker (ESC-054).
+    /// message is cut with an ellipsis before the marker is (ESC-054); only a
+    /// toast narrower than the marker itself clips it.
     fn render(self, area: Rect, buf: &mut Buffer) {
         if area.width < 4 || area.height < 3 {
             return;
