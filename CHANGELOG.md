@@ -20,11 +20,20 @@ minor version bump indicates a breaking change.
   `match` on it needs the new arm; this makes the next release a minor bump.
 - **json-render `Alert` with `type: "unknown"`** draws the dashed border in
   the unknown status colour.
+- **`BadgeStatus::marker()`**: the bracket marker for a status (`[ OK ]`,
+  `[ ERR ]`, `[ WARN ]`, `[ i ]`, `[ .. ]`, `[ N/A ]`, `[ BLOCKED ]`,
+  `[ ?? ]`), so text outside a badge can carry a status the same way
+  (ADR-195). `StatusBadge` draws it.
 
 ### Changed
 
 - **`Modal` and `Toast` with `BadgeStatus::Unknown`** draw the dashed border
   in place of the rounded one.
+- **`Toast` leads with the full bracket marker** in place of `✓ ✖ ! i · ?`.
+  The message wraps in the columns beside the marker; when the toast has too
+  few rows for it, the message is cut with an ellipsis and the marker is never
+  cut. `measured_height` counts word-wrapped lines, so it matches what renders.
+  A custom `icon()` still replaces the marker.
 
 ## [0.6.0] - 2026-10-30
 

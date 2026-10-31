@@ -21,7 +21,7 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Widget};
 use unicode_width::UnicodeWidthStr;
 
 use crate::theme::Theme;
@@ -63,7 +63,8 @@ impl<'a, T: Theme> Toast<'a, T> {
         self
     }
 
-    /// Override the leading icon. Defaults to the icon implied by `severity`.
+    /// Override the leading marker. Defaults to the bracket marker for
+    /// `severity` ([`BadgeStatus::marker`]).
     #[must_use]
     pub fn icon(mut self, icon: &'a str) -> Self {
         self.icon = Some(icon);
@@ -71,14 +72,20 @@ impl<'a, T: Theme> Toast<'a, T> {
     }
 
     fn default_icon(&self) -> &'static str {
-        match self.severity {
-            BadgeStatus::Success => "✓",
-            BadgeStatus::Error | BadgeStatus::Blocked => "✖",
-            BadgeStatus::Warning => "!",
-            BadgeStatus::Info | BadgeStatus::Running => "i",
-            BadgeStatus::Skipped => "·",
-            BadgeStatus::Unknown => "?",
-        }
+        self.severity.marker()
+    }
+
+    fn marker(&self) -> &'a str {
+        self.icon.unwrap_or_else(|| self.default_icon())
+    }
+
+    /// Columns the message gets beside the marker and its trailing space, in a
+    /// toast `width` cells wide (2 of them border). `None` when only the marker
+    /// fits.
+    fn message_width(&self, width: u16) -> Option<usize> {
+        let prefix = UnicodeWidthStr::width(self.marker()).saturating_add(1);
+        let inner = usize::from(width).saturating_sub(2);
+        inner.checked_sub(prefix).filter(|&w| w > 0)
     }
 
     /// Estimated height (in cells) needed to render this toast at `width`.
@@ -89,29 +96,50 @@ impl<'a, T: Theme> Toast<'a, T> {
     /// the message body and in a custom [`icon`](Self::icon).
     #[must_use]
     pub fn measured_height(&self, width: u16) -> u16 {
-        let icon = self.icon.unwrap_or_else(|| self.default_icon());
-        // Render prefix is `"{icon} "`: icon width plus the trailing space.
-        let prefix_width = UnicodeWidthStr::width(icon).saturating_add(1);
-        // 2 cells for the rounded border.
-        let chrome = prefix_width.saturating_add(2);
-        if usize::from(width) <= chrome {
+        let Some(message_width) = self.message_width(width) else {
             return 3;
-        }
-        let inner_width = usize::from(width).saturating_sub(chrome);
-        let total = UnicodeWidthStr::width(self.message);
-        let lines = total.div_ceil(inner_width.max(1));
-        let lines = u16::try_from(lines).unwrap_or(1).max(1);
-        lines.saturating_add(2)
+        };
+        let lines = wrap_message(self.message, message_width).len().max(1);
+        u16::try_from(lines).unwrap_or(u16::MAX).saturating_add(2)
     }
 }
 
+/// Word-wraps `message` into lines at most `width` columns wide, splitting a
+/// word longer than the line.
+fn wrap_message(message: &str, width: usize) -> Vec<String> {
+    textwrap::wrap(message, width)
+        .into_iter()
+        .map(std::borrow::Cow::into_owned)
+        .collect()
+}
+
+/// Cuts `line` to fit `width` columns with a trailing ellipsis.
+fn with_ellipsis(line: &str, width: usize) -> String {
+    let budget = width.saturating_sub(1);
+    let mut out = String::new();
+    let mut used = 0;
+    for ch in line.chars() {
+        let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        if used + cw > budget {
+            break;
+        }
+        out.push(ch);
+        used += cw;
+    }
+    out.push('…');
+    out
+}
+
 impl<T: Theme> Widget for Toast<'_, T> {
+    /// The marker is drawn whole on the first row; the message wraps in the
+    /// columns beside it. When the toast is too small for the message, the
+    /// message is cut with an ellipsis, never the marker (ESC-054).
     fn render(self, area: Rect, buf: &mut Buffer) {
         if area.width < 4 || area.height < 3 {
             return;
         }
         let style = self.severity.severity_style(self.theme);
-        let icon = self.icon.unwrap_or_else(|| self.default_icon());
+        let marker = self.marker();
 
         let block = Block::default()
             .borders(Borders::ALL)
@@ -127,13 +155,27 @@ impl<T: Theme> Widget for Toast<'_, T> {
             return;
         }
 
-        let body = Line::from(vec![
-            Span::styled(format!("{icon} "), style),
-            Span::styled(self.message, self.theme.base()),
-        ]);
-        Paragraph::new(body)
-            .wrap(Wrap { trim: true })
-            .render(inner, buf);
+        Line::from(Span::styled(marker, style))
+            .render(Rect::new(inner.x, inner.y, inner.width, 1), buf);
+
+        let Some(message_width) = self.message_width(area.width) else {
+            return;
+        };
+        let mut lines = wrap_message(self.message, message_width);
+        let rows = usize::from(inner.height);
+        if lines.len() > rows {
+            lines.truncate(rows);
+            if let Some(last) = lines.last_mut() {
+                // Always mark the cut, even when the kept line already fits.
+                *last = with_ellipsis(last, message_width);
+            }
+        }
+        let width = u16::try_from(message_width).unwrap_or(u16::MAX);
+        let x = inner.x + inner.width - width;
+        for (row, text) in (0u16..).zip(lines) {
+            Line::from(Span::styled(text, self.theme.base()))
+                .render(Rect::new(x, inner.y + row, width, 1), buf);
+        }
     }
 }
 
@@ -316,8 +358,71 @@ mod tests {
         let theme = EddaCraftTheme;
         let success = Toast::new(&theme, "x").severity(BadgeStatus::Success);
         let warning = Toast::new(&theme, "x").severity(BadgeStatus::Warning);
-        assert_eq!(success.default_icon(), "✓");
-        assert_eq!(warning.default_icon(), "!");
+        assert_eq!(success.default_icon(), "[ OK ]");
+        assert_eq!(warning.default_icon(), "[ WARN ]");
+    }
+
+    fn row(buf: &Buffer, y: u16) -> String {
+        (0..buf.area.width)
+            .map(|x| buf[(x, y)].symbol().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn toast_draws_the_full_marker_beside_the_message() {
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 24, 3);
+        let mut buf = Buffer::empty(area);
+        Toast::new(&theme, "Saved")
+            .severity(BadgeStatus::Warning)
+            .render(area, &mut buf);
+        assert_eq!(row(&buf, 1), "│[ WARN ] Saved        │");
+    }
+
+    #[test]
+    fn toast_cuts_the_message_before_the_marker() {
+        // ESC-054: at 3 rows there is one message line of 6 columns; the
+        // marker stays whole and the message ends in an ellipsis.
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 16, 3);
+        let mut buf = Buffer::empty(area);
+        Toast::new(&theme, "connection lost to the daemon")
+            .severity(BadgeStatus::Error)
+            .render(area, &mut buf);
+        assert_eq!(row(&buf, 1), "│[ ERR ] conne…│");
+    }
+
+    #[test]
+    fn toast_wraps_the_message_under_itself() {
+        let theme = EddaCraftTheme;
+        let toast = Toast::new(&theme, "alpha beta gamma").severity(BadgeStatus::Success);
+        let height = toast.measured_height(16);
+        let area = Rect::new(0, 0, 16, height);
+        let mut buf = Buffer::empty(area);
+        Toast::new(&theme, "alpha beta gamma")
+            .severity(BadgeStatus::Success)
+            .render(area, &mut buf);
+        assert_eq!(height, 5);
+        assert_eq!(row(&buf, 1), "│[ OK ] alpha  │");
+        assert_eq!(row(&buf, 2), "│       beta   │");
+        assert_eq!(row(&buf, 3), "│       gamma  │");
+    }
+
+    #[test]
+    fn toast_too_narrow_for_a_message_keeps_the_marker() {
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 9, 3);
+        let mut buf = Buffer::empty(area);
+        Toast::new(&theme, "lost")
+            .severity(BadgeStatus::Error)
+            .render(area, &mut buf);
+        assert_eq!(row(&buf, 1), "│[ ERR ]│");
+        assert_eq!(
+            Toast::new(&theme, "lost")
+                .severity(BadgeStatus::Error)
+                .measured_height(9),
+            3
+        );
     }
 
     #[test]
@@ -429,51 +534,30 @@ mod tests {
 
     #[test]
     fn measured_height_accounts_for_multi_cell_icon_width() {
+        // Width 12 leaves 10 inner columns. A 1-cell icon takes 2 of them with
+        // its space, leaving 8 for the message; a 2-cell icon leaves 7.
         let theme = EddaCraftTheme;
-        // Width 12: with default 1-cell icon "i", inner_width = 12-4 = 8.
-        // Message "abcdefghij" (10 cells) wraps to 2 inner lines + 2 borders = 4.
-        let default_icon = Toast::new(&theme, "abcdefghij").measured_height(12);
-        assert_eq!(default_icon, 4);
-
-        // Same message, but a 2-cell emoji icon. Inner width must shrink by 1
-        // (icon now occupies 2 cells instead of 1), so the wrap budget per
-        // line is 7. 10 cells wrap to 2 inner lines → still 4 rows here, but
-        // the under-count surfaces below.
-        let emoji_icon = Toast::new(&theme, "abcdefghij")
-            .icon("🔥")
-            .measured_height(12);
-        assert!(
-            emoji_icon >= default_icon,
-            "emoji_icon={emoji_icon} default_icon={default_icon}"
-        );
-
-        // 15 cells of message at width 12. Default icon: inner=8 → 2 lines + 2.
-        // Emoji/CJK icon: inner=7 → 3 lines + 2. Previously both returned 4.
-        let default_long = Toast::new(&theme, &"a".repeat(15)).measured_height(12);
-        let emoji_long = Toast::new(&theme, &"a".repeat(15))
-            .icon("🔥")
-            .measured_height(12);
-        let cjk_long = Toast::new(&theme, &"a".repeat(15))
-            .icon("告")
-            .measured_height(12);
-        assert_eq!(default_long, 4);
-        assert_eq!(emoji_long, 5);
-        assert_eq!(cjk_long, emoji_long);
+        let message = "a".repeat(15);
+        let narrow = Toast::new(&theme, &message).icon("@").measured_height(12);
+        let emoji = Toast::new(&theme, &message).icon("🔥").measured_height(12);
+        let cjk = Toast::new(&theme, &message).icon("告").measured_height(12);
+        assert_eq!(narrow, 4);
+        assert_eq!(emoji, 5);
+        assert_eq!(cjk, emoji);
     }
 
     #[test]
     fn measured_height_uses_display_columns_for_cjk() {
-        // ASCII control: 14 columns of inner space, 14 chars → 1 line.
+        // Width 18: 16 inner columns, 6 for `[ i ] `, 10 for the message.
         let theme = EddaCraftTheme;
-        let ascii = Toast::new(&theme, "abcdefghijklmn").measured_height(18);
-        // CJK: each of the 4 characters is 2 display columns (8 columns)
-        // and the inner width is 14 columns → still 1 line.
+        let ascii = Toast::new(&theme, "abcdefghij").measured_height(18);
+        // 4 characters at 2 columns each fill 8 of the 10 → one line.
         let cjk = Toast::new(&theme, "日本語版").measured_height(18);
         assert_eq!(cjk, ascii);
-        // CJK long enough to wrap: 16 chars at 2 columns each = 32 columns
-        // → wraps to 3 lines + 2 border rows.
+        assert_eq!(ascii, 3);
+        // 16 characters at 2 columns = 32 columns → 4 lines of 5 + 2 borders.
         let long = Toast::new(&theme, &"日".repeat(16)).measured_height(18);
-        assert!(long >= 5, "long={long}");
+        assert_eq!(long, 6);
     }
 
     #[test]

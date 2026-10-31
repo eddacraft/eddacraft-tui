@@ -39,6 +39,25 @@ impl BadgeStatus {
         }
     }
 
+    /// The bracket marker for this status: `[ OK ]`, `[ ERR ]`, `[ WARN ]`,
+    /// `[ i ]`, `[ .. ]`, `[ N/A ]`, `[ BLOCKED ]` or `[ ?? ]`. This is the
+    /// grammar the web surfaces and the plain CLI share (ADR-195), so a status
+    /// reads the same with or without colour. Badges and toasts draw it; use
+    /// it wherever text carries a status.
+    #[must_use]
+    pub const fn marker(self) -> &'static str {
+        match self {
+            Self::Success => "[ OK ]",
+            Self::Error => "[ ERR ]",
+            Self::Warning => "[ WARN ]",
+            Self::Info => "[ i ]",
+            Self::Running => "[ .. ]",
+            Self::Skipped => "[ N/A ]",
+            Self::Blocked => "[ BLOCKED ]",
+            Self::Unknown => "[ ?? ]",
+        }
+    }
+
     /// The border for a box showing this status: dashed for [`Self::Unknown`],
     /// the brand's mark for an undetermined state, and rounded otherwise.
     /// Shared by `Modal` and `Toast`.
@@ -71,22 +90,25 @@ impl<'a, T: Theme> StatusBadge<'a, T> {
         self
     }
 
-    /// The bracket marker and default label for each status. The markers are
-    /// the grammar the web surfaces and the plain CLI share (ADR-195), so a
-    /// status reads the same with or without colour.
+    /// The bracket marker ([`BadgeStatus::marker`]), style and default label
+    /// for this badge's status.
     fn status_config(&self) -> (&'static str, Style, &'a str) {
-        let (icon, default_label) = match self.status {
-            BadgeStatus::Success => ("[ OK ]", "Passed"),
-            BadgeStatus::Error => ("[ ERR ]", "Failed"),
-            BadgeStatus::Warning => ("[ WARN ]", "Warning"),
-            BadgeStatus::Info => ("[ i ]", "Info"),
-            BadgeStatus::Running => ("[ .. ]", "Running"),
-            BadgeStatus::Skipped => ("[ N/A ]", "Skipped"),
-            BadgeStatus::Blocked => ("[ BLOCKED ]", "Blocked"),
-            BadgeStatus::Unknown => ("[ ?? ]", "Unknown"),
+        let default_label = match self.status {
+            BadgeStatus::Success => "Passed",
+            BadgeStatus::Error => "Failed",
+            BadgeStatus::Warning => "Warning",
+            BadgeStatus::Info => "Info",
+            BadgeStatus::Running => "Running",
+            BadgeStatus::Skipped => "Skipped",
+            BadgeStatus::Blocked => "Blocked",
+            BadgeStatus::Unknown => "Unknown",
         };
 
-        (icon, self.status.severity_style(self.theme), default_label)
+        (
+            self.status.marker(),
+            self.status.severity_style(self.theme),
+            default_label,
+        )
     }
 }
 
