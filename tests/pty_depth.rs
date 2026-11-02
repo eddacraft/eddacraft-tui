@@ -134,7 +134,7 @@ fn sgr_colours(output: &str) -> Vec<SgrColour> {
 
 #[test]
 fn a_real_terminal_gets_the_escapes_for_its_depth() {
-    let cases: [(&str, &[(&str, &str)]); 4] = [
+    let cases: [(&str, &[(&str, &str)]); 5] = [
         (
             "TrueColor",
             &[("TERM", "xterm-256color"), ("COLORTERM", "truecolor")],
@@ -142,6 +142,8 @@ fn a_real_terminal_gets_the_escapes_for_its_depth() {
         ("Ansi256", &[("TERM", "xterm-256color")]),
         ("Ansi16", &[("TERM", "xterm")]),
         ("None", &[("TERM", "xterm-256color"), ("NO_COLOR", "1")]),
+        // TERM=dumb beats a globally exported COLORTERM (DSYS-016).
+        ("None", &[("TERM", "dumb"), ("COLORTERM", "truecolor")]),
     ];
     for (expected, env) in cases {
         let Some(output) = run_under_pty(env) else {

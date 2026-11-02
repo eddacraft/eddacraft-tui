@@ -143,12 +143,15 @@ impl ColourDepth {
     ///    variable's *presence*, e.g. `env::var_os("NO_COLOR").is_some()`, since
     ///    an empty value still disables colour) or a non-TTY ⇒
     ///    [`ColourDepth::None`].
-    /// 2. `COLORTERM` equal (case-insensitive) to the two canonical
+    /// 2. `$TERM` set to `dumb` or empty ⇒ [`ColourDepth::None`], even with
+    ///    `COLORTERM` set.
+    /// 3. `COLORTERM` equal (case-insensitive) to the two canonical
     ///    [termstandard](https://github.com/termstandard/colors) values
-    ///    `truecolor`/`24bit` ⇒ [`ColourDepth::TrueColor`].
-    /// 3. `$TERM` containing `256color` ⇒ [`ColourDepth::Ansi256`].
-    /// 4. `dumb`/empty/absent `$TERM` ⇒ [`ColourDepth::None`].
-    /// 5. any other identified `$TERM` ⇒ [`ColourDepth::Ansi16`].
+    ///    `truecolor`/`24bit` ⇒ [`ColourDepth::TrueColor`], with or without a
+    ///    `$TERM` (Windows Terminal sets no `TERM`).
+    /// 4. `$TERM` containing `256color` ⇒ [`ColourDepth::Ansi256`].
+    /// 5. absent `$TERM` ⇒ [`ColourDepth::None`].
+    /// 6. any other identified `$TERM` ⇒ [`ColourDepth::Ansi16`].
     pub fn resolve(
         is_tty: bool,
         no_color: bool,
@@ -156,6 +159,13 @@ impl ColourDepth {
         term: Option<&str>,
     ) -> Self {
         if no_color || !is_tty {
+            return Self::None;
+        }
+        // `TERM=dumb` (or set but empty) is an explicit request for a plain
+        // terminal and beats `COLORTERM`, which many terminals export
+        // globally. An unset `TERM` does not: Windows Terminal sets
+        // `COLORTERM=truecolor` and no `TERM` (DSYS-016).
+        if matches!(term, Some("dumb" | "")) {
             return Self::None;
         }
         if let Some(ct) = colorterm {
@@ -250,6 +260,27 @@ mod tests {
             ColourDepth::resolve(true, false, Some("1"), Some("dumb")),
             ColourDepth::None
         );
+    }
+
+    /// `TERM=dumb` or an empty `TERM` turns colour off even when the terminal
+    /// exports `COLORTERM`; an unset `TERM` keeps truecolour, as on Windows
+    /// Terminal (DSYS-016).
+    #[test]
+    fn colour_depth_dumb_term_beats_colorterm() {
+        for colorterm in ["truecolor", "24bit"] {
+            assert_eq!(
+                ColourDepth::resolve(true, false, Some(colorterm), Some("dumb")),
+                ColourDepth::None
+            );
+            assert_eq!(
+                ColourDepth::resolve(true, false, Some(colorterm), Some("")),
+                ColourDepth::None
+            );
+            assert_eq!(
+                ColourDepth::resolve(true, false, Some(colorterm), None),
+                ColourDepth::TrueColor
+            );
+        }
     }
 
     #[test]
