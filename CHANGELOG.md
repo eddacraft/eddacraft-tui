@@ -41,6 +41,13 @@ minor version bump indicates a breaking change.
   `[ WARN ]` or `[ i ]` (Debug keeps its disabled style), padded to the widest
   marker so messages stay aligned.
 
+### Fixed
+
+- **`ColourDepth::resolve` lets `TERM=dumb` win over `COLORTERM`.** A
+  terminal that exports `COLORTERM=truecolor` globally no longer gets colour
+  under `TERM=dumb` or an empty `TERM`. An unset `TERM` with `COLORTERM` still
+  resolves to `TrueColor`, as on Windows Terminal.
+
 ## [0.6.0] - 2026-10-30
 
 A minor bump: it extends the stable `Theme` and `Role` surface (ADR-195, anvil
