@@ -34,6 +34,12 @@ minor version bump indicates a breaking change.
   few rows for it, the message is cut with an ellipsis and the marker is never
   cut. `measured_height` counts word-wrapped lines, so it matches what renders.
   A custom `icon()` still replaces the marker.
+- **`ParallelProgress` and `LogPanel` lead with bracket markers** in place of
+  `◆ ✖ ○ ⚡` and `✖ ◈ ◇ ▪` (ADR-195). A check reads `[ OK ]`, `[ ERR ]`,
+  `[ N/A ]` or `[ .. ]`; a running check keeps its spinner beside `[ .. ]`; a
+  cached check reads `[ OK ]` and says "cached". A log row reads `[ ERR ]`,
+  `[ WARN ]` or `[ i ]` (Debug keeps its disabled style), padded to the widest
+  marker so messages stay aligned.
 
 ## [0.6.0] - 2026-10-30
 
