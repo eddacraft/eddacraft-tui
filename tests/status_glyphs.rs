@@ -8,13 +8,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Check, ballot and heavy marks, warning sign, information source, the emoji
-/// cross and tick, and the old progress and log icons.
-const GLYPHS: [char; 15] = [
-    '✓', '✔', '✗', '✘', '✖', '✕', '⚠', 'ℹ', '❌', '✅', '◆', '◈', '◇', '▪', '⚡',
+/// cross and tick, and the old progress and log icons, including the `○`
+/// pending mark.
+const GLYPHS: [char; 16] = [
+    '✓', '✔', '✗', '✘', '✖', '✕', '⚠', 'ℹ', '❌', '✅', '◆', '◈', '◇', '▪', '⚡', '○',
 ];
-const ESCAPES: [&str; 15] = [
+const ESCAPES: [&str; 16] = [
     "2713", "2714", "2717", "2718", "2716", "2715", "26a0", "2139", "274c", "2705", "25c6", "25c8",
-    "25c7", "25aa", "26a1",
+    "25c7", "25aa", "26a1", "25cb",
 ];
 
 fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {

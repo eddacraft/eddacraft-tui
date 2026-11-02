@@ -607,8 +607,8 @@ mod tests {
 
         let row: String = (0..40).map(|x| buf[(x, 1)].symbol().to_string()).collect();
         assert!(
-            row.contains("‡"),
-            "expected the final anvil spinner frame (‡) in row {row:?}"
+            row.contains("[ .. ] ‡"),
+            "expected the running marker beside the final spinner frame (‡) in row {row:?}"
         );
     }
 }
