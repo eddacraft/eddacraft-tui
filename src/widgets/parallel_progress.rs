@@ -11,6 +11,7 @@ use unicode_width::UnicodeWidthChar;
 use crate::animation::advance;
 use crate::theme::Theme;
 use crate::widgets::spinner::SpinnerPreset;
+use crate::widgets::status_badge::BadgeStatus;
 use crate::widgets::{AnimatedU8, animated_u8};
 
 const FRACTION_BLOCKS: [char; 8] = ['▏', '▎', '▍', '▌', '▋', '▊', '▉', '█'];
@@ -255,10 +256,14 @@ impl<T: Theme> StatefulWidget for ParallelProgress<'_, T> {
             let status_style = status_style(check.status, self.theme);
             let status_icon = status_icon(check);
             let progress_text = if self.compact || !matches!(check.status, CheckStatus::Running) {
-                if let Some(message) = &check.message {
-                    format!("{status_icon} {message}")
-                } else {
-                    format!("{status_icon} {}%", effective_progress(check))
+                match (&check.message, check.status) {
+                    // ESC-056: a cached result reads as a pass and says so.
+                    (Some(message), CheckStatus::Cached) => {
+                        format!("{status_icon} {message} (cached)")
+                    }
+                    (None, CheckStatus::Cached) => format!("{status_icon} cached"),
+                    (Some(message), _) => format!("{status_icon} {message}"),
+                    (None, _) => format!("{status_icon} {}%", effective_progress(check)),
                 }
             } else {
                 let bar_width = usize::from(row_chunks[1].width).saturating_sub(5);
@@ -322,13 +327,19 @@ fn effective_progress(check: &CheckProgress) -> u8 {
     }
 }
 
-fn status_icon(check: &CheckProgress) -> &'static str {
+/// The bracket marker for a check (ADR-195, DSYS-014), so its status reads
+/// without colour. A running check keeps its spinner frame beside the marker.
+fn status_icon(check: &CheckProgress) -> String {
     match check.status {
-        CheckStatus::Passed => "◆",
-        CheckStatus::Failed => "✖",
-        CheckStatus::Running => SpinnerPreset::Anvil.frame(running_frame_index(check.start_time)),
-        CheckStatus::Pending | CheckStatus::Skipped => "○",
-        CheckStatus::Cached => "⚡",
+        CheckStatus::Passed | CheckStatus::Cached => BadgeStatus::Success.marker().to_string(),
+        CheckStatus::Failed => BadgeStatus::Error.marker().to_string(),
+        CheckStatus::Skipped => BadgeStatus::Skipped.marker().to_string(),
+        CheckStatus::Pending => BadgeStatus::Running.marker().to_string(),
+        CheckStatus::Running => format!(
+            "{} {}",
+            BadgeStatus::Running.marker(),
+            SpinnerPreset::Anvil.frame(running_frame_index(check.start_time))
+        ),
     }
 }
 
@@ -511,6 +522,56 @@ mod tests {
             *state.anim_overall, 100,
             "expected anim_overall to converge to target after full duration"
         );
+    }
+
+    /// Each status reads by its bracket marker (ADR-195, DSYS-014); a cached
+    /// check is a pass that says it was cached (ESC-056).
+    #[test]
+    fn checks_lead_with_bracket_markers() {
+        let theme = crate::theme::EddaCraftTheme;
+        let check = |id: &str, status, message: Option<&str>| CheckProgress {
+            id: id.to_string(),
+            name: id.to_string(),
+            status,
+            progress: 0,
+            start_time: None,
+            end_time: None,
+            duration_ms: Some(1),
+            message: message.map(str::to_string),
+        };
+        let mut state = ParallelProgressState {
+            checks: vec![
+                check("pass", CheckStatus::Passed, Some("ok")),
+                check("fail", CheckStatus::Failed, Some("bad")),
+                check("skip", CheckStatus::Skipped, None),
+                check("wait", CheckStatus::Pending, None),
+                check("hit", CheckStatus::Cached, None),
+                check("hit2", CheckStatus::Cached, Some("fresh")),
+            ],
+            start_time: None,
+            ..Default::default()
+        };
+        let area = Rect::new(0, 0, 60, 10);
+        let mut buf = Buffer::empty(area);
+        ParallelProgress::new(&theme).render(area, &mut buf, &mut state);
+        let text: String = (0..area.height)
+            .map(|y| {
+                (0..area.width)
+                    .map(|x| buf[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        for expected in [
+            "[ OK ] ok",
+            "[ ERR ] bad",
+            "[ N/A ] 100%",
+            "[ .. ] 0%",
+            "[ OK ] cached",
+            "[ OK ] fresh (cached)",
+        ] {
+            assert!(text.contains(expected), "missing {expected:?} in\n{text}");
+        }
     }
 
     #[test]

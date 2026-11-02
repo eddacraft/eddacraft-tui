@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, StatefulWidget, Widget};
 
 use crate::theme::Theme;
+use crate::widgets::status_badge::BadgeStatus;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LogLevel {
@@ -418,7 +419,7 @@ fn render_entries<T: Theme>(
             };
 
             let line = Line::from(vec![
-                Span::styled(level_icon(entry.level).to_string(), style),
+                Span::styled(format!("{:<8}", level_icon(entry.level)), style),
                 Span::raw(" "),
                 Span::styled(entry.timestamp.as_str(), theme.disabled()),
                 Span::raw(" "),
@@ -458,12 +459,14 @@ fn level_style<T: Theme>(level: LogLevel, theme: &T) -> ratatui::style::Style {
     }
 }
 
-fn level_icon(level: LogLevel) -> char {
+/// The bracket marker for a log level (ADR-195, DSYS-014). Debug shares the
+/// information marker and is told apart by its disabled style (ESC-056).
+/// Rows pad it to the widest marker, `[ WARN ]`, so messages stay aligned.
+fn level_icon(level: LogLevel) -> &'static str {
     match level {
-        LogLevel::Error => '✖',
-        LogLevel::Warn => '◈',
-        LogLevel::Info => '◇',
-        LogLevel::Debug => '▪',
+        LogLevel::Error => BadgeStatus::Error.marker(),
+        LogLevel::Warn => BadgeStatus::Warning.marker(),
+        LogLevel::Info | LogLevel::Debug => BadgeStatus::Info.marker(),
     }
 }
 
@@ -533,6 +536,41 @@ mod tests {
                 source: "parser".to_string(),
             },
         ]
+    }
+
+    /// Each row leads with its level's bracket marker, padded to the widest
+    /// so messages line up (ADR-195, DSYS-014).
+    #[test]
+    fn rows_lead_with_padded_level_markers() {
+        let theme = crate::theme::EddaCraftTheme;
+        let mut entries = sample_entries();
+        for (id, level) in [("3", LogLevel::Warn), ("4", LogLevel::Debug)] {
+            entries.push(LogEntry {
+                id: id.to_string(),
+                timestamp: "12:00:03".to_string(),
+                level,
+                message: "m".to_string(),
+                source: "s".to_string(),
+            });
+        }
+        let refs: Vec<&LogEntry> = entries.iter().collect();
+        let area = Rect::new(0, 0, 40, 4);
+        let mut buf = Buffer::empty(area);
+        let state = LogPanelState {
+            selected_index: 99,
+            ..LogPanelState::default()
+        };
+        render_entries(false, &refs, &state, &theme, area, 4, &mut buf);
+        let row = |y: u16| -> String { (0..40).map(|x| buf[(x, y)].symbol()).collect() };
+        assert!(row(0).starts_with("[ i ]    12:00:01"), "{:?}", row(0));
+        assert!(row(1).starts_with("[ ERR ]  12:00:02"), "{:?}", row(1));
+        assert!(row(2).starts_with("[ WARN ] 12:00:03"), "{:?}", row(2));
+        assert!(row(3).starts_with("[ i ]    12:00:03"), "{:?}", row(3));
+        assert_eq!(
+            buf[(0, 3)].style().fg,
+            theme.disabled().fg,
+            "debug keeps the disabled style"
+        );
     }
 
     #[test]
