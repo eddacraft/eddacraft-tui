@@ -36,6 +36,21 @@ impl Default for EditorState {
     }
 }
 
+/// Split `content` into editor lines.
+///
+/// An empty string is one empty line. A trailing newline is kept as an extra
+/// empty line so [`EditorState::content`] can write the same bytes back.
+fn lines_from_content(content: &str) -> Vec<String> {
+    if content.is_empty() {
+        return vec![String::new()];
+    }
+    let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
+    if content.ends_with('\n') {
+        lines.push(String::new());
+    }
+    lines
+}
+
 impl EditorState {
     /// Create an empty editor with a single empty editable line.
     pub fn new() -> Self {
@@ -61,8 +76,10 @@ impl EditorState {
     /// Load content from `path` with a read-only context window around a focus line.
     ///
     /// Lines that fall outside the `[focus_line - editable_above, focus_line + editable_below]`
-    /// range (both inclusive) are rendered as read-only context.  The cursor is placed at the
-    /// start of `focus_line`.
+    /// range (both inclusive) are rendered as read-only context. The cursor is placed at the
+    /// start of `focus_line`, clamped to the last line. Line splitting matches
+    /// [`Self::from_string`], so an empty file and a trailing newline survive a save
+    /// that makes no edits.
     pub fn from_file_with_context(
         path: &Path,
         focus_line: usize,
@@ -70,8 +87,8 @@ impl EditorState {
         editable_below: usize,
     ) -> io::Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        let lines: Vec<String> = content.lines().map(str::to_owned).collect();
-        let total = lines.len().max(1);
+        let lines = lines_from_content(&content);
+        let total = lines.len();
 
         let start = focus_line.saturating_sub(editable_above).min(total);
         let end = (focus_line + editable_below + 1).min(total);
@@ -92,16 +109,7 @@ impl EditorState {
 
     /// Load content from a string slice. All lines are editable.
     pub fn from_string(content: &str) -> Self {
-        let lines: Vec<String> = if content.is_empty() {
-            vec![String::new()]
-        } else {
-            // Preserve a trailing newline as an extra empty line.
-            let mut ls: Vec<String> = content.lines().map(str::to_owned).collect();
-            if content.ends_with('\n') {
-                ls.push(String::new());
-            }
-            ls
-        };
+        let lines = lines_from_content(content);
         let count = lines.len();
         Self {
             lines,
@@ -593,6 +601,38 @@ mod tests {
         let f = temp_file("a\nb\nc\nd\ne");
         let state = EditorState::from_file_with_context(f.path(), 2, 1, 1).expect("load file");
         assert_eq!(state.cursor_line(), 2);
+    }
+
+    #[test]
+    fn from_file_with_context_trailing_newline_round_trips() {
+        let original = "alpha\nbeta\n";
+        let f = temp_file(original);
+        let mut state = EditorState::from_file_with_context(f.path(), 0, 0, 0).expect("load file");
+        state.save().expect("save");
+        let written = std::fs::read_to_string(f.path()).expect("read back");
+        assert_eq!(written, original);
+    }
+
+    #[test]
+    fn from_file_with_context_without_trailing_newline_round_trips() {
+        let original = "alpha\nbeta";
+        let f = temp_file(original);
+        let mut state = EditorState::from_file_with_context(f.path(), 0, 0, 0).expect("load file");
+        state.save().expect("save");
+        let written = std::fs::read_to_string(f.path()).expect("read back");
+        assert_eq!(written, original);
+    }
+
+    #[test]
+    fn from_file_with_context_empty_file_round_trips() {
+        let f = temp_file("");
+        let mut state = EditorState::from_file_with_context(f.path(), 0, 0, 0).expect("load file");
+        // An empty file is one addressable line, matching `from_string`.
+        assert_eq!(state.line_count(), 1);
+        assert_eq!(state.cursor_col(), 0);
+        state.save().expect("save");
+        let written = std::fs::read(f.path()).expect("read back");
+        assert_eq!(written, b"");
     }
 
     // ── Insert ────────────────────────────────────────────────────────────────

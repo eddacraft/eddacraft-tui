@@ -33,7 +33,7 @@ use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
-use crate::json_render::sanitize::sanitize;
+use crate::json_render::sanitize::{sanitize, sanitize_props};
 use crate::json_render::{RenderSpec, TuiRegistry};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -107,9 +107,14 @@ fn render_element(
     // renders unconditionally regardless of a `visible` expression. Conditional
     // visibility is deferred to a later work item; until then a spec author
     // cannot hide an element via `visible`.
-    component.render(&element.props, frame, area);
+    //
+    // Spec and bound-data strings are untrusted. Sanitise every string before
+    // the component sees the bag, including nested values and keys, so a
+    // third-party renderer cannot emit ESC/OSC by painting a raw prop.
+    let props = sanitize_props(&element.props);
+    component.render(&props, frame, area);
 
-    let rects = component.layout_children(&element.props, area, element.children.len());
+    let rects = component.layout_children(&props, area, element.children.len());
     // `layout_children` may return fewer rects than children (trailing children
     // that did not fit get no space); `zip` draws exactly the pairs we have.
     for (child_id, child_area) in element.children.iter().zip(rects) {
@@ -368,5 +373,91 @@ mod tests {
             text.trim().is_empty(),
             "nothing drawn into a zero rect: {text:?}"
         );
+    }
+
+    /// A third-party component that paints a string prop straight into a cell.
+    /// The crossterm backend prints `cell.symbol()` verbatim, so this is the
+    /// path that can emit ESC/OSC. `Paragraph` drops controls first and would
+    /// hide the bug.
+    struct RawProp;
+
+    impl TuiComponent for RawProp {
+        fn render(&self, props: &Props, frame: &mut Frame, area: Rect) {
+            let label = props
+                .get("label")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            frame.buffer_mut()[(area.x, area.y)].set_symbol(label);
+        }
+
+        fn layout_children(&self, _props: &Props, _area: Rect, _n: usize) -> Vec<Rect> {
+            Vec::new()
+        }
+    }
+
+    /// Like [`RawProp`], but reads a nested `row.text` string.
+    struct NestedProp;
+
+    impl TuiComponent for NestedProp {
+        fn render(&self, props: &Props, frame: &mut Frame, area: Rect) {
+            let label = props
+                .get("row")
+                .and_then(|value| value.get("text"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            frame.buffer_mut()[(area.x, area.y)].set_symbol(label);
+        }
+
+        fn layout_children(&self, _props: &Props, _area: Rect, _n: usize) -> Vec<Rect> {
+            Vec::new()
+        }
+    }
+
+    #[test]
+    fn raw_prop_with_esc_or_osc_emits_no_control_bytes() {
+        let evil = "\u{1b}]52;c;cHdwbmVk\u{07}label\u{1b}]0;pwned\u{07}";
+        let label = serde_json::to_string(evil).expect("json string");
+        let spec = parse(&format!(
+            r#"{{ "title": "x", "version": "1.0", "root": "a",
+                 "elements": {{ "a": {{ "type": "Raw", "props": {{ "label": {label} }}, "children": [] }} }} }}"#,
+        ))
+        .expect("parse");
+
+        let mut registry = TuiRegistry::new();
+        registry.register("Raw", Box::new(RawProp));
+        let mut terminal = Terminal::new(TestBackend::new(20, 1)).expect("backend");
+        terminal
+            .draw(|frame| render_spec(&spec, &registry, frame, frame.area()))
+            .expect("draw");
+        let symbol = terminal.backend().buffer()[(0, 0)].symbol().to_owned();
+        assert!(
+            !symbol.chars().any(char::is_control),
+            "control byte emitted: {symbol:?}"
+        );
+        assert!(symbol.contains("label"), "visible text kept: {symbol:?}");
+    }
+
+    #[test]
+    fn nested_prop_with_esc_or_osc_emits_no_control_bytes() {
+        let evil = "\u{1b}]52;c;clip\u{07}cell";
+        let text = serde_json::to_string(evil).expect("json string");
+        let spec = parse(&format!(
+            r#"{{ "title": "x", "version": "1.0", "root": "a",
+                 "elements": {{ "a": {{ "type": "Nested", "props": {{ "row": {{ "text": {text} }} }}, "children": [] }} }} }}"#,
+        ))
+        .expect("parse");
+
+        let mut registry = TuiRegistry::new();
+        registry.register("Nested", Box::new(NestedProp));
+        let mut terminal = Terminal::new(TestBackend::new(20, 1)).expect("backend");
+        terminal
+            .draw(|frame| render_spec(&spec, &registry, frame, frame.area()))
+            .expect("draw");
+        let symbol = terminal.backend().buffer()[(0, 0)].symbol().to_owned();
+        assert!(
+            !symbol.chars().any(char::is_control),
+            "control byte emitted: {symbol:?}"
+        );
+        assert!(symbol.contains("cell"), "visible text kept: {symbol:?}");
     }
 }

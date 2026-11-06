@@ -43,6 +43,14 @@ minor version bump indicates a breaking change.
 
 ### Fixed
 
+- **Contextual editor load keeps file endings.**
+  `EditorState::from_file_with_context` splits lines the same way as
+  `from_string`: an empty file is one empty line, and a trailing newline is
+  kept. Saving without edits writes the original bytes back.
+- **json-render props are sanitised before a component renders.**
+  `render_spec` strips control and bidi characters from every string in an
+  element's props, including nested values and object keys, so a third-party
+  component that paints a raw prop cannot emit ESC or OSC sequences.
 - **`ColourDepth::resolve` lets `TERM=dumb` win over `COLORTERM`.** A
   terminal that exports `COLORTERM=truecolor` globally no longer gets colour
   under `TERM=dumb` or an empty `TERM`. An unset `TERM` with `COLORTERM` still

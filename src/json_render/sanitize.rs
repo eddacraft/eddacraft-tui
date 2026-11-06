@@ -6,7 +6,12 @@
 //! verbatim on flush, so a hostile string prop could emit raw ANSI/OSC escape
 //! sequences (display corruption, OSC-52 clipboard writes, title rewrites).
 //! Every spec/data-derived string that becomes displayed text is passed through
-//! [`sanitize`] first.
+//! [`sanitize`] first. [`render_spec`](crate::json_render::render_spec) applies
+//! [`sanitize_props`] to each element's props before a component sees them.
+
+use serde_json::Value;
+
+use crate::json_render::spec::Props;
 
 /// Strip display-hostile characters from `s`, returning a display-safe owned
 /// string.
@@ -26,6 +31,33 @@
 pub fn sanitize(s: &str) -> String {
     s.chars()
         .filter(|c| !c.is_control() && !is_bidi_or_zero_width(*c))
+        .collect()
+}
+
+/// Copy `props` with every string sanitised, including nested values and keys.
+///
+/// [`render_spec`](crate::json_render::render_spec) passes this copy to
+/// [`TuiComponent::render`](crate::json_render::TuiComponent::render), so a
+/// component that paints a raw string prop cannot emit terminal control bytes.
+/// Numbers, booleans, and null are unchanged. Sanitising twice is a no-op on
+/// the text that remains.
+#[must_use]
+pub(crate) fn sanitize_props(props: &Props) -> Props {
+    sanitize_object(props)
+}
+
+fn sanitize_value(value: &Value) -> Value {
+    match value {
+        Value::String(text) => Value::String(sanitize(text)),
+        Value::Array(items) => Value::Array(items.iter().map(sanitize_value).collect()),
+        Value::Object(map) => Value::Object(sanitize_object(map)),
+        other => other.clone(),
+    }
+}
+
+fn sanitize_object(map: &Props) -> Props {
+    map.iter()
+        .map(|(key, value)| (sanitize(key), sanitize_value(value)))
         .collect()
 }
 
@@ -78,6 +110,30 @@ mod tests {
         assert!(!clean.contains('\u{1b}'), "ESC removed");
         assert!(!clean.contains('\u{07}'), "BEL removed");
         assert_eq!(clean, "]52;c;cHdwbmVklabel]0;pwned");
+    }
+
+    #[test]
+    fn sanitize_props_walks_nested_strings_and_keys() {
+        let props = serde_json::json!({
+            "label\u{1b}": ["ok\u{07}", { "text": "x\u{1b}y" }],
+            "n": 1,
+            "flag": true
+        })
+        .as_object()
+        .expect("object")
+        .clone();
+        let clean = sanitize_props(&props);
+        assert!(clean.contains_key("label"));
+        assert!(!clean.keys().any(|key| key.chars().any(char::is_control)));
+        let items = clean
+            .get("label")
+            .expect("label")
+            .as_array()
+            .expect("array");
+        assert_eq!(items[0], serde_json::json!("ok"));
+        assert_eq!(items[1].get("text").expect("text"), "xy");
+        assert_eq!(clean.get("n").expect("n"), &serde_json::json!(1));
+        assert_eq!(clean.get("flag").expect("flag"), &serde_json::json!(true));
     }
 
     #[test]
