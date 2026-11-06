@@ -65,11 +65,11 @@ pub trait TuiComponent {
     ///
     /// [`render_spec`](crate::json_render::render_spec) sanitises every string
     /// in the bag (nested values and object keys included) before calling this
-    /// method or [`layout_children`](Self::layout_children). Painting a raw
-    /// string from those props cannot emit terminal control bytes. The trait
-    /// still receives a [`Props`] map; a caller that invokes `render` directly
-    /// is outside that boundary and must not pass untrusted strings through
-    /// to the terminal.
+    /// method or [`layout_children`](Self::layout_children). Arrays and objects
+    /// are capped at 1,000 entries. Painting a raw string from those props
+    /// cannot emit terminal control bytes. The trait still receives a
+    /// [`Props`] map; a caller that invokes `render` directly is outside that
+    /// boundary and must not pass untrusted strings through to the terminal.
     ///
     /// Child elements are not drawn here — the tree walker draws them into the
     /// sub-areas returned by [`layout_children`](Self::layout_children).

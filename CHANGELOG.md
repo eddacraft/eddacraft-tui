@@ -50,7 +50,10 @@ minor version bump indicates a breaking change.
 - **json-render props are sanitised before a component renders.**
   `render_spec` strips control and bidi characters from every string in an
   element's props, including nested values and object keys, so a third-party
-  component that paints a raw prop cannot emit ESC or OSC sequences.
+  component that paints a raw prop cannot emit ESC or OSC sequences. Props
+  that are already safe are not copied. Each array and object is capped at
+  1,000 entries, and a key that only collides after sanitising does not
+  overwrite the entry already stored.
 - **`ColourDepth::resolve` lets `TERM=dumb` win over `COLORTERM`.** A
   terminal that exports `COLORTERM=truecolor` globally no longer gets colour
   under `TERM=dumb` or an empty `TERM`. An unset `TERM` with `COLORTERM` still

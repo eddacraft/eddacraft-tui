@@ -9,9 +9,18 @@
 //! [`sanitize`] first. [`render_spec`](crate::json_render::render_spec) applies
 //! [`sanitize_props`] to each element's props before a component sees them.
 
+use std::borrow::Cow;
+
 use serde_json::Value;
 
 use crate::json_render::spec::Props;
+
+/// Ceiling for one array or object while sanitising props.
+///
+/// Matches the per-frame ceilings in the built-in table (`MAX_TABLE_ROWS`) and
+/// charts (`MAX_CHART_POINTS`). A larger collection is truncated before it is
+/// copied, so a hostile payload cannot force a full deep copy on every redraw.
+const MAX_PROPS_COLLECTION: usize = 1_000;
 
 /// Strip display-hostile characters from `s`, returning a display-safe owned
 /// string.
@@ -34,31 +43,88 @@ pub fn sanitize(s: &str) -> String {
         .collect()
 }
 
-/// Copy `props` with every string sanitised, including nested values and keys.
+/// Props safe to hand to a component.
 ///
-/// [`render_spec`](crate::json_render::render_spec) passes this copy to
+/// When every string is already display-safe and no collection exceeds
+/// [`MAX_PROPS_COLLECTION`], this borrows `props` and allocates nothing.
+/// Otherwise it returns an owned bag: strings are sanitised, arrays and
+/// objects are capped, and a key that only matches another key after
+/// sanitising does not overwrite the entry already stored.
+///
+/// [`render_spec`](crate::json_render::render_spec) passes the result to
 /// [`TuiComponent::render`](crate::json_render::TuiComponent::render), so a
 /// component that paints a raw string prop cannot emit terminal control bytes.
-/// Numbers, booleans, and null are unchanged. Sanitising twice is a no-op on
-/// the text that remains.
+/// Numbers, booleans, and null are unchanged.
 #[must_use]
-pub(crate) fn sanitize_props(props: &Props) -> Props {
-    sanitize_object(props)
+pub(crate) fn sanitize_props(props: &Props) -> Cow<'_, Props> {
+    if object_needs_rebuild(props) {
+        Cow::Owned(rebuild_object(props))
+    } else {
+        Cow::Borrowed(props)
+    }
 }
 
-fn sanitize_value(value: &Value) -> Value {
+fn string_needs_sanitize(text: &str) -> bool {
+    text.chars()
+        .any(|c| c.is_control() || is_bidi_or_zero_width(c))
+}
+
+fn value_needs_rebuild(value: &Value) -> bool {
+    match value {
+        Value::String(text) => string_needs_sanitize(text),
+        // Length is enough. Do not walk past the ceiling: that walk is the
+        // per-frame cost the built-in caps exist to avoid.
+        Value::Array(items) => {
+            items.len() > MAX_PROPS_COLLECTION
+                || items
+                    .iter()
+                    .take(MAX_PROPS_COLLECTION)
+                    .any(value_needs_rebuild)
+        }
+        Value::Object(map) => object_needs_rebuild(map),
+        _ => false,
+    }
+}
+
+fn object_needs_rebuild(map: &Props) -> bool {
+    map.len() > MAX_PROPS_COLLECTION
+        || map
+            .iter()
+            .any(|(key, value)| string_needs_sanitize(key) || value_needs_rebuild(value))
+}
+
+fn rebuild_value(value: &Value) -> Value {
     match value {
         Value::String(text) => Value::String(sanitize(text)),
-        Value::Array(items) => Value::Array(items.iter().map(sanitize_value).collect()),
-        Value::Object(map) => Value::Object(sanitize_object(map)),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .take(MAX_PROPS_COLLECTION)
+                .map(rebuild_value)
+                .collect(),
+        ),
+        Value::Object(map) => Value::Object(rebuild_object(map)),
         other => other.clone(),
     }
 }
 
-fn sanitize_object(map: &Props) -> Props {
-    map.iter()
-        .map(|(key, value)| (sanitize(key), sanitize_value(value)))
-        .collect()
+fn rebuild_object(map: &Props) -> Props {
+    let mut out = Props::new();
+    for (key, value) in map.iter().take(MAX_PROPS_COLLECTION) {
+        let value = rebuild_value(value);
+        if string_needs_sanitize(key) {
+            let clean = sanitize(key);
+            // A sanitised alias must not replace a key already stored. The
+            // clean spelling, when present, is inserted on its own turn and
+            // overwrites an alias that sorted earlier.
+            if !out.contains_key(&clean) {
+                out.insert(clean, value);
+            }
+        } else {
+            out.insert(key.clone(), value);
+        }
+    }
+    out
 }
 
 /// Whether `c` is a Unicode bidirectional-control or zero-width codepoint that
@@ -143,5 +209,71 @@ mod tests {
         assert_eq!(sanitize("with\u{7f}del\u{9b}c1"), "withdelc1");
         // Non-ASCII printable text is preserved.
         assert_eq!(sanitize("héllo ▲ —"), "héllo ▲ —");
+    }
+
+    #[test]
+    fn sanitize_props_borrows_props_that_need_no_rebuild() {
+        let props = serde_json::json!({"label": "ok", "n": [1, 2, 3]})
+            .as_object()
+            .expect("object")
+            .clone();
+        let clean = sanitize_props(&props);
+        assert!(matches!(clean, Cow::Borrowed(_)));
+        assert!(std::ptr::eq(clean.as_ref(), &raw const props));
+    }
+
+    #[test]
+    fn sanitize_props_keeps_a_clean_key_over_its_sanitised_alias() {
+        // `status` plus a trailing ESC must not replace the real `status`.
+        // BTree order visits the clean key first; the alias is then dropped.
+        let props = serde_json::json!({
+            "status": "fail",
+            "status\u{1b}": "pass"
+        })
+        .as_object()
+        .expect("object")
+        .clone();
+        let clean = sanitize_props(&props);
+        assert_eq!(clean.len(), 1);
+        assert_eq!(clean.get("status").and_then(Value::as_str), Some("fail"));
+    }
+
+    #[test]
+    fn sanitize_props_clean_key_replaces_an_alias_that_sorted_earlier() {
+        // ESC sorts before 's', so the alias is inserted first and the clean
+        // key must overwrite it.
+        let props = serde_json::json!({
+            "\u{1b}status": "pass",
+            "status": "fail"
+        })
+        .as_object()
+        .expect("object")
+        .clone();
+        let clean = sanitize_props(&props);
+        assert_eq!(clean.len(), 1);
+        assert_eq!(clean.get("status").and_then(Value::as_str), Some("fail"));
+    }
+
+    #[test]
+    fn sanitize_props_caps_an_oversized_array_and_sanitises_the_prefix() {
+        let mut rows = Vec::with_capacity(MAX_PROPS_COLLECTION + 1);
+        rows.push(Value::String("\u{1b}kept".to_owned()));
+        rows.extend(
+            std::iter::repeat_with(|| Value::String("ok".to_owned()))
+                .take(MAX_PROPS_COLLECTION - 1),
+        );
+        rows.push(Value::String("\u{1b}dropped".to_owned()));
+        let mut props = Props::new();
+        props.insert("rows".to_owned(), Value::Array(rows));
+        let clean = sanitize_props(&props);
+        let kept = clean.get("rows").and_then(Value::as_array).expect("rows");
+        assert_eq!(kept.len(), MAX_PROPS_COLLECTION);
+        assert_eq!(kept[0], Value::String("kept".to_owned()));
+        assert!(kept.iter().all(|value| value.as_str() != Some("dropped")));
+        assert!(kept.iter().all(|value| {
+            value
+                .as_str()
+                .is_none_or(|text| !text.chars().any(char::is_control))
+        }));
     }
 }

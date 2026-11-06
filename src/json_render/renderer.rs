@@ -111,10 +111,11 @@ fn render_element(
     // Spec and bound-data strings are untrusted. Sanitise every string before
     // the component sees the bag, including nested values and keys, so a
     // third-party renderer cannot emit ESC/OSC by painting a raw prop.
+    // Clean props are borrowed. Oversized collections are capped first.
     let props = sanitize_props(&element.props);
-    component.render(&props, frame, area);
+    component.render(props.as_ref(), frame, area);
 
-    let rects = component.layout_children(&props, area, element.children.len());
+    let rects = component.layout_children(props.as_ref(), area, element.children.len());
     // `layout_children` may return fewer rects than children (trailing children
     // that did not fit get no space); `zip` draws exactly the pairs we have.
     for (child_id, child_area) in element.children.iter().zip(rects) {
@@ -413,6 +414,31 @@ mod tests {
         }
     }
 
+    /// Paints how many `rows` it was given, plus the first cell and whether
+    /// any cell still says `dropped`.
+    struct CappedRows;
+
+    impl TuiComponent for CappedRows {
+        fn render(&self, props: &Props, frame: &mut Frame, area: Rect) {
+            let rows = props.get("rows").and_then(serde_json::Value::as_array);
+            let len = rows.map_or(0, Vec::len);
+            let first = rows
+                .and_then(|rows| rows.first())
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            let dropped = rows.is_some_and(|rows| {
+                rows.iter()
+                    .any(|value| value.as_str().is_some_and(|text| text.contains("dropped")))
+            });
+            let label = format!("{len}|{first}|{dropped}");
+            frame.buffer_mut()[(area.x, area.y)].set_symbol(&label);
+        }
+
+        fn layout_children(&self, _props: &Props, _area: Rect, _n: usize) -> Vec<Rect> {
+            Vec::new()
+        }
+    }
+
     #[test]
     fn raw_prop_with_esc_or_osc_emits_no_control_bytes() {
         let evil = "\u{1b}]52;c;cHdwbmVk\u{07}label\u{1b}]0;pwned\u{07}";
@@ -459,5 +485,43 @@ mod tests {
             "control byte emitted: {symbol:?}"
         );
         assert!(symbol.contains("cell"), "visible text kept: {symbol:?}");
+    }
+
+    #[test]
+    fn oversized_prop_array_is_capped_before_render() {
+        let mut rows = Vec::with_capacity(1_001);
+        rows.push(serde_json::Value::String("\u{1b}kept".to_owned()));
+        rows.extend(
+            std::iter::repeat_with(|| serde_json::Value::String("ok".to_owned())).take(999),
+        );
+        rows.push(serde_json::Value::String("\u{1b}dropped".to_owned()));
+        let mut props = Props::new();
+        props.insert("rows".to_owned(), serde_json::Value::Array(rows));
+        let mut elements = std::collections::BTreeMap::new();
+        elements.insert(
+            "a".to_owned(),
+            crate::json_render::Element {
+                component_type: "Rows".to_owned(),
+                props,
+                children: Vec::new(),
+                visible: None,
+            },
+        );
+        let spec = RenderSpec {
+            title: "x".to_owned(),
+            description: None,
+            version: "1.0".to_owned(),
+            root: "a".to_owned(),
+            elements,
+        };
+        let mut registry = TuiRegistry::new();
+        registry.register("Rows", Box::new(CappedRows));
+        let mut terminal = Terminal::new(TestBackend::new(40, 1)).expect("backend");
+        terminal
+            .draw(|frame| render_spec(&spec, &registry, frame, frame.area()))
+            .expect("draw");
+        let symbol = terminal.backend().buffer()[(0, 0)].symbol().to_owned();
+        assert_eq!(symbol, "1000|kept|false");
+        assert!(!symbol.chars().any(char::is_control));
     }
 }
