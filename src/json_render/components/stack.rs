@@ -18,20 +18,34 @@ impl Stack {
     /// natural size is unknown at this layer (the walker passes only the child
     /// count), so an even split is the honest generic default. Size-aware
     /// stacking is left to the responsive work (TUIDASH-011).
+    ///
+    /// The solver only receives one constraint per cell on the layout axis.
+    /// More `Fill` constraints than cells makes ratatui fail the split
+    /// (`ObjectiveUnbounded`) after a long solve. Children past that, up to
+    /// [`MAX_LAYOUT_CHILDREN`](super::MAX_LAYOUT_CHILDREN), still get an empty
+    /// rect at the stack origin so the walker keeps the child mapping and
+    /// draws nothing. Children past the cap are not mapped;
+    /// [`validate`](crate::json_render::validate) reports them.
     fn tracks(child_count: usize, area: Rect, props: &Props) -> Vec<Rect> {
         if child_count == 0 || area.width == 0 || area.height == 0 {
             return Vec::new();
         }
-        // Bound the constraint count fed to the layout solver (DoS guard).
-        let child_count = child_count.min(super::MAX_LAYOUT_CHILDREN);
-        let constraints = vec![Constraint::Fill(1); child_count];
+        let horizontal = str_or(props, "direction", "vertical") == "horizontal";
+        let axis = usize::from(if horizontal { area.width } else { area.height });
+        let solved = child_count.min(axis).min(super::MAX_LAYOUT_CHILDREN);
+        let constraints = vec![Constraint::Fill(1); solved];
         let gap = gap_spacing(props);
-        let layout = if str_or(props, "direction", "vertical") == "horizontal" {
+        let layout = if horizontal {
             Layout::horizontal(constraints)
         } else {
             Layout::vertical(constraints)
         };
-        layout.spacing(gap).split(area).to_vec()
+        let mut rects = layout.spacing(gap).split(area).to_vec();
+        let mapped = child_count.min(super::MAX_LAYOUT_CHILDREN);
+        if rects.len() < mapped {
+            rects.resize(mapped, Rect::new(area.x, area.y, 0, 0));
+        }
+        rects
     }
 }
 
@@ -113,5 +127,37 @@ mod tests {
         let p = props(json!({ "direction": 7, "gap": { "x": 1 } }));
         let rects = Stack.layout_children(&p, Rect::new(0, 0, 10, 6), 2);
         assert_eq!(rects.len(), 2); // fell back to vertical, zero gap
+    }
+
+    #[test]
+    fn children_past_the_axis_keep_an_empty_mapping() {
+        // Four rows cannot hold ten tracks. The solver sees four constraints;
+        // the other six stay paired with an empty rect instead of being dropped.
+        let p = props(json!({}));
+        let rects = Stack.layout_children(&p, Rect::new(2, 3, 10, 4), 10);
+        assert_eq!(rects.len(), 10);
+        assert!(rects.iter().take(4).all(|r| r.height > 0 && r.width == 10));
+        assert!(
+            rects[4..].iter().all(|r| *r == Rect::new(2, 3, 0, 0)),
+            "fallback rects are the stack origin with no size: {rects:?}"
+        );
+    }
+
+    #[test]
+    fn horizontal_children_past_the_axis_keep_an_empty_mapping() {
+        let p = props(json!({ "direction": "horizontal" }));
+        let rects = Stack.layout_children(&p, Rect::new(1, 1, 3, 6), 6);
+        assert_eq!(rects.len(), 6);
+        assert!(rects.iter().take(3).all(|r| r.width > 0 && r.height == 6));
+        assert!(rects[3..].iter().all(|r| *r == Rect::new(1, 1, 0, 0)));
+    }
+
+    #[test]
+    fn children_past_the_layout_cap_are_not_mapped() {
+        let p = props(json!({}));
+        let limit = super::super::MAX_LAYOUT_CHILDREN;
+        let rects = Stack.layout_children(&p, Rect::new(0, 0, 10, 4), limit + 3);
+        assert_eq!(rects.len(), limit);
+        assert!(rects[4..].iter().all(|r| r.width == 0 && r.height == 0));
     }
 }

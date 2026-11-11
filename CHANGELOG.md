@@ -66,6 +66,15 @@ minor version bump indicates a breaking change.
   It shows the newest toasts that fit whole, counting gaps, and drops older
   ones. Previously it started at the top row, drew the oldest toasts, and
   gave the newest too few rows to draw.
+  ||||||| parent of a2f8db8c8d (fix(tui): report over-cap stack children)
+
+- **json-render `Stack` reports children past the layout cap.** A `Stack`
+  with more than 512 children fails `validate` with
+  `ValidationError::TooManyChildren`. The renderer still maps at most 512
+  children, so a hostile spec cannot force an unbounded layout solve, and
+  it draws a note naming how many were left out. Tracks past the terminal
+  axis stay paired with an empty rect up to that cap, instead of being fed
+  to the solver (which rejects that many `Fill` constraints).
 
 - **Key releases are not actions.** `KeyHandler::map` and
   `KeyHandler::map_text_entry` return `Action::None` for a key release

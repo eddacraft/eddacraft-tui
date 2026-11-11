@@ -130,7 +130,8 @@ impl RenderSpec {
 /// the last occurrence. No input-size limit is imposed here; `serde_json` does
 /// cap nesting depth (returning an error rather than overflowing the stack), so
 /// callers parsing genuinely untrusted input should still bound the input
-/// length themselves.
+/// length themselves. A `Stack` with more children than the layout cap is
+/// still parsed; [`validate`](crate::json_render::validate) reports it.
 ///
 /// # Errors
 /// Returns the underlying [`serde_json::Error`] when `json` is not a

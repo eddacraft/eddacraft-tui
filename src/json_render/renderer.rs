@@ -25,6 +25,9 @@
 //!   `[missing: id]` marker rather than indexing a missing key.
 //! - **Cycles / pathological depth**: a [`MAX_DEPTH`] guard stops descent, so a
 //!   `children` cycle that slipped past validation cannot loop forever.
+//! - **Stack over the layout cap**: a `Stack` with more children than the
+//!   layout cap still draws the tracks it was given, then a one-line note
+//!   naming how many children were left out. `validate` reports the same limit.
 //! - **Zero-area**: an empty rect short-circuits before any component runs.
 
 use ratatui::Frame;
@@ -118,9 +121,32 @@ fn render_element(
     let rects = component.layout_children(props.as_ref(), area, element.children.len());
     // `layout_children` may return fewer rects than children (trailing children
     // that did not fit get no space); `zip` draws exactly the pairs we have.
-    for (child_id, child_area) in element.children.iter().zip(rects) {
+    for (child_id, child_area) in element.children.iter().zip(rects.iter().copied()) {
         render_element(spec, registry, child_id, frame, child_area, depth + 1);
     }
+    if element.component_type == "Stack"
+        && element.children.len() > super::components::MAX_LAYOUT_CHILDREN
+    {
+        let omitted = element.children.len().saturating_sub(rects.len());
+        draw_omitted_children_note(frame, area, omitted);
+    }
+}
+
+/// Paint a one-line note on the bottom row when a `Stack` left children out.
+///
+/// Drawn after the children so the note stays visible. It covers the bottom
+/// row of the stack; that row is the diagnostic for an over-cap spec.
+fn draw_omitted_children_note(frame: &mut Frame, area: Rect, omitted: usize) {
+    if omitted == 0 || area.width == 0 || area.height == 0 {
+        return;
+    }
+    let note_area = Rect {
+        x: area.x,
+        y: area.y.saturating_add(area.height.saturating_sub(1)),
+        width: area.width,
+        height: 1,
+    };
+    draw_placeholder(frame, note_area, &format!("[{omitted} more not shown]"));
 }
 
 /// Paint a single-line degradation marker into `area`.
@@ -523,5 +549,63 @@ mod tests {
         let symbol = terminal.backend().buffer()[(0, 0)].symbol().to_owned();
         assert_eq!(symbol, "1000|kept|false");
         assert!(!symbol.chars().any(char::is_control));
+    }
+
+    #[test]
+    fn stack_over_the_layout_cap_names_the_omission() {
+        let limit = crate::json_render::components::MAX_LAYOUT_CHILDREN;
+        let spec = labelled_stack(limit + 1, "VISIBLE", "HIDDEN");
+        let text = render_to_string(40, 8, &spec, &crate::json_render::base_registry());
+        assert!(
+            text.contains("VISIBLE"),
+            "a child inside the cap is drawn: {text:?}"
+        );
+        assert!(
+            !text.contains("HIDDEN"),
+            "a child past the cap is not drawn: {text:?}"
+        );
+        assert!(
+            text.contains("1 more not shown"),
+            "the omission is named, got: {text:?}"
+        );
+    }
+
+    #[test]
+    fn stack_within_the_layout_cap_has_no_omission_note() {
+        let spec = labelled_stack(2, "ONE", "TWO");
+        let text = render_to_string(40, 8, &spec, &crate::json_render::base_registry());
+        assert!(text.contains("ONE") && text.contains("TWO"), "{text:?}");
+        assert!(!text.contains("more not shown"), "{text:?}");
+    }
+
+    fn labelled_stack(child_count: usize, first: &str, last: &str) -> RenderSpec {
+        use std::fmt::Write as _;
+
+        let mut children = String::from("[");
+        let mut elements = String::new();
+        for i in 0..child_count {
+            if i > 0 {
+                children.push(',');
+                elements.push(',');
+            }
+            let label = if i == 0 {
+                first
+            } else if i + 1 == child_count {
+                last
+            } else {
+                ""
+            };
+            write!(children, "\"c{i}\"").expect("writing to a String is infallible");
+            write!(
+                elements,
+                r#""c{i}": {{"type": "Text", "props": {{"children": "{label}"}}, "children": []}}"#
+            )
+            .expect("writing to a String is infallible");
+        }
+        children.push(']');
+        let json = format!(
+            r#"{{"title": "x", "version": "1.0", "root": "page", "elements": {{"page": {{"type": "Stack", "props": {{}}, "children": {children}}},{elements}}}}}"#
+        );
+        parse(&json).expect("parse")
     }
 }

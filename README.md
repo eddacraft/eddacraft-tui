@@ -35,8 +35,9 @@ format. The spec format and overall approach were inspired by Vercel’s
 json-render product. A spec describes a tree of components (`Stack`, `Grid`,
 `Card`, `Heading`, `Text`, `Table`, `Alert`, charts, etc.) using a flat
 id-referenced structure. The crate parses it, validates structural integrity
-against a `Catalog` (unknown types, dangling/cyclic children, missing root), and
-renders it via a pluggable `TuiRegistry`.
+against a `Catalog` (unknown types, dangling/cyclic children, missing root,
+and a `Stack` over the layout cap), and renders it via a pluggable
+`TuiRegistry`.
 
 `serde`/`serde_json` are behind the `json-render` feature so the core library
 stays free of them. A separate producer (build step, server, LLM-emitted

@@ -21,11 +21,15 @@
 use crate::json_render::TuiRegistry;
 
 /// Upper bound on the number of children a layout component (`Stack`, `Grid`)
-/// lays out. `children` is spec-controlled and unbounded; feeding hundreds of
-/// thousands of constraints to ratatui's `Layout` solver on every frame is a
-/// per-frame denial-of-service. Far more than this can never be legibly visible
-/// at once, so trailing children beyond the cap are simply not given space (and
-/// so are not drawn) — the same "fewer rects = not drawn" contract used elsewhere.
+/// feeds to ratatui's layout solver. `children` is spec-controlled and
+/// unbounded; hundreds of thousands of constraints on every frame is a
+/// per-frame denial-of-service, and more `Fill` constraints than the area has
+/// cells makes the solver fail. Far more than this cannot be legible at once.
+///
+/// `Stack` still maps every child up to this cap (tracks the solver did not
+/// place are empty rects at the stack origin). A `Stack` over the cap is
+/// reported by [`validate`](crate::json_render::validate), and the renderer
+/// names how many children were left out.
 pub(crate) const MAX_LAYOUT_CHILDREN: usize = 512;
 
 /// Upper bound on chart data points (`LineChart`, `BarChart`, `SparklineChart`).

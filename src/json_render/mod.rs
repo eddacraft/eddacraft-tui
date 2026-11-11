@@ -11,7 +11,8 @@
 //!
 //! - Parsing into [`RenderSpec`] / [`Element`] / [`PropValue`].
 //! - Structural validation against a [`Catalog`] (unknown component types,
-//!   dangling or cyclic `children` references, missing root).
+//!   dangling or cyclic `children` references, missing root, and a `Stack`
+//!   over the layout cap).
 //! - Data binding via `$data` references against a [`DataContext`].
 //! - Sanitisation for display strings coming from untrusted sources.
 //! - Responsive breakpoint helpers (`Breakpoint`, `max_table_columns`).
@@ -175,6 +176,19 @@ pub enum ValidationError {
         /// repeated id appearing at both ends (e.g. `["a", "b", "a"]`).
         cycle: Vec<String>,
     },
+    /// A `Stack` lists more children than the terminal layout cap.
+    ///
+    /// The renderer keeps that cap so a spec cannot force an unbounded layout
+    /// solve on every frame. Children past `limit` are not given a track;
+    /// `child_count` is how many the element declared.
+    TooManyChildren {
+        /// The `Stack` element whose `children` list is over the cap.
+        element_id: String,
+        /// How many children the element declared.
+        child_count: usize,
+        /// The layout cap the element exceeded.
+        limit: usize,
+    },
 }
 
 impl fmt::Display for ValidationError {
@@ -200,6 +214,14 @@ impl fmt::Display for ValidationError {
             Self::CyclicReference { cycle } => {
                 write!(f, "cyclic `children` reference: {}", cycle.join(" -> "))
             }
+            Self::TooManyChildren {
+                element_id,
+                child_count,
+                limit,
+            } => write!(
+                f,
+                "element `{element_id}` has {child_count} children, above the layout cap of {limit}"
+            ),
         }
     }
 }
@@ -213,7 +235,9 @@ impl std::error::Error for ValidationError {}
 ///
 /// - the [`root`](RenderSpec::root) id resolves to an element;
 /// - every element's `type` is registered in `catalog`;
-/// - every `children` id reference resolves to an element.
+/// - every `children` id reference resolves to an element;
+/// - no `Stack` lists more children than the layout cap
+///   ([`ValidationError::TooManyChildren`]).
 ///
 /// Finally the `children` graph is checked for cycles; the **first** cycle found
 /// is reported as a single [`ValidationError::CyclicReference`] (cycle detection
@@ -251,6 +275,15 @@ pub fn validate(spec: &RenderSpec, catalog: &Catalog) -> Result<(), Vec<Validati
                     child_id: child.clone(),
                 });
             }
+        }
+        if element.component_type == "Stack"
+            && element.children.len() > components::MAX_LAYOUT_CHILDREN
+        {
+            errors.push(ValidationError::TooManyChildren {
+                element_id: id.clone(),
+                child_count: element.children.len(),
+                limit: components::MAX_LAYOUT_CHILDREN,
+            });
         }
     }
 
@@ -532,5 +565,85 @@ mod tests {
             err.to_string(),
             "element `h` uses unknown component type `HeatMap`"
         );
+    }
+
+    #[test]
+    fn stack_over_the_layout_cap_is_reported() {
+        let limit = super::components::MAX_LAYOUT_CHILDREN;
+        let spec = stack_of_n(limit + 1);
+        let errors = validate(&spec, &Catalog::base()).expect_err("over the layout cap");
+        assert_eq!(
+            errors,
+            vec![ValidationError::TooManyChildren {
+                element_id: "page".to_string(),
+                child_count: limit + 1,
+                limit,
+            }]
+        );
+    }
+
+    #[test]
+    fn stack_at_the_layout_cap_is_accepted() {
+        let spec = stack_of_n(super::components::MAX_LAYOUT_CHILDREN);
+        assert!(validate(&spec, &Catalog::base()).is_ok());
+    }
+
+    #[test]
+    fn non_stack_over_the_layout_cap_is_accepted() {
+        // The cap is a `Stack` layout limit. Another catalogue type may list
+        // more children; its own renderer decides what to do with them.
+        let spec = container_of_n("Text", super::components::MAX_LAYOUT_CHILDREN + 1);
+        assert!(validate(&spec, &Catalog::base()).is_ok());
+    }
+
+    #[test]
+    fn too_many_children_error_renders_a_message() {
+        let err = ValidationError::TooManyChildren {
+            element_id: "page".to_string(),
+            child_count: 513,
+            limit: 512,
+        };
+        assert_eq!(
+            err.to_string(),
+            "element `page` has 513 children, above the layout cap of 512"
+        );
+    }
+
+    /// A `Stack` whose `children` list is `child_count` long, each child a leaf
+    /// `Text`.
+    fn stack_of_n(child_count: usize) -> RenderSpec {
+        container_of_n("Stack", child_count)
+    }
+
+    fn container_of_n(component_type: &str, child_count: usize) -> RenderSpec {
+        use std::fmt::Write as _;
+
+        let mut children = String::from("[");
+        let mut elements = String::new();
+        for i in 0..child_count {
+            if i > 0 {
+                children.push(',');
+                elements.push(',');
+            }
+            write!(children, "\"c{i}\"").expect("writing to a String is infallible");
+            write!(
+                elements,
+                r#""c{i}": {{ "type": "Text", "props": {{}}, "children": [] }}"#
+            )
+            .expect("writing to a String is infallible");
+        }
+        children.push(']');
+        let tail = if elements.is_empty() {
+            String::new()
+        } else {
+            format!(", {elements}")
+        };
+        let json = format!(
+            r#"{{ "title": "x", "version": "1.0", "root": "page",
+                 "elements": {{
+                   "page": {{ "type": "{component_type}", "props": {{}}, "children": {children} }}{tail}
+                 }} }}"#
+        );
+        parse_ok(&json)
     }
 }
