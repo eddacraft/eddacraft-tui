@@ -57,6 +57,40 @@ pub struct LayoutLine {
 pub struct LayoutResult {
     pub lines: Vec<LayoutLine>,
     pub total_height: u16,
+    /// `Some` when layout ran out of rows before it placed every word.
+    ///
+    /// Rows are `u16`, so text that needs rows past `u16::MAX` cannot be
+    /// placed. Layout stops at the first word it cannot place and reports it
+    /// here rather than dropping the rest silently. `lines` holds everything
+    /// before that word; the [`PreparedText`] still holds the full text.
+    pub overflow: Option<LayoutOverflow>,
+}
+
+/// Where layout stopped when the row space ran out.
+///
+/// Every word from [`Self::first_unplaced_word`] onward is missing from
+/// [`LayoutResult::lines`]. Read them back from [`PreparedText::words`].
+///
+/// # Stability
+///
+/// **unstable**: new in the release after 0.6.0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LayoutOverflow {
+    /// Index into [`PreparedText::words`] of the first word layout did not
+    /// place. The text needs rows past `u16::MAX`, or exclusions block every
+    /// row left for it.
+    pub first_unplaced_word: usize,
+}
+
+/// Report an overflow from `index` only when a visible word is left to lose.
+fn overflow_from(words: &[MeasuredWord], index: usize) -> Option<LayoutOverflow> {
+    words
+        .get(index..)
+        .is_some_and(|rest| rest.iter().any(is_visible_word))
+        .then_some(LayoutOverflow {
+            first_unplaced_word: index,
+        })
 }
 
 /// Generous upper bound on pre-computed row bands. Content that would need
@@ -93,6 +127,7 @@ pub(crate) fn layout_with_cap(
         return LayoutResult {
             lines: Vec::new(),
             total_height: 0,
+            overflow: None,
         };
     }
 
@@ -199,6 +234,7 @@ pub(crate) fn layout_with_cap(
         return LayoutResult {
             lines: Vec::new(),
             total_height: 0,
+            overflow: overflow_from(words, 0),
         };
     }
 
@@ -321,37 +357,48 @@ fn layout_paragraphs(
     let mut lines = Vec::new();
     let mut max_row: u16 = 0;
     let mut saw_line = false;
-    let mut min_row: u16 = 0;
+    // `u32` so a row cursor past `u16::MAX` is seen as overflow instead of
+    // saturating onto the last row and stacking paragraphs there.
+    let mut min_row: u32 = 0;
+    let mut overflow = None;
+    let mut paragraph_start = 0;
 
-    for (paragraph, hard_breaks) in split_paragraphs(words) {
+    'paragraphs: for (paragraph, hard_breaks) in split_paragraphs(words) {
+        let first_word = paragraph_start;
+        paragraph_start += paragraph.len();
         if !paragraph.iter().any(is_visible_word) {
-            min_row = min_row.saturating_add(hard_breaks);
+            min_row = min_row.saturating_add(u32::from(hard_breaks));
             continue;
         }
 
+        let Ok(first_row) = u16::try_from(min_row) else {
+            overflow = overflow_from(words, first_word);
+            break;
+        };
         extend_placement_through(
             placement,
             filtered_widths,
-            min_row,
+            first_row,
             container_width,
             exclusions,
         );
-        let Some(start) = placement.iter().position(|(row, _)| *row >= min_row) else {
+        let Some(start) = placement.iter().position(|(row, _)| *row >= first_row) else {
+            overflow = overflow_from(words, first_word);
             break;
         };
         let widths = &filtered_widths[start..];
-        if widths.is_empty() {
-            break;
-        }
 
         let wrapped = wrap_first_fit(paragraph, widths);
-        let mut last_row = min_row;
+        let mut last_row = first_row;
         let mut placed = false;
+        let mut line_start = first_word;
         for (offset, line_words) in wrapped.iter().enumerate() {
             let Some((real_row, band)) = row_band_at(start + offset, placement, safe_width) else {
-                break;
+                overflow = overflow_from(words, line_start);
+                break 'paragraphs;
             };
             push_line(&mut lines, line_words, real_row, band);
+            line_start += line_words.len();
             last_row = real_row;
             placed = true;
             saw_line = true;
@@ -363,20 +410,20 @@ fn layout_paragraphs(
         } else {
             hard_breaks
         };
-        min_row = last_row.saturating_add(advance);
+        min_row = u32::from(last_row) + u32::from(advance);
     }
 
     // A trailing run of breaks reserves blank rows past the last glyph.
-    // Saturate at `u16::MAX`: `max_row + 1` would overflow when layout
-    // reaches row 65535.
-    let total_height = if saw_line {
-        max_row.saturating_add(1).max(min_row)
+    // Clamp at `u16::MAX`: the row after row 65535 has no `u16` height.
+    let height = if saw_line {
+        (u32::from(max_row) + 1).max(min_row)
     } else {
         min_row
     };
     LayoutResult {
         lines,
-        total_height,
+        total_height: u16::try_from(height).unwrap_or(u16::MAX),
+        overflow,
     }
 }
 
@@ -843,5 +890,92 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Row count that fills the `u16` row index space: rows `0..=u16::MAX`.
+    const ROW_SPACE: usize = u16::MAX as usize + 1;
+
+    fn one_word_per_row(rows: usize) -> PreparedText {
+        // At width 1 a soft space cannot share a row, so each word takes a row.
+        PreparedText::new(&vec!["a"; rows].join(" "))
+    }
+
+    fn placed_words(result: &LayoutResult) -> usize {
+        result.lines.iter().map(|line| line.words.len()).sum()
+    }
+
+    #[test]
+    fn layout_filling_the_last_row_reports_no_overflow() {
+        let result = layout(&one_word_per_row(ROW_SPACE), 1, &[]);
+        assert_eq!(result.overflow, None);
+        assert_eq!(placed_words(&result), ROW_SPACE);
+        assert_eq!(result.lines.last().map(|line| line.y), Some(u16::MAX));
+        assert_eq!(result.total_height, u16::MAX);
+    }
+
+    #[test]
+    fn layout_reports_words_past_the_last_row() {
+        // Regression (#6537): the 65,537th row has no u16 index, and layout
+        // used to drop its words without saying so.
+        let prepared = one_word_per_row(ROW_SPACE + 2);
+        let result = layout(&prepared, 1, &[]);
+        assert_eq!(
+            result.overflow,
+            Some(LayoutOverflow {
+                first_unplaced_word: ROW_SPACE
+            })
+        );
+        assert_eq!(placed_words(&result), ROW_SPACE);
+        assert_eq!(result.lines.last().map(|line| line.y), Some(u16::MAX));
+        assert_eq!(result.total_height, u16::MAX);
+        // The prepared text still holds every unplaced word.
+        assert_eq!(prepared.words()[ROW_SPACE..].len(), 2);
+    }
+
+    #[test]
+    fn paragraph_past_the_last_row_is_reported_not_stacked() {
+        // Regression (#6537): once a paragraph ended on row u16::MAX, the
+        // saturated row cursor put the next paragraph on the same row.
+        let mut text = "a\n".repeat(ROW_SPACE);
+        text.push_str("tail");
+        let result = layout(&PreparedText::new(&text), 80, &[]);
+        assert_eq!(
+            result.overflow,
+            Some(LayoutOverflow {
+                first_unplaced_word: ROW_SPACE
+            })
+        );
+        assert_eq!(result.lines.len(), ROW_SPACE);
+        assert!(
+            result
+                .lines
+                .iter()
+                .flat_map(|line| &line.words)
+                .all(|word| word.text != "tail"),
+            "tail should not be drawn over row u16::MAX"
+        );
+        let mut seen_rows = std::collections::HashSet::new();
+        assert!(result.lines.iter().all(|line| seen_rows.insert(line.y)));
+    }
+
+    #[test]
+    fn fully_blocked_rows_report_the_text_as_unplaced() {
+        let prepared = PreparedText::new("hello world");
+        let zones = vec![ExclusionZone::rect(0, 0, 10, u16::MAX)];
+        let result = layout_with_cap(&prepared, 10, &zones, 5);
+        assert!(result.lines.is_empty());
+        assert_eq!(
+            result.overflow,
+            Some(LayoutOverflow {
+                first_unplaced_word: 0
+            })
+        );
+    }
+
+    #[test]
+    fn layout_within_the_row_space_reports_no_overflow() {
+        let result = layout(&PreparedText::new("foo\nbar baz"), 4, &[]);
+        assert_eq!(result.overflow, None);
+        assert_eq!(layout(&PreparedText::new(""), 4, &[]).overflow, None);
     }
 }

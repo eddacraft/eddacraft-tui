@@ -93,7 +93,9 @@ pub mod prelude {
     #[cfg_attr(docsrs, doc(cfg(feature = "lifecycle")))]
     pub use crate::lifecycle::{TerminalGuard, restore_terminal};
     pub use crate::mode::{AltScreenSupport, ColourDepth, TtyKind};
-    pub use crate::pretext::{ExclusionZone, LayoutResult, PositionedWord, PreparedText};
+    pub use crate::pretext::{
+        ExclusionZone, LayoutOverflow, LayoutResult, PositionedWord, PreparedText,
+    };
     pub use crate::shell::{ShellBranding, render_shell};
     pub use crate::surface::Surface;
     pub use crate::theme::{EddaCraftTheme, Role, Theme, adapt_buffer, adapt_color};

@@ -24,6 +24,11 @@ minor version bump indicates a breaking change.
   `[ ERR ]`, `[ WARN ]`, `[ i ]`, `[ .. ]`, `[ N/A ]`, `[ BLOCKED ]`,
   `[ ?? ]`), so text outside a badge can carry a status the same way
   (ADR-195). `StatusBadge` draws it.
+- **`LayoutResult::overflow` and `pretext::LayoutOverflow`** (unstable):
+  pretext layout reports where it stopped when the text needs rows past
+  `u16::MAX`, or when exclusions block every row left for it. `LayoutResult`
+  is not `#[non_exhaustive]`, so code that builds one with a struct literal
+  needs the new field.
 
 ### Changed
 
