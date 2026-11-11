@@ -3,7 +3,8 @@ use std::str::CharIndices;
 
 use ratatui::style::Style;
 use textwrap::core::Fragment;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
+use unicode_width::UnicodeWidthStr;
 
 /// A word-level fragment with pre-measured display width and style runs.
 /// Implements textwrap's Fragment trait so it plugs directly into wrap algorithms.
@@ -95,14 +96,13 @@ impl MeasuredWord {
     /// columns, cut only between display clusters.
     ///
     /// Returns `(end, width)`: the byte offset where the prefix ends and its
-    /// display width. `end == from` when the first cluster is wider than
-    /// `max_width`. `from` must be a cluster boundary.
+    /// display width, summed cluster by cluster. `end == from` when the first
+    /// cluster is wider than `max_width`. `from` must be a cluster boundary.
     pub(crate) fn fitting_prefix(&self, from: usize, max_width: usize) -> (usize, usize) {
         let mut end = from;
         let mut width = 0usize;
         while end < self.text.len() {
-            let next = cluster_end(&self.text, end);
-            let cluster_width = UnicodeWidthStr::width(&self.text[end..next]);
+            let (next, cluster_width) = self.cluster_at(end);
             if width.saturating_add(cluster_width) > max_width {
                 break;
             }
@@ -118,45 +118,84 @@ impl MeasuredWord {
         (end, UnicodeWidthStr::width(&self.text[from..end]))
     }
 
+    /// Display width of `text[from..]`, summed cluster by cluster.
+    ///
+    /// This is the measure [`Self::fitting_prefix`] uses, so a word split
+    /// into pieces has piece widths that add up to this total. `from` must
+    /// be a cluster boundary.
+    pub(crate) fn cluster_width_from(&self, from: usize) -> usize {
+        self.text[from..]
+            .graphemes(true)
+            .map(UnicodeWidthStr::width)
+            .fold(0, usize::saturating_add)
+    }
+
     /// The style runs that cover `text[start..end]`, rebased so the first
     /// run starts at offset 0.
+    ///
+    /// `start` and `end` must be cluster boundaries. Every returned offset
+    /// is a cluster boundary too: a display cluster draws whole in the style
+    /// active at its first character, and a style change inside a cluster
+    /// (a stream split mid ZWJ sequence or before an emoji modifier) takes
+    /// effect at the next cluster.
+    ///
+    /// Only the runs that start inside the slice are visited: the run
+    /// active at `start` is found by binary search.
     pub(crate) fn style_runs_in(&self, start: usize, end: usize) -> Vec<(usize, Style)> {
         let runs = &self.style_runs;
         let active = runs
-            .iter()
-            .rposition(|(offset, _)| *offset <= start)
-            .unwrap_or(0);
+            .partition_point(|(offset, _)| *offset <= start)
+            .saturating_sub(1);
         let mut sliced = vec![(0, runs[active].1)];
-        sliced.extend(
-            runs[active + 1..]
-                .iter()
-                .filter(|(offset, _)| *offset < end)
-                .map(|(offset, style)| (offset - start, *style)),
-        );
+        for &(offset, style) in runs[active + 1..]
+            .iter()
+            .take_while(|(offset, _)| *offset < end)
+        {
+            let offset = cluster_boundary_at_or_after(&self.text, offset);
+            if offset >= end {
+                break;
+            }
+            let offset = offset - start;
+            match sliced.last_mut() {
+                // Several changes inside one cluster: the last one is the
+                // style active once the cluster ends.
+                Some(last) if last.0 == offset => last.1 = style,
+                _ => sliced.push((offset, style)),
+            }
+        }
+        sliced.dedup_by(|next, previous| next.1 == previous.1);
         sliced
     }
 }
 
-const ZERO_WIDTH_JOINER: char = '\u{200D}';
-
 /// Byte offset where the display cluster starting at `start` ends.
 ///
-/// A cluster is one character plus every zero-width character after it
-/// (combining marks, variation selectors), joined across a zero-width
-/// joiner. Splitting a word only between clusters never strands a mark
-/// from its base or cuts an emoji ZWJ sequence apart.
+/// A display cluster is an extended grapheme cluster (UAX #29): a base
+/// character with its combining marks and variation selectors, an emoji
+/// with its skin-tone modifier, or a whole emoji ZWJ sequence. Splitting a
+/// word only between clusters never strands a mark or modifier from its
+/// base or cuts a ZWJ sequence apart. The terminal renderer draws text
+/// cluster by cluster too.
 fn cluster_end(text: &str, start: usize) -> usize {
-    let mut previous: Option<char> = None;
-    for (offset, ch) in text[start..].char_indices() {
-        if let Some(prev) = previous {
-            let joins = prev == ZERO_WIDTH_JOINER || ch.width().unwrap_or(0) == 0;
-            if !joins {
-                return start + offset;
-            }
-        }
-        previous = Some(ch);
+    GraphemeCursor::new(start, text.len(), true)
+        .next_boundary(text, 0)
+        .ok()
+        .flatten()
+        .unwrap_or(text.len())
+}
+
+/// `offset` if it is a display cluster boundary of `text`, else the end of
+/// the cluster it falls inside.
+fn cluster_boundary_at_or_after(text: &str, offset: usize) -> usize {
+    let mut cursor = GraphemeCursor::new(offset, text.len(), true);
+    if cursor.is_boundary(text, 0).unwrap_or(true) {
+        return offset;
     }
-    text.len()
+    cursor
+        .next_boundary(text, 0)
+        .ok()
+        .flatten()
+        .unwrap_or(text.len())
 }
 
 impl Fragment for MeasuredWord {
@@ -352,6 +391,65 @@ mod tests {
         assert_eq!(
             cluster_end(&text, "e\u{301}".len()),
             "e\u{301}".len() + family.len()
+        );
+    }
+
+    #[test]
+    fn clusters_keep_an_emoji_modifier_with_its_base() {
+        // Review regression (#6641): the skin-tone modifier is two columns
+        // wide on its own, so a width-based rule split it from its base.
+        let thumbs = "\u{1F44D}\u{1F3FD}";
+        let word = MeasuredWord::new(&format!("{thumbs}ab"), "", Style::default());
+        assert_eq!(word.cluster_at(0), (thumbs.len(), 2));
+        assert_eq!(word.fitting_prefix(0, 3), (thumbs.len() + 1, 3));
+        assert_eq!(word.fitting_prefix(0, 1), (0, 0));
+        assert_eq!(word.cluster_width_from(0), 4);
+        assert_eq!(word.cluster_width_from(thumbs.len() + 1), 1);
+    }
+
+    #[test]
+    fn style_runs_in_moves_a_change_inside_a_cluster_to_its_end() {
+        // Review regression (#6641): a stream split after `👩` put a style
+        // change inside the `👩‍💻` sequence. The sequence takes the style of
+        // its first character; the change applies from the next cluster.
+        let red = Style::default().fg(ratatui::style::Color::Red);
+        let blue = Style::default().fg(ratatui::style::Color::Blue);
+        let green = Style::default().fg(ratatui::style::Color::Green);
+        let coder = "\u{1F469}\u{200D}\u{1F4BB}";
+        let mut word = MeasuredWord::new("\u{1F469}", "", red);
+        word.append_fragment(&MeasuredWord::new("\u{200D}", "", green));
+        word.append_fragment(&MeasuredWord::new("\u{1F4BB}ab", "", blue));
+        assert_eq!(word.style_runs.len(), 3);
+        let len = word.text.len();
+        assert_eq!(
+            word.style_runs_in(0, len),
+            vec![(0, red), (coder.len(), blue)]
+        );
+        assert_eq!(word.style_runs_in(0, coder.len()), vec![(0, red)]);
+        assert_eq!(word.style_runs_in(coder.len(), len), vec![(0, blue)]);
+
+        // A change inside a cluster back to the active style adds no run.
+        let mut same = MeasuredWord::new("\u{1F469}", "", red);
+        same.append_fragment(&MeasuredWord::new("\u{200D}", "", blue));
+        same.append_fragment(&MeasuredWord::new("\u{1F4BB}a", "", red));
+        assert_eq!(same.style_runs_in(0, same.text.len()), vec![(0, red)]);
+    }
+
+    #[test]
+    fn style_runs_in_visits_only_the_runs_inside_the_slice() {
+        let red = Style::default().fg(ratatui::style::Color::Red);
+        let blue = Style::default().fg(ratatui::style::Color::Blue);
+        let mut word = MeasuredWord::new("a", "", red);
+        for index in 1..1_000 {
+            let style = if index % 2 == 0 { red } else { blue };
+            word.append_fragment(&MeasuredWord::new("a", "", style));
+        }
+        assert_eq!(word.style_runs.len(), 1_000);
+        assert_eq!(word.style_runs_in(0, 1), vec![(0, red)]);
+        assert_eq!(word.style_runs_in(999, 1_000), vec![(0, blue)]);
+        assert_eq!(
+            word.style_runs_in(500, 503),
+            vec![(0, red), (1, blue), (2, red)]
         );
     }
 

@@ -78,8 +78,12 @@ minor version bump indicates a breaking change.
 
 - **pretext keeps words that are too wide out of exclusion zones.** A word
   wider than its row's band is split between display clusters, one piece per
-  row, so each piece fits the band it lands on and keeps its style runs. A
-  combining mark stays with its base and an emoji ZWJ sequence is never cut.
+  row, so each piece fits the band it lands on and keeps its style runs.
+  Display clusters are extended grapheme clusters: a combining mark stays with
+  its base, an emoji modifier with its emoji, and an emoji ZWJ sequence is
+  never cut. A style change streamed inside a cluster takes effect at the next
+  cluster, so `PositionedWord::style_runs` offsets always fall on cluster
+  boundaries and each cluster draws whole in the style of its first character.
   A glyph wider than the band (a two-column glyph in a one-column band) moves
   down to the next row that can hold it. Only a glyph wider than the
   container itself is placed past its band, where the container edge clips

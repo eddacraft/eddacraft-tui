@@ -23,6 +23,11 @@ pub struct PositionedWord {
     pub width: u16,
     /// Style runs: `(byte_offset_into_text, style)` ordered by offset.
     /// Always non-empty; the first entry has offset 0.
+    ///
+    /// Every offset is a display (extended grapheme) cluster boundary, so
+    /// each segment draws whole clusters. A cluster takes the style active
+    /// at its first character; a style change streamed inside a cluster
+    /// takes effect at the next one.
     pub style_runs: Vec<(usize, Style)>,
 }
 
@@ -344,20 +349,12 @@ impl OpenLine {
         width: usize,
         whitespace: usize,
     ) {
-        let (text, style_runs) = if from == 0 && end == word.text.len() {
-            (word.text.clone(), word.style_runs.clone())
-        } else {
-            (
-                word.text[from..end].to_string(),
-                word.style_runs_in(from, end),
-            )
-        };
         self.words.push(PositionedWord {
-            text,
+            text: word.text[from..end].to_string(),
             x: self.band.left.saturating_add(clamp_cols(self.used)),
             y: self.row,
             width: clamp_cols(width),
-            style_runs,
+            style_runs: word.style_runs_in(from, end),
         });
         self.used = self.used.saturating_add(width).saturating_add(whitespace);
     }
@@ -408,6 +405,9 @@ fn fill_paragraph(
         let source = first_word + offset;
         let mut from = 0;
         let mut remaining = word.width;
+        // Whether `remaining` is summed cluster by cluster, as split pieces
+        // are. The cached `word.width` is used until the word has to split.
+        let mut cluster_measured = false;
         loop {
             let room = line.band.width;
             let fits = if line.words.is_empty() {
@@ -430,6 +430,15 @@ fn fill_paragraph(
             }
 
             // The rest of the word is wider than this empty row: split it.
+            // Measure it the way pieces are measured first, so the prefix
+            // and suffix widths add up to the columns they draw. Streamed
+            // fragments sum their widths, and an emoji modifier or ZWJ
+            // sequence cut across fragments is narrower once joined.
+            if !cluster_measured {
+                cluster_measured = true;
+                remaining = word.cluster_width_from(from);
+                continue;
+            }
             let (mut end, mut width) = word.fitting_prefix(from, room);
             if end == from {
                 let (cluster_end, cluster_width) = word.cluster_at(from);
@@ -1198,5 +1207,79 @@ mod tests {
         let result = layout(&PreparedText::new("foo\nbar baz"), 4, &[]);
         assert_eq!(result.overflow, None);
         assert_eq!(layout(&PreparedText::new(""), 4, &[]).overflow, None);
+    }
+
+    #[test]
+    fn split_word_keeps_an_emoji_modifier_with_its_base() {
+        // Review regression (#6641): splitting on character width cut
+        // `👍` from its skin-tone modifier and measured the `🏽ab` tail as
+        // two columns, though it draws four.
+        let zones = vec![ExclusionZone::rect(3, 0, 10, 10)];
+        let result = layout(&PreparedText::new("\u{1F44D}\u{1F3FD}ab"), 13, &zones);
+        assert_inside_bands(&result, 13, &zones);
+        let pieces: Vec<(&str, u16, u16, u16)> = result
+            .lines
+            .iter()
+            .flat_map(|line| &line.words)
+            .map(|word| (word.text.as_str(), word.x, word.y, word.width))
+            .collect();
+        assert_eq!(
+            pieces,
+            vec![("\u{1F44D}\u{1F3FD}a", 0, 0, 3), ("b", 0, 1, 1)]
+        );
+    }
+
+    /// A placed piece as `(segments, y, width)`.
+    type Piece<'a> = (Vec<(&'a str, Style)>, u16, u16);
+
+    #[test]
+    fn style_change_inside_a_zwj_sequence_keeps_the_cluster_whole() {
+        // Review regression (#6641): a streamed style change after `👩`
+        // split the `👩‍💻` sequence into two runs that render five columns
+        // although layout measured the piece as three.
+        let red = Style::default().fg(ratatui::style::Color::Red);
+        let blue = Style::default().fg(ratatui::style::Color::Blue);
+        let mut prepared = PreparedText::styled("\u{1F469}", red);
+        prepared.append_styled("\u{200D}\u{1F4BB}ab", blue);
+        let zones = vec![ExclusionZone::rect(3, 0, 10, 10)];
+        let result = layout(&prepared, 13, &zones);
+        assert_inside_bands(&result, 13, &zones);
+        let pieces: Vec<Piece<'_>> = result
+            .lines
+            .iter()
+            .flat_map(|line| &line.words)
+            .map(|word| (word.segments().collect(), word.y, word.width))
+            .collect();
+        assert_eq!(
+            pieces,
+            vec![
+                (vec![("\u{1F469}\u{200D}\u{1F4BB}", red), ("a", blue)], 0, 3),
+                (vec![("b", blue)], 1, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn alternating_styles_split_into_one_column_rows_keep_their_styles() {
+        let red = Style::default().fg(ratatui::style::Color::Red);
+        let blue = Style::default().fg(ratatui::style::Color::Blue);
+        let mut prepared = PreparedText::styled("a", red);
+        for index in 1..2_000 {
+            prepared.append_styled("a", if index % 2 == 0 { red } else { blue });
+        }
+        let zones = vec![ExclusionZone::rect(1, 0, 9, u16::MAX)];
+        let result = layout(&prepared, 10, &zones);
+        assert_inside_bands(&result, 10, &zones);
+        let styles: Vec<Vec<(usize, Style)>> = result
+            .lines
+            .iter()
+            .flat_map(|line| &line.words)
+            .map(|word| word.style_runs.clone())
+            .collect();
+        assert_eq!(styles.len(), 2_000);
+        for (index, runs) in styles.iter().enumerate() {
+            let expected = if index % 2 == 0 { red } else { blue };
+            assert_eq!(runs, &vec![(0, expected)], "piece {index}");
+        }
     }
 }

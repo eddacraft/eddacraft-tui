@@ -205,6 +205,50 @@ mod tests {
         assert_eq!(rows, vec!["abcd      ", "efgh      ", "ij        "]);
     }
 
+    /// Render `state` into a 10x3 area with columns 3.. excluded, assert
+    /// nothing drew into the exclusion, and return the buffer.
+    fn render_beside_exclusion(state: &mut PretextState) -> Buffer {
+        state.set_exclusions(vec![ExclusionZone::rect(3, 0, 7, 3)]);
+        let area = Rect::new(0, 0, 10, 3);
+        let mut buf = Buffer::empty(area);
+        PretextWidget::new().render(area, &mut buf, state);
+        for y in 0..3 {
+            for x in 3..10 {
+                assert_eq!(buf[(x, y)].symbol(), " ", "cell ({x}, {y}) is excluded");
+            }
+        }
+        buf
+    }
+
+    #[test]
+    fn emoji_modifier_sequence_is_not_drawn_into_an_exclusion() {
+        // Review regression (#6641): `👍🏽` was split from its modifier and
+        // the four-column `🏽ab` tail was placed as two columns.
+        let mut state = PretextState::new("\u{1F44D}\u{1F3FD}ab");
+        let buf = render_beside_exclusion(&mut state);
+        assert_eq!(buf[(0, 0)].symbol(), "\u{1F44D}\u{1F3FD}");
+        assert_eq!(buf[(2, 0)].symbol(), "a");
+        assert_eq!(buf[(0, 1)].symbol(), "b");
+    }
+
+    #[test]
+    fn styled_zwj_sequence_is_drawn_whole_beside_an_exclusion() {
+        // Review regression (#6641): a style change after `👩` rendered the
+        // `👩‍💻` sequence as two runs, five columns for a three-column piece.
+        // The cluster draws whole in the style of its first character.
+        let red = Style::default().fg(ratatui::style::Color::Red);
+        let blue = Style::default().fg(ratatui::style::Color::Blue);
+        let mut state = PretextState::styled("\u{1F469}", red);
+        state.append_styled("\u{200D}\u{1F4BB}ab", blue);
+        let buf = render_beside_exclusion(&mut state);
+        assert_eq!(buf[(0, 0)].symbol(), "\u{1F469}\u{200D}\u{1F4BB}");
+        assert_eq!(buf[(0, 0)].fg, ratatui::style::Color::Red);
+        assert_eq!(buf[(2, 0)].symbol(), "a");
+        assert_eq!(buf[(2, 0)].fg, ratatui::style::Color::Blue);
+        assert_eq!(buf[(0, 1)].symbol(), "b");
+        assert_eq!(buf[(0, 1)].fg, ratatui::style::Color::Blue);
+    }
+
     #[test]
     fn renders_basic_text() {
         let mut state = PretextState::new("hello world");
