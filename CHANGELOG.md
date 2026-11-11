@@ -48,6 +48,23 @@ minor version bump indicates a breaking change.
 
 ### Fixed
 
+- **`ProgressBar` keeps its percentage and label in view.** The percentage is
+  reserved first, right-aligned in four columns so the bar does not shift as
+  the digits change; the label comes next and the bar fills what is left.
+  When there is no room for a bar, the label is cut with an ellipsis and the
+  percentage stays whole. Previously the bar took the full width and the
+  percentage was clipped on every bar.
+
+- **`Toast` wraps a marker that leaves no room for the message.** A custom
+  `icon()` wider than the toast wraps across rows by display column, and the
+  message goes below it at the full inner width; `measured_height` counts
+  both. Previously the icon was clipped and the message dropped.
+
+- **Bottom-placed `ToastStack` stays on the bottom edge when it overflows.**
+  It shows the newest toasts that fit whole, counting gaps, and drops older
+  ones. Previously it started at the top row, drew the oldest toasts, and
+  gave the newest too few rows to draw.
+
 - **Key releases are not actions.** `KeyHandler::map` and
   `KeyHandler::map_text_entry` return `Action::None` for a key release
   before they look at the key. Press and repeat events keep their mapping,

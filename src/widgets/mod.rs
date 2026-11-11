@@ -73,6 +73,25 @@ pub(crate) fn render_block(
     }
 }
 
+/// Cuts `line` to fit `width` columns with a trailing ellipsis. The ellipsis
+/// is always added, even when `line` already fits, so callers that know the
+/// text was cut can mark it.
+pub(crate) fn with_ellipsis(line: &str, width: usize) -> String {
+    let budget = width.saturating_sub(1);
+    let mut out = String::new();
+    let mut used = 0;
+    for ch in line.chars() {
+        let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        if used + cw > budget {
+            break;
+        }
+        out.push(ch);
+        used += cw;
+    }
+    out.push('…');
+    out
+}
+
 /// Apply [`Modifier::DIM`] to every cell in the intersection of `area` and the
 /// buffer. Shared by overlay scrim and the `Disableable` wrapper so dim
 /// semantics stay in lockstep across the crate.

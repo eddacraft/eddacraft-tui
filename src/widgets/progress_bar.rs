@@ -4,10 +4,11 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, StatefulWidget, Widget};
+use unicode_width::UnicodeWidthStr;
 
 use crate::animation::advance;
 use crate::theme::Theme;
-use crate::widgets::{AnimatedF64, animated_f64};
+use crate::widgets::{AnimatedF64, animated_f64, with_ellipsis};
 
 pub struct ProgressBar<'a, T: Theme> {
     theme: &'a T,
@@ -122,32 +123,121 @@ impl<T: Theme> StatefulWidget for ProgressBar<'_, T> {
         advance(&mut state.display_fraction);
 
         let fraction = (*state.display_fraction).clamp(0.0, 1.0);
-        let bar_width = inner.width as usize;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let pct = (fraction * 100.0) as u64;
+        let width = usize::from(inner.width);
+        let row = Rect::new(inner.x, inner.y, inner.width, 1);
+        let style = self.theme.base();
+
+        if width < PCT_WIDTH {
+            // Too narrow for the padded percentage: show what fits of it.
+            Line::styled(format!("{pct}%"), style).render(row, buf);
+            return;
+        }
+
+        // The percentage is reserved first, right-aligned at a fixed width so
+        // the bar does not shift as the digits change. The label comes next,
+        // cut with an ellipsis when it does not fit, and the bar fills what is
+        // left, followed by one separating space.
+        let rest = width - PCT_WIDTH;
+        let label = self.label.map_or_else(String::new, |label| {
+            let full = format!("{label}: ");
+            if UnicodeWidthStr::width(full.as_str()) <= rest {
+                full
+            } else if rest >= 2 {
+                with_ellipsis(&format!("{label}:"), rest - 1) + " "
+            } else {
+                String::new()
+            }
+        });
+        let bar_width = rest
+            .saturating_sub(UnicodeWidthStr::width(label.as_str()))
+            .saturating_sub(1);
         #[allow(
             clippy::cast_possible_truncation,
             clippy::cast_sign_loss,
             clippy::cast_precision_loss
         )]
         let filled = (bar_width as f64 * fraction) as usize;
+        let bar = "█".repeat(filled) + &"░".repeat(bar_width - filled);
 
-        let bar: String = "█".repeat(filled) + &"░".repeat(bar_width.saturating_sub(filled));
-
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let pct = (fraction * 100.0) as u64;
-        let display = if let Some(label) = self.label {
-            format!("{label}: {bar} {pct}%")
+        let left = if bar_width > 0 {
+            format!("{label}{bar} ")
         } else {
-            format!("{bar} {pct}%")
+            label
         };
-
-        let line = Line::styled(display, self.theme.base());
-        line.render(inner, buf);
+        let rest = u16::try_from(rest).unwrap_or(u16::MAX);
+        Line::styled(left, style).render(Rect::new(row.x, row.y, rest, 1), buf);
+        Line::styled(format!("{pct:>3}%"), style)
+            .render(Rect::new(row.x + rest, row.y, inner.width - rest, 1), buf);
     }
 }
+
+/// Columns reserved for the percentage, wide enough for `100%`.
+const PCT_WIDTH: usize = 4;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::theme::EddaCraftTheme;
+
+    /// Renders a settled bar (animation finished) and returns its first row.
+    fn settled(width: u16, label: Option<&str>, current: u64) -> String {
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, width, 1);
+        let mut buf = Buffer::empty(area);
+        let mut state = ProgressBarState {
+            current,
+            total: 100,
+            ..Default::default()
+        };
+        let bar = |theme| match label {
+            Some(label) => ProgressBar::new(theme).label(label),
+            None => ProgressBar::new(theme),
+        };
+        bar(&theme).render(area, &mut buf, &mut state);
+        state.display_fraction.finish();
+        bar(&theme).render(area, &mut buf, &mut state);
+        // Skip the continuation cell a wide glyph leaves behind it.
+        let mut out = String::new();
+        let mut x = 0;
+        while x < width {
+            let symbol = buf[(x, 0)].symbol();
+            out.push_str(symbol);
+            x += u16::try_from(UnicodeWidthStr::width(symbol).max(1)).unwrap_or(1);
+        }
+        out
+    }
+
+    #[test]
+    fn percentage_is_reserved_beside_the_bar() {
+        // #6634: the bar took the full width and pushed the percentage off.
+        assert_eq!(settled(20, None, 50), "███████░░░░░░░░  50%");
+        assert_eq!(settled(10, None, 100), "█████ 100%");
+        assert_eq!(settled(10, None, 0), "░░░░░   0%");
+    }
+
+    #[test]
+    fn label_and_percentage_are_reserved_beside_the_bar() {
+        assert_eq!(settled(24, Some("Build"), 50), "Build: ██████░░░░░░  50%");
+    }
+
+    #[test]
+    fn narrow_bar_keeps_the_percentage_then_a_cut_label() {
+        // No room for a bar: the label is cut with an ellipsis and the
+        // percentage stays whole.
+        assert_eq!(settled(10, Some("Build"), 50), "Buil…  50%");
+        assert_eq!(settled(5, Some("Build"), 50), "  50%");
+        assert_eq!(settled(4, None, 50), " 50%");
+        assert_eq!(settled(3, None, 50), "50%");
+    }
+
+    #[test]
+    fn wide_label_is_measured_in_display_columns() {
+        // `構築` is 4 columns, so `構築: ` takes 6 and the bar gets 3.
+        assert_eq!(settled(14, Some("構築"), 100), "構築: ███ 100%");
+    }
 
     #[test]
     fn fraction_calculation() {
