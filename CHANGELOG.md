@@ -76,6 +76,16 @@ minor version bump indicates a breaking change.
   axis stay paired with an empty rect up to that cap, instead of being fed
   to the solver (which rejects that many `Fill` constraints).
 
+- **pretext keeps words that are too wide out of exclusion zones.** A word
+  wider than its row's band is split between display clusters, one piece per
+  row, so each piece fits the band it lands on and keeps its style runs. A
+  combining mark stays with its base and an emoji ZWJ sequence is never cut.
+  A glyph wider than the band (a two-column glyph in a one-column band) moves
+  down to the next row that can hold it. Only a glyph wider than the
+  container itself is placed past its band, where the container edge clips
+  it. A split word is now several `PositionedWord`s, and
+  `LayoutOverflow::first_unplaced_word` names the first word not placed in
+  full.
 - **Key releases are not actions.** `KeyHandler::map` and
   `KeyHandler::map_text_entry` return `Action::None` for a key release
   before they look at the key. Press and repeat events keep their mapping,

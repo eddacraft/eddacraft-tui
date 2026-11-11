@@ -2,12 +2,15 @@ use super::exclusion::{ExclusionZone, RowBand, compute_row_band, compute_row_ban
 use super::prepare::PreparedText;
 use super::segment::MeasuredWord;
 use ratatui::style::Style;
-use textwrap::wrap_algorithms::wrap_first_fit;
+use textwrap::core::Fragment;
 
 /// A positioned word ready for rendering.
 ///
 /// Carries its full set of style runs so rendering can draw each run with
 /// its own style. Use `primary_style()` for the common single-style case.
+///
+/// A word too wide for its row's band is split between display clusters
+/// into one `PositionedWord` per row, each inside that row's band.
 #[derive(Debug, Clone)]
 pub struct PositionedWord {
     /// The word text.
@@ -78,8 +81,10 @@ pub struct LayoutResult {
 #[non_exhaustive]
 pub struct LayoutOverflow {
     /// Index into [`PreparedText::words`] of the first word layout did not
-    /// place. The text needs rows past `u16::MAX`, or exclusions block every
-    /// row left for it.
+    /// place in full. The text needs rows past `u16::MAX`, or exclusions
+    /// block every row left for it. A word too wide for its row is split
+    /// across rows, so when layout stops partway through one, its earlier
+    /// pieces are in [`LayoutResult::lines`].
     pub first_unplaced_word: usize,
 }
 
@@ -134,10 +139,9 @@ pub(crate) fn layout_with_cap(
     // Compute per-row bands (left offset + available width) accounting for
     // exclusion zones. The initial estimate assumes full container width;
     // if exclusions shrink effective per-row width below that, we grow the
-    // band list until total unblocked capacity covers the text. This prevents
-    // `wrap_first_fit` from returning more lines than row_bands holds
-    // (textwrap repeats the last line_widths entry as needed, so row_map
-    // indexing would otherwise panic).
+    // band list until total unblocked capacity covers the text, so most
+    // layouts never compute a band while wrapping. Rows past these are still
+    // computed on demand from the exclusions.
     let safe_width = container_width.max(1) as usize;
     let required_capacity = prepared.total_width().saturating_add(safe_width);
 
@@ -187,27 +191,19 @@ pub(crate) fn layout_with_cap(
     }
 
     // Filter out fully-blocked rows. `placement[i]` gives the (real_row, band)
-    // pair that the i-th unblocked entry corresponds to. filtered_widths is
-    // passed to wrap_first_fit so it sees the exact per-row width for every
-    // row where text will actually land.
-    let mut placement: Vec<(u16, RowBand)> = Vec::with_capacity(row_bands.len());
-    let mut filtered_widths: Vec<f64> = Vec::with_capacity(row_bands.len());
-    for (i, band) in row_bands.iter().enumerate() {
-        if !band.is_blocked() {
-            placement.push((i as u16, *band));
-            filtered_widths.push(band.width as f64);
-        }
-    }
+    // pair of the i-th unblocked row. Wrapping reads each row's band width
+    // from here, so it sees the exact width of every row text lands on.
+    let mut placement: Vec<(u16, RowBand)> = row_bands
+        .iter()
+        .enumerate()
+        .filter(|(_, band)| !band.is_blocked())
+        .map(|(i, band)| (i as u16, *band))
+        .collect();
 
-    // If we hit max_rows_cap before capacity caught up, precompute overflow
-    // bands past the cap and include them in filtered_widths. This ensures
-    // wrap_first_fit sees the actual (possibly narrower) widths of overflow
-    // rows — if we instead relied on textwrap repeating the last entry,
-    // words packed for a wider cap-edge row could spill into exclusions on
-    // a narrower overflow row. Overflow walks forward skipping blocked rows,
-    // bounded by a generous probe limit.
-    let mut overflow_capacity_accum: usize =
-        filtered_widths.iter().map(|w| *w as usize).sum::<usize>();
+    // If we hit max_rows_cap before capacity caught up, precompute bands past
+    // the cap, walking forward over blocked rows, bounded by a generous probe
+    // limit. Rows still past these are computed on demand while wrapping.
+    let mut overflow_capacity_accum: usize = unblocked_capacity(&row_bands);
     let mut next_overflow_row: u16 = row_bands.len() as u16;
     let overflow_probe_limit: u32 = (max_rows_cap as u32).saturating_mul(4);
     let mut probed: u32 = 0;
@@ -216,7 +212,6 @@ pub(crate) fn layout_with_cap(
         if !band.is_blocked() {
             overflow_capacity_accum += band.width;
             placement.push((next_overflow_row, band));
-            filtered_widths.push(band.width as f64);
         }
         probed += 1;
         // Stop if we'd walk past the u16 row index space. saturating_add
@@ -230,7 +225,7 @@ pub(crate) fn layout_with_cap(
 
     // If every row is blocked (e.g., overlapping exclusions cover everything)
     // there's nowhere to place text.
-    if filtered_widths.is_empty() {
+    if placement.is_empty() {
         return LayoutResult {
             lines: Vec::new(),
             total_height: 0,
@@ -238,17 +233,14 @@ pub(crate) fn layout_with_cap(
         };
     }
 
-    // Hard breaks split the words into runs. Each run is wrapped with
-    // `wrap_first_fit`, then the row cursor advances by the break count.
-    // The Fragment trait on MeasuredWord still supplies the cached widths.
-    layout_paragraphs(
-        words,
-        &mut placement,
-        &mut filtered_widths,
+    // Hard breaks split the words into runs. Each run is wrapped first-fit
+    // onto the row bands, then the row cursor advances by the break count.
+    let mut rows = Rows {
+        placement,
         container_width,
         exclusions,
-        safe_width,
-    )
+    };
+    layout_paragraphs(words, &mut rows)
 }
 
 fn is_visible_word(word: &MeasuredWord) -> bool {
@@ -272,98 +264,210 @@ fn split_paragraphs(words: &[MeasuredWord]) -> Vec<(&[MeasuredWord], u16)> {
     paragraphs
 }
 
-/// Grow `placement` until it contains an unblocked row at or below `min_row`.
-fn extend_placement_through(
-    placement: &mut Vec<(u16, RowBand)>,
-    filtered_widths: &mut Vec<f64>,
-    min_row: u16,
+/// The unblocked rows text can land on, grown on demand.
+struct Rows<'a> {
+    /// `(real_row, band)` for each unblocked row, in row order.
+    placement: Vec<(u16, RowBand)>,
     container_width: u16,
-    exclusions: &[ExclusionZone],
-) {
-    if placement.last().is_some_and(|(row, _)| *row == u16::MAX) {
-        return;
+    exclusions: &'a [ExclusionZone],
+}
+
+impl Rows<'_> {
+    /// Grow `placement` until it contains an unblocked row at or below `min_row`.
+    fn extend_through(&mut self, min_row: u16) {
+        let placement = &mut self.placement;
+        if placement.last().is_some_and(|(row, _)| *row == u16::MAX) {
+            return;
+        }
+        let mut next = placement.last().map_or(0, |(row, _)| row.saturating_add(1));
+        while placement.last().is_none_or(|(row, _)| *row < min_row) {
+            let band = compute_row_band(self.container_width, next, self.exclusions);
+            if !band.is_blocked() {
+                placement.push((next, band));
+            }
+            if next == u16::MAX {
+                break;
+            }
+            next = next.saturating_add(1);
+        }
     }
-    let mut next = placement.last().map_or(0, |(row, _)| row.saturating_add(1));
-    while placement.last().is_none_or(|(row, _)| *row < min_row) {
-        let band = compute_row_band(container_width, next, exclusions);
-        if !band.is_blocked() {
-            filtered_widths.push(band.width as f64);
-            placement.push((next, band));
+
+    /// Index of the first unblocked row at or below `min_row`.
+    fn first_at_or_below(&mut self, min_row: u16) -> Option<usize> {
+        self.extend_through(min_row);
+        self.placement.iter().position(|(row, _)| *row >= min_row)
+    }
+
+    /// The `index`-th unblocked row, or `None` past the `u16` row space.
+    fn get(&mut self, index: usize) -> Option<(u16, RowBand)> {
+        while self.placement.len() <= index {
+            let last = self.placement.last().map(|(row, _)| *row)?;
+            self.extend_through(last.checked_add(1)?);
+            if self.placement.last().map(|(row, _)| *row) == Some(last) {
+                return None;
+            }
         }
-        if next == u16::MAX {
-            break;
-        }
-        next = next.saturating_add(1);
+        Some(self.placement[index])
     }
 }
 
-fn row_band_at(
-    virtual_row: usize,
-    placement: &[(u16, RowBand)],
-    safe_width: usize,
-) -> Option<(u16, RowBand)> {
-    if virtual_row < placement.len() {
-        return Some(placement[virtual_row]);
-    }
-    let last = placement.last().map_or(0, |(row, _)| *row);
-    let extra_usize = virtual_row - placement.len() + 1;
-    let extra = u16::try_from(extra_usize).ok()?;
-    let real_row = last.checked_add(extra)?;
-    Some((
-        real_row,
-        RowBand {
-            left: 0,
-            width: safe_width,
-        },
-    ))
+/// Clamp a column count to the `u16` column space.
+fn clamp_cols(cols: usize) -> u16 {
+    u16::try_from(cols).unwrap_or(u16::MAX)
 }
 
-fn push_line(
-    lines: &mut Vec<LayoutLine>,
-    line_words: &[MeasuredWord],
-    real_row: u16,
+/// The line being filled on one row.
+struct OpenLine {
+    row: u16,
     band: RowBand,
-) {
-    let mut positioned = Vec::with_capacity(line_words.len());
-    let mut x: u16 = band.left;
-    for word in line_words {
-        let word_width = word.width.min(u16::MAX as usize) as u16;
-        let whitespace_width = word.whitespace_width.min(u16::MAX as usize) as u16;
-        positioned.push(PositionedWord {
-            text: word.text.clone(),
-            x,
-            y: real_row,
-            width: word_width,
-            style_runs: word.style_runs.clone(),
-        });
-        x = x
-            .saturating_add(word_width)
-            .saturating_add(whitespace_width);
-    }
-    lines.push(LayoutLine {
-        words: positioned,
-        y: real_row,
-    });
+    words: Vec<PositionedWord>,
+    /// Columns used so far, trailing whitespace included.
+    used: usize,
 }
 
-fn layout_paragraphs(
-    words: &[MeasuredWord],
-    placement: &mut Vec<(u16, RowBand)>,
-    filtered_widths: &mut Vec<f64>,
-    container_width: u16,
-    exclusions: &[ExclusionZone],
-    safe_width: usize,
-) -> LayoutResult {
+impl OpenLine {
+    fn new((row, band): (u16, RowBand)) -> Self {
+        Self {
+            row,
+            band,
+            words: Vec::new(),
+            used: 0,
+        }
+    }
+
+    /// Place `word.text[from..end]`, `width` columns wide, after the words
+    /// already on this row.
+    fn place(
+        &mut self,
+        word: &MeasuredWord,
+        (from, end): (usize, usize),
+        width: usize,
+        whitespace: usize,
+    ) {
+        let (text, style_runs) = if from == 0 && end == word.text.len() {
+            (word.text.clone(), word.style_runs.clone())
+        } else {
+            (
+                word.text[from..end].to_string(),
+                word.style_runs_in(from, end),
+            )
+        };
+        self.words.push(PositionedWord {
+            text,
+            x: self.band.left.saturating_add(clamp_cols(self.used)),
+            y: self.row,
+            width: clamp_cols(width),
+            style_runs,
+        });
+        self.used = self.used.saturating_add(width).saturating_add(whitespace);
+    }
+
+    /// Push this line if it holds a word, and open the line on the next row.
+    fn advance(
+        &mut self,
+        rows: &mut Rows<'_>,
+        index: &mut usize,
+        lines: &mut Vec<LayoutLine>,
+    ) -> Option<()> {
+        if !self.words.is_empty() {
+            lines.push(LayoutLine {
+                words: std::mem::take(&mut self.words),
+                y: self.row,
+            });
+        }
+        *index += 1;
+        *self = Self::new(rows.get(*index)?);
+        Some(())
+    }
+}
+
+/// Lay one paragraph onto the unblocked rows from `rows.get(start)` on.
+///
+/// First-fit: a word joins the current row when it fits beside the words
+/// already there, else it starts the next row. A word wider than an empty
+/// row's band is split between display clusters, so every piece fits the
+/// band of the row it lands on; style runs follow each piece. A cluster
+/// wider than the band (a two-column glyph in a one-column band) moves down
+/// to the next row wide enough to hold it. Only a cluster wider than the
+/// container itself, which no row can hold, is placed past its band; the
+/// container edge clips it.
+///
+/// Returns the index into `words` of the first word not placed in full when
+/// the `u16` row space runs out.
+fn fill_paragraph(
+    paragraph: &[MeasuredWord],
+    first_word: usize,
+    rows: &mut Rows<'_>,
+    start: usize,
+    lines: &mut Vec<LayoutLine>,
+) -> Result<(), usize> {
+    let container_width = usize::from(rows.container_width.max(1));
+    let mut index = start;
+    let mut line = OpenLine::new(rows.get(index).ok_or(first_word)?);
+    for (offset, word) in paragraph.iter().enumerate() {
+        let source = first_word + offset;
+        let mut from = 0;
+        let mut remaining = word.width;
+        loop {
+            let room = line.band.width;
+            let fits = if line.words.is_empty() {
+                remaining <= room
+            } else {
+                line.used + remaining + word.penalty_width() as usize <= room
+            };
+            if fits {
+                line.place(
+                    word,
+                    (from, word.text.len()),
+                    remaining,
+                    word.whitespace_width,
+                );
+                break;
+            }
+            if !line.words.is_empty() {
+                line.advance(rows, &mut index, lines).ok_or(source)?;
+                continue;
+            }
+
+            // The rest of the word is wider than this empty row: split it.
+            let (mut end, mut width) = word.fitting_prefix(from, room);
+            if end == from {
+                let (cluster_end, cluster_width) = word.cluster_at(from);
+                if cluster_width <= container_width {
+                    line.advance(rows, &mut index, lines).ok_or(source)?;
+                    continue;
+                }
+                (end, width) = (cluster_end, cluster_width);
+            }
+            let last_piece = end == word.text.len();
+            let whitespace = if last_piece { word.whitespace_width } else { 0 };
+            line.place(word, (from, end), width, whitespace);
+            if last_piece {
+                break;
+            }
+            from = end;
+            remaining = remaining.saturating_sub(width);
+            line.advance(rows, &mut index, lines).ok_or(source)?;
+        }
+    }
+    if !line.words.is_empty() {
+        lines.push(LayoutLine {
+            words: line.words,
+            y: line.row,
+        });
+    }
+    Ok(())
+}
+
+fn layout_paragraphs(words: &[MeasuredWord], rows: &mut Rows<'_>) -> LayoutResult {
     let mut lines = Vec::new();
-    let mut max_row: u16 = 0;
-    let mut saw_line = false;
     // `u32` so a row cursor past `u16::MAX` is seen as overflow instead of
     // saturating onto the last row and stacking paragraphs there.
     let mut min_row: u32 = 0;
     let mut overflow = None;
     let mut paragraph_start = 0;
 
-    'paragraphs: for (paragraph, hard_breaks) in split_paragraphs(words) {
+    for (paragraph, hard_breaks) in split_paragraphs(words) {
         let first_word = paragraph_start;
         paragraph_start += paragraph.len();
         if !paragraph.iter().any(is_visible_word) {
@@ -375,35 +479,19 @@ fn layout_paragraphs(
             overflow = overflow_from(words, first_word);
             break;
         };
-        extend_placement_through(
-            placement,
-            filtered_widths,
-            first_row,
-            container_width,
-            exclusions,
-        );
-        let Some(start) = placement.iter().position(|(row, _)| *row >= first_row) else {
+        let Some(start) = rows.first_at_or_below(first_row) else {
             overflow = overflow_from(words, first_word);
             break;
         };
-        let widths = &filtered_widths[start..];
 
-        let wrapped = wrap_first_fit(paragraph, widths);
-        let mut last_row = first_row;
-        let mut placed = false;
-        let mut line_start = first_word;
-        for (offset, line_words) in wrapped.iter().enumerate() {
-            let Some((real_row, band)) = row_band_at(start + offset, placement, safe_width) else {
-                overflow = overflow_from(words, line_start);
-                break 'paragraphs;
-            };
-            push_line(&mut lines, line_words, real_row, band);
-            line_start += line_words.len();
-            last_row = real_row;
-            placed = true;
-            saw_line = true;
-            max_row = max_row.max(real_row);
+        let lines_before = lines.len();
+        let filled = fill_paragraph(paragraph, first_word, rows, start, &mut lines);
+        if let Err(first_unplaced) = filled {
+            overflow = overflow_from(words, first_unplaced);
+            break;
         }
+        let placed = lines.len() > lines_before;
+        let last_row = lines.last().map_or(first_row, |line| line.y);
 
         let advance = if hard_breaks == 0 {
             u16::from(placed)
@@ -413,12 +501,12 @@ fn layout_paragraphs(
         min_row = u32::from(last_row) + u32::from(advance);
     }
 
+    // Rows only grow, so the last line holds the lowest glyph.
     // A trailing run of breaks reserves blank rows past the last glyph.
     // Clamp at `u16::MAX`: the row after row 65535 has no `u16` height.
-    let height = if saw_line {
-        (u32::from(max_row) + 1).max(min_row)
-    } else {
-        min_row
+    let height = match lines.last() {
+        Some(line) => (u32::from(line.y) + 1).max(min_row),
+        None => min_row,
     };
     LayoutResult {
         lines,
@@ -570,7 +658,7 @@ mod tests {
     fn test_layout_overflow_narrowing_second_exclusion() {
         // Regression: rows 0..max_rows_cap and rows past the cap can have
         // DIFFERENT widths when stacked exclusions kick in at different
-        // vertical ranges. wrap_first_fit must see each row's actual width
+        // vertical ranges. Wrapping must see each row's actual width
         // — otherwise words packed for the wider cap-edge row spill into
         // the narrower overflow row's exclusion.
         //
@@ -680,10 +768,22 @@ mod tests {
         let result = layout_with_cap(&prepared, 20, &zones, 10);
 
         // Must not panic; must lay out all input words across (possibly
-        // many) rows, some of which come from the overflow fallback.
+        // many) rows, some of which come from the overflow fallback. Words
+        // wider than the five-column band are split across rows, so compare
+        // the placed text rather than the word count.
         assert!(!result.lines.is_empty());
-        let total_words: usize = result.lines.iter().map(|l| l.words.len()).sum();
-        assert_eq!(total_words, prepared.word_count());
+        assert_eq!(result.overflow, None);
+        assert_eq!(placed_concat(&result), text.replace(' ', ""));
+        assert_inside_bands(&result, 20, &zones);
+    }
+
+    fn placed_concat(result: &LayoutResult) -> String {
+        result
+            .lines
+            .iter()
+            .flat_map(|line| &line.words)
+            .map(|word| word.text.as_str())
+            .collect()
     }
 
     #[test]
@@ -766,10 +866,20 @@ mod tests {
         assert_eq!(wide.lines[1].words[0].text, "bar");
         assert_eq!(wide.lines[1].words[0].y, 1);
 
+        // At width 1 each word is split one column per row; `bar` still
+        // starts on the row after the last piece of `foo`.
         let narrow = layout(&prepared, 1, &[]);
-        let foo_y = word_y(&narrow, "foo");
-        let bar_y = word_y(&narrow, "bar");
-        assert_eq!(bar_y, foo_y + 1);
+        assert_eq!(
+            placed_text(&narrow),
+            vec![
+                ("f", 0, 0),
+                ("o", 0, 1),
+                ("o", 0, 2),
+                ("b", 0, 3),
+                ("a", 0, 4),
+                ("r", 0, 5)
+            ]
+        );
     }
 
     fn word_y(result: &LayoutResult, text: &str) -> u16 {
@@ -970,6 +1080,117 @@ mod tests {
                 first_unplaced_word: 0
             })
         );
+    }
+
+    /// Assert every placed word ends inside its row's band.
+    fn assert_inside_bands(result: &LayoutResult, container_width: u16, zones: &[ExclusionZone]) {
+        for line in &result.lines {
+            let band = compute_row_band(container_width, line.y, zones);
+            for word in &line.words {
+                assert!(
+                    word.x >= band.left
+                        && usize::from(word.x) + usize::from(word.width)
+                            <= usize::from(band.left) + band.width,
+                    "word {:?} at x={} width={} y={} leaves band {band:?}",
+                    word.text,
+                    word.x,
+                    word.width,
+                    word.y,
+                );
+            }
+        }
+    }
+
+    fn placed_text(result: &LayoutResult) -> Vec<(&str, u16, u16)> {
+        result
+            .lines
+            .iter()
+            .flat_map(|line| &line.words)
+            .map(|word| (word.text.as_str(), word.x, word.y))
+            .collect()
+    }
+
+    #[test]
+    fn unbreakable_word_is_split_to_fit_a_narrow_band() {
+        // Regression (#6641, fnd_sig-feat-library-684ad41897-6bbb_35d89255ca):
+        // a ten-column word in a four-column band was placed whole at x=0
+        // and drawn into the exclusion from column 4.
+        let zones = vec![ExclusionZone::rect(4, 0, 20, 10)];
+        let result = layout(&PreparedText::new("abcdefghij"), 24, &zones);
+        assert_inside_bands(&result, 24, &zones);
+        assert_eq!(
+            placed_text(&result),
+            vec![("abcd", 0, 0), ("efgh", 0, 1), ("ij", 0, 2)]
+        );
+        assert_eq!(result.overflow, None);
+        assert_eq!(result.total_height, 3);
+    }
+
+    #[test]
+    fn overlong_word_after_a_short_word_starts_its_own_row() {
+        // Regression (#6641, fnd_sig-feat-library-c4ffca33c9-db3a_1c482643f3):
+        // a six-column word stayed six columns wide in a three-column band.
+        let zones = vec![ExclusionZone::rect(3, 0, 10, 10)];
+        let result = layout(&PreparedText::new("ab abcdef c"), 13, &zones);
+        assert_inside_bands(&result, 13, &zones);
+        assert_eq!(
+            placed_text(&result),
+            vec![("ab", 0, 0), ("abc", 0, 1), ("def", 0, 2), ("c", 0, 3)]
+        );
+    }
+
+    #[test]
+    fn split_word_keeps_its_style_runs() {
+        let red = Style::default().fg(ratatui::style::Color::Red);
+        let blue = Style::default().fg(ratatui::style::Color::Blue);
+        let mut prepared = PreparedText::styled("abcde", red);
+        prepared.append_styled("fgh", blue);
+        let zones = vec![ExclusionZone::rect(3, 0, 10, 10)];
+        let result = layout(&prepared, 13, &zones);
+        assert_inside_bands(&result, 13, &zones);
+        let pieces: Vec<Vec<(&str, Style)>> = result
+            .lines
+            .iter()
+            .flat_map(|line| &line.words)
+            .map(|word| word.segments().collect())
+            .collect();
+        assert_eq!(
+            pieces,
+            vec![
+                vec![("abc", red)],
+                vec![("de", red), ("f", blue)],
+                vec![("gh", blue)],
+            ]
+        );
+    }
+
+    #[test]
+    fn split_word_does_not_cut_a_combining_mark_from_its_base() {
+        let zones = vec![ExclusionZone::rect(2, 0, 10, 10)];
+        let result = layout(&PreparedText::new("e\u{301}e\u{301}e\u{301}"), 12, &zones);
+        assert_inside_bands(&result, 12, &zones);
+        let texts: Vec<&str> = placed_text(&result).iter().map(|p| p.0).collect();
+        assert_eq!(texts, vec!["e\u{301}e\u{301}", "e\u{301}"]);
+    }
+
+    #[test]
+    fn wide_glyph_moves_below_a_band_too_narrow_for_it() {
+        // A two-column glyph cannot be split. A one-column band cannot hold
+        // it, so it moves down to the first row wide enough.
+        let zones = vec![ExclusionZone::rect(1, 0, 9, 2)];
+        let result = layout(&PreparedText::new("漢字"), 10, &zones);
+        assert_inside_bands(&result, 10, &zones);
+        assert_eq!(placed_text(&result), vec![("漢字", 0, 2)]);
+        assert_eq!(result.overflow, None);
+    }
+
+    #[test]
+    fn glyph_wider_than_the_container_is_still_placed() {
+        // No row can hold it, so it is placed rather than dropped and the
+        // container edge clips it.
+        let result = layout(&PreparedText::new("漢"), 1, &[]);
+        assert_eq!(placed_text(&result), vec![("漢", 0, 0)]);
+        assert_eq!(result.overflow, None);
     }
 
     #[test]

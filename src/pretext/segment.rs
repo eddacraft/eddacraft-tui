@@ -3,7 +3,7 @@ use std::str::CharIndices;
 
 use ratatui::style::Style;
 use textwrap::core::Fragment;
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// A word-level fragment with pre-measured display width and style runs.
 /// Implements textwrap's Fragment trait so it plugs directly into wrap algorithms.
@@ -90,6 +90,73 @@ impl MeasuredWord {
         self.whitespace_width = other.whitespace_width;
         self.hard_breaks = self.hard_breaks.saturating_add(other.hard_breaks);
     }
+
+    /// The widest prefix of `text[from..]` that fits in `max_width`
+    /// columns, cut only between display clusters.
+    ///
+    /// Returns `(end, width)`: the byte offset where the prefix ends and its
+    /// display width. `end == from` when the first cluster is wider than
+    /// `max_width`. `from` must be a cluster boundary.
+    pub(crate) fn fitting_prefix(&self, from: usize, max_width: usize) -> (usize, usize) {
+        let mut end = from;
+        let mut width = 0usize;
+        while end < self.text.len() {
+            let next = cluster_end(&self.text, end);
+            let cluster_width = UnicodeWidthStr::width(&self.text[end..next]);
+            if width.saturating_add(cluster_width) > max_width {
+                break;
+            }
+            end = next;
+            width += cluster_width;
+        }
+        (end, width)
+    }
+
+    /// The display cluster that starts at `from`, as `(end, width)`.
+    pub(crate) fn cluster_at(&self, from: usize) -> (usize, usize) {
+        let end = cluster_end(&self.text, from);
+        (end, UnicodeWidthStr::width(&self.text[from..end]))
+    }
+
+    /// The style runs that cover `text[start..end]`, rebased so the first
+    /// run starts at offset 0.
+    pub(crate) fn style_runs_in(&self, start: usize, end: usize) -> Vec<(usize, Style)> {
+        let runs = &self.style_runs;
+        let active = runs
+            .iter()
+            .rposition(|(offset, _)| *offset <= start)
+            .unwrap_or(0);
+        let mut sliced = vec![(0, runs[active].1)];
+        sliced.extend(
+            runs[active + 1..]
+                .iter()
+                .filter(|(offset, _)| *offset < end)
+                .map(|(offset, style)| (offset - start, *style)),
+        );
+        sliced
+    }
+}
+
+const ZERO_WIDTH_JOINER: char = '\u{200D}';
+
+/// Byte offset where the display cluster starting at `start` ends.
+///
+/// A cluster is one character plus every zero-width character after it
+/// (combining marks, variation selectors), joined across a zero-width
+/// joiner. Splitting a word only between clusters never strands a mark
+/// from its base or cuts an emoji ZWJ sequence apart.
+fn cluster_end(text: &str, start: usize) -> usize {
+    let mut previous: Option<char> = None;
+    for (offset, ch) in text[start..].char_indices() {
+        if let Some(prev) = previous {
+            let joins = prev == ZERO_WIDTH_JOINER || ch.width().unwrap_or(0) == 0;
+            if !joins {
+                return start + offset;
+            }
+        }
+        previous = Some(ch);
+    }
+    text.len()
 }
 
 impl Fragment for MeasuredWord {
@@ -267,6 +334,37 @@ fn add_soft_ws(words: &mut Vec<MeasuredWord>, style: Style, ws: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fitting_prefix_stops_at_the_last_whole_cluster() {
+        let word = MeasuredWord::new("ab漢c", "", Style::default());
+        assert_eq!(word.fitting_prefix(0, 3), (2, 2));
+        assert_eq!(word.fitting_prefix(0, 4), (5, 4));
+        assert_eq!(word.fitting_prefix(2, 1), (2, 0));
+        assert_eq!(word.cluster_at(2), (5, 2));
+    }
+
+    #[test]
+    fn clusters_keep_marks_and_zwj_sequences_whole() {
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+        let text = format!("e\u{301}{family}x");
+        assert_eq!(cluster_end(&text, 0), "e\u{301}".len());
+        assert_eq!(
+            cluster_end(&text, "e\u{301}".len()),
+            "e\u{301}".len() + family.len()
+        );
+    }
+
+    #[test]
+    fn style_runs_in_rebases_the_active_run() {
+        let red = Style::default().fg(ratatui::style::Color::Red);
+        let blue = Style::default().fg(ratatui::style::Color::Blue);
+        let mut word = MeasuredWord::new("abc", "", red);
+        word.append_fragment(&MeasuredWord::new("def", "", blue));
+        assert_eq!(word.style_runs_in(0, 2), vec![(0, red)]);
+        assert_eq!(word.style_runs_in(2, 5), vec![(0, red), (1, blue)]);
+        assert_eq!(word.style_runs_in(3, 6), vec![(0, blue)]);
+    }
 
     #[test]
     fn test_measure_simple_words() {

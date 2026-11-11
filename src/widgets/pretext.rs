@@ -190,6 +190,22 @@ mod tests {
     use crate::theme::EddaCraftTheme;
 
     #[test]
+    fn overlong_word_is_not_drawn_into_an_exclusion() {
+        // Regression (#6641): the widget clips at the container edge, not
+        // the exclusion boundary, so a whole overlong word drew into the
+        // excluded columns.
+        let mut state = PretextState::new("abcdefghij");
+        state.set_exclusions(vec![ExclusionZone::rect(4, 0, 6, 3)]);
+        let area = Rect::new(0, 0, 10, 3);
+        let mut buf = Buffer::empty(area);
+        PretextWidget::new().render(area, &mut buf, &mut state);
+        let rows: Vec<String> = (0..3)
+            .map(|y| (0..10).map(|x| buf[(x, y)].symbol()).collect())
+            .collect();
+        assert_eq!(rows, vec!["abcd      ", "efgh      ", "ij        "]);
+    }
+
+    #[test]
     fn renders_basic_text() {
         let mut state = PretextState::new("hello world");
         let widget = PretextWidget::new();
