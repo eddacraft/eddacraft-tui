@@ -43,6 +43,12 @@ minor version bump indicates a breaking change.
 
 ### Fixed
 
+- **Key releases are not actions.** `KeyHandler::map` and
+  `KeyHandler::map_text_entry` return `Action::None` for a key release
+  before they look at the key. Press and repeat events keep their mapping,
+  so a held key still repeats and a release does not fire the binding
+  again.
+
 - **Contextual editor load keeps file endings.**
   `EditorState::from_file_with_context` splits lines the same way as
   `from_string`: an empty file is one empty line, and a trailing newline is

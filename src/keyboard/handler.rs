@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -90,7 +90,18 @@ impl KeyHandler {
         DEFAULT_BINDINGS
     }
 
+    /// Map a key press or key repeat to an [`Action`].
+    ///
+    /// A key release (`KeyEventKind::Release`) is [`Action::None`] before the
+    /// key code is inspected. Terminals that report releases would otherwise
+    /// fire the same binding a second time. Press and repeat events use the
+    /// bindings below, so holding a key still repeats. `Ctrl+C` quits; every
+    /// other `Ctrl` chord is [`Action::None`].
     pub fn map(event: KeyEvent) -> Action {
+        if event.kind == KeyEventKind::Release {
+            return Action::None;
+        }
+
         if event.modifiers.contains(KeyModifiers::CONTROL) {
             return match event.code {
                 KeyCode::Char('c') => Action::Quit,
@@ -134,9 +145,14 @@ impl KeyHandler {
     /// Surfaces opt into this mapping per step via
     /// [`crate::surface::Surface::text_entry_active`]; list-navigation steps
     /// keep [`Self::map`]. This is what prevents typing a Windows path like
-    /// `c:\Chap` from being hijacked by the `h` binding.
+    /// `c:\Chap` from being hijacked by the `h` binding. A key release maps
+    /// to [`Action::None`], as in [`Self::map`]. Repeats still insert or move.
     #[must_use]
     pub fn map_text_entry(event: KeyEvent) -> Action {
+        if event.kind == KeyEventKind::Release {
+            return Action::None;
+        }
+
         if event.modifiers.contains(KeyModifiers::CONTROL) {
             return match event.code {
                 KeyCode::Char('c') => Action::Quit,
@@ -164,6 +180,7 @@ impl KeyHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crossterm::event::KeyEventKind;
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::empty())
@@ -390,6 +407,104 @@ mod tests {
         assert_eq!(
             KeyHandler::map(with_mods(KeyCode::Enter, KeyModifiers::ALT)),
             Action::Select,
+        );
+    }
+
+    fn with_kind(code: KeyCode, modifiers: KeyModifiers, kind: KeyEventKind) -> KeyEvent {
+        KeyEvent::new_with_kind(code, modifiers, kind)
+    }
+
+    #[test]
+    fn key_release_is_not_an_action() {
+        // #6638: a release must not repeat the press in either public mapper.
+        // An Enter release is not Select, and a character release is not
+        // Character. The kind is checked before the Control chord.
+        // Finding IDs:
+        // fnd_sig-feat-library-361473907b-5440_15982cc721
+        // fnd_sig-feat-library-b7e5061c8e-6596_aef8a103f0
+        for code in [
+            KeyCode::Enter,
+            KeyCode::Char('q'),
+            KeyCode::Char('j'),
+            KeyCode::Char('a'),
+            KeyCode::Esc,
+            KeyCode::Backspace,
+            KeyCode::Up,
+        ] {
+            let release = with_kind(code, KeyModifiers::empty(), KeyEventKind::Release);
+            assert_eq!(
+                KeyHandler::map(release),
+                Action::None,
+                "map release {code:?}"
+            );
+            assert_eq!(
+                KeyHandler::map_text_entry(release),
+                Action::None,
+                "map_text_entry release {code:?}"
+            );
+        }
+
+        // Release is rejected before the Control chord, so Ctrl+C release is
+        // not Quit.
+        let ctrl_c_release = with_kind(
+            KeyCode::Char('c'),
+            KeyModifiers::CONTROL,
+            KeyEventKind::Release,
+        );
+        assert_eq!(KeyHandler::map(ctrl_c_release), Action::None);
+        assert_eq!(KeyHandler::map_text_entry(ctrl_c_release), Action::None);
+    }
+
+    #[test]
+    fn key_repeat_keeps_the_press_mapping() {
+        // Holding a key still repeats. Only a release is ignored (#6638).
+        assert_eq!(
+            KeyHandler::map(with_kind(
+                KeyCode::Char('j'),
+                KeyModifiers::empty(),
+                KeyEventKind::Repeat,
+            )),
+            Action::Down,
+        );
+        assert_eq!(
+            KeyHandler::map(with_kind(
+                KeyCode::Enter,
+                KeyModifiers::empty(),
+                KeyEventKind::Repeat,
+            )),
+            Action::Select,
+        );
+        assert_eq!(
+            KeyHandler::map(with_kind(
+                KeyCode::Char('c'),
+                KeyModifiers::CONTROL,
+                KeyEventKind::Repeat,
+            )),
+            Action::Quit,
+        );
+        assert_eq!(
+            KeyHandler::map_text_entry(with_kind(
+                KeyCode::Char('j'),
+                KeyModifiers::empty(),
+                KeyEventKind::Repeat,
+            )),
+            Action::Character('j'),
+        );
+        assert_eq!(
+            KeyHandler::map_text_entry(with_kind(
+                KeyCode::Left,
+                KeyModifiers::empty(),
+                KeyEventKind::Repeat,
+            )),
+            Action::Left,
+        );
+        assert_eq!(
+            KeyHandler::map_text_entry(with_kind(
+                KeyCode::Char('c'),
+                KeyModifiers::CONTROL,
+                KeyEventKind::Repeat,
+            )),
+            Action::Quit,
         );
     }
 }
