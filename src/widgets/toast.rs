@@ -22,6 +22,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Widget};
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::theme::Theme;
@@ -165,19 +166,21 @@ fn wrap_message(message: &str, width: usize) -> Vec<String> {
 }
 
 /// Splits `text` into lines at most `width` display columns wide without
-/// breaking a character. A character wider than `width` sits on its own line.
+/// breaking a grapheme cluster (a ZWJ emoji sequence, a base plus its
+/// variation selector or combining marks). Each cluster is measured whole,
+/// so VS16 widening counts. A cluster wider than `width` sits on its own line.
 fn split_columns(text: &str, width: usize) -> Vec<String> {
     let mut lines = Vec::new();
     let mut line = String::new();
     let mut used = 0;
-    for ch in text.chars() {
-        let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
-        if used + cw > width && !line.is_empty() {
+    for grapheme in text.graphemes(true) {
+        let gw = UnicodeWidthStr::width(grapheme);
+        if used + gw > width && !line.is_empty() {
             lines.push(std::mem::take(&mut line));
             used = 0;
         }
-        line.push(ch);
-        used += cw;
+        line.push_str(grapheme);
+        used += gw;
     }
     if !line.is_empty() || lines.is_empty() {
         lines.push(line);
@@ -552,6 +555,37 @@ mod tests {
         assert_eq!(buf[(1, 1)].symbol(), "🔥");
         assert_eq!(buf[(3, 1)].symbol(), "🔥");
         assert_eq!(buf[(1, 2)].symbol(), "🔥");
+    }
+
+    #[test]
+    fn toast_wraps_an_icon_without_splitting_a_zwj_sequence() {
+        // `👩‍💻` is one 2-column grapheme of three scalars. Wrapping by scalar
+        // broke it after the ZWJ and measured three marker rows.
+        let theme = EddaCraftTheme;
+        let toast = Toast::new(&theme, "").icon("a👩\u{200d}💻");
+        let height = toast.measured_height(4);
+        assert_eq!(height, 4);
+        let area = Rect::new(0, 0, 4, height);
+        let mut buf = Buffer::empty(area);
+        toast.render(area, &mut buf);
+        assert_eq!(buf[(1, 1)].symbol(), "a");
+        assert_eq!(buf[(1, 2)].symbol(), "👩\u{200d}💻");
+    }
+
+    #[test]
+    fn toast_wraps_an_icon_by_grapheme_width() {
+        // `❤️` is `❤` (1 column alone) plus VS16, which makes it 2 columns.
+        // Summing scalar widths fitted both hearts in 3 columns and clipped
+        // the second.
+        let theme = EddaCraftTheme;
+        let toast = Toast::new(&theme, "").icon("❤\u{fe0f}❤\u{fe0f}");
+        let height = toast.measured_height(5);
+        assert_eq!(height, 4);
+        let area = Rect::new(0, 0, 5, height);
+        let mut buf = Buffer::empty(area);
+        toast.render(area, &mut buf);
+        assert_eq!(buf[(1, 1)].symbol(), "❤\u{fe0f}");
+        assert_eq!(buf[(1, 2)].symbol(), "❤\u{fe0f}");
     }
 
     #[test]

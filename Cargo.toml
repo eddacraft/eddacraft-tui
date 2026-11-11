@@ -25,6 +25,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 ratatui = "0.30"
 crossterm = "0.29"
 unicode-width = "0.2"
+# Already in the graph through ratatui; used to wrap custom toast icons by
+# grapheme cluster.
+unicode-segmentation = "1"
 textwrap = { version = "0.16", features = ["smawk"] }
 # `animate-core` is pinned to an exact version because the crate has a
 # small public footprint. Bumps should go through `cargo audit` and a

@@ -56,9 +56,11 @@ minor version bump indicates a breaking change.
   percentage was clipped on every bar.
 
 - **`Toast` wraps a marker that leaves no room for the message.** A custom
-  `icon()` wider than the toast wraps across rows by display column, and the
-  message goes below it at the full inner width; `measured_height` counts
-  both. Previously the icon was clipped and the message dropped.
+  `icon()` wider than the toast wraps across rows by display column, never
+  inside a grapheme cluster (a ZWJ emoji or a base with its variation
+  selector), and the message goes below it at the full inner width;
+  `measured_height` counts both. Previously the icon was clipped and the
+  message dropped.
 
 - **Bottom-placed `ToastStack` stays on the bottom edge when it overflows.**
   It shows the newest toasts that fit whole, counting gaps, and drops older
