@@ -53,9 +53,14 @@ minor version bump indicates a breaking change.
   and the alternate screen, and only the last to leave or drop restores
   them. `flow::MouseCaptureGuard` (and so `FlowSession`) shares mouse
   capture the same way. A failed `enter` still rolls back and counts no
-  guard; a failed `leave` keeps the guard armed so `Drop` retries.
-  Previously, dropping or leaving any guard restored the terminal while
-  another guard was still live (GH #6557).
+  guard. A failed `leave` retries the restore best effort and releases the
+  guard before returning the original error, so no guard joins a
+  half-restored session. A failed mouse-capture enable is rolled back and
+  holds nothing, so a later `enable` tries again. After the panic hook or
+  `restore_terminal()` restores the terminal under a surviving guard, the
+  next `TerminalGuard::enter` enters raw mode and the alternate screen
+  again. Previously, dropping or leaving any guard restored the terminal
+  while another guard was still live (GH #6557).
 
 - **`ProgressBar` keeps its percentage and label in view.** The percentage is
   reserved first, right-aligned in four columns so the bar does not shift as

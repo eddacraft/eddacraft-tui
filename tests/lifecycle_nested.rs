@@ -15,12 +15,14 @@ use std::io::Write;
 use std::process::Command;
 
 use crossterm::terminal;
-use eddacraft_tui::lifecycle::TerminalGuard;
+use eddacraft_tui::lifecycle::{TerminalGuard, restore_terminal};
 
 const CHILD: &str = "EDDACRAFT_TUI_NESTED_GUARD_CHILD";
 
 /// Leaves the alternate screen (`LeaveAlternateScreen`).
 const LEAVE_ALT_SCREEN: &str = "\x1b[?1049l";
+/// Enters the alternate screen (`EnterAlternateScreen`).
+const ENTER_ALT_SCREEN: &str = "\x1b[?1049h";
 /// Turns normal mouse tracking off; the first escape `DisableMouseCapture` writes.
 #[cfg(feature = "flow")]
 const DISABLE_MOUSE: &str = "\x1b[?1000l";
@@ -65,6 +67,24 @@ fn nested_guard_child() {
         drop(outer_mouse);
         mark("mouse-outer-dropped");
     }
+
+    // A caught panic runs the panic hook, which restores the terminal while
+    // the outer guard survives; the next guard must enter the session again.
+    let caught = std::panic::catch_unwind(|| panic!("caught on purpose"));
+    assert!(caught.is_err());
+    mark_raw("panic-restored");
+    let inner = TerminalGuard::enter().expect("guard after the caught panic");
+    mark_raw("panic-reentered");
+    drop(inner);
+    mark_raw("panic-inner-dropped");
+
+    // So must a manual restore.
+    restore_terminal();
+    mark_raw("manual-restored");
+    let inner = TerminalGuard::enter().expect("guard after the manual restore");
+    mark_raw("manual-reentered");
+    drop(inner);
+    mark_raw("manual-inner-dropped");
 
     outer.leave().expect("outer leave");
     mark_raw("outer-left");
@@ -151,6 +171,30 @@ fn an_inner_guard_does_not_tear_down_the_outer_session() {
         );
     }
 
+    for step in ["panic", "manual"] {
+        assert!(
+            output.contains(&format!("<{step}-restored:raw=false>")),
+            "the {step} restore did not disable raw mode\n{output:?}"
+        );
+        assert!(
+            output.contains(&format!("<{step}-reentered:raw=true>")),
+            "a guard entered after the {step} restore stayed in cooked mode\n{output:?}"
+        );
+        assert!(
+            between(
+                &output,
+                &format!("<{step}-restored:raw=false>"),
+                &format!("<{step}-reentered")
+            )
+            .contains(ENTER_ALT_SCREEN),
+            "a guard entered after the {step} restore did not re-enter the alternate screen\n{output:?}"
+        );
+        assert!(
+            output.contains(&format!("<{step}-inner-dropped:raw=true>")),
+            "dropping the re-entered guard tore down the outer session\n{output:?}"
+        );
+    }
+
     // The last guard still restores everything.
     assert!(
         output.contains("<outer-left:raw=false>"),
@@ -158,7 +202,7 @@ fn an_inner_guard_does_not_tear_down_the_outer_session() {
     );
     assert!(
         output
-            .rsplit_once("<inner-left:raw=true>")
+            .rsplit_once("<manual-inner-dropped:raw=true>")
             .is_some_and(|(_, tail)| tail.contains(LEAVE_ALT_SCREEN)),
         "the last guard did not leave the alternate screen\n{output:?}"
     );

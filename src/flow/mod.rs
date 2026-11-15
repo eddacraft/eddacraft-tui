@@ -27,7 +27,11 @@ mod session;
 mod spotlight;
 mod view;
 
+use std::io;
+
 use ratatui::style::Color;
+
+use crate::shared_mode::SharedMode;
 
 /// The full upstream `rataflow` API, for anything the curated surface does
 /// not re-export.
@@ -99,32 +103,55 @@ pub fn flow_theme<T: Theme + ?Sized>(theme: &T) -> rataflow::Theme {
 /// # Stability
 ///
 /// **experimental** (TUIN-014).
-pub struct MouseCaptureGuard(());
+pub struct MouseCaptureGuard {
+    /// The capture this guard holds and how to turn it off, or `None` when
+    /// enabling failed and the guard holds nothing.
+    held: Option<(&'static SharedMode, fn())>,
+}
 
 /// Live [`MouseCaptureGuard`]s in this process (GH #6557).
-static MOUSE_CAPTURE: crate::shared_mode::SharedMode = crate::shared_mode::SharedMode::new();
+static MOUSE_CAPTURE: SharedMode = SharedMode::new();
 
 impl MouseCaptureGuard {
     /// Enable mouse reporting on stdout, or join the capture another live
     /// guard already enabled. Failure to enable is deliberately swallowed — a
     /// terminal without mouse support still has a fully keyboard-driven flow
-    /// surface.
+    /// surface. A failed enable is rolled back best effort and the returned
+    /// guard holds nothing, so a later `enable` tries again.
     #[must_use]
     pub fn enable() -> Self {
-        // Infallible by design, so the acquire always counts this guard.
-        let _ = MOUSE_CAPTURE.acquire(|| {
-            let _ = crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
-            Ok(())
-        });
-        Self(())
+        Self::enable_on(&MOUSE_CAPTURE, enable_mouse_capture, disable_mouse_capture)
     }
+
+    fn enable_on(
+        shared: &'static SharedMode,
+        enable: fn() -> io::Result<()>,
+        disable: fn(),
+    ) -> Self {
+        let entered = shared.acquire(|| {
+            // The escapes may have been written in part; turn off whatever
+            // got through.
+            enable().inspect_err(|_| disable())
+        });
+        Self {
+            held: entered.is_ok().then_some((shared, disable)),
+        }
+    }
+}
+
+fn enable_mouse_capture() -> io::Result<()> {
+    crossterm::execute!(io::stdout(), crossterm::event::EnableMouseCapture)
+}
+
+fn disable_mouse_capture() {
+    let _ = crossterm::execute!(io::stdout(), crossterm::event::DisableMouseCapture);
 }
 
 impl Drop for MouseCaptureGuard {
     fn drop(&mut self) {
-        MOUSE_CAPTURE.release_best_effort(|| {
-            let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
-        });
+        if let Some((shared, disable)) = self.held.take() {
+            shared.release_best_effort(disable);
+        }
     }
 }
 
@@ -437,5 +464,73 @@ mod tests {
         );
         assert!((mid.x - 5.0).abs() < f64::EPSILON);
         assert!((mid.zoom - 1.5).abs() < f64::EPSILON);
+    }
+}
+
+#[cfg(test)]
+mod mouse_capture_tests {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    use super::*;
+
+    #[test]
+    fn a_failed_enable_holds_nothing_and_the_next_enable_retries() {
+        // Statics local to this test, so no other test shares the capture.
+        static SHARED: SharedMode = SharedMode::new();
+        static FAIL_NEXT: AtomicBool = AtomicBool::new(true);
+        static ON: AtomicBool = AtomicBool::new(false);
+        static ENABLES: AtomicUsize = AtomicUsize::new(0);
+        static DISABLES: AtomicUsize = AtomicUsize::new(0);
+
+        fn enable() -> io::Result<()> {
+            ENABLES.fetch_add(1, Ordering::SeqCst);
+            // A partial write: capture is half on when the error arrives.
+            ON.store(true, Ordering::SeqCst);
+            if FAIL_NEXT.swap(false, Ordering::SeqCst) {
+                return Err(io::Error::other("write failed"));
+            }
+            Ok(())
+        }
+        fn disable() {
+            DISABLES.fetch_add(1, Ordering::SeqCst);
+            ON.store(false, Ordering::SeqCst);
+        }
+
+        let failed = MouseCaptureGuard::enable_on(&SHARED, enable, disable);
+        assert!(failed.held.is_none(), "a failed enable armed the guard");
+        assert!(
+            !ON.load(Ordering::SeqCst),
+            "the partial enable was not rolled back"
+        );
+        assert_eq!(SHARED.live_holders(), 0, "a failed enable counted a holder");
+
+        // With no holder left behind, the next guard writes the enable again.
+        let live = MouseCaptureGuard::enable_on(&SHARED, enable, disable);
+        assert!(live.held.is_some());
+        assert!(ON.load(Ordering::SeqCst));
+        assert_eq!(
+            ENABLES.load(Ordering::SeqCst),
+            2,
+            "the enable was not retried"
+        );
+
+        // The failed guard owns nothing, so dropping it leaves the live
+        // guard's capture and count alone.
+        drop(failed);
+        assert!(
+            ON.load(Ordering::SeqCst),
+            "the failed guard turned capture off"
+        );
+        assert_eq!(
+            SHARED.live_holders(),
+            1,
+            "the failed guard released a holder"
+        );
+
+        drop(live);
+        assert!(!ON.load(Ordering::SeqCst));
+        assert_eq!(SHARED.live_holders(), 0);
+        // One rollback of the failed enable, one release of the live guard.
+        assert_eq!(DISABLES.load(Ordering::SeqCst), 2);
     }
 }

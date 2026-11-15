@@ -15,9 +15,15 @@ static TERMINAL: SharedMode = SharedMode::new();
 ///
 /// Safe to call when those modes are not active; crossterm treats both restore
 /// calls as no-ops on a normal terminal.
+///
+/// Restoring here does not end any live [`TerminalGuard`]; the next
+/// [`TerminalGuard::enter`] enters raw mode and the alternate screen again,
+/// even while an outer guard survives (for example across a caught panic).
 pub fn restore_terminal() {
     let _ = execute!(io::stdout(), LeaveAlternateScreen);
     let _ = terminal::disable_raw_mode();
+    // After the restore, so an acquire that raced it still sees the mark.
+    TERMINAL.mark_forced_off();
 }
 
 fn install_panic_hook() {
@@ -44,7 +50,8 @@ fn install_panic_hook() {
 /// shares one session. The first guard enters it, and the terminal is
 /// restored only when the last live guard leaves or drops; leaving or
 /// dropping any other guard changes nothing on the terminal. The panic hook
-/// and [`restore_terminal`] still restore the terminal unconditionally.
+/// and [`restore_terminal`] still restore the terminal unconditionally; the
+/// next guard to enter after that enters the session again.
 pub struct TerminalGuard {
     active: bool,
 }
@@ -69,7 +76,9 @@ impl TerminalGuard {
     /// # Errors
     ///
     /// Returns the error from leaving the alternate screen or disabling raw
-    /// mode. The guard then stays armed, so its `Drop` retries the restore.
+    /// mode. The guard is still released: the restore is retried best effort
+    /// before this returns, so no other guard can join a half-restored
+    /// session.
     pub fn leave(mut self) -> io::Result<()> {
         self.disarm_and_restore()
     }
@@ -79,9 +88,8 @@ impl TerminalGuard {
             return Ok(());
         }
 
-        TERMINAL.release(leave_session)?;
         self.active = false;
-        Ok(())
+        TERMINAL.release(leave_session, restore_terminal)
     }
 }
 
