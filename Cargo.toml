@@ -95,6 +95,9 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+# Rust 1.100: `assert_is_empty` rewrites to `assert_eq!(x, [])`, which does
+# not type-check for maps and sets.
+assert_is_empty = "allow"
 
 # Public pretext showcases (mirrored with the crate; run without extra features).
 [[example]]

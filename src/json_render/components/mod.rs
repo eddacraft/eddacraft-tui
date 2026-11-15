@@ -180,6 +180,8 @@ mod props {
     /// iteration, so an attacker-controlled array never materialises a giant
     /// intermediate `Vec` — only `max` points are ever allocated. An absent or
     /// non-array prop yields an empty vec.
+    // `map_or_default` is stable from Rust 1.98. This crate's MSRV is 1.88.
+    #[allow(clippy::map_unwrap_or)]
     pub(super) fn f64_array_capped(props: &Props, key: &str, max: usize) -> Vec<f64> {
         props
             .get(key)

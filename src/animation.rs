@@ -16,6 +16,8 @@ static ANIMATED_THIS_FRAME: AtomicBool = AtomicBool::new(false);
 pub fn animate_tick(delta_ms: usize) {
     let delta_ms = u64::try_from(delta_ms).unwrap_or(u64::MAX);
     LAST_DELTA_MS.store(delta_ms, Ordering::Relaxed);
+    // `try_update` is stable from Rust 1.95. This crate's MSRV is 1.88.
+    #[allow(deprecated)]
     let _ = ELAPSED_MS.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |elapsed| {
         Some(elapsed.saturating_add(delta_ms))
     });

@@ -43,6 +43,8 @@ fn cell_text(value: &Value) -> String {
 impl Table {
     /// Extract `(headers, rows)` from props, tolerating absent or ill-typed
     /// values by yielding empty collections.
+    // `map_or_default` is stable from Rust 1.98. This crate's MSRV is 1.88.
+    #[allow(clippy::map_unwrap_or)]
     fn data(props: &Props) -> (Vec<String>, Vec<Vec<String>>) {
         let headers = props
             .get("columns")
