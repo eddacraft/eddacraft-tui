@@ -92,8 +92,9 @@ static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
 ///
 /// The bytes go to a new file beside `path`, which is synced and then renamed
 /// over `path`, so a failed write leaves the old file whole. A symlink at
-/// `path` is followed, so the link stays and its target is replaced. An
-/// existing file keeps its permissions, and a read-only one is refused.
+/// `path` is followed, so the link stays and its target is replaced; a link
+/// whose target cannot be resolved is an error rather than being overwritten.
+/// An existing file keeps its permissions, and a read-only one is refused.
 fn replace_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
     replace_file_with(path, bytes, Write::write_all)
 }
@@ -104,7 +105,7 @@ fn replace_file_with(
     bytes: &[u8],
     write: impl FnOnce(&mut File, &[u8]) -> io::Result<()>,
 ) -> io::Result<()> {
-    let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let target = resolve_save_target(path)?;
     let permissions = fs::metadata(&target).ok().map(|m| m.permissions());
     // A rename would replace a read-only file that a plain write refuses.
     if permissions.as_ref().is_some_and(fs::Permissions::readonly) {
@@ -117,24 +118,31 @@ fn replace_file_with(
         Some(parent) if !parent.as_os_str().is_empty() => parent,
         _ => Path::new("."),
     };
-    let name = target
-        .file_name()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "save path has no file name"))?;
+    if target.file_name().is_none() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "save path has no file name",
+        ));
+    }
 
     let (staging, mut file) = loop {
-        let mut staging_name = std::ffi::OsString::from(".");
-        staging_name.push(name);
-        staging_name.push(format!(
-            ".{}.{}.tmp",
+        // A short fixed name, not the target's, so a target whose name is at
+        // the filesystem's length limit can still be staged beside it.
+        let staging = dir.join(format!(
+            ".edtui-save.{}.{}.tmp",
             std::process::id(),
             STAGING_COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
-        let staging = dir.join(staging_name);
-        match OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&staging)
-        {
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        // Replacing an existing file: keep the staged bytes owner-only until
+        // the target's mode is copied over, so a looser umask never exposes
+        // a private file's new contents. A new file keeps the umask default.
+        #[cfg(unix)]
+        if permissions.is_some() {
+            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        }
+        match options.open(&staging) {
             Ok(file) => break (staging, file),
             Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
             Err(err) => return Err(err),
@@ -154,6 +162,25 @@ fn replace_file_with(
         let _ = fs::remove_file(&staging);
     }
     result
+}
+
+/// Resolve the file a save at `path` replaces.
+///
+/// Symlinks are followed to their target. Only a path that does not exist
+/// and is not itself a symlink falls back to `path`, so a save can create a
+/// new file; a dangling symlink is an error, because renaming over it would
+/// replace the link with a regular file.
+fn resolve_save_target(path: &Path) -> io::Result<PathBuf> {
+    match fs::canonicalize(path) {
+        Ok(target) => Ok(target),
+        Err(err)
+            if err.kind() == io::ErrorKind::NotFound
+                && !fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) =>
+        {
+            Ok(path.to_path_buf())
+        }
+        Err(err) => Err(err),
+    }
 }
 
 impl EditorState {
@@ -1387,5 +1414,118 @@ mod tests {
             "save must not replace the symlink with a regular file"
         );
         assert_eq!(std::fs::read_to_string(&real).expect("read back"), "!abc");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn staging_file_is_owner_only_while_replacing_a_private_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("private.txt");
+        std::fs::write(&path, "secret").expect("seed file");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).expect("chmod");
+        // Widen the directory so the staging file's own mode is all that
+        // keeps other users out.
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755))
+            .expect("chmod dir");
+
+        let mut staged_mode = None;
+        replace_file_with(&path, b"new secret", |file, bytes| {
+            staged_mode = Some(file.metadata()?.permissions().mode() & 0o777);
+            file.write_all(bytes)
+        })
+        .expect("replace");
+
+        assert_eq!(
+            staged_mode,
+            Some(0o600),
+            "staged bytes must be owner-only before the mode is copied"
+        );
+        let mode = std::fs::metadata(&path).expect("stat").permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read back"),
+            "new secret"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn staging_file_gets_the_target_mode_before_the_rename() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("shared.txt");
+        std::fs::write(&path, "old").expect("seed file");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o664)).expect("chmod");
+
+        replace_file_with(&path, b"new", Write::write_all).expect("replace");
+
+        let mode = std::fs::metadata(&path).expect("stat").permissions().mode() & 0o777;
+        assert_eq!(mode, 0o664);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_through_a_dangling_symlink_fails_and_keeps_the_link() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let real = dir.path().join("real.txt");
+        let link = dir.path().join("link.txt");
+        std::fs::write(&real, "abc").expect("seed file");
+        std::os::unix::fs::symlink(&real, &link).expect("symlink");
+
+        let mut state = EditorState::from_file(&link).expect("load");
+        state.insert('!');
+        std::fs::remove_file(&real).expect("remove link target");
+
+        let err = state
+            .save()
+            .expect_err("a dangling symlink must not be overwritten");
+
+        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        assert!(
+            std::fs::symlink_metadata(&link)
+                .expect("lstat")
+                .file_type()
+                .is_symlink(),
+            "save must not replace the dangling symlink with a regular file"
+        );
+        assert!(!real.exists());
+        assert!(state.dirty);
+        assert!(!state.saved);
+        assert_eq!(
+            dir_entries(dir.path()),
+            vec![std::ffi::OsString::from("link.txt")]
+        );
+    }
+
+    #[test]
+    fn save_creates_a_missing_file() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("new.txt");
+        let mut state = state_from("data");
+        state.file_path = Some(path.clone());
+        state.save().expect("save");
+        assert_eq!(std::fs::read_to_string(&path).expect("read back"), "data");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_handles_a_target_name_at_the_length_limit() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let name = "n".repeat(255);
+        let path = dir.path().join(&name);
+        std::fs::write(&path, "old").expect("seed 255-byte file name");
+
+        let mut state = EditorState::from_file(&path).expect("load");
+        state.insert('!');
+        state.save().expect("save must stage under a short name");
+
+        assert_eq!(std::fs::read_to_string(&path).expect("read back"), "!old");
+        assert_eq!(
+            dir_entries(dir.path()),
+            vec![std::ffi::OsString::from(name)]
+        );
     }
 }
