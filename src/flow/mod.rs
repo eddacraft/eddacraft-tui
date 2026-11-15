@@ -91,25 +91,40 @@ pub fn flow_theme<T: Theme + ?Sized>(theme: &T) -> rataflow::Theme {
 /// dragging, or edge creation must hold one of these for the duration of
 /// the interactive session.
 ///
+/// Mouse capture belongs to the process, so guards may overlap, for example
+/// an inner [`FlowSession`] inside an outer one. Every live guard shares the
+/// capture: the first guard turns it on, and it is turned off only when the
+/// last live guard drops.
+///
 /// # Stability
 ///
 /// **experimental** (TUIN-014).
 pub struct MouseCaptureGuard(());
 
+/// Live [`MouseCaptureGuard`]s in this process (GH #6557).
+static MOUSE_CAPTURE: crate::shared_mode::SharedMode = crate::shared_mode::SharedMode::new();
+
 impl MouseCaptureGuard {
-    /// Enable mouse reporting on stdout. Failure to enable is deliberately
-    /// swallowed — a terminal without mouse support still has a fully
-    /// keyboard-driven flow surface.
+    /// Enable mouse reporting on stdout, or join the capture another live
+    /// guard already enabled. Failure to enable is deliberately swallowed — a
+    /// terminal without mouse support still has a fully keyboard-driven flow
+    /// surface.
     #[must_use]
     pub fn enable() -> Self {
-        let _ = crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+        // Infallible by design, so the acquire always counts this guard.
+        let _ = MOUSE_CAPTURE.acquire(|| {
+            let _ = crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture);
+            Ok(())
+        });
         Self(())
     }
 }
 
 impl Drop for MouseCaptureGuard {
     fn drop(&mut self) {
-        let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+        MOUSE_CAPTURE.release_best_effort(|| {
+            let _ = crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture);
+        });
     }
 }
 

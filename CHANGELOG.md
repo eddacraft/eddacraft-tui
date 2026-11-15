@@ -48,6 +48,15 @@ minor version bump indicates a breaking change.
 
 ### Fixed
 
+- **Nested terminal guards no longer tear down an outer session.** Live
+  `lifecycle::TerminalGuard`s share one session: the first enters raw mode
+  and the alternate screen, and only the last to leave or drop restores
+  them. `flow::MouseCaptureGuard` (and so `FlowSession`) shares mouse
+  capture the same way. A failed `enter` still rolls back and counts no
+  guard; a failed `leave` keeps the guard armed so `Drop` retries.
+  Previously, dropping or leaving any guard restored the terminal while
+  another guard was still live (GH #6557).
+
 - **`ProgressBar` keeps its percentage and label in view.** The percentage is
   reserved first, right-aligned in four columns so the bar does not shift as
   the digits change; the label comes next and the bar fills what is left.

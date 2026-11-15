@@ -76,6 +76,8 @@ pub mod pretext;
 #[cfg(feature = "runner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "runner")))]
 pub mod runner;
+#[cfg(any(feature = "lifecycle", feature = "flow"))]
+mod shared_mode;
 pub mod shell;
 pub mod surface;
 #[cfg(any(test, feature = "test-utils"))]
