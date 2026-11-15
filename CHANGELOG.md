@@ -66,7 +66,6 @@ minor version bump indicates a breaking change.
   It shows the newest toasts that fit whole, counting gaps, and drops older
   ones. Previously it started at the top row, drew the oldest toasts, and
   gave the newest too few rows to draw.
-  ||||||| parent of a2f8db8c8d (fix(tui): report over-cap stack children)
 
 - **json-render `Stack` reports children past the layout cap.** A `Stack`
   with more than 512 children fails `validate` with
@@ -100,6 +99,18 @@ minor version bump indicates a breaking change.
   `EditorState::from_file_with_context` splits lines the same way as
   `from_string`: an empty file is one empty line, and a trailing newline is
   kept. Saving without edits writes the original bytes back.
+- **`EditorState` keeps CRLF line endings.** Each line keeps the terminator
+  it was loaded with (`\n` or `\r\n`), so `content()` and `save` write a
+  CRLF or mixed-ending file back unchanged, and the editor no longer drops
+  the `\r`s. A line made by splitting takes the file's first terminator.
+  Joining two lines keeps the lower line's terminator. A `\r` not followed by
+  `\n` stays in the line text.
+- **`EditorState::save` no longer truncates the file before writing.** The
+  content goes to a staging file beside the target, which is synced and then
+  renamed over it, so a failed save leaves the previous file whole and
+  `dirty` set. A symlinked path keeps its link and replaces the link's
+  target, the file keeps its permissions, and a read-only file is refused as
+  before.
 - **json-render props are sanitised before a component renders.**
   `render_spec` strips control and bidi characters from every string in an
   element's props, including nested values and object keys, so a third-party

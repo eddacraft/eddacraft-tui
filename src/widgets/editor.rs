@@ -1,5 +1,7 @@
-use std::io;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -14,8 +16,15 @@ use crate::theme::Theme;
 /// Tracks file content, cursor position, scroll, editable region, and dirty/saved flags.
 #[derive(Debug, Clone)]
 pub struct EditorState {
-    /// All lines of content (including read-only context lines).
+    /// All lines of content (including read-only context lines), without
+    /// their line terminators.
     lines: Vec<String>,
+    /// The terminator after each line but the last, so
+    /// `line_endings.len() + 1 == lines.len()`.
+    line_endings: Vec<LineEnding>,
+    /// Terminator for a line made by splitting with `'\n'`: the file's first
+    /// terminator, or LF when it has none.
+    default_ending: LineEnding,
     /// Inclusive start, exclusive end of the editable region.
     editable_range: (usize, usize),
     /// Cursor position as `(line_index, byte_offset_in_line)`.
@@ -36,19 +45,115 @@ impl Default for EditorState {
     }
 }
 
-/// Split `content` into editor lines.
+/// A line terminator, kept per line so a save writes back the bytes it read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LineEnding {
+    Lf,
+    CrLf,
+}
+
+impl LineEnding {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Lf => "\n",
+            Self::CrLf => "\r\n",
+        }
+    }
+}
+
+/// Split `content` into editor lines and the terminator after each one.
 ///
 /// An empty string is one empty line. A trailing newline is kept as an extra
-/// empty line so [`EditorState::content`] can write the same bytes back.
-fn lines_from_content(content: &str) -> Vec<String> {
-    if content.is_empty() {
-        return vec![String::new()];
+/// empty line, and each `\r\n` or `\n` is recorded, so
+/// [`EditorState::content`] writes the same bytes back. A `\r` that is not
+/// followed by `\n` stays in the line text.
+fn lines_from_content(content: &str) -> (Vec<String>, Vec<LineEnding>) {
+    let mut lines = Vec::new();
+    let mut endings = Vec::new();
+    let mut segments = content.split('\n').peekable();
+    while let Some(segment) = segments.next() {
+        if segments.peek().is_none() {
+            lines.push(segment.to_owned());
+        } else if let Some(text) = segment.strip_suffix('\r') {
+            lines.push(text.to_owned());
+            endings.push(LineEnding::CrLf);
+        } else {
+            lines.push(segment.to_owned());
+            endings.push(LineEnding::Lf);
+        }
     }
-    let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
-    if content.ends_with('\n') {
-        lines.push(String::new());
+    (lines, endings)
+}
+
+/// Distinguishes staging files made by one process.
+static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Replace the file at `path` with `bytes` without truncating it first.
+///
+/// The bytes go to a new file beside `path`, which is synced and then renamed
+/// over `path`, so a failed write leaves the old file whole. A symlink at
+/// `path` is followed, so the link stays and its target is replaced. An
+/// existing file keeps its permissions, and a read-only one is refused.
+fn replace_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    replace_file_with(path, bytes, Write::write_all)
+}
+
+/// [`replace_file`] with the write step supplied, so tests can make it fail.
+fn replace_file_with(
+    path: &Path,
+    bytes: &[u8],
+    write: impl FnOnce(&mut File, &[u8]) -> io::Result<()>,
+) -> io::Result<()> {
+    let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let permissions = fs::metadata(&target).ok().map(|m| m.permissions());
+    // A rename would replace a read-only file that a plain write refuses.
+    if permissions.as_ref().is_some_and(fs::Permissions::readonly) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "save target is read-only",
+        ));
     }
-    lines
+    let dir = match target.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent,
+        _ => Path::new("."),
+    };
+    let name = target
+        .file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "save path has no file name"))?;
+
+    let (staging, mut file) = loop {
+        let mut staging_name = std::ffi::OsString::from(".");
+        staging_name.push(name);
+        staging_name.push(format!(
+            ".{}.{}.tmp",
+            std::process::id(),
+            STAGING_COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let staging = dir.join(staging_name);
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&staging)
+        {
+            Ok(file) => break (staging, file),
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(err) => return Err(err),
+        }
+    };
+
+    let result = (|| {
+        write(&mut file, bytes)?;
+        if let Some(permissions) = permissions {
+            file.set_permissions(permissions)?;
+        }
+        file.sync_all()?;
+        drop(file);
+        fs::rename(&staging, &target)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&staging);
+    }
+    result
 }
 
 impl EditorState {
@@ -56,6 +161,8 @@ impl EditorState {
     pub fn new() -> Self {
         Self {
             lines: vec![String::new()],
+            line_endings: Vec::new(),
+            default_ending: LineEnding::Lf,
             editable_range: (0, 1),
             cursor: (0, 0),
             scroll_offset: 0,
@@ -87,32 +194,27 @@ impl EditorState {
         editable_below: usize,
     ) -> io::Result<Self> {
         let content = std::fs::read_to_string(path)?;
-        let lines = lines_from_content(&content);
-        let total = lines.len();
+        let mut state = Self::from_string(&content);
+        let total = state.lines.len();
 
         let start = focus_line.saturating_sub(editable_above).min(total);
         let end = (focus_line + editable_below + 1).min(total);
 
-        let cursor_line = focus_line.min(total - 1);
-
-        let state = Self {
-            lines,
-            editable_range: (start, end),
-            cursor: (cursor_line, 0),
-            scroll_offset: 0,
-            file_path: Some(path.to_path_buf()),
-            dirty: false,
-            saved: false,
-        };
+        state.editable_range = (start, end);
+        state.cursor = (focus_line.min(total - 1), 0);
+        state.file_path = Some(path.to_path_buf());
         Ok(state)
     }
 
     /// Load content from a string slice. All lines are editable.
     pub fn from_string(content: &str) -> Self {
-        let lines = lines_from_content(content);
+        let (lines, line_endings) = lines_from_content(content);
         let count = lines.len();
+        let default_ending = line_endings.first().copied().unwrap_or(LineEnding::Lf);
         Self {
             lines,
+            line_endings,
+            default_ending,
             editable_range: (0, count),
             cursor: (0, 0),
             scroll_offset: 0,
@@ -130,9 +232,19 @@ impl EditorState {
         line >= start && line < end
     }
 
-    /// Return the entire content as a single string (lines joined with `\n`).
+    /// Return the entire content as a single string.
+    ///
+    /// Each line keeps the terminator it was loaded with (`\n` or `\r\n`); a
+    /// line made by splitting takes the file's first terminator, or `\n`.
     pub fn content(&self) -> String {
-        self.lines.join("\n")
+        let mut out = String::with_capacity(self.lines.iter().map(|l| l.len() + 2).sum::<usize>());
+        for (i, line) in self.lines.iter().enumerate() {
+            out.push_str(line);
+            if let Some(ending) = self.line_endings.get(i) {
+                out.push_str(ending.as_str());
+            }
+        }
+        out
     }
 
     /// Total number of lines.
@@ -271,6 +383,8 @@ impl EditorState {
             self.lines[self.cursor.0].truncate(self.cursor.1);
             let new_line_idx = self.cursor.0 + 1;
             self.lines.insert(new_line_idx, rest);
+            // The split line's old terminator moves to the new line.
+            self.line_endings.insert(self.cursor.0, self.default_ending);
             // Extend the editable range to cover the new line.
             let (start, end) = self.editable_range;
             if new_line_idx < end + 1 {
@@ -304,6 +418,8 @@ impl EditorState {
         } else if self.cursor.0 > 0 && self.is_editable(self.cursor.0 - 1) {
             // Join current line onto the previous line.
             let current = self.lines.remove(self.cursor.0);
+            // The joined line keeps the current line's terminator.
+            self.line_endings.remove(self.cursor.0 - 1);
             let prev_len = self.lines[self.cursor.0 - 1].len();
             self.lines[self.cursor.0 - 1].push_str(&current);
             // Shrink the editable range by one line.
@@ -335,6 +451,8 @@ impl EditorState {
         } else if self.cursor.0 + 1 < self.lines.len() && self.is_editable(self.cursor.0 + 1) {
             // Join next line onto the current line.
             let next = self.lines.remove(self.cursor.0 + 1);
+            // The joined line keeps the next line's terminator.
+            self.line_endings.remove(self.cursor.0);
             self.lines[self.cursor.0].push_str(&next);
             let (start, end) = self.editable_range;
             self.editable_range = (start, end.saturating_sub(1));
@@ -347,13 +465,17 @@ impl EditorState {
 
     /// Write all lines back to `file_path`.
     ///
-    /// Returns an error if no file path was set.
+    /// The content is written to a staging file beside the target and renamed
+    /// over it, so a failed save leaves the previous file intact. Line endings
+    /// and the final newline are kept as loaded (see [`Self::content`]).
+    ///
+    /// Returns an error if no file path was set or the write fails; on error
+    /// `dirty` and `saved` are unchanged.
     pub fn save(&mut self) -> io::Result<()> {
         let path = self.file_path.clone().ok_or_else(|| {
             io::Error::new(io::ErrorKind::NotFound, "no file path set on EditorState")
         })?;
-        let content = self.content();
-        std::fs::write(&path, content)?;
+        replace_file(&path, self.content().as_bytes())?;
         self.dirty = false;
         self.saved = true;
         Ok(())
@@ -1041,5 +1163,229 @@ mod tests {
         let state = state_from("abc");
         assert_eq!(state.line_count(), 1);
         assert_eq!(state.cursor_line(), 0);
+    }
+
+    // ── Line endings ──────────────────────────────────────────────────────────
+
+    fn save_round_trip(original: &str, edit: impl FnOnce(&mut EditorState)) -> String {
+        let f = temp_file(original);
+        let mut state = EditorState::from_file(f.path()).expect("load");
+        edit(&mut state);
+        state.save().expect("save");
+        std::fs::read_to_string(f.path()).expect("read back")
+    }
+
+    #[test]
+    fn crlf_lines_load_without_carriage_returns() {
+        let state = state_from("a\r\nb\r\n");
+        assert_eq!(state.lines, vec!["a", "b", ""]);
+    }
+
+    #[test]
+    fn crlf_file_round_trips_unedited() {
+        for original in ["a\r\nb\r\n", "a\r\nb", "\r\n", "a\r\n\r\nb\r\n"] {
+            assert_eq!(save_round_trip(original, |_| {}), original);
+        }
+    }
+
+    #[test]
+    fn crlf_file_round_trips_unedited_with_context() {
+        let original = "a\r\nb\r\nc\r\n";
+        let f = temp_file(original);
+        let mut state = EditorState::from_file_with_context(f.path(), 1, 0, 0).expect("load");
+        state.save().expect("save");
+        assert_eq!(
+            std::fs::read_to_string(f.path()).expect("read back"),
+            original
+        );
+    }
+
+    #[test]
+    fn mixed_line_endings_round_trip_unedited() {
+        let original = "a\r\nb\nc\r\nd";
+        assert_eq!(save_round_trip(original, |_| {}), original);
+    }
+
+    #[test]
+    fn lone_carriage_return_is_kept_as_content() {
+        let original = "a\rb\nc\r";
+        assert_eq!(save_round_trip(original, |_| {}), original);
+    }
+
+    #[test]
+    fn crlf_file_keeps_crlf_after_char_edit() {
+        let written = save_round_trip("ab\r\ncd\r\n", |s| {
+            s.cursor = (1, 2);
+            s.insert('!');
+        });
+        assert_eq!(written, "ab\r\ncd!\r\n");
+    }
+
+    #[test]
+    fn crlf_file_splits_line_with_crlf() {
+        let written = save_round_trip("abcd\r\nef\r\n", |s| {
+            s.cursor = (0, 2);
+            s.insert('\n');
+        });
+        assert_eq!(written, "ab\r\ncd\r\nef\r\n");
+    }
+
+    #[test]
+    fn crlf_file_backspace_join_keeps_endings() {
+        let written = save_round_trip("ab\r\ncd\r\nef", |s| {
+            s.cursor = (1, 0);
+            s.backspace();
+        });
+        assert_eq!(written, "abcd\r\nef");
+    }
+
+    #[test]
+    fn delete_join_keeps_the_joined_line_ending() {
+        let written = save_round_trip("ab\ncd\r\nef", |s| {
+            s.cursor = (0, 2);
+            s.delete();
+        });
+        assert_eq!(written, "abcd\r\nef");
+    }
+
+    #[test]
+    fn join_then_split_restores_the_original_bytes() {
+        let original = "ab\r\ncd\r\n";
+        let written = save_round_trip(original, |s| {
+            s.cursor = (0, 2);
+            s.delete();
+            s.insert('\n');
+        });
+        assert_eq!(written, original);
+    }
+
+    #[test]
+    fn split_in_lf_file_uses_lf() {
+        let written = save_round_trip("abcd\n", |s| {
+            s.cursor = (0, 2);
+            s.insert('\n');
+        });
+        assert_eq!(written, "ab\ncd\n");
+    }
+
+    // ── Staged save ───────────────────────────────────────────────────────────
+
+    fn dir_entries(dir: &Path) -> Vec<std::ffi::OsString> {
+        let mut names: Vec<_> = std::fs::read_dir(dir)
+            .expect("read dir")
+            .map(|e| e.expect("dir entry").file_name())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn failed_write_leaves_the_original_file_intact() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("target.txt");
+        std::fs::write(&path, "original contents\n").expect("seed file");
+
+        let result = replace_file_with(&path, b"replacement contents\n", |file, bytes| {
+            file.write_all(&bytes[..4])?;
+            Err(io::Error::other("injected write failure"))
+        });
+
+        let err = result.expect_err("injected failure must surface");
+        assert_eq!(err.to_string(), "injected write failure");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("read back"),
+            "original contents\n"
+        );
+        assert_eq!(
+            dir_entries(dir.path()),
+            vec![std::ffi::OsString::from("target.txt")]
+        );
+    }
+
+    #[test]
+    fn replace_file_with_writes_and_leaves_no_staging_file() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("target.txt");
+        std::fs::write(&path, "old").expect("seed file");
+
+        replace_file_with(&path, b"new", Write::write_all).expect("replace");
+
+        assert_eq!(std::fs::read_to_string(&path).expect("read back"), "new");
+        assert_eq!(
+            dir_entries(dir.path()),
+            vec![std::ffi::OsString::from("target.txt")]
+        );
+    }
+
+    #[test]
+    fn save_does_not_mark_saved_when_the_write_fails() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("gone").join("target.txt");
+        let mut state = state_from("data");
+        state.file_path = Some(path);
+        state.insert('!');
+        assert!(state.save().is_err());
+        assert!(state.dirty);
+        assert!(!state.saved);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_keeps_the_file_mode() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let f = temp_file("abc");
+        std::fs::set_permissions(f.path(), std::fs::Permissions::from_mode(0o640)).expect("chmod");
+        let mut state = EditorState::from_file(f.path()).expect("load");
+        state.insert('!');
+        state.save().expect("save");
+        let mode = std::fs::metadata(f.path())
+            .expect("stat")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o640);
+    }
+
+    #[test]
+    fn save_refuses_a_read_only_file() {
+        let f = temp_file("abc");
+        let mut permissions = std::fs::metadata(f.path()).expect("stat").permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(f.path(), permissions.clone()).expect("set read-only");
+
+        let mut state = EditorState::from_file(f.path()).expect("load");
+        state.insert('!');
+        let err = state.save().expect_err("read-only target must be refused");
+
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(std::fs::read_to_string(f.path()).expect("read back"), "abc");
+        assert!(state.dirty);
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+        std::fs::set_permissions(f.path(), permissions).expect("restore");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_through_a_symlink_writes_the_link_target() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let real = dir.path().join("real.txt");
+        let link = dir.path().join("link.txt");
+        std::fs::write(&real, "abc").expect("seed file");
+        std::os::unix::fs::symlink(&real, &link).expect("symlink");
+
+        let mut state = EditorState::from_file(&link).expect("load");
+        state.insert('!');
+        state.save().expect("save");
+
+        assert!(
+            std::fs::symlink_metadata(&link)
+                .expect("lstat")
+                .file_type()
+                .is_symlink(),
+            "save must not replace the symlink with a regular file"
+        );
+        assert_eq!(std::fs::read_to_string(&real).expect("read back"), "!abc");
     }
 }
