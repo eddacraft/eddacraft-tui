@@ -527,6 +527,10 @@ mod tests {
         let mut state = state_with_stale_cursor("abc", "");
         state.delete();
         assert_eq!(state.value, "");
+        // Assert the stored field: `cursor()` snaps on read and would hide a
+        // stale offset that reappears once `value` grows again.
+        assert_eq!(state.cursor, 0);
+        state.value = "abcdef".to_string();
         assert_eq!(state.cursor(), 0);
     }
 
@@ -555,6 +559,8 @@ mod tests {
     fn move_right_after_value_replaced_with_shorter_string() {
         let mut state = state_with_stale_cursor("abc", "a");
         state.move_right();
+        assert_eq!(state.cursor, 1);
+        state.value = "abcdef".to_string();
         assert_eq!(state.cursor(), 1);
     }
 
@@ -577,7 +583,7 @@ mod tests {
         let area = Rect::new(0, 0, 5, 1);
         let mut buf = Buffer::empty(area);
         TextInput::new(&theme).render(area, &mut buf, &mut state);
-        assert_eq!(state.cursor(), 0, "render repairs the stored cursor");
+        assert_eq!(state.cursor, 0, "render repairs the stored cursor");
         assert_eq!(buf[(0, 0)].symbol(), "é");
         assert!(buf[(0, 0)].modifier.contains(Modifier::REVERSED));
     }
@@ -591,7 +597,35 @@ mod tests {
         let area = Rect::new(0, 0, 5, 1);
         let mut buf = Buffer::empty(area);
         TextInput::new(&theme).render(area, &mut buf, &mut state);
-        assert_eq!(state.cursor(), 2);
+        assert_eq!(state.cursor, 2);
         assert!(buf[(2, 0)].modifier.contains(Modifier::REVERSED));
+    }
+
+    #[test]
+    fn render_with_empty_value_repairs_stored_cursor() {
+        use crate::theme::EddaCraftTheme;
+
+        let theme = EddaCraftTheme;
+        let mut state = state_with_stale_cursor("abc", "");
+        let area = Rect::new(0, 0, 5, 1);
+        let mut buf = Buffer::empty(area);
+        TextInput::new(&theme).render(area, &mut buf, &mut state);
+        assert_eq!(state.cursor, 0);
+        state.value = "abcdef".to_string();
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn render_into_zero_area_repairs_stored_cursor() {
+        use crate::theme::EddaCraftTheme;
+
+        let theme = EddaCraftTheme;
+        let mut state = state_with_stale_cursor("abc", "a");
+        let area = Rect::new(0, 0, 0, 0);
+        let mut buf = Buffer::empty(area);
+        TextInput::new(&theme).render(area, &mut buf, &mut state);
+        assert_eq!(state.cursor, 1);
+        state.value = "abcdef".to_string();
+        assert_eq!(state.cursor(), 1);
     }
 }
