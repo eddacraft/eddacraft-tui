@@ -15,34 +15,48 @@ pub struct TextInput<'a, T: Theme> {
 
 #[derive(Debug, Default, Clone)]
 pub struct TextInputState {
+    /// The text being edited. Callers may replace it directly; the cursor is
+    /// repaired (clamped to the end and snapped back to a char boundary) by
+    /// the next editing call or render, so a stale cursor never panics.
     pub value: String,
     cursor: usize,
 }
 
+/// Clamp `pos` to `value.len()` and walk back to the nearest char boundary.
+fn snap_to_char_boundary(value: &str, pos: usize) -> usize {
+    let pos = pos.min(value.len());
+    (0..=pos)
+        .rev()
+        .find(|&i| value.is_char_boundary(i))
+        .unwrap_or(0)
+}
+
 impl TextInputState {
-    /// Returns the current cursor byte offset.
+    /// Returns the current cursor byte offset, always a char boundary within
+    /// `value`, even if `value` was replaced since the cursor last moved.
     pub fn cursor(&self) -> usize {
-        self.cursor
+        snap_to_char_boundary(&self.value, self.cursor)
     }
 
     /// Set the cursor to `pos`. Clamps to `value.len()` and snaps to the
     /// nearest valid char boundary.
     pub fn set_cursor(&mut self, pos: usize) {
-        let pos = pos.min(self.value.len());
-        // Walk backward to the nearest char boundary
-        let pos = (0..=pos)
-            .rev()
-            .find(|&i| self.value.is_char_boundary(i))
-            .unwrap_or(0);
-        self.cursor = pos;
+        self.cursor = snap_to_char_boundary(&self.value, pos);
+    }
+
+    /// Repair a cursor left stale by a direct write to `value` (GH #6604).
+    fn normalise_cursor(&mut self) {
+        self.set_cursor(self.cursor);
     }
 
     pub fn insert(&mut self, c: char) {
+        self.normalise_cursor();
         self.value.insert(self.cursor, c);
         self.cursor += c.len_utf8();
     }
 
     pub fn backspace(&mut self) {
+        self.normalise_cursor();
         if self.cursor > 0 {
             let prev = self.value[..self.cursor]
                 .char_indices()
@@ -54,6 +68,7 @@ impl TextInputState {
     }
 
     pub fn delete(&mut self) {
+        self.normalise_cursor();
         if self.cursor < self.value.len() {
             let next = self.value[self.cursor..]
                 .char_indices()
@@ -64,6 +79,7 @@ impl TextInputState {
     }
 
     pub fn move_left(&mut self) {
+        self.normalise_cursor();
         if self.cursor > 0 {
             self.cursor = self.value[..self.cursor]
                 .char_indices()
@@ -73,6 +89,7 @@ impl TextInputState {
     }
 
     pub fn move_right(&mut self) {
+        self.normalise_cursor();
         if self.cursor < self.value.len() {
             self.cursor = self.value[self.cursor..]
                 .char_indices()
@@ -116,6 +133,8 @@ impl<T: Theme> StatefulWidget for TextInput<'_, T> {
     type State = TextInputState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        // `value` is public and may have been replaced since the last edit.
+        state.normalise_cursor();
         let inner = if let Some(block) = &self.block {
             let styled = block.clone().border_style(self.theme.border_focused());
             let inner = styled.inner(area);
@@ -135,7 +154,7 @@ impl<T: Theme> StatefulWidget for TextInput<'_, T> {
         }
 
         let width = inner.width as usize;
-        let cursor = state.cursor.min(state.value.len());
+        let cursor = state.cursor;
 
         // Horizontal scrolling: find a byte offset `visible_start` so the
         // cursor stays on screen. Measured in display columns, not bytes —
@@ -426,5 +445,153 @@ mod tests {
             cursor_visible,
             "a wide glyph under the cursor must still be drawn in a narrow field"
         );
+    }
+
+    // GH #6604: `value` is public, so a caller can replace it and leave the
+    // cursor past the end or inside a multi-byte character. Every editing and
+    // rendering operation must repair the cursor instead of panicking.
+
+    fn state_with_stale_cursor(cursor_text: &str, replacement: &str) -> TextInputState {
+        let mut state = TextInputState::default();
+        for c in cursor_text.chars() {
+            state.insert(c);
+        }
+        state.value = replacement.to_string();
+        state
+    }
+
+    #[test]
+    fn insert_after_value_replaced_with_shorter_string() {
+        // Finding ceaf: cursor at 2, value replaced with "a", then insert.
+        let mut state = state_with_stale_cursor("ab", "a");
+        state.insert('b');
+        assert_eq!(state.value, "ab");
+        assert_eq!(state.cursor(), 2);
+    }
+
+    #[test]
+    fn insert_after_value_replaced_with_empty_string() {
+        // Finding 792b: cursor at 1, value replaced with "", then insert.
+        let mut state = state_with_stale_cursor("a", "");
+        state.insert('b');
+        assert_eq!(state.value, "b");
+        assert_eq!(state.cursor(), 1);
+    }
+
+    #[test]
+    fn insert_after_value_replaced_with_multibyte_string() {
+        // Cursor at byte 1, value replaced with "é" (2 bytes): byte 1 is
+        // inside the character, so the cursor snaps back to 0.
+        let mut state = state_with_stale_cursor("a", "é");
+        state.insert('x');
+        assert_eq!(state.value, "xé");
+        assert_eq!(state.cursor(), 1);
+    }
+
+    #[test]
+    fn backspace_after_value_replaced_with_empty_string() {
+        let mut state = state_with_stale_cursor("a", "");
+        state.backspace();
+        assert_eq!(state.value, "");
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn backspace_after_value_replaced_with_shorter_string() {
+        let mut state = state_with_stale_cursor("abc", "a");
+        state.backspace();
+        assert_eq!(state.value, "");
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn backspace_after_value_replaced_with_multibyte_string() {
+        let mut state = state_with_stale_cursor("abc", "é中");
+        // Byte 3 is inside '中' (bytes 2..5): the cursor snaps to 2, so
+        // backspace removes 'é' and leaves the cursor at 0.
+        state.backspace();
+        assert_eq!(state.value, "中");
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn delete_after_value_replaced_with_multibyte_string() {
+        let mut state = state_with_stale_cursor("a", "é");
+        state.delete();
+        assert_eq!(state.value, "");
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn delete_after_value_replaced_with_empty_string() {
+        let mut state = state_with_stale_cursor("abc", "");
+        state.delete();
+        assert_eq!(state.value, "");
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn move_left_after_value_replaced_with_empty_string() {
+        let mut state = state_with_stale_cursor("a", "");
+        state.move_left();
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn move_left_after_value_replaced_with_multibyte_string() {
+        let mut state = state_with_stale_cursor("abc", "é中");
+        state.move_left();
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn move_right_after_value_replaced_with_multibyte_string() {
+        let mut state = state_with_stale_cursor("a", "éx");
+        state.move_right();
+        assert_eq!(state.cursor(), 2);
+    }
+
+    #[test]
+    fn move_right_after_value_replaced_with_shorter_string() {
+        let mut state = state_with_stale_cursor("abc", "a");
+        state.move_right();
+        assert_eq!(state.cursor(), 1);
+    }
+
+    #[test]
+    fn cursor_reports_a_valid_offset_after_value_replaced() {
+        let state = state_with_stale_cursor("abc", "é");
+        assert_eq!(state.cursor(), 2);
+        let state = state_with_stale_cursor("a", "é");
+        assert_eq!(state.cursor(), 0);
+    }
+
+    #[test]
+    fn render_after_value_replaced_with_multibyte_string_does_not_panic() {
+        use crate::theme::EddaCraftTheme;
+
+        // Finding 8660: cursor at byte 1, value replaced with "é". Render
+        // clamped to the length but sliced inside the character.
+        let theme = EddaCraftTheme;
+        let mut state = state_with_stale_cursor("a", "é");
+        let area = Rect::new(0, 0, 5, 1);
+        let mut buf = Buffer::empty(area);
+        TextInput::new(&theme).render(area, &mut buf, &mut state);
+        assert_eq!(state.cursor(), 0, "render repairs the stored cursor");
+        assert_eq!(buf[(0, 0)].symbol(), "é");
+        assert!(buf[(0, 0)].modifier.contains(Modifier::REVERSED));
+    }
+
+    #[test]
+    fn render_after_value_replaced_with_shorter_string_repairs_cursor() {
+        use crate::theme::EddaCraftTheme;
+
+        let theme = EddaCraftTheme;
+        let mut state = state_with_stale_cursor("abcdef", "ab");
+        let area = Rect::new(0, 0, 5, 1);
+        let mut buf = Buffer::empty(area);
+        TextInput::new(&theme).render(area, &mut buf, &mut state);
+        assert_eq!(state.cursor(), 2);
+        assert!(buf[(2, 0)].modifier.contains(Modifier::REVERSED));
     }
 }

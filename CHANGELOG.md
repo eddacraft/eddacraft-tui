@@ -48,6 +48,13 @@ minor version bump indicates a breaking change.
 
 ### Fixed
 
+- **`TextInputState` survives a direct write to `value`.** Replacing the
+  public `value` with a shorter, empty or multi-byte string no longer leaves
+  a cursor that panics the next `insert`, `backspace`, `delete`,
+  `move_left`, `move_right` or render. Each of these first clamps the cursor
+  to the end of `value` and snaps it back to a char boundary, and `cursor()`
+  reports the repaired offset (GH #6604).
+
 - **Nested terminal guards no longer tear down an outer session.** Live
   `lifecycle::TerminalGuard`s share one session: the first enters raw mode
   and the alternate screen, and only the last to leave or drop restores
