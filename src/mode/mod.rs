@@ -64,39 +64,50 @@ impl TtyKind {
 
 /// Whether the terminal can host an alternate screen (full-screen TUI mode).
 ///
-/// This is a **`$TERM`-based heuristic**, not a guarantee: any interactive,
-/// non-`dumb`, identified terminal is reported [`Supported`](Self::Supported).
-/// A few legacy `$TERM` values (e.g. `vt52`) report `Supported` without truly
-/// implementing the `\e[?1049h` alternate-screen sequence. Treat it as "very
-/// likely" and fall back gracefully if entering the alternate screen fails.
+/// This is a **`$TERM`-based heuristic**, not a guarantee: any interactive
+/// terminal whose `$TERM` does not declare it incapable is reported
+/// [`Supported`](Self::Supported). A few legacy `$TERM` values (e.g. `vt52`)
+/// report `Supported` without truly implementing the `\e[?1049h`
+/// alternate-screen sequence. Treat it as "very likely" and fall back
+/// gracefully if entering the alternate screen fails.
 ///
 /// # Stability
 ///
-/// **experimental** (D-TUIN-005). Heuristic with no consumer yet; depend on it
-/// at your own risk.
+/// **experimental** (D-TUIN-005). Heuristic whose only consumer is the anvil
+/// CLI's full-screen decision; depend on it at your own risk.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AltScreenSupport {
     /// An alternate screen can very likely be entered (heuristic).
     Supported,
-    /// No alternate screen — non-TTY, or a `dumb`/unidentified terminal.
+    /// No alternate screen — non-TTY, or `$TERM` set to `dumb` or empty.
     Unsupported,
 }
 
 impl AltScreenSupport {
     /// Pure decision from explicit inputs.
     ///
-    /// A non-TTY can never host an alternate screen; a `dumb` terminal or one
-    /// with no `$TERM` at all is treated as incapable.
+    /// - A non-TTY can never host an alternate screen.
+    /// - `$TERM` set to `dumb`, or set but empty, is an explicit request for a
+    ///   plain terminal ⇒ [`Unsupported`](Self::Unsupported). The match is
+    ///   exact: `dumb-ish` is not `dumb`.
+    /// - An **unset** `$TERM` is not a declaration ⇒
+    ///   [`Supported`](Self::Supported): Windows consoles and Windows Terminal
+    ///   set no `TERM` and do host an alternate screen.
     pub fn resolve(is_tty: bool, term: Option<&str>) -> Self {
-        match (is_tty, term) {
-            (true, Some(t)) if !t.is_empty() && t != "dumb" => Self::Supported,
-            _ => Self::Unsupported,
+        if is_tty && !matches!(term, Some("dumb" | "")) {
+            Self::Supported
+        } else {
+            Self::Unsupported
         }
     }
 
     /// Probe the live environment against standard output.
+    ///
+    /// A `$TERM` that is not valid Unicode is read lossily, so it stays a set,
+    /// non-empty value that is not `dumb` rather than reading as unset.
     pub fn detect() -> Self {
-        let term = std::env::var("TERM").ok();
+        let term = std::env::var_os("TERM");
+        let term = term.as_deref().map(std::ffi::OsStr::to_string_lossy);
         Self::resolve(std::io::stdout().is_terminal(), term.as_deref())
     }
 
@@ -333,29 +344,59 @@ mod tests {
         assert!(ColourDepth::TrueColor.has_colour());
     }
 
+    // ── alternate-screen rule, shared with the anvil CLI (#7470) ────
+
     #[test]
-    fn alt_screen_support_matrix() {
-        assert_eq!(
-            AltScreenSupport::resolve(true, Some("xterm-256color")),
-            AltScreenSupport::Supported
-        );
-        assert_eq!(
-            AltScreenSupport::resolve(true, Some("dumb")),
-            AltScreenSupport::Unsupported
-        );
+    fn alt_screen_unset_term_on_a_tty_is_supported() {
+        // Windows consoles and Windows Terminal set no `TERM` and do host an
+        // alternate screen: an unset `TERM` is not a declaration.
         assert_eq!(
             AltScreenSupport::resolve(true, None),
-            AltScreenSupport::Unsupported
+            AltScreenSupport::Supported
         );
+    }
+
+    #[test]
+    fn alt_screen_empty_term_is_unsupported() {
         assert_eq!(
             AltScreenSupport::resolve(true, Some("")),
             AltScreenSupport::Unsupported
         );
+    }
+
+    #[test]
+    fn alt_screen_dumb_term_is_unsupported() {
         assert_eq!(
-            AltScreenSupport::resolve(false, Some("xterm-256color")),
+            AltScreenSupport::resolve(true, Some("dumb")),
             AltScreenSupport::Unsupported
         );
-        assert!(AltScreenSupport::resolve(true, Some("screen")).is_supported());
+    }
+
+    #[test]
+    fn alt_screen_capable_term_on_a_tty_is_supported() {
+        for term in ["xterm-256color", "xterm", "screen", "tmux-256color"] {
+            assert!(
+                AltScreenSupport::resolve(true, Some(term)).is_supported(),
+                "{term}"
+            );
+        }
+    }
+
+    #[test]
+    fn alt_screen_term_match_is_exact() {
+        // Only the literal `dumb` declares incapability.
+        assert!(AltScreenSupport::resolve(true, Some("dumb-ish")).is_supported());
+    }
+
+    #[test]
+    fn alt_screen_non_tty_is_unsupported_whatever_term_says() {
+        for term in [None, Some(""), Some("dumb"), Some("xterm-256color")] {
+            assert_eq!(
+                AltScreenSupport::resolve(false, term),
+                AltScreenSupport::Unsupported,
+                "{term:?}"
+            );
+        }
     }
 
     #[cfg(unix)]

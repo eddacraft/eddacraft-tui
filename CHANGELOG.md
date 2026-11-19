@@ -48,6 +48,15 @@ minor version bump indicates a breaking change.
 
 ### Fixed
 
+- **`AltScreenSupport` reports an unset `TERM` on a terminal as `Supported`.**
+  Windows consoles and Windows Terminal set no `TERM` and do host an
+  alternate screen, so `AltScreenSupport::resolve(true, None)` now returns
+  `Supported`; it returned `Unsupported` before. `TERM=dumb`, a `TERM` that
+  is set but empty, and a non-TTY stay `Unsupported`. `detect()` reads a
+  `TERM` that is not valid Unicode as a set value, where it used to read it
+  as unset. The anvil CLI's full-screen decision now calls this probe, so
+  the two give one answer (GH #7470).
+
 - **`TextInputState` survives a direct write to `value`.** Replacing the
   public `value` with a shorter, empty or multi-byte string no longer leaves
   a cursor that panics the next `insert`, `backspace`, `delete`,
