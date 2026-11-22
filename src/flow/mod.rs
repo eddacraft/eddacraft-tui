@@ -366,6 +366,94 @@ mod tests {
         assert!(rendered.contains('b'), "missing b:\n{rendered}");
     }
 
+    fn edge_pairs(flow: &Flow) -> Vec<(String, String)> {
+        flow.edges()
+            .iter()
+            .map(|e| (e.source.clone(), e.target.clone()))
+            .collect()
+    }
+
+    fn node_ids(flow: &Flow) -> Vec<String> {
+        let mut ids: Vec<String> = flow.nodes().map(|n| n.id.clone()).collect();
+        ids.sort();
+        ids
+    }
+
+    #[test]
+    fn specs_without_edges_register_isolated_nodes_only() {
+        // Regression (#6605): edge-less specs used to be chained together
+        // (or self-looped) so the nodes would materialise.
+        let theme = EddaCraftTheme;
+        let nodes = [NodeSpec::new("a", "A"), NodeSpec::new("b", "B")];
+        let mut flow = themed_from_specs(&nodes, &[], &theme).expect("valid");
+        assert_eq!(node_ids(&flow), ["a", "b"]);
+        assert!(edge_pairs(&flow).is_empty(), "{:?}", edge_pairs(&flow));
+        let a = flow.node_bounds("a").expect("a");
+        let b = flow.node_bounds("b").expect("b");
+        assert!(!a.intersects(&b), "isolated nodes overlap: {a:?} {b:?}");
+        let rendered = draw_plain(&mut flow, 60, 20);
+        assert!(
+            rendered.contains('A') && rendered.contains('B'),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn single_spec_without_edges_has_no_self_loop() {
+        let theme = EddaCraftTheme;
+        let flow = themed_from_specs(&[NodeSpec::new("solo", "solo")], &[], &theme).expect("valid");
+        assert_eq!(node_ids(&flow), ["solo"]);
+        assert!(edge_pairs(&flow).is_empty(), "{:?}", edge_pairs(&flow));
+    }
+
+    #[test]
+    fn specs_register_isolated_node_beside_supplied_edges() {
+        let theme = EddaCraftTheme;
+        let nodes = [
+            NodeSpec::new("a", "a"),
+            NodeSpec::new("b", "b"),
+            NodeSpec::new("lone", "lone").with_role(Role::Warning),
+        ];
+        let edges = [EdgeSpec::new("a", "b")];
+        let flow = themed_from_specs(&nodes, &edges, &theme).expect("valid");
+        assert_eq!(node_ids(&flow), ["a", "b", "lone"]);
+        assert_eq!(edge_pairs(&flow), [("a".to_string(), "b".to_string())]);
+        let lone = flow.node_bounds("lone").expect("lone");
+        for other in ["a", "b"] {
+            let bounds = flow.node_bounds(other).expect("laid out");
+            assert!(!lone.intersects(&bounds), "lone overlaps {other}");
+        }
+    }
+
+    #[test]
+    fn elide_registers_portal_without_boundary_edges() {
+        // Collapsed x/y only touch each other, so no rewritten edge reaches
+        // the portal; it must still be a node in the flow.
+        let theme = EddaCraftTheme;
+        let edges = [("a", "b"), ("b", "c"), ("a", "c"), ("x", "y")];
+        let elided = elide_from_edges(&edges, &theme, 4).expect("valid");
+        let portal = elided.portal_id.clone().expect("portal");
+        assert_eq!(elided.collapsed, ["x", "y"]);
+        assert!(elided.flow.node(&portal).is_some(), "portal not registered");
+        assert!(
+            elided
+                .flow
+                .edges()
+                .iter()
+                .all(|e| e.source != portal && e.target != portal)
+        );
+        assert_eq!(elided.flow.edges().len(), 3);
+    }
+
+    #[test]
+    fn elide_with_no_rewritten_edges_does_not_synthesise_a_self_loop() {
+        let theme = EddaCraftTheme;
+        let elided = elide_from_edges(&[("x", "y")], &theme, 1).expect("valid");
+        let portal = elided.portal_id.clone().expect("portal");
+        assert_eq!(node_ids(&elided.flow), [portal]);
+        assert!(edge_pairs(&elided.flow).is_empty());
+    }
+
     #[test]
     fn graph_diff_keeps_removed_nodes_as_ghosts() {
         let theme = EddaCraftTheme;

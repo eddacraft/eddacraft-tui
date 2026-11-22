@@ -48,6 +48,26 @@ minor version bump indicates a breaking change.
 
 ### Fixed
 
+- **A `Spinner` cycles through the frames it draws.** Rendering now pins
+  `SpinnerState` to the widget's preset and wraps `frame` into its range, so
+  `tick()` advances against the frames on screen. A default state rendered by
+  an `.anvil()` spinner used to tick through five positions against four
+  glyphs and show `-` twice in a row (GH #6605).
+
+- **`StatusBar` right items sit at the right edge.** The right-hand items are
+  now right-aligned in their half, in the order given; they used to start at
+  the middle of the bar. When they overflow their half, the leftmost text is
+  cut rather than the rightmost (GH #6605).
+
+- **`flow::themed_from_specs` keeps isolated nodes without inventing edges.**
+  The flow holds every `NodeSpec` and only the supplied `EdgeSpec`s. Nodes no
+  edge touches sit in one row beneath the laid-out graph. Specs with no edges
+  used to be chained together with invented edges, a lone node returned a
+  self-referential-edge error, and a node missing from every edge was dropped
+  when other edges existed. An elision portal is now always in the flow, even
+  when no kept node links to the collapsed ones, and eliding a graph whose
+  kept nodes share no edge no longer errors (GH #6605).
+
 - **json-render work per frame is bounded by what the terminal can show.**
   `render_spec` visits at most the new, experimental `MAX_RENDER_ELEMENTS`
   (4,096) elements per call. A spec that lists the same children under many

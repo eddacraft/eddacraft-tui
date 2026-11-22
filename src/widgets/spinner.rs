@@ -124,9 +124,10 @@ pub struct SpinnerState {
 }
 
 impl SpinnerState {
-    /// Construct state pinned to `preset`. Subsequent calls to [`tick`] then
-    /// advance `frame` against `preset`'s frame count, so non-default presets
-    /// (e.g. [`SpinnerPreset::Anvil`]) wrap correctly.
+    /// Construct state pinned to `preset`. Calls to [`tick`] then advance
+    /// `frame` against `preset`'s frame count, so non-default presets (e.g.
+    /// [`SpinnerPreset::Anvil`]) wrap correctly. Rendering a [`Spinner`]
+    /// replaces the stored preset with the widget's own.
     ///
     /// [`tick`]: SpinnerState::tick
     #[must_use]
@@ -135,7 +136,9 @@ impl SpinnerState {
     }
 
     /// Advance against the preset stored in this state (set via
-    /// [`with_preset`], defaults to [`SpinnerPreset::default`]). Use
+    /// [`with_preset`], defaults to [`SpinnerPreset::default`]). Rendering a
+    /// [`Spinner`] pins the stored preset to the widget's preset, so after the
+    /// first render `tick` cycles through exactly the frames being drawn. Use
     /// [`tick_with`] to override the preset for a single tick.
     ///
     /// [`with_preset`]: SpinnerState::with_preset
@@ -185,6 +188,12 @@ impl<T: Theme> StatefulWidget for Spinner<'_, T> {
     type State = SpinnerState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        // The widget preset is authoritative: pin the state to it so later
+        // `tick()` calls advance against the frames this widget draws.
+        state.preset = self.preset;
+        let len = self.preset.len();
+        state.frame = if len == 0 { 0 } else { state.frame % len };
+
         if area.height == 0 || area.width == 0 {
             return;
         }
@@ -283,6 +292,43 @@ mod tests {
         state.frame = SpinnerPreset::Anvil.len() - 1;
         state.tick();
         assert_eq!(state.frame, 0);
+    }
+
+    fn render_frame(spinner: Spinner<'_, EddaCraftTheme>, state: &mut SpinnerState) -> String {
+        let area = Rect::new(0, 0, 4, 1);
+        let mut buf = Buffer::empty(area);
+        spinner.render(area, &mut buf, state);
+        buf[(0, 0)].symbol().to_string()
+    }
+
+    #[test]
+    fn widget_preset_drives_tick_cycle_with_default_state() {
+        // Regression (#6605): a default state (EddaCraft, five frames) rendered
+        // by an Anvil widget (four frames) used to tick against five positions,
+        // repeating the first glyph. Rendering now pins the state to the
+        // widget preset, so the cycle is the widget's own four frames.
+        let theme = EddaCraftTheme;
+        let mut state = SpinnerState::default();
+        let mut seen = Vec::new();
+        for _ in 0..8 {
+            seen.push(render_frame(Spinner::new(&theme).anvil(), &mut state));
+            state.tick();
+        }
+        assert_eq!(seen, ["-", "=", "I", "‡", "-", "=", "I", "‡"]);
+    }
+
+    #[test]
+    fn render_wraps_out_of_range_frame_into_widget_preset() {
+        let theme = EddaCraftTheme;
+        let mut state = SpinnerState {
+            frame: SpinnerPreset::EddaCraft.len() - 1,
+            ..SpinnerState::default()
+        };
+
+        let glyph = render_frame(Spinner::new(&theme).anvil(), &mut state);
+
+        assert_eq!(state.frame, 0);
+        assert_eq!(glyph, "-");
     }
 
     #[test]

@@ -83,7 +83,9 @@ impl<T: Theme> Widget for StatusBar<'_, T> {
             .collect();
 
         Line::from(left_spans).render(chunks[0], buf);
-        Line::from(right_spans).render(chunks[1], buf);
+        Line::from(right_spans)
+            .right_aligned()
+            .render(chunks[1], buf);
     }
 }
 
@@ -137,6 +139,25 @@ mod tests {
 
         let text: String = (10..20).map(|x| buf[(x, 0)].symbol().to_string()).collect();
         assert!(text.contains("v1"));
+    }
+
+    #[test]
+    fn right_items_are_anchored_to_the_right_edge() {
+        // Regression (#6605): the right-hand line rendered left-aligned in
+        // its half, leaving the label near the centre of the bar.
+        let theme = EddaCraftTheme;
+        let area = Rect::new(0, 0, 20, 1);
+        let mut buf = Buffer::empty(area);
+
+        StatusBar::new(&theme)
+            .right(vec![
+                item("main", StatusKind::Normal),
+                item("v1", StatusKind::Muted),
+            ])
+            .render(area, &mut buf);
+
+        let text: String = (0..20).map(|x| buf[(x, 0)].symbol().to_string()).collect();
+        assert_eq!(text, format!("{:>20}", " main v1"));
     }
 
     #[test]

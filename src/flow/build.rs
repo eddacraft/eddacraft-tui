@@ -1,6 +1,6 @@
 //! Construction helpers: edge lists, role-styled specs, container grids.
 
-use rataflow::{Edge, Flow, Node, StepEdge, Sugiyama, TextContent};
+use rataflow::{Edge, Flow, HandlePosition, Node, StepEdge, Sugiyama, TextContent};
 use ratatui::style::Style;
 use unicode_width::UnicodeWidthStr;
 
@@ -126,6 +126,12 @@ pub fn themed_from_edges<T: Theme + ?Sized>(
 
 /// Construct a themed flow graph from [`NodeSpec`] / [`EdgeSpec`].
 ///
+/// The flow contains every supplied node and exactly the supplied edges.
+/// Nodes that no edge touches are kept as isolated nodes, placed in a row
+/// beneath the laid-out graph; no edges are synthesised to materialise them.
+/// An edge endpoint without a matching [`NodeSpec`] still becomes a node
+/// labelled with its id.
+///
 /// # Stability
 ///
 /// **experimental** (TUIN-017).
@@ -138,19 +144,8 @@ pub fn themed_from_specs<T: Theme + ?Sized>(
         .iter()
         .map(|e| (e.from.as_str(), e.to.as_str()))
         .collect();
-    let mut flow = if pairs.is_empty() && !nodes.is_empty() {
-        let labels: Vec<(&str, &str)> = nodes
-            .windows(2)
-            .map(|w| (w[0].id.as_str(), w[1].id.as_str()))
-            .collect();
-        if labels.is_empty() {
-            themed_from_edges(&[(nodes[0].id.as_str(), nodes[0].id.as_str())], theme)?
-        } else {
-            themed_from_edges(&labels, theme)?
-        }
-    } else {
-        themed_from_edges(&pairs, theme)?
-    };
+    let mut flow = themed_from_edges(&pairs, theme)?;
+    add_isolated_nodes(&mut flow, nodes)?;
 
     for spec in nodes {
         apply_node_role(&mut flow, &spec.id, spec.role, theme);
@@ -166,6 +161,50 @@ pub fn themed_from_specs<T: Theme + ?Sized>(
         }
     }
     Ok(flow)
+}
+
+/// Register `nodes` that the edge layout did not create. They use the same
+/// uniform sizing as [`Flow::from_edges`] (widest id plus two, three rows)
+/// and sit in one row below the laid-out graph, so they never overlap it.
+fn add_isolated_nodes(flow: &mut Flow, nodes: &[NodeSpec]) -> Result<(), rataflow::Error> {
+    #![allow(clippy::cast_precision_loss)]
+    let mut isolated: Vec<&str> = Vec::new();
+    for spec in nodes {
+        let id = spec.id.as_str();
+        if flow.node(id).is_none() && !isolated.contains(&id) {
+            isolated.push(id);
+        }
+    }
+    if isolated.is_empty() {
+        return Ok(());
+    }
+
+    let width = flow
+        .nodes()
+        .map(|n| n.width)
+        .chain(isolated.iter().map(|id| (id.len() + 2) as f64))
+        .fold(0.0, f64::max);
+    let height = flow.nodes().map(|n| n.height).fold(3.0, f64::max);
+    let margin = width.min(height);
+    let top = flow
+        .nodes()
+        .map(|n| n.position.y + n.height)
+        .reduce(f64::max)
+        .map_or(margin, |bottom| bottom + height);
+
+    for (i, id) in isolated.into_iter().enumerate() {
+        let mut node = Node::new(
+            id,
+            (margin + i as f64 * 2.0 * width, top),
+            (width, height),
+            TextContent::from(id),
+        );
+        // Match the vertical Sugiyama handles used by `themed_from_edges`.
+        node.source_position = HandlePosition::Bottom;
+        node.target_position = HandlePosition::Top;
+        flow.add_node(node)?;
+    }
+    Ok(())
 }
 
 pub(crate) fn edge_ids_between(flow: &Flow, from: &str, to: &str) -> Vec<String> {
