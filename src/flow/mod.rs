@@ -426,6 +426,43 @@ mod tests {
     }
 
     #[test]
+    fn specs_with_many_isolated_nodes_keep_the_edge_layout() {
+        // Isolated nodes are batched into one graph build; the laid-out
+        // nodes, their handles, the edges and the theme must survive it.
+        let theme = EddaCraftTheme;
+        let laid_out = themed_from_edges(&[("a", "b"), ("b", "c")], &theme).expect("valid");
+        let mut nodes = vec![
+            NodeSpec::new("a", "a"),
+            NodeSpec::new("b", "b"),
+            NodeSpec::new("c", "c"),
+        ];
+        nodes.extend((0..200).map(|i| NodeSpec::new(format!("iso{i}"), format!("iso{i}"))));
+        nodes.push(NodeSpec::new("iso0", "dup"));
+        let flow = themed_from_specs(
+            &nodes,
+            &[EdgeSpec::new("a", "b"), EdgeSpec::new("b", "c")],
+            &theme,
+        )
+        .expect("valid");
+
+        assert_eq!(flow.nodes().count(), 203);
+        assert_eq!(edge_pairs(&flow), edge_pairs(&laid_out));
+        assert_eq!(flow.theme, laid_out.theme);
+        for id in ["a", "b", "c"] {
+            let (got, want) = (flow.node(id).expect(id), laid_out.node(id).expect(id));
+            assert_eq!(got.position, want.position, "{id} moved");
+            assert_eq!(got.source_position, want.source_position);
+            assert_eq!(got.target_position, want.target_position);
+        }
+        let first = flow.node_bounds("iso0").expect("iso0");
+        let last = flow.node_bounds("iso199").expect("iso199");
+        assert!(!first.intersects(&last));
+        for id in ["a", "b", "c"] {
+            assert!(!first.intersects(&flow.node_bounds(id).expect(id)));
+        }
+    }
+
+    #[test]
     fn elide_registers_portal_without_boundary_edges() {
         // Collapsed x/y only touch each other, so no rewritten edge reaches
         // the portal; it must still be a node in the flow.

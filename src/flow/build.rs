@@ -144,8 +144,7 @@ pub fn themed_from_specs<T: Theme + ?Sized>(
         .iter()
         .map(|e| (e.from.as_str(), e.to.as_str()))
         .collect();
-    let mut flow = themed_from_edges(&pairs, theme)?;
-    add_isolated_nodes(&mut flow, nodes)?;
+    let mut flow = with_isolated_nodes(themed_from_edges(&pairs, theme)?, nodes)?;
 
     for spec in nodes {
         apply_node_role(&mut flow, &spec.id, spec.role, theme);
@@ -163,20 +162,23 @@ pub fn themed_from_specs<T: Theme + ?Sized>(
     Ok(flow)
 }
 
-/// Register `nodes` that the edge layout did not create. They use the same
+/// Add `nodes` that the edge layout did not create. They use the same
 /// uniform sizing as [`Flow::from_edges`] (widest id plus two, three rows)
 /// and sit in one row below the laid-out graph, so they never overlap it.
-fn add_isolated_nodes(flow: &mut Flow, nodes: &[NodeSpec]) -> Result<(), rataflow::Error> {
+///
+/// The laid-out nodes, edges and theme are rebuilt together with the
+/// isolated nodes in one [`Flow::with_graph`] call, as [`container_flow`]
+/// does, because each [`Flow::add_node`] re-resolves the whole hierarchy.
+fn with_isolated_nodes(flow: Flow, nodes: &[NodeSpec]) -> Result<Flow, rataflow::Error> {
     #![allow(clippy::cast_precision_loss)]
-    let mut isolated: Vec<&str> = Vec::new();
-    for spec in nodes {
-        let id = spec.id.as_str();
-        if flow.node(id).is_none() && !isolated.contains(&id) {
-            isolated.push(id);
-        }
-    }
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let isolated: Vec<&str> = nodes
+        .iter()
+        .map(|spec| spec.id.as_str())
+        .filter(|id| flow.node(id).is_none() && seen.insert(id))
+        .collect();
     if isolated.is_empty() {
-        return Ok(());
+        return Ok(flow);
     }
 
     let width = flow
@@ -192,6 +194,8 @@ fn add_isolated_nodes(flow: &mut Flow, nodes: &[NodeSpec]) -> Result<(), rataflo
         .reduce(f64::max)
         .map_or(margin, |bottom| bottom + height);
 
+    let mut graph_nodes: Vec<Node<TextContent>> = flow.nodes().cloned().collect();
+    graph_nodes.reserve(isolated.len());
     for (i, id) in isolated.into_iter().enumerate() {
         let mut node = Node::new(
             id,
@@ -202,9 +206,9 @@ fn add_isolated_nodes(flow: &mut Flow, nodes: &[NodeSpec]) -> Result<(), rataflo
         // Match the vertical Sugiyama handles used by `themed_from_edges`.
         node.source_position = HandlePosition::Bottom;
         node.target_position = HandlePosition::Top;
-        flow.add_node(node)?;
+        graph_nodes.push(node);
     }
-    Ok(())
+    Ok(Flow::with_graph(graph_nodes, flow.edges().to_vec())?.with_theme(flow.theme))
 }
 
 pub(crate) fn edge_ids_between(flow: &Flow, from: &str, to: &str) -> Vec<String> {
