@@ -41,7 +41,7 @@ use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
-use crate::json_render::sanitize::{sanitize, sanitize_props};
+use crate::json_render::sanitize::{prop_read_budget, sanitize, sanitize_props};
 use crate::json_render::{RenderSpec, TuiRegistry};
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -78,6 +78,8 @@ pub const MAX_RENDER_ELEMENTS: usize = 4_096;
 struct Walk {
     /// Element visits left before the budget is spent.
     remaining: usize,
+    /// Calls into [`render_element`] so far, counted before any early return.
+    calls: usize,
 }
 
 /// Render `spec` into `area`, resolving each element's component against
@@ -88,10 +90,22 @@ struct Walk {
 /// panics on a malformed spec — see the module docs for the degradation
 /// rules. A zero-area `area` draws nothing.
 pub fn render_spec(spec: &RenderSpec, registry: &TuiRegistry, frame: &mut Frame, area: Rect) {
+    render_spec_counted(spec, registry, frame, area);
+}
+
+/// [`render_spec`], returning how many times the walker was entered.
+fn render_spec_counted(
+    spec: &RenderSpec,
+    registry: &TuiRegistry,
+    frame: &mut Frame,
+    area: Rect,
+) -> usize {
     let mut walk = Walk {
         remaining: MAX_RENDER_ELEMENTS,
+        calls: 0,
     };
     render_element(spec, registry, &spec.root, frame, area, 0, &mut walk);
+    walk.calls
 }
 
 /// Draw element `id` (and, for registered components, its children) into `area`.
@@ -104,6 +118,7 @@ fn render_element(
     depth: usize,
     walk: &mut Walk,
 ) {
+    walk.calls += 1;
     // Nothing can be drawn into an empty rect; stop before touching the element
     // so child layouts that ran out of space simply render nothing.
     if area.width == 0 || area.height == 0 {
@@ -159,14 +174,20 @@ fn render_element(
     // Spec and bound-data strings are untrusted. Sanitise every string before
     // the component sees the bag, including nested values and keys, so a
     // third-party renderer cannot emit ESC/OSC by painting a raw prop.
-    // Clean props are borrowed. Oversized collections are capped first.
-    let props = sanitize_props(&element.props);
+    // Clean props are borrowed. Oversized collections are capped first, and
+    // each string is read only as far as the area could show.
+    let props = sanitize_props(&element.props, prop_read_budget(area));
     component.render(props.as_ref(), frame, area);
 
     let rects = component.layout_children(props.as_ref(), area, element.children.len());
     // `layout_children` may return fewer rects than children (trailing children
     // that did not fit get no space); `zip` draws exactly the pairs we have.
     for (child_id, child_area) in element.children.iter().zip(rects.iter().copied()) {
+        // Once the budget is spent, every later visit is a no-op; stop here so
+        // a wide fan-out costs no walker call per remaining child.
+        if walk.remaining == 0 {
+            break;
+        }
         render_element(spec, registry, child_id, frame, child_area, depth + 1, walk);
     }
     if element.component_type == "Stack"
@@ -469,6 +490,80 @@ mod tests {
             text.contains("[render budget reached]"),
             "the exhausted budget is named: {text:?}"
         );
+    }
+
+    #[test]
+    fn wide_fan_out_stops_traversal_once_the_budget_is_spent() {
+        // Review regression (#7763): once the budget is spent, the parent must
+        // stop walking its remaining children rather than calling the walker
+        // once per child.
+        struct Wide;
+        impl TuiComponent for Wide {
+            fn render(&self, _props: &Props, _frame: &mut Frame, _area: Rect) {}
+            fn layout_children(&self, _props: &Props, area: Rect, n: usize) -> Vec<Rect> {
+                vec![area; n]
+            }
+        }
+
+        const CHILDREN: usize = 100_000;
+        let children = vec!["leaf"; CHILDREN];
+        let spec_json = serde_json::json!({
+            "title": "x", "version": "1.0", "root": "root",
+            "elements": {
+                "root": { "type": "Wide", "props": {}, "children": children },
+                "leaf": { "type": "Wide", "props": {}, "children": [] }
+            }
+        });
+        let spec = parse(&spec_json.to_string()).expect("parse");
+        let mut registry = TuiRegistry::new();
+        registry.register("Wide", Box::new(Wide));
+
+        let mut terminal = Terminal::new(TestBackend::new(40, 3)).expect("backend");
+        let mut calls = 0;
+        terminal
+            .draw(|frame| calls = render_spec_counted(&spec, &registry, frame, frame.area()))
+            .expect("draw");
+        assert!(
+            calls <= MAX_RENDER_ELEMENTS,
+            "traversal is bounded: {calls} walker calls"
+        );
+    }
+
+    #[test]
+    fn long_clean_string_prop_is_cut_before_the_component_sees_it() {
+        // Review regression (#7763): a clean string is cut to the area's read
+        // budget before the sanitisation walk, so a huge prop is not scanned
+        // or copied in full on every frame.
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static SEEN: AtomicUsize = AtomicUsize::new(0);
+
+        struct LabelLen;
+        impl TuiComponent for LabelLen {
+            fn render(&self, props: &Props, _frame: &mut Frame, _area: Rect) {
+                let len = props
+                    .get("label")
+                    .and_then(serde_json::Value::as_str)
+                    .map_or(0, str::len);
+                SEEN.store(len, Ordering::Relaxed);
+            }
+        }
+
+        let spec_json = serde_json::json!({
+            "title": "x", "version": "1.0", "root": "a",
+            "elements": {
+                "a": { "type": "Len", "props": { "label": "x".repeat(1_000_000) }, "children": [] }
+            }
+        });
+        let spec = parse(&spec_json.to_string()).expect("parse");
+        let mut registry = TuiRegistry::new();
+        registry.register("Len", Box::new(LabelLen));
+
+        let area = Rect::new(0, 0, 40, 3);
+        render_to_string(area.width, area.height, &spec, &registry);
+        let seen = SEEN.load(Ordering::Relaxed);
+        assert!(seen > 0, "the label still reaches the component");
+        assert_eq!(seen, prop_read_budget(area), "cut to the read budget");
     }
 
     #[test]

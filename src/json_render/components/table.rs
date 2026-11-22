@@ -265,6 +265,24 @@ mod tests {
     }
 
     #[test]
+    fn narrow_table_keeps_a_grapheme_that_fits_whole() {
+        // Review regression (#7763): `👍🏽a` is three cells wide, so a three-cell
+        // table must keep the skin-tone modifier with its base rather than
+        // cutting the cluster by summing per-character widths.
+        let thumbs = "\u{1F44D}\u{1F3FD}";
+        let cell = format!("{thumbs}a");
+        let p = json!({ "rows": [[cell.clone()]] });
+        let obj = p.as_object().expect("obj");
+        let (_, rows) = Table::data(obj, Rect::new(0, 0, 3, 4));
+        assert_eq!(rows, [[cell]]);
+        let text = rendered_text(obj, 3, 4);
+        assert!(
+            !text.contains('\u{1F44D}') || text.contains(thumbs),
+            "modifier stays with its base: {text:?}"
+        );
+    }
+
+    #[test]
     fn renders_rows_without_panic() {
         let p = json!({ "columns": ["A", "B"], "rows": [["1", "2"], ["3", "4"]] });
         let mut terminal = Terminal::new(TestBackend::new(20, 6)).expect("backend");

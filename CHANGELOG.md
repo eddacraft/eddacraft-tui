@@ -60,8 +60,11 @@ minor version bump indicates a breaking change.
   `Table` stringifies only the columns kept for the area's width (one cell
   per row when there are no headers), at most one row per line of height,
   and only the text of each cell that fits in the area's width. `Table` no
-  longer turns columns, rows or text that are never drawn into strings
-  (GH #6572).
+  longer turns columns, rows or text that are never drawn into strings, and
+  cuts cell text at whole grapheme clusters. Before sanitising, `render_spec`
+  reads each string prop and key only as far as the element's area could
+  show (four characters per cell, at least 1,024), so a huge clean string is
+  no longer scanned in full every frame (GH #6572).
 
 - **`AltScreenSupport` reports an unset `TERM` on a terminal as `Supported`.**
   Windows consoles and Windows Terminal set no `TERM` and do host an

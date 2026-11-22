@@ -11,8 +11,10 @@
 
 use std::borrow::Cow;
 
+use ratatui::layout::Rect;
 use serde_json::Value;
-use unicode_width::UnicodeWidthChar;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 use crate::json_render::spec::Props;
 
@@ -45,31 +47,60 @@ pub fn sanitize(s: &str) -> String {
 /// [`sanitize`] `s`, keeping only the leading text that fits in `max_width`
 /// terminal cells.
 ///
-/// Width is display width: a wide character takes two cells, and a combining
-/// mark takes none, so it stays with the character before it. Stops reading
-/// `s` once the width is used up, so a huge string costs no more than the text
-/// that can be shown. A run of zero-width characters is also cut at
-/// `ZERO_WIDTH_ALLOWANCE` characters per cell, keeping the work bounded.
-/// Stripped characters count towards neither limit.
+/// Width is display width, measured per grapheme cluster: a wide character
+/// takes two cells, a combining mark or emoji modifier stays with its base,
+/// and a cluster that does not fit whole is dropped. At most
+/// `ZERO_WIDTH_ALLOWANCE` characters per cell of `s` are read, stripped
+/// characters included, so a huge string — or a long run of stripped or
+/// zero-width characters — costs no more than the text that can be shown.
+/// Stripped characters use up no width.
 #[must_use]
 pub(crate) fn sanitize_to_width(s: &str, max_width: usize) -> String {
     let max_chars = max_width.saturating_mul(ZERO_WIDTH_ALLOWANCE);
+    let mut out = sanitize_prefix(s, max_chars);
     let mut used = 0usize;
-    let mut out = String::new();
-    for c in s.chars().filter(|c| is_display_safe(*c)).take(max_chars) {
-        let width = UnicodeWidthChar::width(c).unwrap_or(0);
+    let mut end = 0usize;
+    for cluster in out.graphemes(true) {
+        let width = UnicodeWidthStr::width(cluster);
         if used + width > max_width {
             break;
         }
         used += width;
-        out.push(c);
+        end += cluster.len();
     }
+    out.truncate(end);
     out
 }
 
-/// Characters [`sanitize_to_width`] reads per cell of width, at most. Room for
-/// a base character and several combining marks.
+/// Characters read per cell of width, at most. Room for a base character and
+/// several combining marks.
 const ZERO_WIDTH_ALLOWANCE: usize = 4;
+
+/// Floor for [`prop_read_budget`], so short identifier-like props (a variant
+/// or status name) survive whole in a tiny area.
+const MIN_PROP_READ_BUDGET: usize = 1_024;
+
+/// Characters of each string prop that [`sanitize_props`] reads when the
+/// element is drawn into `area`.
+///
+/// A component cannot show more than one character per cell plus combining
+/// marks, so longer text is never visible; reading it would only add work.
+#[must_use]
+pub(crate) fn prop_read_budget(area: Rect) -> usize {
+    usize::from(area.width)
+        .saturating_mul(usize::from(area.height))
+        .saturating_mul(ZERO_WIDTH_ALLOWANCE)
+        .max(MIN_PROP_READ_BUDGET)
+}
+
+/// [`sanitize`] at most the first `max_chars` characters of `s`. Stripped
+/// characters count towards `max_chars`.
+fn sanitize_prefix(s: &str, max_chars: usize) -> String {
+    s.chars()
+        .take(max_chars)
+        .filter(|c| is_display_safe(*c))
+        .collect()
+}
 
 /// Whether `c` survives [`sanitize`].
 fn is_display_safe(c: char) -> bool {
@@ -78,33 +109,39 @@ fn is_display_safe(c: char) -> bool {
 
 /// Props safe to hand to a component.
 ///
-/// When every string is already display-safe and no collection exceeds
-/// [`MAX_PROPS_COLLECTION`], this borrows `props` and allocates nothing.
-/// Otherwise it returns an owned bag: strings are sanitised, arrays and
-/// objects are capped, and a key that only matches another key after
-/// sanitising does not overwrite the entry already stored.
+/// Reads at most `max_chars` characters of each string and key — see
+/// [`prop_read_budget`] — so a huge string costs no more than what the area
+/// could show. When every string is already display-safe and within
+/// `max_chars`, and no collection exceeds [`MAX_PROPS_COLLECTION`], this
+/// borrows `props` and allocates nothing. Otherwise it returns an owned bag:
+/// strings are cut to `max_chars` and sanitised, arrays and objects are
+/// capped, and a key that only matches another key after sanitising does not
+/// overwrite the entry already stored.
 ///
 /// [`render_spec`](crate::json_render::render_spec) passes the result to
 /// [`TuiComponent::render`](crate::json_render::TuiComponent::render), so a
 /// component that paints a raw string prop cannot emit terminal control bytes.
 /// Numbers, booleans, and null are unchanged.
 #[must_use]
-pub(crate) fn sanitize_props(props: &Props) -> Cow<'_, Props> {
-    if object_needs_rebuild(props) {
-        Cow::Owned(rebuild_object(props))
+pub(crate) fn sanitize_props(props: &Props, max_chars: usize) -> Cow<'_, Props> {
+    if object_needs_rebuild(props, max_chars) {
+        Cow::Owned(rebuild_object(props, max_chars))
     } else {
         Cow::Borrowed(props)
     }
 }
 
-fn string_needs_sanitize(text: &str) -> bool {
+/// Whether `text` holds a stripped character or runs past `max_chars`. Reads
+/// at most `max_chars + 1` characters.
+fn string_needs_rebuild(text: &str, max_chars: usize) -> bool {
     text.chars()
-        .any(|c| c.is_control() || is_bidi_or_zero_width(c))
+        .enumerate()
+        .any(|(index, c)| index >= max_chars || !is_display_safe(c))
 }
 
-fn value_needs_rebuild(value: &Value) -> bool {
+fn value_needs_rebuild(value: &Value, max_chars: usize) -> bool {
     match value {
-        Value::String(text) => string_needs_sanitize(text),
+        Value::String(text) => string_needs_rebuild(text, max_chars),
         // Length is enough. Do not walk past the ceiling: that walk is the
         // per-frame cost the built-in caps exist to avoid.
         Value::Array(items) => {
@@ -112,41 +149,41 @@ fn value_needs_rebuild(value: &Value) -> bool {
                 || items
                     .iter()
                     .take(MAX_PROPS_COLLECTION)
-                    .any(value_needs_rebuild)
+                    .any(|item| value_needs_rebuild(item, max_chars))
         }
-        Value::Object(map) => object_needs_rebuild(map),
+        Value::Object(map) => object_needs_rebuild(map, max_chars),
         _ => false,
     }
 }
 
-fn object_needs_rebuild(map: &Props) -> bool {
+fn object_needs_rebuild(map: &Props, max_chars: usize) -> bool {
     map.len() > MAX_PROPS_COLLECTION
-        || map
-            .iter()
-            .any(|(key, value)| string_needs_sanitize(key) || value_needs_rebuild(value))
+        || map.iter().any(|(key, value)| {
+            string_needs_rebuild(key, max_chars) || value_needs_rebuild(value, max_chars)
+        })
 }
 
-fn rebuild_value(value: &Value) -> Value {
+fn rebuild_value(value: &Value, max_chars: usize) -> Value {
     match value {
-        Value::String(text) => Value::String(sanitize(text)),
+        Value::String(text) => Value::String(sanitize_prefix(text, max_chars)),
         Value::Array(items) => Value::Array(
             items
                 .iter()
                 .take(MAX_PROPS_COLLECTION)
-                .map(rebuild_value)
+                .map(|item| rebuild_value(item, max_chars))
                 .collect(),
         ),
-        Value::Object(map) => Value::Object(rebuild_object(map)),
+        Value::Object(map) => Value::Object(rebuild_object(map, max_chars)),
         other => other.clone(),
     }
 }
 
-fn rebuild_object(map: &Props) -> Props {
+fn rebuild_object(map: &Props, max_chars: usize) -> Props {
     let mut out = Props::new();
     for (key, value) in map.iter().take(MAX_PROPS_COLLECTION) {
-        let value = rebuild_value(value);
-        if string_needs_sanitize(key) {
-            let clean = sanitize(key);
+        let value = rebuild_value(value, max_chars);
+        if string_needs_rebuild(key, max_chars) {
+            let clean = sanitize_prefix(key, max_chars);
             // A sanitised alias must not replace a key already stored. The
             // clean spelling, when present, is inserted on its own turn and
             // overwrites an alias that sorted earlier.
@@ -221,7 +258,7 @@ mod tests {
         .as_object()
         .expect("object")
         .clone();
-        let clean = sanitize_props(&props);
+        let clean = sanitize_props(&props, usize::MAX);
         assert!(clean.contains_key("label"));
         assert!(!clean.keys().any(|key| key.chars().any(char::is_control)));
         let items = clean
@@ -250,7 +287,7 @@ mod tests {
             .as_object()
             .expect("object")
             .clone();
-        let clean = sanitize_props(&props);
+        let clean = sanitize_props(&props, usize::MAX);
         assert!(matches!(clean, Cow::Borrowed(_)));
         assert!(std::ptr::eq(clean.as_ref(), &raw const props));
     }
@@ -266,7 +303,7 @@ mod tests {
         .as_object()
         .expect("object")
         .clone();
-        let clean = sanitize_props(&props);
+        let clean = sanitize_props(&props, usize::MAX);
         assert_eq!(clean.len(), 1);
         assert_eq!(clean.get("status").and_then(Value::as_str), Some("fail"));
     }
@@ -282,9 +319,45 @@ mod tests {
         .as_object()
         .expect("object")
         .clone();
-        let clean = sanitize_props(&props);
+        let clean = sanitize_props(&props, usize::MAX);
         assert_eq!(clean.len(), 1);
         assert_eq!(clean.get("status").and_then(Value::as_str), Some("fail"));
+    }
+
+    #[test]
+    fn width_cut_counts_stripped_characters_towards_the_read_budget() {
+        // Review regression (#7763): the read cap applies before filtering, so
+        // a long stripped prefix cannot force a scan past the limit.
+        let hostile = format!("{}ok", "\u{1b}".repeat(100_000));
+        assert_eq!(sanitize_to_width(&hostile, 40), "");
+        // Within the budget, stripped characters still do not use up width.
+        let short = format!("{}ok", "\u{1b}".repeat(100));
+        assert_eq!(sanitize_to_width(&short, 40), "ok");
+    }
+
+    #[test]
+    fn width_cut_keeps_a_whole_grapheme_that_fits() {
+        // Review regression (#7763): the skin-tone modifier belongs to its
+        // base, and the cluster is two cells wide, so `👍🏽a` fits three cells.
+        let thumbs = "\u{1F44D}\u{1F3FD}";
+        let text = format!("{thumbs}a");
+        assert_eq!(sanitize_to_width(&text, 3), text);
+        assert_eq!(sanitize_to_width(&text, 2), thumbs);
+        assert_eq!(sanitize_to_width(&text, 1), "");
+    }
+
+    #[test]
+    fn sanitize_props_cuts_a_clean_string_to_the_read_budget() {
+        // Review regression (#7763): a long clean string is cut to the read
+        // budget rather than borrowed and scanned in full every frame.
+        let mut props = Props::new();
+        props.insert("label".to_owned(), Value::String("x".repeat(10_000)));
+        props.insert("short".to_owned(), Value::String("ok".to_owned()));
+        let clean = sanitize_props(&props, 100);
+        assert!(matches!(clean, Cow::Owned(_)));
+        let label = clean.get("label").and_then(Value::as_str).expect("label");
+        assert_eq!(label.len(), 100);
+        assert_eq!(clean.get("short").and_then(Value::as_str), Some("ok"));
     }
 
     #[test]
@@ -298,7 +371,7 @@ mod tests {
         rows.push(Value::String("\u{1b}dropped".to_owned()));
         let mut props = Props::new();
         props.insert("rows".to_owned(), Value::Array(rows));
-        let clean = sanitize_props(&props);
+        let clean = sanitize_props(&props, usize::MAX);
         let kept = clean.get("rows").and_then(Value::as_array).expect("rows");
         assert_eq!(kept.len(), MAX_PROPS_COLLECTION);
         assert_eq!(kept[0], Value::String("kept".to_owned()));
