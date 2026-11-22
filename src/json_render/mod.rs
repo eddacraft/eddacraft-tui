@@ -69,7 +69,7 @@ pub use catalog_sync::{CatalogParity, check_parity};
 pub use component::TuiComponent;
 pub use components::base_registry;
 pub use registry::TuiRegistry;
-pub use renderer::{MAX_DEPTH, render_spec};
+pub use renderer::{MAX_DEPTH, MAX_RENDER_ELEMENTS, render_spec};
 pub use sanitize::sanitize;
 pub use spec::{Element, PropValue, Props, RenderSpec, parse, to_json_pretty};
 

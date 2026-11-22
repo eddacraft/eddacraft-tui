@@ -175,11 +175,14 @@ mod props {
         }
     }
 
-    /// Read a prop that is a JSON array of numbers into a `Vec<f64>` of at most
-    /// `max` entries, skipping non-numeric ones. The `take(max)` runs *during*
-    /// iteration, so an attacker-controlled array never materialises a giant
-    /// intermediate `Vec` — only `max` points are ever allocated. An absent or
-    /// non-array prop yields an empty vec.
+    /// Read a prop that is a JSON array of numbers into a `Vec<f64>`, examining
+    /// at most the first `max` array **entries** and skipping non-numeric ones.
+    ///
+    /// The cap is on input entries, not numeric points: `take(max)` runs before
+    /// the filter, so an attacker-controlled array with a long non-numeric
+    /// prefix cannot force a full scan every frame, and at most `max` points
+    /// are ever allocated. Numbers past the first `max` entries are dropped. An
+    /// absent or non-array prop yields an empty vec.
     // `map_or_default` is stable from Rust 1.98. This crate's MSRV is 1.88.
     #[allow(clippy::map_unwrap_or)]
     pub(super) fn f64_array_capped(props: &Props, key: &str, max: usize) -> Vec<f64> {
@@ -189,8 +192,8 @@ mod props {
             .map(|items| {
                 items
                     .iter()
-                    .filter_map(serde_json::Value::as_f64)
                     .take(max)
+                    .filter_map(serde_json::Value::as_f64)
                     .collect()
             })
             .unwrap_or_default()
@@ -224,5 +227,30 @@ mod props {
             },
             None => 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::props::f64_array_capped;
+
+    #[test]
+    fn f64_array_cap_counts_input_entries_not_numeric_points() {
+        // A long non-numeric prefix must not be scanned past the cap: only the
+        // first `max` entries are examined, so the trailing number is dropped.
+        let mut data = vec![json!("x"); 2_000];
+        data.push(json!(7.0));
+        let props = json!({ "data": data });
+        let values = f64_array_capped(props.as_object().expect("obj"), "data", 1_000);
+        assert!(values.is_empty(), "scanned past the cap: {values:?}");
+    }
+
+    #[test]
+    fn f64_array_cap_keeps_numbers_within_the_cap_and_skips_the_rest() {
+        let props = json!({ "data": [1, "x", 2.5, null, 3, 4] });
+        let values = f64_array_capped(props.as_object().expect("obj"), "data", 5);
+        assert_eq!(values, [1.0, 2.5, 3.0]);
     }
 }

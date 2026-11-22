@@ -25,6 +25,11 @@
 //!   `[missing: id]` marker rather than indexing a missing key.
 //! - **Cycles / pathological depth**: a [`MAX_DEPTH`] guard stops descent, so a
 //!   `children` cycle that slipped past validation cannot loop forever.
+//! - **Shared-child DAGs / runaway fan-out**: depth alone does not bound the
+//!   walk — a layered graph whose nodes share children passes validation yet
+//!   expands to exponentially many visits. A per-render budget of
+//!   [`MAX_RENDER_ELEMENTS`] element visits caps the total work; once spent,
+//!   one `[render budget reached]` marker is drawn and the walk stops.
 //! - **Stack over the layout cap**: a `Stack` with more children than the
 //!   layout cap still draws the tracks it was given, then a one-line note
 //!   naming how many children were left out. `validate` reports the same limit.
@@ -50,6 +55,31 @@ use crate::theme::{EddaCraftTheme, Theme};
 /// validate first), so the recursive walk cannot run away.
 pub const MAX_DEPTH: usize = 64;
 
+/// Maximum number of element visits in one [`render_spec`] call. The last
+/// visit draws a guard placeholder in place of its element and the walk stops,
+/// so at most `MAX_RENDER_ELEMENTS - 1` elements render.
+///
+/// [`MAX_DEPTH`] bounds how deep the walk goes, not how much work it does: a
+/// spec may list the same child under many parents (validation accepts shared
+/// children), so a compact layered DAG can expand to exponentially many
+/// visits. Every element that reaches a non-empty area counts once per visit,
+/// whether it renders, is a placeholder, or is missing.
+///
+/// 4,096 is far more drawn elements than a terminal can show legibly — an
+/// 80×24 terminal has 1,920 cells — while keeping per-frame work bounded.
+///
+/// # Stability
+///
+/// **experimental** (D-TUIN-005). The value may change in any release as the
+/// renderer's work bounds are tuned.
+pub const MAX_RENDER_ELEMENTS: usize = 4_096;
+
+/// Per-call walk state shared across the whole recursive render.
+struct Walk {
+    /// Element visits left before the budget is spent.
+    remaining: usize,
+}
+
 /// Render `spec` into `area`, resolving each element's component against
 /// `registry`.
 ///
@@ -58,7 +88,10 @@ pub const MAX_DEPTH: usize = 64;
 /// panics on a malformed spec — see the module docs for the degradation
 /// rules. A zero-area `area` draws nothing.
 pub fn render_spec(spec: &RenderSpec, registry: &TuiRegistry, frame: &mut Frame, area: Rect) {
-    render_element(spec, registry, &spec.root, frame, area, 0);
+    let mut walk = Walk {
+        remaining: MAX_RENDER_ELEMENTS,
+    };
+    render_element(spec, registry, &spec.root, frame, area, 0, &mut walk);
 }
 
 /// Draw element `id` (and, for registered components, its children) into `area`.
@@ -69,10 +102,22 @@ fn render_element(
     frame: &mut Frame,
     area: Rect,
     depth: usize,
+    walk: &mut Walk,
 ) {
     // Nothing can be drawn into an empty rect; stop before touching the element
     // so child layouts that ran out of space simply render nothing.
     if area.width == 0 || area.height == 0 {
+        return;
+    }
+
+    // Work budget: the visit that spends the last unit draws the single marker
+    // in place of its element; every later visit is a no-op.
+    if walk.remaining == 0 {
+        return;
+    }
+    walk.remaining -= 1;
+    if walk.remaining == 0 {
+        draw_placeholder(frame, area, "[render budget reached]");
         return;
     }
 
@@ -122,7 +167,7 @@ fn render_element(
     // `layout_children` may return fewer rects than children (trailing children
     // that did not fit get no space); `zip` draws exactly the pairs we have.
     for (child_id, child_area) in element.children.iter().zip(rects.iter().copied()) {
-        render_element(spec, registry, child_id, frame, child_area, depth + 1);
+        render_element(spec, registry, child_id, frame, child_area, depth + 1, walk);
     }
     if element.component_type == "Stack"
         && element.children.len() > super::components::MAX_LAYOUT_CHILDREN
@@ -363,6 +408,75 @@ mod tests {
         // the MAX_DEPTH guard specifically.
         let text = render_to_string(40, 80, &spec, &registry);
         assert!(text.contains("[max render depth reached]"), "got: {text:?}");
+    }
+
+    #[test]
+    fn shared_child_dag_is_bounded_by_the_render_budget() {
+        // A layered diamond: every node in level `i` lists both nodes of level
+        // `i + 1`, and each child is given the parent's full area. Validation
+        // accepts shared children, and the depth stays far below MAX_DEPTH, so
+        // without a work budget the walk visits 2^LEVELS elements.
+        use std::fmt::Write as _;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        static VISITS: AtomicUsize = AtomicUsize::new(0);
+
+        struct Fanout;
+        impl TuiComponent for Fanout {
+            fn render(&self, _props: &Props, _frame: &mut Frame, _area: Rect) {
+                VISITS.fetch_add(1, Ordering::Relaxed);
+            }
+            fn layout_children(&self, _props: &Props, area: Rect, n: usize) -> Vec<Rect> {
+                vec![area; n]
+            }
+        }
+
+        const LEVELS: usize = 18;
+        let mut elements = String::new();
+        for level in 0..LEVELS {
+            for side in 0..2 {
+                if !elements.is_empty() {
+                    elements.push(',');
+                }
+                let children = if level + 1 < LEVELS {
+                    format!(r#"["n{next}a","n{next}b"]"#, next = level + 1)
+                } else {
+                    "[]".to_owned()
+                };
+                let tag = if side == 0 { 'a' } else { 'b' };
+                write!(
+                    elements,
+                    r#""n{level}{tag}": {{"type": "Fan", "props": {{}}, "children": {children}}}"#
+                )
+                .expect("writing to a String is infallible");
+            }
+        }
+        let spec = parse(&format!(
+            r#"{{"title": "x", "version": "1.0", "root": "n0a", "elements": {{{elements}}}}}"#
+        ))
+        .expect("parse");
+        let mut registry = TuiRegistry::new();
+        registry.register("Fan", Box::new(Fanout));
+
+        VISITS.store(0, Ordering::Relaxed);
+        let text = render_to_string(40, 3, &spec, &registry);
+        let visits = VISITS.load(Ordering::Relaxed);
+        assert!(
+            visits <= MAX_RENDER_ELEMENTS,
+            "render work is bounded: {visits} component renders"
+        );
+        assert!(
+            text.contains("[render budget reached]"),
+            "the exhausted budget is named: {text:?}"
+        );
+    }
+
+    #[test]
+    fn spec_within_the_render_budget_has_no_budget_note() {
+        let spec = labelled_stack(3, "ONE", "THREE");
+        let text = render_to_string(40, 8, &spec, &crate::json_render::base_registry());
+        assert!(text.contains("ONE") && text.contains("THREE"), "{text:?}");
+        assert!(!text.contains("render budget"), "{text:?}");
     }
 
     #[test]

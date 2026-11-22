@@ -12,6 +12,7 @@
 use std::borrow::Cow;
 
 use serde_json::Value;
+use unicode_width::UnicodeWidthChar;
 
 use crate::json_render::spec::Props;
 
@@ -38,9 +39,41 @@ const MAX_PROPS_COLLECTION: usize = 1_000;
 /// emoji) — is returned unchanged.
 #[must_use]
 pub fn sanitize(s: &str) -> String {
-    s.chars()
-        .filter(|c| !c.is_control() && !is_bidi_or_zero_width(*c))
-        .collect()
+    s.chars().filter(|c| is_display_safe(*c)).collect()
+}
+
+/// [`sanitize`] `s`, keeping only the leading text that fits in `max_width`
+/// terminal cells.
+///
+/// Width is display width: a wide character takes two cells, and a combining
+/// mark takes none, so it stays with the character before it. Stops reading
+/// `s` once the width is used up, so a huge string costs no more than the text
+/// that can be shown. A run of zero-width characters is also cut at
+/// `ZERO_WIDTH_ALLOWANCE` characters per cell, keeping the work bounded.
+/// Stripped characters count towards neither limit.
+#[must_use]
+pub(crate) fn sanitize_to_width(s: &str, max_width: usize) -> String {
+    let max_chars = max_width.saturating_mul(ZERO_WIDTH_ALLOWANCE);
+    let mut used = 0usize;
+    let mut out = String::new();
+    for c in s.chars().filter(|c| is_display_safe(*c)).take(max_chars) {
+        let width = UnicodeWidthChar::width(c).unwrap_or(0);
+        if used + width > max_width {
+            break;
+        }
+        used += width;
+        out.push(c);
+    }
+    out
+}
+
+/// Characters [`sanitize_to_width`] reads per cell of width, at most. Room for
+/// a base character and several combining marks.
+const ZERO_WIDTH_ALLOWANCE: usize = 4;
+
+/// Whether `c` survives [`sanitize`].
+fn is_display_safe(c: char) -> bool {
+    !c.is_control() && !is_bidi_or_zero_width(c)
 }
 
 /// Props safe to hand to a component.

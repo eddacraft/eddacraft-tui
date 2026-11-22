@@ -48,6 +48,21 @@ minor version bump indicates a breaking change.
 
 ### Fixed
 
+- **json-render work per frame is bounded by what the terminal can show.**
+  `render_spec` visits at most the new, experimental `MAX_RENDER_ELEMENTS`
+  (4,096) elements per call. A spec that lists the same children under many
+  parents passes `validate` and stays under `MAX_DEPTH`, but it used to
+  expand to exponentially many visits. Past the budget the renderer draws one
+  `[render budget reached]` marker and stops. `LineChart` and
+  `SparklineChart` now read at most the first 1,000 `data` entries, so a long
+  non-numeric prefix is no longer scanned in full on every frame. Numbers
+  after the first 1,000 entries are dropped, as they are for `BarChart`.
+  `Table` stringifies only the columns kept for the area's width (one cell
+  per row when there are no headers), at most one row per line of height,
+  and only the text of each cell that fits in the area's width. `Table` no
+  longer turns columns, rows or text that are never drawn into strings
+  (GH #6572).
+
 - **`AltScreenSupport` reports an unset `TERM` on a terminal as `Supported`.**
   Windows consoles and Windows Terminal set no `TERM` and do host an
   alternate screen, so `AltScreenSupport::resolve(true, None)` now returns

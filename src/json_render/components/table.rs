@@ -14,7 +14,7 @@ use ratatui::layout::Rect;
 use serde_json::Value;
 
 use crate::json_render::responsive::max_table_columns;
-use crate::json_render::sanitize::sanitize;
+use crate::json_render::sanitize::sanitize_to_width;
 use crate::json_render::{Props, TuiComponent};
 use crate::theme::EddaCraftTheme;
 use crate::widgets::data_table::DataTable;
@@ -29,11 +29,12 @@ const MAX_TABLE_ROWS: usize = 1_000;
 pub struct Table;
 
 /// Stringify a single JSON cell value for display, sanitising string cells of
-/// control characters. Objects/arrays/null render as an em dash rather than raw
-/// JSON, keeping cells terse.
-fn cell_text(value: &Value) -> String {
+/// control characters and keeping only the text that fits in `max_width` cells
+/// (no column is wider than the table's area). Objects/arrays/null render as
+/// an em dash rather than raw JSON, keeping cells terse.
+fn cell_text(value: &Value, max_width: usize) -> String {
     match value {
-        Value::String(s) => sanitize(s),
+        Value::String(s) => sanitize_to_width(s, max_width),
         Value::Number(n) => n.to_string(),
         Value::Bool(b) => b.to_string(),
         _ => "—".to_owned(),
@@ -41,27 +42,47 @@ fn cell_text(value: &Value) -> String {
 }
 
 impl Table {
-    /// Extract `(headers, rows)` from props, tolerating absent or ill-typed
-    /// values by yielding empty collections.
+    /// Extract `(headers, rows)` from props for drawing into `area`, tolerating
+    /// absent or ill-typed values by yielding empty collections.
+    ///
+    /// Only what `area` can show is stringified, so per-frame work does not
+    /// grow with the spec:
+    ///
+    /// - columns: the leading [`max_table_columns`] headers (progressive column
+    ///   hiding, TUIDASH-011), and the same number of cells per row — one cell
+    ///   when there are no headers, as the table then draws a single column;
+    /// - rows: at most `area.height`, and never more than [`MAX_TABLE_ROWS`];
+    /// - cells: at most `area.width` cells of sanitised text.
     // `map_or_default` is stable from Rust 1.98. This crate's MSRV is 1.88.
     #[allow(clippy::map_unwrap_or)]
-    fn data(props: &Props) -> (Vec<String>, Vec<Vec<String>>) {
-        let headers = props
-            .get("columns")
-            .and_then(Value::as_array)
-            .map(|cols| cols.iter().map(cell_text).collect())
+    fn data(props: &Props, area: Rect) -> (Vec<String>, Vec<Vec<String>>) {
+        let max_width = usize::from(area.width);
+        let columns = props.get("columns").and_then(Value::as_array);
+        let keep = max_table_columns(area.width, columns.map_or(0, Vec::len));
+        let headers = columns
+            .map(|cols| {
+                cols.iter()
+                    .take(keep)
+                    .map(|v| cell_text(v, max_width))
+                    .collect()
+            })
             .unwrap_or_default();
+        let cells_per_row = keep.max(1);
         let rows = props
             .get("rows")
             .and_then(Value::as_array)
             .map(|rows| {
-                // Cap materialised rows so a pathologically large `rows` array
-                // cannot force an unbounded per-frame stringification allocation.
                 rows.iter()
-                    .take(MAX_TABLE_ROWS)
+                    .take(MAX_TABLE_ROWS.min(usize::from(area.height)))
                     .map(|row| {
                         row.as_array()
-                            .map(|cells| cells.iter().map(cell_text).collect())
+                            .map(|cells| {
+                                cells
+                                    .iter()
+                                    .take(cells_per_row)
+                                    .map(|v| cell_text(v, max_width))
+                                    .collect()
+                            })
                             .unwrap_or_default()
                     })
                     .collect()
@@ -77,17 +98,11 @@ impl TuiComponent for Table {
             return;
         }
         let theme = EddaCraftTheme;
-        let (mut headers, mut rows) = Self::data(props);
-        // Progressive column hiding (TUIDASH-011): in a narrow area, keep only as
-        // many leading columns as fit at a readable width and drop the rest, so
-        // cells stay legible rather than squeezing to a character or two.
-        let keep = max_table_columns(area.width, headers.len());
-        if keep < headers.len() {
-            headers.truncate(keep);
-            for row in &mut rows {
-                row.truncate(keep);
-            }
-        }
+        // Progressive column hiding (TUIDASH-011) happens during extraction: in
+        // a narrow area only as many leading columns as fit at a readable width
+        // are kept, so cells stay legible rather than squeezing to a character
+        // or two, and the dropped columns are never stringified.
+        let (headers, rows) = Self::data(props, area);
         // `DataTable::new` borrows `&[&str]`, so the header strings must outlive
         // the widget; they do — both live to the end of this call.
         let header_refs: Vec<&str> = headers.iter().map(String::as_str).collect();
@@ -107,13 +122,99 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// An area large enough that no extraction bound applies.
+    const WIDE: Rect = Rect::new(0, 0, 200, 60);
+
+    #[test]
+    fn extraction_keeps_only_the_columns_that_fit() {
+        // 10,000 columns in a 40-cell area: only the leading columns that the
+        // responsive limit keeps are stringified, for headers and every row.
+        let columns: Vec<String> = (0..10_000).map(|i| format!("C{i}")).collect();
+        let row: Vec<u32> = (0..10_000).collect();
+        let p = json!({ "columns": columns, "rows": [row.clone(), row] });
+        let area = Rect::new(0, 0, 40, 10);
+        let keep = max_table_columns(area.width, 10_000);
+        let (headers, rows) = Table::data(p.as_object().expect("obj"), area);
+        assert_eq!(headers.len(), keep);
+        assert_eq!(headers[0], "C0");
+        assert!(rows.iter().all(|row| row.len() == keep), "{rows:?}");
+    }
+
+    #[test]
+    fn extraction_without_headers_keeps_the_one_drawn_column() {
+        // With no headers the table draws a single column, so wider rows are
+        // cut to that column before their cells are stringified.
+        let row: Vec<u32> = (0..10_000).collect();
+        let p = json!({ "rows": [row] });
+        let (headers, rows) = Table::data(p.as_object().expect("obj"), WIDE);
+        assert!(headers.is_empty());
+        assert_eq!(rows, [["0"]]);
+    }
+
+    #[test]
+    fn extraction_keeps_only_the_rows_that_fit() {
+        let rows: Vec<Vec<u32>> = (0..500).map(|i| vec![i]).collect();
+        let p = json!({ "columns": ["N"], "rows": rows });
+        let area = Rect::new(0, 0, 40, 5);
+        let (_, rows) = Table::data(p.as_object().expect("obj"), area);
+        assert_eq!(rows.len(), 5, "no more rows than the area is tall");
+        assert_eq!(rows[0], ["0"]);
+    }
+
+    #[test]
+    fn extraction_cuts_cell_text_to_the_area_width() {
+        let long = "x".repeat(100_000);
+        let p = json!({ "columns": [long.clone()], "rows": [[long]] });
+        let area = Rect::new(0, 0, 40, 5);
+        let (headers, rows) = Table::data(p.as_object().expect("obj"), area);
+        assert_eq!(headers[0].chars().count(), 40);
+        assert_eq!(rows[0][0].chars().count(), 40);
+    }
+
+    #[test]
+    fn cell_cut_counts_display_width_not_characters() {
+        // Combining marks take no cells, so 25 decomposed `é` (50 chars) fit a
+        // 40-cell area whole; wide characters take two cells each.
+        let decomposed = "e\u{301}".repeat(25);
+        let wide = "漢".repeat(100);
+        let p = json!({ "columns": ["A"], "rows": [[decomposed.clone()], [wide]] });
+        let area = Rect::new(0, 0, 40, 5);
+        let (_, rows) = Table::data(p.as_object().expect("obj"), area);
+        assert_eq!(rows[0][0], decomposed);
+        assert_eq!(rows[1][0], "漢".repeat(20));
+    }
+
+    #[test]
+    fn cell_cut_bounds_a_flood_of_zero_width_characters() {
+        let flood = format!("a{}", "\u{301}".repeat(100_000));
+        let p = json!({ "columns": ["A"], "rows": [[flood]] });
+        let area = Rect::new(0, 0, 40, 5);
+        let (_, rows) = Table::data(p.as_object().expect("obj"), area);
+        assert!(
+            rows[0][0].chars().count() <= 40 * 4,
+            "zero-width flood is cut"
+        );
+        assert!(rows[0][0].starts_with('a'));
+    }
+
+    #[test]
+    fn cell_cut_counts_visible_characters_after_sanitising() {
+        // Control characters are stripped before the cut, so they cannot use
+        // up the width and hide the visible text.
+        let hostile = format!("{}ok", "\u{1b}".repeat(100));
+        let p = json!({ "columns": ["A"], "rows": [[hostile]] });
+        let area = Rect::new(0, 0, 40, 5);
+        let (_, rows) = Table::data(p.as_object().expect("obj"), area);
+        assert_eq!(rows[0][0], "ok");
+    }
+
     #[test]
     fn extracts_headers_and_stringifies_mixed_cells() {
         let p = json!({
             "columns": ["Check", "Score", "Pass"],
             "rows": [["secrets", 92, true], ["lint", 88, false]]
         });
-        let (headers, rows) = Table::data(p.as_object().expect("obj"));
+        let (headers, rows) = Table::data(p.as_object().expect("obj"), WIDE);
         assert_eq!(headers, ["Check", "Score", "Pass"]);
         assert_eq!(rows[0], ["secrets", "92", "true"]);
         assert_eq!(rows[1], ["lint", "88", "false"]);
@@ -121,10 +222,10 @@ mod tests {
 
     #[test]
     fn missing_or_ill_typed_data_yields_empty() {
-        let (h, r) = Table::data(&Props::new());
+        let (h, r) = Table::data(&Props::new(), WIDE);
         assert!(h.is_empty() && r.is_empty());
         let p = json!({ "columns": "nope", "rows": 7 });
-        let (h, r) = Table::data(p.as_object().expect("obj"));
+        let (h, r) = Table::data(p.as_object().expect("obj"), WIDE);
         assert!(h.is_empty() && r.is_empty());
     }
 
